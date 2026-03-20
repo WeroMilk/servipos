@@ -62,20 +62,21 @@ export function LoginForm() {
     <div
       className={cn(
         'fixed inset-0 z-0 flex min-h-dvh w-full flex-col items-center overflow-y-auto overflow-x-hidden',
-        /* Móvil: card arriba para que usuario/contraseña no queden bajo el teclado */
-        'justify-start px-4 pb-10 pt-[max(1.25rem,env(safe-area-inset-top,0px))]',
+        /* Móvil: entre top y centro (~20dvh bajo safe-area) para teclado sin pegar al borde */
+        'justify-start px-4 pb-10 pt-[max(1.25rem,calc(env(safe-area-inset-top,0px)+20dvh))]',
         'sm:justify-center sm:px-8 sm:py-8 sm:pb-8 sm:pt-8'
       )}
     >
       {/* Capa base: azul en todo el viewport (sin bandas negras en los bordes) */}
       <div
-        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-sky-950 via-blue-950 to-cyan-950"
+        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-black via-slate-950 to-slate-950"
         aria-hidden
       />
+      <div className="pointer-events-none absolute inset-0 bg-black/55" aria-hidden />
       <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
-        <div className="absolute -left-1/4 top-0 h-[min(100dvh,56rem)] w-[min(140vw,56rem)] rounded-full bg-cyan-500/25 blur-3xl" />
-        <div className="absolute -right-1/4 bottom-0 h-[min(100dvh,52rem)] w-[min(130vw,52rem)] rounded-full bg-blue-500/30 blur-3xl" />
-        <div className="absolute left-1/2 top-1/2 h-[min(90dvh,40rem)] w-[min(90vw,40rem)] -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky-600/20 blur-3xl" />
+        <div className="absolute -left-1/4 top-0 h-[min(100dvh,56rem)] w-[min(140vw,56rem)] rounded-full bg-cyan-600/10 blur-3xl" />
+        <div className="absolute -right-1/4 bottom-0 h-[min(100dvh,52rem)] w-[min(130vw,52rem)] rounded-full bg-blue-600/10 blur-3xl" />
+        <div className="absolute left-1/2 top-1/2 h-[min(90dvh,40rem)] w-[min(90vw,40rem)] -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky-900/15 blur-3xl" />
       </div>
 
       <div className="relative z-10 w-full min-w-0 max-w-md">

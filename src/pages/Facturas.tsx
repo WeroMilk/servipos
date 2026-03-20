@@ -10,7 +10,8 @@ import {
   Receipt,
   MoreHorizontal,
   FileCode,
-  Eye
+  Eye,
+  Printer,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -42,8 +43,10 @@ import { useInvoices, useCFDIGenerator, useSales, useFiscalConfig, useClients } 
 import { useAppStore } from '@/stores';
 import type { Invoice, Sale, Client } from '@/types';
 import { FORMAS_PAGO, USOS_CFDI } from '@/types';
-import { cn } from '@/lib/utils';
+import { cn, formatMoney } from '@/lib/utils';
 import { PageShell } from '@/components/ui-custom/PageShell';
+import { SendEmailDialog } from '@/components/ui-custom/SendEmailDialog';
+import { printLetterDocument } from '@/lib/printTicket';
 import jsPDF from 'jspdf';
 
 const statusColors: Record<string, string> = {
@@ -74,6 +77,9 @@ export function Facturas() {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [generatedXML, setGeneratedXML] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailBody, setEmailBody] = useState('');
 
   // Form state
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
@@ -202,16 +208,16 @@ export function Facturas() {
     let y = 170;
     invoice.productos.forEach(item => {
       doc.setFontSize(9);
-      doc.text(`${item.descripcion} - ${item.cantidad} x $${item.precioUnitario.toFixed(2)}`, 20, y);
-      doc.text(`$${item.total.toFixed(2)}`, 180, y, { align: 'right' });
+      doc.text(`${item.descripcion} - ${item.cantidad} x ${formatMoney(item.precioUnitario)}`, 20, y);
+      doc.text(formatMoney(item.total), 180, y, { align: 'right' });
       y += 10;
     });
     
     // Totales
     doc.setFontSize(12);
-    doc.text(`Subtotal: $${invoice.subtotal.toFixed(2)}`, 140, y + 10);
-    doc.text(`IVA: $${invoice.impuestosTrasladados.toFixed(2)}`, 140, y + 20);
-    doc.text(`Total: $${invoice.total.toFixed(2)}`, 140, y + 30);
+    doc.text(`Subtotal: ${formatMoney(invoice.subtotal)}`, 140, y + 10);
+    doc.text(`IVA: ${formatMoney(invoice.impuestosTrasladados)}`, 140, y + 20);
+    doc.text(`Total: ${formatMoney(invoice.total)}`, 140, y + 30);
     
     doc.save(`Factura_${invoice.serie}_${invoice.folio}.pdf`);
   };
@@ -224,6 +230,52 @@ export function Facturas() {
       metodoPago: 'PUE',
       usoCfdi: 'G03',
     });
+  };
+
+  function escHtml(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function buildInvoiceEmailBody(inv: Invoice): string {
+    return [
+      'SERVIPARTZ POS — Factura',
+      '',
+      `${inv.serie}-${inv.folio}`,
+      `Fecha: ${new Date(inv.fechaEmision).toLocaleString('es-MX')}`,
+      `Cliente: ${inv.cliente?.nombre ?? 'Público en General'}`,
+      `Total: ${formatMoney(inv.total)}`,
+      inv.uuid ? `UUID: ${inv.uuid}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  const openEmailForInvoice = (inv: Invoice) => {
+    setEmailSubject(`Factura ${inv.serie}-${inv.folio} — SERVIPARTZ POS`);
+    setEmailBody(buildInvoiceEmailBody(inv));
+    setEmailOpen(true);
+  };
+
+  const printInvoiceLetter = (inv: Invoice) => {
+    const rows = inv.productos
+      .map(
+        (it) =>
+          `<tr><td>${escHtml(it.descripcion)}</td><td class="right">${it.cantidad}</td><td class="right">${formatMoney(it.precioUnitario)}</td><td class="right">${formatMoney(it.total)}</td></tr>`
+      )
+      .join('');
+    const html = `
+      <p><strong>Receptor:</strong> ${escHtml(inv.cliente?.nombre || 'Público en General')}</p>
+      <p><strong>RFC:</strong> ${escHtml(inv.cliente?.rfc || 'XAXX010101000')}</p>
+      <p><strong>Fecha:</strong> ${escHtml(new Date(inv.fechaEmision).toLocaleString('es-MX'))}</p>
+      <table><thead><tr><th>Descripción</th><th class="right">Cant.</th><th class="right">P. unit.</th><th class="right">Total</th></tr></thead>
+      <tbody>${rows}</tbody></table>
+      <div class="tot">
+        <p>Subtotal: ${formatMoney(inv.subtotal)}</p>
+        <p>IVA: ${formatMoney(inv.impuestosTrasladados)}</p>
+        <p><strong>Total: ${formatMoney(inv.total)}</strong></p>
+      </div>
+    `;
+    printLetterDocument(`Factura ${inv.serie}-${inv.folio}`, html);
   };
 
   const filteredInvoices = invoices.filter(i =>
@@ -292,28 +344,69 @@ export function Facturas() {
           <CardTitle className="text-sm text-slate-100 sm:text-base">Emitidas</CardTitle>
         </CardHeader>
         <CardContent className="min-h-0 flex-1 overflow-auto p-0">
-          <div className="min-h-0 min-w-0">
-            <Table className="table-fixed">
+          <div className="space-y-2 p-2 md:hidden">
+            {loading ? (
+              <div className="flex justify-center py-8">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500/30 border-t-cyan-500" />
+              </div>
+            ) : filteredInvoices.length === 0 ? (
+              <p className="py-8 text-center text-slate-500">No se encontraron facturas</p>
+            ) : (
+              filteredInvoices.map((invoice) => (
+                <button
+                  key={invoice.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedInvoice(invoice);
+                    setShowDetailDialog(true);
+                  }}
+                  className="w-full rounded-xl border border-slate-800/80 bg-slate-950/40 p-3 text-left"
+                >
+                  <div className="flex justify-between gap-2">
+                    <span className="font-medium text-slate-100">
+                      {invoice.serie}-{invoice.folio}
+                    </span>
+                    <span className="shrink-0 text-cyan-400">{formatMoney(invoice.total)}</span>
+                  </div>
+                  <p className="mt-1 truncate text-sm text-slate-400">
+                    {invoice.cliente?.nombre || 'Mostrador'}
+                  </p>
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <span className="text-xs text-slate-500">
+                      {new Date(invoice.fechaEmision).toLocaleDateString('es-MX')}
+                    </span>
+                    <Badge className={cn('border text-[10px]', statusColors[invoice.estado])}>
+                      {statusLabels[invoice.estado]}
+                    </Badge>
+                  </div>
+                  <p className="mt-2 text-center text-xs text-cyan-500/80">Ver detalle…</p>
+                </button>
+              ))
+            )}
+          </div>
+
+          <div className="hidden min-h-0 min-w-0 md:block">
+            <Table>
               <TableHeader>
                 <TableRow className="border-slate-800">
-                  <TableHead className="w-[22%] text-slate-400">Folio</TableHead>
-                  <TableHead className="w-[28%] text-slate-400">Cliente</TableHead>
-                  <TableHead className="w-[12%] text-slate-400">Fecha</TableHead>
-                  <TableHead className="w-[12%] text-slate-400">Total</TableHead>
-                  <TableHead className="w-[13%] text-slate-400">Estado</TableHead>
-                  <TableHead className="w-[13%] text-right text-slate-400">Acciones</TableHead>
+                  <TableHead className="text-slate-400">Folio</TableHead>
+                  <TableHead className="text-slate-400">Cliente</TableHead>
+                  <TableHead className="text-slate-400">Fecha</TableHead>
+                  <TableHead className="text-slate-400">Total</TableHead>
+                  <TableHead className="text-slate-400">Estado</TableHead>
+                  <TableHead className="text-right text-slate-400">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8">
-                      <div className="w-8 h-8 border-2 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin mx-auto" />
+                    <TableCell colSpan={6} className="py-8 text-center">
+                      <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-cyan-500/30 border-t-cyan-500" />
                     </TableCell>
                   </TableRow>
                 ) : filteredInvoices.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-slate-500">
+                    <TableCell colSpan={6} className="py-8 text-center text-slate-500">
                       No se encontraron facturas
                     </TableCell>
                   </TableRow>
@@ -322,20 +415,24 @@ export function Facturas() {
                     <TableRow key={invoice.id} className="border-slate-800/50">
                       <TableCell className="align-top">
                         <div className="min-w-0">
-                          <p className="font-medium text-slate-200">{invoice.serie}-{invoice.folio}</p>
-                          {invoice.uuid && (
-                            <p className="truncate text-xs text-slate-500">UUID: {invoice.uuid.slice(0, 8)}...</p>
-                          )}
+                          <p className="font-medium text-slate-200">
+                            {invoice.serie}-{invoice.folio}
+                          </p>
+                          {invoice.uuid ? (
+                            <p className="truncate text-xs text-slate-500">
+                              UUID: {invoice.uuid.slice(0, 8)}…
+                            </p>
+                          ) : null}
                         </div>
                       </TableCell>
-                      <TableCell className="max-w-0 truncate text-slate-400">
+                      <TableCell className="max-w-[14rem] truncate text-slate-400">
                         {invoice.cliente?.nombre || 'Mostrador'}
                       </TableCell>
-                      <TableCell className="text-slate-400">
+                      <TableCell className="whitespace-nowrap text-slate-400">
                         {new Date(invoice.fechaEmision).toLocaleDateString('es-MX')}
                       </TableCell>
-                      <TableCell className="text-cyan-400 font-medium">
-                        ${invoice.total.toFixed(2)}
+                      <TableCell className="whitespace-nowrap font-medium text-cyan-400">
+                        {formatMoney(invoice.total)}
                       </TableCell>
                       <TableCell>
                         <Badge className={cn('border', statusColors[invoice.estado])}>
@@ -346,44 +443,47 @@ export function Facturas() {
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="text-slate-400">
-                              <MoreHorizontal className="w-4 h-4" />
+                              <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent className="bg-slate-900 border-slate-800">
-                            <DropdownMenuItem 
-                              onClick={() => { setSelectedInvoice(invoice); setShowDetailDialog(true); }}
-                              className="text-slate-300 hover:text-slate-100 hover:bg-slate-800"
+                          <DropdownMenuContent className="border-slate-800 bg-slate-900">
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setSelectedInvoice(invoice);
+                                setShowDetailDialog(true);
+                              }}
+                              className="text-slate-300 hover:bg-slate-800 hover:text-slate-100"
                             >
-                              <Eye className="w-4 h-4 mr-2" />
+                              <Eye className="mr-2 h-4 w-4" />
                               Ver Detalle
                             </DropdownMenuItem>
-                            <DropdownMenuItem 
+                            <DropdownMenuItem
                               onClick={() => handleViewXML(invoice)}
-                              className="text-slate-300 hover:text-slate-100 hover:bg-slate-800"
+                              className="text-slate-300 hover:bg-slate-800 hover:text-slate-100"
                             >
-                              <FileCode className="w-4 h-4 mr-2" />
+                              <FileCode className="mr-2 h-4 w-4" />
                               Ver XML
                             </DropdownMenuItem>
-                            <DropdownMenuItem 
+                            <DropdownMenuItem
                               onClick={() => handleGeneratePDF(invoice)}
-                              className="text-slate-300 hover:text-slate-100 hover:bg-slate-800"
+                              className="text-slate-300 hover:bg-slate-800 hover:text-slate-100"
                             >
-                              <Download className="w-4 h-4 mr-2" />
+                              <Download className="mr-2 h-4 w-4" />
                               Descargar PDF
                             </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => handleViewXML(invoice)}
-                              className="text-slate-300 hover:text-slate-100 hover:bg-slate-800"
+                            <DropdownMenuItem
+                              onClick={() => openEmailForInvoice(invoice)}
+                              className="text-slate-300 hover:bg-slate-800 hover:text-slate-100"
                             >
-                              <Send className="w-4 h-4 mr-2" />
+                              <Send className="mr-2 h-4 w-4" />
                               Enviar por Email
                             </DropdownMenuItem>
                             {invoice.estado !== 'cancelada' && (
-                              <DropdownMenuItem 
+                              <DropdownMenuItem
                                 onClick={() => cancelInvoice(invoice.id, 'Error en datos')}
-                                className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                                className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
                               >
-                                <X className="w-4 h-4 mr-2" />
+                                <X className="mr-2 h-4 w-4" />
                                 Cancelar
                               </DropdownMenuItem>
                             )}
@@ -431,7 +531,7 @@ export function Facturas() {
                     <option value="">Seleccione una venta</option>
                     {salesWithoutInvoice.map(sale => (
                       <option key={sale.id} value={sale.id}>
-                        {sale.folio} - {sale.cliente?.nombre || 'Mostrador'} - ${sale.total.toFixed(2)}
+                        {sale.folio} - {sale.cliente?.nombre || 'Mostrador'} - {formatMoney(sale.total)}
                       </option>
                     ))}
                   </select>
@@ -503,15 +603,15 @@ export function Facturas() {
                       <p className="text-sm text-slate-400">Resumen de la Venta</p>
                       <div className="flex justify-between text-slate-300">
                         <span>Subtotal:</span>
-                        <span>${selectedSale.subtotal.toFixed(2)}</span>
+                        <span>{formatMoney(selectedSale.subtotal)}</span>
                       </div>
                       <div className="flex justify-between text-slate-300">
                         <span>IVA:</span>
-                        <span>${selectedSale.impuestos.toFixed(2)}</span>
+                        <span>{formatMoney(selectedSale.impuestos)}</span>
                       </div>
                       <div className="flex justify-between text-xl font-bold text-cyan-400">
                         <span>Total:</span>
-                        <span>${selectedSale.total.toFixed(2)}</span>
+                        <span>{formatMoney(selectedSale.total)}</span>
                       </div>
                     </div>
                   </>
@@ -608,8 +708,8 @@ export function Facturas() {
                       <tr key={idx}>
                         <td className="p-3 text-slate-200">{item.descripcion}</td>
                         <td className="p-3 text-center text-slate-400">{item.cantidad}</td>
-                        <td className="p-3 text-right text-slate-400">${item.precioUnitario.toFixed(2)}</td>
-                        <td className="p-3 text-right text-cyan-400">${item.total.toFixed(2)}</td>
+                        <td className="p-3 text-right text-slate-400">{formatMoney(item.precioUnitario)}</td>
+                        <td className="p-3 text-right text-cyan-400">{formatMoney(item.total)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -618,18 +718,47 @@ export function Facturas() {
 
               <div className="flex justify-end space-y-1">
                 <div className="text-right">
-                  <p className="text-slate-400">Subtotal: ${selectedInvoice.subtotal.toFixed(2)}</p>
-                  <p className="text-slate-400">Descuento: ${selectedInvoice.descuento.toFixed(2)}</p>
-                  <p className="text-slate-400">IVA: ${selectedInvoice.impuestosTrasladados.toFixed(2)}</p>
-                  <p className="text-xl font-bold text-cyan-400 mt-2">
-                    Total: ${selectedInvoice.total.toFixed(2)}
+                  <p className="text-slate-400">Subtotal: {formatMoney(selectedInvoice.subtotal)}</p>
+                  <p className="text-slate-400">Descuento: {formatMoney(selectedInvoice.descuento)}</p>
+                  <p className="text-slate-400">IVA: {formatMoney(selectedInvoice.impuestosTrasladados)}</p>
+                  <p className="mt-2 text-xl font-bold text-cyan-400">
+                    Total: {formatMoney(selectedInvoice.total)}
                   </p>
                 </div>
+              </div>
+
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-slate-700 text-slate-300"
+                  onClick={() => printInvoiceLetter(selectedInvoice)}
+                >
+                  <Printer className="mr-2 h-4 w-4" />
+                  Imprimir (carta)
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-slate-700 text-slate-300"
+                  onClick={() => openEmailForInvoice(selectedInvoice)}
+                >
+                  <Send className="mr-2 h-4 w-4" />
+                  Enviar por email
+                </Button>
               </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      <SendEmailDialog
+        open={emailOpen}
+        onOpenChange={setEmailOpen}
+        subject={emailSubject}
+        body={emailBody}
+        title="Enviar factura por correo"
+      />
     </>
   );
 }

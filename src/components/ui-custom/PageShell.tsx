@@ -17,7 +17,7 @@ export function PageShell({ title, subtitle, actions, children, className }: Pag
   return (
     <div
       className={cn(
-        'flex h-full min-h-0 w-full flex-col gap-2 overflow-hidden sm:gap-3',
+        'flex h-full min-h-0 w-full min-w-0 max-w-none flex-col gap-2 overflow-hidden sm:gap-3',
         className
       )}
     >

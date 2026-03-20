@@ -5,12 +5,20 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-/** Moneda MXN para listados (ej. $11,490.00) */
-export function formatMxCurrency(value: number): string {
-  return value.toLocaleString('es-MX', {
+/**
+ * Dinero con formato tipo $10,000.00 (coma miles, punto decimales).
+ * Misma presentación en toda la app.
+ */
+export function formatMoney(value: number): string {
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'MXN',
+    currency: 'USD',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  })
+  }).format(Number.isFinite(value) ? value : 0);
+}
+
+/** @deprecated Usar formatMoney para consistencia visual */
+export function formatMxCurrency(value: number): string {
+  return formatMoney(value);
 }

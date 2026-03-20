@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import {
   TrendingUp,
   ShoppingCart,
@@ -7,22 +8,18 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   DollarSign,
+  CalendarDays,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useTodaySales, useLowStockProducts } from '@/hooks';
-import { cn } from '@/lib/utils';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-} from 'recharts';
+import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { useSalesByDateRange, useLowStockProducts } from '@/hooks';
+import { cn, formatMoney } from '@/lib/utils';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import type { DateRange } from 'react-day-picker';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 const salesData = [
   { name: 'Lun', ventas: 4500 },
@@ -34,14 +31,6 @@ const salesData = [
   { name: 'Dom', ventas: 8900 },
 ];
 
-const categoryData = [
-  { name: 'Electrónica', value: 35, color: '#06b6d4' },
-  { name: 'General', value: 25, color: '#3b82f6' },
-  { name: 'Hogar', value: 20, color: '#8b5cf6' },
-  { name: 'Otros', value: 20, color: '#64748b' },
-];
-
-/** Cursor al pasar sobre barras: fondo oscuro (no blanco). */
 const barCursor = { fill: 'rgba(15, 23, 42, 0.92)' };
 
 interface StatCardProps {
@@ -112,44 +101,164 @@ function StatCard({
   );
 }
 
+function dateRangeToBounds(range: DateRange | undefined): { inicio: Date; fin: Date } {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (!range?.from) {
+    const fin = new Date(today);
+    fin.setDate(fin.getDate() + 1);
+    return { inicio: today, fin };
+  }
+  const inicio = new Date(range.from);
+  inicio.setHours(0, 0, 0, 0);
+  const last = range.to ?? range.from;
+  const fin = new Date(last);
+  fin.setHours(0, 0, 0, 0);
+  fin.setDate(fin.getDate() + 1);
+  return { inicio, fin };
+}
+
 export function Dashboard() {
-  const { sales, loading: salesLoading, totals } = useTodaySales();
+  const [dateOpen, setDateOpen] = useState(false);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
+    const t = new Date();
+    t.setHours(0, 0, 0, 0);
+    return { from: t, to: t };
+  });
+
+  const { inicio, fin } = useMemo(() => dateRangeToBounds(dateRange), [dateRange]);
+  const { sales, loading: salesLoading, totals } = useSalesByDateRange(inicio, fin);
   const { products: lowStockProducts, loading: stockLoading } = useLowStockProducts();
+
+  const rangeLabel = useMemo(() => {
+    if (!dateRange?.from) return 'Hoy';
+    const a = dateRange.from;
+    const b = dateRange.to ?? dateRange.from;
+    if (a.getTime() === b.getTime()) {
+      return format(a, "EEE d MMM yyyy", { locale: es });
+    }
+    return `${format(a, 'd MMM', { locale: es })} – ${format(b, 'd MMM yyyy', { locale: es })}`;
+  }, [dateRange]);
+
+  const setHoy = () => {
+    const t = new Date();
+    t.setHours(0, 0, 0, 0);
+    setDateRange({ from: t, to: t });
+  };
+
+  const setEsteMes = () => {
+    const now = new Date();
+    const from = new Date(now.getFullYear(), now.getMonth(), 1);
+    const to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    from.setHours(0, 0, 0, 0);
+    to.setHours(0, 0, 0, 0);
+    setDateRange({ from, to });
+  };
+
+  const setMesAnterior = () => {
+    const now = new Date();
+    const first = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const last = new Date(now.getFullYear(), now.getMonth(), 0);
+    first.setHours(0, 0, 0, 0);
+    last.setHours(0, 0, 0, 0);
+    setDateRange({ from: first, to: last });
+  };
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col gap-2 overflow-hidden sm:gap-3">
-      <header className="flex shrink-0 flex-col gap-1 border-b border-slate-800/40 pb-2 sm:flex-row sm:items-center sm:justify-between">
+      <header className="flex shrink-0 flex-col gap-2 border-b border-slate-800/40 pb-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <h1 className="truncate text-lg font-bold text-slate-100 sm:text-xl lg:text-2xl">Panel</h1>
-          <p className="truncate text-xs text-slate-500 sm:text-sm">Resumen de hoy</p>
+          <p className="truncate text-xs text-slate-500 sm:text-sm">Resumen del periodo</p>
         </div>
-        <p className="shrink-0 text-right text-[10px] text-slate-500 sm:text-sm">
-          {new Date().toLocaleDateString('es-MX', {
-            weekday: 'short',
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-          })}
-        </p>
+
+        <Popover open={dateOpen} onOpenChange={setDateOpen}>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="border-slate-700 bg-slate-900/80 text-slate-200 hover:bg-slate-800"
+              onClick={setHoy}
+            >
+              Hoy
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="border-slate-700 bg-slate-900/80 text-slate-200 hover:bg-slate-800"
+              onClick={setEsteMes}
+            >
+              Este mes
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="border-slate-700 bg-slate-900/80 text-slate-200 hover:bg-slate-800"
+              onClick={setMesAnterior}
+            >
+              Mes anterior
+            </Button>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="border-cyan-500/40 bg-slate-900/80 text-cyan-200 hover:bg-slate-800"
+              >
+                <CalendarDays className="mr-2 h-4 w-4 shrink-0" />
+                <span className="max-w-[10rem] truncate sm:max-w-none">{rangeLabel}</span>
+              </Button>
+            </PopoverTrigger>
+          </div>
+          <PopoverContent
+            className="w-auto border-slate-800 bg-slate-900 p-0 text-slate-100"
+            align="end"
+            sideOffset={8}
+          >
+            <Calendar
+              mode="range"
+              numberOfMonths={1}
+              selected={dateRange}
+              onSelect={(r) => setDateRange(r)}
+              className="p-2"
+              classNames={{
+                day: 'text-slate-200',
+                outside: 'text-slate-600 opacity-50',
+                disabled: 'text-slate-600 opacity-30',
+                range_middle: 'bg-cyan-500/20',
+                range_start: 'bg-cyan-600 text-white rounded-l-md',
+                range_end: 'bg-cyan-600 text-white rounded-r-md',
+              }}
+            />
+            <div className="flex justify-end gap-2 border-t border-slate-800 p-2">
+              <Button type="button" size="sm" variant="ghost" className="text-slate-400" onClick={() => setDateOpen(false)}>
+                Listo
+              </Button>
+            </div>
+          </PopoverContent>
+        </Popover>
       </header>
 
       <div className="grid shrink-0 grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
         <StatCard
-          title="Ventas hoy"
-          value={`$${totals.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`}
+          title="Ventas periodo"
+          value={formatMoney(totals.total)}
           description={`${totals.count} transacciones`}
           icon={DollarSign}
           trend="up"
-          trendValue="+12% frente a ayer"
+          trendValue="Rango seleccionado"
           iconGradient="bg-gradient-to-br from-emerald-500 to-emerald-600"
         />
         <StatCard
           title="Ticket prom."
-          value={`$${totals.count > 0 ? (totals.total / totals.count).toFixed(2) : '0.00'}`}
+          value={formatMoney(totals.count > 0 ? totals.total / totals.count : 0)}
           description="Por transacción"
           icon={ShoppingCart}
-          trend="up"
-          trendValue="+5% frente a ayer"
+          trend="neutral"
+          trendValue="En el periodo"
           iconGradient="bg-gradient-to-br from-cyan-500 to-cyan-600"
         />
         <StatCard
@@ -158,7 +267,7 @@ export function Dashboard() {
           description="Líneas vendidas"
           icon={Package}
           trend="neutral"
-          trendValue="Similar a ayer"
+          trendValue="En el periodo"
           iconGradient="bg-gradient-to-br from-blue-500 to-blue-600"
         />
         <StatCard
@@ -167,7 +276,7 @@ export function Dashboard() {
           description="Del total ventas"
           icon={Receipt}
           trend="up"
-          trendValue="+2 contra ayer"
+          trendValue="En el periodo"
           iconGradient="bg-gradient-to-br from-violet-500 to-violet-600"
         />
       </div>
@@ -178,7 +287,7 @@ export function Dashboard() {
             <CardHeader className="shrink-0 space-y-0 py-2">
               <CardTitle className="flex items-center gap-2 text-sm text-slate-100 sm:text-base">
                 <TrendingUp className="h-4 w-4 shrink-0 text-cyan-400" />
-                Ventas de la semana
+                Ventas de la semana (referencia)
               </CardTitle>
             </CardHeader>
             <CardContent className="flex min-h-0 flex-1 flex-col p-2 pt-0 sm:p-3">
@@ -201,7 +310,7 @@ export function Dashboard() {
                         color: '#f1f5f9',
                         fontSize: '12px',
                       }}
-                      formatter={(value: number) => [`$${value}`, 'Ventas']}
+                      formatter={(value: number) => [formatMoney(value), 'Ventas']}
                       cursor={barCursor}
                     />
                     <Bar
@@ -288,7 +397,7 @@ export function Dashboard() {
                 ) : sales.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-4 text-slate-500">
                     <Receipt className="mb-2 h-8 w-8 text-slate-600" />
-                    <p className="text-xs">Sin ventas hoy</p>
+                    <p className="text-xs">Sin ventas en el periodo</p>
                   </div>
                 ) : (
                   <div className="space-y-1.5">
@@ -307,7 +416,7 @@ export function Dashboard() {
                           </p>
                         </div>
                         <p className="shrink-0 text-xs font-bold tabular-nums text-cyan-400">
-                          ${sale.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                          {formatMoney(sale.total)}
                         </p>
                       </div>
                     ))}
@@ -317,55 +426,6 @@ export function Dashboard() {
             </Card>
           </div>
         </div>
-
-        <Card className="flex min-h-[200px] w-full min-w-0 shrink-0 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50 lg:min-h-0 lg:min-w-[16rem] lg:flex-1">
-          <CardHeader className="shrink-0 py-2">
-            <CardTitle className="text-sm text-slate-100">Por categoría</CardTitle>
-          </CardHeader>
-          <CardContent className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-y-contain p-2 pt-0 sm:p-3">
-            <div className="min-h-[120px] shrink-0 sm:min-h-[140px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={categoryData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={48}
-                    outerRadius={72}
-                    paddingAngle={4}
-                    dataKey="value"
-                    isAnimationActive={false}
-                  >
-                    {categoryData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#0f172a',
-                      border: '1px solid #1e293b',
-                      borderRadius: '8px',
-                      color: '#f1f5f9',
-                      fontSize: '12px',
-                    }}
-                    formatter={(value: number) => [`${value}%`, '']}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="shrink-0 space-y-1">
-              {categoryData.map((cat) => (
-                <div key={cat.name} className="flex items-center justify-between text-xs">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <div className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: cat.color }} />
-                    <span className="truncate text-slate-400">{cat.name}</span>
-                  </div>
-                  <span className="shrink-0 font-medium text-slate-300">{cat.value}%</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

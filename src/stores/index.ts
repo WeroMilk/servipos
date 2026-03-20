@@ -6,3 +6,4 @@ export { useAuthStore, subscribeFirebaseAuth } from './authStore';
 export { useAppStore } from './appStore';
 export { useSyncStore } from './syncStore';
 export { useCartStore } from './cartStore';
+export { useNotificationStore } from './notificationStore';

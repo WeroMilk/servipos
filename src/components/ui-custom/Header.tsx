@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, LogOut, User, Zap, X } from 'lucide-react';
-import { useAuthStore, useSyncStore } from '@/stores';
+import { useAuthStore, useSyncStore, useNotificationStore } from '@/stores';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -15,16 +15,44 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils';
 import { BRAND_LOGO_URL } from '@/lib/branding';
 
-const DEMO_NOTIFICATIONS = [
-  { id: '1', title: 'Stock bajo', body: 'Revisa productos por debajo del mínimo en Inventario.', time: 'Hoy' },
-  { id: '2', title: 'Sincronización', body: 'Los datos locales se sincronizarán al estar en línea.', time: 'Hoy' },
-  { id: '3', title: 'Bienvenido', body: 'SERVIPARTZ POS — panel listo para operar.', time: 'Reciente' },
+type HeaderNotification = {
+  id: string;
+  title: string;
+  body: string;
+  time: string;
+  /** Ruta al hacer clic (panel de notificaciones). */
+  to: string;
+};
+
+const HEADER_NOTIFICATIONS: HeaderNotification[] = [
+  {
+    id: 'stock',
+    title: 'Stock bajo',
+    body: 'Revise productos por debajo del mínimo en Inventario.',
+    time: 'Hoy',
+    to: '/inventario?tab=stock',
+  },
+  {
+    id: 'sync',
+    title: 'Sincronización',
+    body: 'Los datos locales se sincronizarán al estar en línea.',
+    time: 'Hoy',
+    to: '/configuracion',
+  },
+  {
+    id: 'welcome',
+    title: 'Bienvenido',
+    body: 'SERVIPARTZ POS — panel listo para operar.',
+    time: 'Reciente',
+    to: '/',
+  },
 ];
 
 export function Header() {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
   const { isOnline, isSyncing, pendingCount, sync } = useSyncStore();
+  const { panelOpenedOnce, markPanelSeen } = useNotificationStore();
   const [notifOpen, setNotifOpen] = useState(false);
 
   const handleLogout = async () => {
@@ -32,7 +60,7 @@ export function Header() {
     navigate('/login');
   };
 
-  const unreadCount = DEMO_NOTIFICATIONS.length;
+  const showUnreadDot = !panelOpenedOnce;
 
   return (
     <header
@@ -81,7 +109,13 @@ export function Header() {
           </span>
         </button>
 
-        <Popover open={notifOpen} onOpenChange={setNotifOpen}>
+        <Popover
+          open={notifOpen}
+          onOpenChange={(open) => {
+            setNotifOpen(open);
+            if (open) markPanelSeen();
+          }}
+        >
           <PopoverTrigger asChild>
             <Button
               type="button"
@@ -91,7 +125,7 @@ export function Header() {
               aria-label="Notificaciones"
             >
               <Bell className="h-5 w-5" />
-              {unreadCount > 0 ? (
+              {showUnreadDot ? (
                 <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-cyan-400 ring-2 ring-slate-950" />
               ) : null}
             </Button>
@@ -117,14 +151,20 @@ export function Header() {
               </button>
             </div>
             <ul className="max-h-[min(60dvh,20rem)] overflow-y-auto overscroll-y-contain py-1">
-              {DEMO_NOTIFICATIONS.map((n) => (
-                <li
-                  key={n.id}
-                  className="border-b border-slate-800/60 px-3 py-2.5 last:border-0 hover:bg-slate-800/40"
-                >
-                  <p className="text-xs font-medium text-slate-200">{n.title}</p>
-                  <p className="mt-0.5 text-[11px] leading-snug text-slate-500">{n.body}</p>
-                  <p className="mt-1 text-[10px] uppercase tracking-wide text-slate-600">{n.time}</p>
+              {HEADER_NOTIFICATIONS.map((n) => (
+                <li key={n.id} className="border-b border-slate-800/60 last:border-0">
+                  <button
+                    type="button"
+                    className="w-full px-3 py-2.5 text-left transition-colors hover:bg-slate-800/40"
+                    onClick={() => {
+                      navigate(n.to);
+                      setNotifOpen(false);
+                    }}
+                  >
+                    <p className="text-xs font-medium text-slate-200">{n.title}</p>
+                    <p className="mt-0.5 text-[11px] leading-snug text-slate-500">{n.body}</p>
+                    <p className="mt-1 text-[10px] uppercase tracking-wide text-slate-600">{n.time}</p>
+                  </button>
                 </li>
               ))}
             </ul>

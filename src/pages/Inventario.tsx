@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { 
   Plus, 
   Search, 
@@ -39,7 +40,7 @@ import { Badge } from '@/components/ui/badge';
 import { useProducts, useProductSearch } from '@/hooks';
 import { useAppStore } from '@/stores';
 import type { Product } from '@/types';
-import { cn, formatMxCurrency } from '@/lib/utils';
+import { cn, formatMoney } from '@/lib/utils';
 import { PageShell } from '@/components/ui-custom/PageShell';
 
 type InventoryMode = 'productos' | 'stock' | 'valor' | 'codigos';
@@ -55,6 +56,7 @@ function isStockBajo(p: { existencia: number; existenciaMinima: number }): boole
 }
 
 export function Inventario() {
+  const [searchParams] = useSearchParams();
   const { products, loading, addProduct, editProduct, removeProduct, adjustStock } = useProducts();
   const { addToast } = useAppStore();
   
@@ -64,6 +66,7 @@ export function Inventario() {
   const [showStockDialog, setShowStockDialog] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [stockAdjustment, setStockAdjustment] = useState({ tipo: 'entrada', cantidad: 0, motivo: '' });
+  const [stockQtyFocus, setStockQtyFocus] = useState(false);
   const [inventoryMode, setInventoryMode] = useState<InventoryMode>('productos');
   const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
 
@@ -89,6 +92,13 @@ export function Inventario() {
     setSearchQuery(query);
     search(query);
   };
+
+  useEffect(() => {
+    const t = searchParams.get('tab') || searchParams.get('focus');
+    if (t === 'stock' || t === 'bajo') {
+      setInventoryMode('stock');
+    }
+  }, [searchParams]);
 
   const handleAddProduct = async () => {
     try {
@@ -171,6 +181,7 @@ export function Inventario() {
   const openStockDialog = (product: Product) => {
     setSelectedProduct(product);
     setStockAdjustment({ tipo: 'entrada', cantidad: 0, motivo: '' });
+    setStockQtyFocus(false);
     setShowStockDialog(true);
   };
 
@@ -346,7 +357,7 @@ export function Inventario() {
             </div>
             <div className="min-w-0">
               <p className="truncate text-base font-bold tabular-nums text-slate-100 sm:text-lg">
-                {formatMxCurrency(valorInventarioTotal)}
+                {formatMoney(valorInventarioTotal)}
               </p>
               <p className="text-[10px] text-slate-500 sm:text-xs">Valor</p>
             </div>
@@ -505,7 +516,7 @@ export function Inventario() {
                         </TableCell>
                         <TableCell className="text-slate-400">{product.sku}</TableCell>
                         <TableCell className="font-medium tabular-nums text-cyan-400">
-                          {formatMxCurrency(product.precioVenta)}
+                          {formatMoney(product.precioVenta)}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -814,9 +825,16 @@ export function Inventario() {
               <Label>Cantidad</Label>
               <Input
                 type="number"
-                value={stockAdjustment.cantidad}
-                onChange={(e) => setStockAdjustment({ ...stockAdjustment, cantidad: parseInt(e.target.value) || 0 })}
-                className="bg-slate-800 border-slate-700 text-slate-100"
+                inputMode="numeric"
+                value={stockQtyFocus && stockAdjustment.cantidad === 0 ? '' : stockAdjustment.cantidad}
+                onFocus={() => setStockQtyFocus(true)}
+                onBlur={() => setStockQtyFocus(false)}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === '') setStockAdjustment((s) => ({ ...s, cantidad: 0 }));
+                  else setStockAdjustment((s) => ({ ...s, cantidad: parseInt(v, 10) || 0 }));
+                }}
+                className="border-slate-700 bg-slate-800 text-slate-100"
               />
             </div>
 

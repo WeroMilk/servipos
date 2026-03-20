@@ -1,13 +1,14 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 
-type Props = { children: ReactNode };
+type Props = { children: ReactNode; /** Al cambiar de ruta se limpia el error sin desmontar el árbol (evita flashes en desktop). */
+  routePath?: string };
 
 type State = { hasError: boolean; error: Error | null };
 
 /**
- * Evita pantalla en blanco si falla el árbol de una ruta (p. ej. conflictos DOM al desmontar).
- * `key={pathname}` en el padre reinicia el estado al cambiar de pantalla.
+ * Evita pantalla en blanco si falla el árbol de una ruta.
+ * No usar `key={pathname}` en el boundary: desmontar todo el Outlet en cada navegación provoca flashes/pantalla negra en escritorio.
  */
 export class RouteErrorBoundary extends Component<Props, State> {
   state: State = { hasError: false, error: null };
@@ -18,6 +19,12 @@ export class RouteErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('RouteErrorBoundary:', error, info.componentStack);
+  }
+
+  componentDidUpdate(prevProps: Props) {
+    if (prevProps.routePath !== this.props.routePath && this.state.hasError) {
+      this.setState({ hasError: false, error: null });
+    }
   }
 
   render() {

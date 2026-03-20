@@ -35,7 +35,8 @@ import { useCartStore, useAppStore, useAuthStore } from '@/stores';
 import { useProductSearch, useSales, useClients } from '@/hooks';
 import type { Product, FormaPago } from '@/types';
 import { FORMAS_PAGO } from '@/types';
-import { cn } from '@/lib/utils';
+import { cn, formatMoney } from '@/lib/utils';
+import { printThermalTicket } from '@/lib/printTicket';
 
 // ============================================
 // PUNTO DE VENTA (POS) — Vista tipo app, sin scroll de página
@@ -82,6 +83,7 @@ export function POS() {
   const [montoRecibidoInput, setMontoRecibidoInput] = useState('');
   const [processingSale, setProcessingSale] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>('cart');
+  const [globalDiscFocus, setGlobalDiscFocus] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const { results: searchResults, search: searchProducts } = useProductSearch();
@@ -210,7 +212,25 @@ export function POS() {
   };
 
   const handlePrintTicket = () => {
-    window.print();
+    printThermalTicket({
+      negocio: 'SERVIPARTZ POS',
+      fecha: new Date().toLocaleString('es-MX'),
+      cliente: client?.nombre || 'Mostrador',
+      lineas: items.map((item) => {
+        const unit = item.product.precioVenta * (1 - item.discount / 100);
+        const lineTot = item.product.precioVenta * item.quantity * (1 - item.discount / 100);
+        return {
+          descripcion: item.product.nombre,
+          cantidad: item.quantity,
+          precioUnit: unit,
+          total: lineTot,
+        };
+      }),
+      subtotal: getSubtotal(),
+      impuestos: getImpuestos(),
+      total: getTotal(),
+      cambio: getCambio(),
+    });
   };
 
   const panelClass =
@@ -294,9 +314,7 @@ export function POS() {
                         <p className="text-xs text-slate-500">SKU: {product.sku}</p>
                       </div>
                       <div className="shrink-0 text-right">
-                        <p className="font-bold text-cyan-400">
-                          ${product.precioVenta.toFixed(2)}
-                        </p>
+                        <p className="font-bold text-cyan-400">{formatMoney(product.precioVenta)}</p>
                         <p
                           className={cn(
                             'text-xs',
@@ -348,7 +366,7 @@ export function POS() {
                           <p className="truncate font-medium text-slate-200">{item.product.nombre}</p>
                           <p className="text-xs text-slate-500">SKU {item.product.sku}</p>
                           <p className="text-xs text-cyan-400/90 sm:text-sm">
-                            ${item.product.precioVenta.toFixed(2)} c/u
+                            {formatMoney(item.product.precioVenta)} c/u
                           </p>
                         </div>
 
@@ -401,7 +419,11 @@ export function POS() {
                             <Percent className="hidden h-3.5 w-3.5 text-slate-500 sm:block" />
                             <Input
                               type="number"
+                              inputMode="decimal"
                               value={item.discount}
+                              onFocus={(e) => {
+                                if (item.discount === 0) e.target.select();
+                              }}
                               onChange={(e) =>
                                 updateDiscount(item.product.id, parseFloat(e.target.value) || 0)
                               }
@@ -413,12 +435,11 @@ export function POS() {
                           </div>
 
                           <p className="min-w-[4.5rem] text-right text-sm font-bold text-slate-200">
-                            $
-                            {(
+                            {formatMoney(
                               item.product.precioVenta *
-                              item.quantity *
-                              (1 - item.discount / 100)
-                            ).toFixed(2)}
+                                item.quantity *
+                                (1 - item.discount / 100)
+                            )}
                           </p>
 
                           <button
@@ -442,9 +463,7 @@ export function POS() {
           <div className="flex shrink-0 items-center gap-2 rounded-xl border border-slate-800/60 bg-slate-950/90 p-2 md:hidden">
             <div className="min-w-0 flex-1">
               <p className="text-[10px] uppercase tracking-wide text-slate-500">Total</p>
-              <p className="truncate text-lg font-bold text-cyan-400">
-                ${getTotal().toFixed(2)}
-              </p>
+              <p className="truncate text-lg font-bold text-cyan-400">{formatMoney(getTotal())}</p>
             </div>
             <Button
               type="button"
@@ -499,18 +518,18 @@ export function POS() {
               <div className="shrink-0 space-y-2">
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs sm:text-sm">
                   <span className="text-slate-400">Subtotal</span>
-                  <span className="text-right text-slate-300">${getSubtotal().toFixed(2)}</span>
+                  <span className="text-right text-slate-300">{formatMoney(getSubtotal())}</span>
                   <span className="text-slate-400">Descuento</span>
-                  <span className="text-right text-amber-400">-${getDescuento().toFixed(2)}</span>
+                  <span className="text-right text-amber-400">-{formatMoney(getDescuento())}</span>
                   <span className="text-slate-400">IVA 16%</span>
-                  <span className="text-right text-slate-300">${getImpuestos().toFixed(2)}</span>
+                  <span className="text-right text-slate-300">{formatMoney(getImpuestos())}</span>
                 </div>
 
                 <div className="border-t border-slate-800 pt-2">
                   <div className="flex items-end justify-between gap-2">
                     <span className="text-sm font-medium text-slate-200 sm:text-base">Total</span>
                     <span className="text-xl font-bold tabular-nums text-cyan-400 sm:text-2xl lg:text-3xl">
-                      ${getTotal().toFixed(2)}
+                      {formatMoney(getTotal())}
                     </span>
                   </div>
                 </div>
@@ -572,8 +591,17 @@ export function POS() {
                   <Label className="text-[10px] text-slate-400 sm:text-xs">Desc. global %</Label>
                   <Input
                     type="number"
-                    value={discount}
-                    onChange={(e) => setGlobalDiscount(parseFloat(e.target.value) || 0)}
+                    inputMode="decimal"
+                    value={globalDiscFocus && discount === 0 ? '' : discount}
+                    onFocus={() => setGlobalDiscFocus(true)}
+                    onBlur={() => {
+                      setGlobalDiscFocus(false);
+                    }}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === '') setGlobalDiscount(0);
+                      else setGlobalDiscount(parseFloat(v) || 0);
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') e.preventDefault();
                     }}
@@ -594,7 +622,7 @@ export function POS() {
               className="h-11 w-full rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-sm font-bold text-white shadow-lg shadow-cyan-500/25 sm:h-12 sm:text-base md:h-14 md:text-lg"
             >
               <Receipt className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
-              Cobrar ${getTotal().toFixed(2)}
+              Cobrar {formatMoney(getTotal())}
             </Button>
 
             <Button
@@ -623,9 +651,7 @@ export function POS() {
           <div className="space-y-4 py-2 sm:space-y-6 sm:py-4">
             <div className="rounded-xl bg-slate-800/50 p-3 text-center sm:p-4">
               <p className="mb-1 text-xs text-slate-400 sm:text-sm">Total a pagar</p>
-              <p className="text-2xl font-bold text-cyan-400 sm:text-4xl">
-                ${getTotal().toFixed(2)}
-              </p>
+              <p className="text-2xl font-bold text-cyan-400 sm:text-4xl">{formatMoney(getTotal())}</p>
             </div>
 
             <div className="space-y-2">
@@ -664,7 +690,7 @@ export function POS() {
                   onClick={() => addPago({ formaPago, monto: amount })}
                   className="rounded-lg bg-slate-800 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-700"
                 >
-                  +${amount}
+                  {formatMoney(amount)}
                 </button>
               ))}
             </div>
@@ -682,9 +708,7 @@ export function POS() {
                         {FORMAS_PAGO.find((fp) => fp.clave === pago.formaPago)?.descripcion}
                       </span>
                       <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-                        <span className="font-bold text-slate-200">
-                          ${pago.monto.toFixed(2)}
-                        </span>
+                        <span className="font-bold text-slate-200">{formatMoney(pago.monto)}</span>
                         <button
                           type="button"
                           onClick={() => removePago(index)}
@@ -704,7 +728,7 @@ export function POS() {
               <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 sm:p-4">
                 <p className="text-center text-emerald-400">
                   Cambio:{' '}
-                  <span className="text-xl font-bold sm:text-2xl">${getCambio().toFixed(2)}</span>
+                  <span className="text-xl font-bold sm:text-2xl">{formatMoney(getCambio())}</span>
                 </p>
               </div>
             )}
@@ -748,11 +772,9 @@ export function POS() {
             </div>
             <p className="mb-1 text-sm text-slate-400 sm:mb-2">Total</p>
             <p className="mb-3 text-3xl font-bold text-cyan-400 sm:mb-4 sm:text-4xl">
-              ${getTotal().toFixed(2)}
+              {formatMoney(getTotal())}
             </p>
-            <p className="text-xs text-slate-500 sm:text-sm">
-              Cambio: ${getCambio().toFixed(2)}
-            </p>
+            <p className="text-xs text-slate-500 sm:text-sm">Cambio: {formatMoney(getCambio())}</p>
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row">
