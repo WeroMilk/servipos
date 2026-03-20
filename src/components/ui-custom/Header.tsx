@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
+import { BRAND_LOGO_URL } from '@/lib/branding';
 
 const DEMO_NOTIFICATIONS = [
   { id: '1', title: 'Stock bajo', body: 'Revisa productos por debajo del mínimo en Inventario.', time: 'Hoy' },
@@ -37,12 +38,27 @@ export function Header() {
     <header
       className={cn(
         'z-30 flex h-14 shrink-0 items-center justify-between gap-2 border-b border-slate-800/50',
-        'bg-slate-950/60 px-3 backdrop-blur-md sm:h-16 sm:px-4 md:px-5 lg:px-6',
+        'bg-slate-950/60 px-2 backdrop-blur-md sm:h-16 sm:px-3 md:px-4 lg:px-4',
         'transition-all duration-300'
       )}
     >
-      <div className="flex min-w-0 items-center gap-4">
-        <h2 className="text-lg font-semibold text-slate-100" />
+      <div className="flex min-w-0 items-center gap-2 sm:gap-3 md:gap-4">
+        <div className="flex min-w-0 items-center gap-2 md:hidden">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg ring-1 ring-slate-700/50">
+            <img
+              src={BRAND_LOGO_URL}
+              alt=""
+              className="h-full w-full object-cover"
+              width={36}
+              height={36}
+              decoding="async"
+            />
+          </div>
+          <div className="min-w-0 leading-tight">
+            <p className="truncate text-sm font-bold tracking-tight text-slate-100">SERVIPARTZ</p>
+            <p className="truncate text-[10px] text-slate-500">POS</p>
+          </div>
+        </div>
       </div>
 
       <div className="flex shrink-0 items-center gap-2 sm:gap-3">

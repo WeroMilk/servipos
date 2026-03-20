@@ -149,8 +149,7 @@ export async function initializeDemoData(): Promise<void> {
 
   // Verificar si existe configuración fiscal
   const configCount = await db.fiscalConfig.count();
-  if (configCount === 0) {
-    // No crear config fiscal por defecto - el usuario debe configurarla
+  if (configCount === 0 && import.meta.env.DEV) {
     console.log('No hay configuración fiscal. Por favor configure el sistema.');
   }
 

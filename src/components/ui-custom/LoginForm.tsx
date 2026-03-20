@@ -59,7 +59,14 @@ export function LoginForm() {
   };
 
   return (
-    <div className="fixed inset-0 z-0 flex min-h-dvh w-full flex-col items-center justify-center overflow-y-auto overflow-x-hidden px-4 py-6 sm:px-8 sm:py-8">
+    <div
+      className={cn(
+        'fixed inset-0 z-0 flex min-h-dvh w-full flex-col items-center overflow-y-auto overflow-x-hidden',
+        /* Móvil: card arriba para que usuario/contraseña no queden bajo el teclado */
+        'justify-start px-4 pb-10 pt-[max(1.25rem,env(safe-area-inset-top,0px))]',
+        'sm:justify-center sm:px-8 sm:py-8 sm:pb-8 sm:pt-8'
+      )}
+    >
       {/* Capa base: azul en todo el viewport (sin bandas negras en los bordes) */}
       <div
         className="pointer-events-none absolute inset-0 bg-gradient-to-br from-sky-950 via-blue-950 to-cyan-950"
@@ -74,7 +81,13 @@ export function LoginForm() {
       <div className="relative z-10 w-full min-w-0 max-w-md">
         <div className="absolute -inset-1 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 opacity-25 blur" />
 
-        <div className="relative max-h-[calc(100dvh-1.5rem)] overflow-hidden rounded-2xl border border-slate-800/50 bg-slate-950/90 p-5 shadow-2xl backdrop-blur-xl sm:max-h-none sm:p-7">
+        <div
+          className={cn(
+            'relative overflow-hidden rounded-2xl border border-slate-800/50 bg-slate-950/90 p-5 shadow-2xl backdrop-blur-xl sm:p-7',
+            /* Móvil: sin tope de altura ni recorte; la página hace scroll con el teclado */
+            'max-sm:max-h-none max-sm:overflow-visible'
+          )}
+        >
           {/* Logo */}
           <div className="mb-5 flex flex-col items-center sm:mb-6">
             <div className="mb-3 flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl shadow-lg shadow-cyan-500/20 ring-1 ring-slate-700/50 sm:mb-4 sm:h-24 sm:w-24">
@@ -102,8 +115,9 @@ export function LoginForm() {
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Ingrese su usuario"
                     autoComplete="username"
-                    className="border-0 bg-transparent pl-10 shadow-none focus-visible:ring-0"
+                    className="border-0 bg-transparent pl-10 shadow-none placeholder:text-slate-600 focus-visible:ring-0"
                   />
                 </div>
                 <span

@@ -208,6 +208,7 @@ export function Dashboard() {
                       dataKey="ventas"
                       fill="url(#colorGradient)"
                       radius={[3, 3, 0, 0]}
+                      isAnimationActive={false}
                       activeBar={{ fill: 'url(#colorGradient)', fillOpacity: 0.95 }}
                     />
                     <defs>
@@ -317,7 +318,7 @@ export function Dashboard() {
           </div>
         </div>
 
-        <Card className="flex min-h-[200px] w-full shrink-0 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50 lg:min-h-0 lg:w-[min(100%,22rem)] xl:w-[min(100%,26rem)]">
+        <Card className="flex min-h-[200px] w-full min-w-0 shrink-0 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50 lg:min-h-0 lg:min-w-[16rem] lg:flex-1">
           <CardHeader className="shrink-0 py-2">
             <CardTitle className="text-sm text-slate-100">Por categoría</CardTitle>
           </CardHeader>
@@ -333,6 +334,7 @@ export function Dashboard() {
                     outerRadius={72}
                     paddingAngle={4}
                     dataKey="value"
+                    isAnimationActive={false}
                   >
                     {categoryData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />

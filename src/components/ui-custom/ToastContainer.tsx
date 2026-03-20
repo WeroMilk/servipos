@@ -20,16 +20,17 @@ const colorMap = {
 export function ToastContainer() {
   const { toasts, removeToast } = useAppStore();
 
-  if (toasts.length === 0) return null;
-
   return (
     <div
       className={cn(
         'fixed z-50 flex flex-col gap-3',
         'bottom-[max(1.25rem,env(safe-area-inset-bottom,0px))]',
+        'max-md:bottom-[calc(1rem+3.75rem+env(safe-area-inset-bottom,0px))]',
         'right-[max(1.25rem,env(safe-area-inset-right,0px))]',
-        'max-w-[min(100vw-2rem,24rem)]'
+        'max-w-[min(100vw-2rem,24rem)]',
+        toasts.length === 0 && 'pointer-events-none'
       )}
+      aria-live="polite"
     >
       {toasts.map((toast, index) => {
         const Icon = iconMap[toast.type];

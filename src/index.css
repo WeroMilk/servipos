@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer utilities {
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -71,17 +81,26 @@
   }
   html {
     height: 100%;
+    width: 100%;
+    overflow: hidden;
   }
   body {
     @apply bg-background text-foreground;
     min-height: 100%;
     min-height: 100dvh;
+    width: 100%;
+    margin: 0;
+    overflow: hidden;
   }
   #root {
+    width: 100%;
+    max-width: none;
     height: 100dvh;
     max-height: 100dvh;
     min-height: 100dvh;
     overflow: hidden;
+    margin: 0;
+    padding: 0;
   }
 }
 

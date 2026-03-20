@@ -4,6 +4,7 @@
 
 export { Layout } from './Layout';
 export { Sidebar } from './Sidebar';
+export { MobileBottomNav } from './MobileBottomNav';
 export { Header } from './Header';
 export { ToastContainer } from './ToastContainer';
 export { LoginForm } from './LoginForm';

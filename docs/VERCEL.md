@@ -6,6 +6,10 @@ Si ves en consola:
 
 es porque **en Vercel no están configuradas** las variables que Vite inyecta al compilar. El archivo `.env` solo existe en tu PC; **nunca se sube** (está en `.gitignore`).
 
+## 0. Rutas del SPA (`/inventario`, etc.)
+
+En la raíz del repo hay un `vercel.json` que redirige las rutas a `index.html`. Sin eso, al recargar o entrar directo a una URL interna el servidor devuelve **404**.
+
 ## 1. Añadir variables en Vercel
 
 1. Entra a [Vercel Dashboard](https://vercel.com/dashboard) → tu proyecto (ej. **servipos**).
