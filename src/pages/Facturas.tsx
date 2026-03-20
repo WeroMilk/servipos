@@ -1,0 +1,635 @@
+import { useState } from 'react';
+import { 
+  Plus, 
+  Search, 
+  Download,
+  Send,
+  X,
+  Check,
+  AlertTriangle,
+  Receipt,
+  MoreHorizontal,
+  FileCode,
+  Eye
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import { useInvoices, useCFDIGenerator, useSales, useFiscalConfig, useClients } from '@/hooks';
+import { useAppStore } from '@/stores';
+import type { Invoice, Sale, Client } from '@/types';
+import { FORMAS_PAGO, USOS_CFDI } from '@/types';
+import { cn } from '@/lib/utils';
+import { PageShell } from '@/components/ui-custom/PageShell';
+import jsPDF from 'jspdf';
+
+const statusColors: Record<string, string> = {
+  pendiente: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+  timbrada: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+  cancelada: 'bg-red-500/10 text-red-400 border-red-500/30',
+  error: 'bg-red-500/10 text-red-400 border-red-500/30',
+};
+
+const statusLabels: Record<string, string> = {
+  pendiente: 'Pendiente',
+  timbrada: 'Timbrada',
+  cancelada: 'Cancelada',
+  error: 'Error',
+};
+
+export function Facturas() {
+  const { invoices, loading, addInvoice, cancelInvoice } = useInvoices();
+  const { sales } = useSales(100);
+  const { clients } = useClients();
+  const { config: fiscalConfig } = useFiscalConfig();
+  const { generateXML } = useCFDIGenerator();
+  const { addToast } = useAppStore();
+
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showDetailDialog, setShowDetailDialog] = useState(false);
+  const [showXMLDialog, setShowXMLDialog] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [generatedXML, setGeneratedXML] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Form state
+  const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [formData, setFormData] = useState({
+    formaPago: '01',
+    metodoPago: 'PUE',
+    usoCfdi: 'G03',
+  });
+
+  const handleGenerateInvoice = async () => {
+    if (!selectedSale) {
+      addToast({ type: 'error', message: 'Seleccione una venta' });
+      return;
+    }
+
+    if (!fiscalConfig) {
+      addToast({ type: 'error', message: 'Configure los datos fiscales primero' });
+      return;
+    }
+
+    try {
+      const client = selectedClient || selectedSale.cliente;
+      
+      const invoiceData = {
+        clienteId: client?.id || 'mostrador',
+        cliente: client,
+        emisor: fiscalConfig,
+        ventaId: selectedSale.id,
+        productos: selectedSale.productos.map(item => ({
+          id: crypto.randomUUID(),
+          productId: item.productId,
+          claveProdServ: '01010101', // Catálogo SAT - se debería configurar por producto
+          claveUnidad: item.producto?.unidadMedida || 'H87',
+          cantidad: item.cantidad,
+          descripcion: item.producto?.nombre || '',
+          precioUnitario: item.precioUnitario,
+          descuento: item.descuento,
+          impuestosTrasladados: [{
+            tipo: 'Traslado' as const,
+            impuesto: '002' as const,
+            tipoFactor: 'Tasa' as const,
+            tasaOCuota: 0.16,
+            base: item.subtotal - item.descuento,
+            importe: (item.subtotal - item.descuento) * 0.16,
+          }],
+          impuestosRetenidos: [],
+          subtotal: item.subtotal,
+          total: item.total,
+        })),
+        subtotal: selectedSale.subtotal,
+        descuento: selectedSale.descuento,
+        impuestosTrasladados: selectedSale.impuestos,
+        impuestosRetenidos: 0,
+        total: selectedSale.total,
+        formaPago: formData.formaPago as any,
+        metodoPago: formData.metodoPago as any,
+        lugarExpedicion: fiscalConfig.lugarExpedicion,
+        fechaEmision: new Date(),
+        estado: 'pendiente' as const,
+      };
+
+      await addInvoice(invoiceData as any);
+      
+      setShowAddDialog(false);
+      resetForm();
+      addToast({ type: 'success', message: 'Factura generada exitosamente' });
+    } catch (error: any) {
+      addToast({ type: 'error', message: error.message });
+    }
+  };
+
+  const handleViewXML = async (invoice: Invoice) => {
+    try {
+      const xml = await generateXML(invoice);
+      setGeneratedXML(xml);
+      setSelectedInvoice(invoice);
+      setShowXMLDialog(true);
+    } catch (error: any) {
+      addToast({ type: 'error', message: error.message });
+    }
+  };
+
+  const handleDownloadXML = () => {
+    const blob = new Blob([generatedXML], { type: 'application/xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `CFDI_${selectedInvoice?.serie}_${selectedInvoice?.folio}.xml`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleGeneratePDF = (invoice: Invoice) => {
+    const doc = new jsPDF();
+    
+    // Encabezado
+    doc.setFontSize(20);
+    doc.text('FACTURA', 105, 20, { align: 'center' });
+    
+    doc.setFontSize(12);
+    doc.text(`Serie: ${invoice.serie}`, 20, 40);
+    doc.text(`Folio: ${invoice.folio}`, 20, 50);
+    doc.text(`Fecha: ${new Date(invoice.fechaEmision).toLocaleDateString('es-MX')}`, 20, 60);
+    
+    // Emisor
+    doc.setFontSize(14);
+    doc.text('EMISOR', 20, 80);
+    doc.setFontSize(10);
+    doc.text(`RFC: ${invoice.emisor.rfc}`, 20, 90);
+    doc.text(`Nombre: ${invoice.emisor.razonSocial}`, 20, 100);
+    
+    // Receptor
+    doc.setFontSize(14);
+    doc.text('RECEPTOR', 20, 120);
+    doc.setFontSize(10);
+    doc.text(`RFC: ${invoice.cliente?.rfc || 'XAXX010101000'}`, 20, 130);
+    doc.text(`Nombre: ${invoice.cliente?.nombre || 'Público en General'}`, 20, 140);
+    
+    // Productos
+    doc.setFontSize(14);
+    doc.text('CONCEPTOS', 20, 160);
+    
+    let y = 170;
+    invoice.productos.forEach(item => {
+      doc.setFontSize(9);
+      doc.text(`${item.descripcion} - ${item.cantidad} x $${item.precioUnitario.toFixed(2)}`, 20, y);
+      doc.text(`$${item.total.toFixed(2)}`, 180, y, { align: 'right' });
+      y += 10;
+    });
+    
+    // Totales
+    doc.setFontSize(12);
+    doc.text(`Subtotal: $${invoice.subtotal.toFixed(2)}`, 140, y + 10);
+    doc.text(`IVA: $${invoice.impuestosTrasladados.toFixed(2)}`, 140, y + 20);
+    doc.text(`Total: $${invoice.total.toFixed(2)}`, 140, y + 30);
+    
+    doc.save(`Factura_${invoice.serie}_${invoice.folio}.pdf`);
+  };
+
+  const resetForm = () => {
+    setSelectedSale(null);
+    setSelectedClient(null);
+    setFormData({
+      formaPago: '01',
+      metodoPago: 'PUE',
+      usoCfdi: 'G03',
+    });
+  };
+
+  const filteredInvoices = invoices.filter(i =>
+    i.folio.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    i.serie.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    i.cliente?.nombre.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // Filtrar ventas que no tienen factura
+  const salesWithoutInvoice = sales.filter(s => !s.facturaId && s.estado === 'completada');
+
+  return (
+    <>
+    <PageShell
+      title="Facturación CFDI 4.0"
+      subtitle="Facturas electrónicas"
+      className="min-w-0 max-w-none"
+      actions={
+        <Button
+          onClick={() => setShowAddDialog(true)}
+          className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+          size="sm"
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          Nueva
+        </Button>
+      }
+    >
+      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden sm:gap-3">
+      <div className="flex w-full min-w-0 shrink-0 flex-col gap-2 lg:flex-row lg:items-stretch lg:gap-3">
+      {fiscalConfig ? (
+        <Card className="shrink-0 border-slate-800/50 bg-slate-900/50 lg:min-w-0 lg:max-w-md lg:flex-[0_1_340px]">
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 p-2 sm:p-3">
+            <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-500/20 sm:h-10 sm:w-10">
+                <Receipt className="h-4 w-4 text-cyan-400 sm:h-5 sm:w-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] text-slate-500 sm:text-xs">Siguiente folio</p>
+                <p className="text-base font-bold text-slate-100 sm:text-lg">
+                  {fiscalConfig.serie} - {fiscalConfig.folioActual}
+                </p>
+              </div>
+            </div>
+            <div className="min-w-0 text-right">
+              <p className="text-[10px] text-slate-500 sm:text-xs">RFC emisor</p>
+              <p className="truncate text-sm font-medium text-slate-300 sm:text-base">{fiscalConfig.rfc}</p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <div className="relative min-w-0 flex-1">
+        <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 sm:left-3 sm:h-5 sm:w-5" />
+        <Input
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Folio, serie o cliente..."
+          className="h-9 w-full border-slate-800 bg-slate-900/50 pl-9 text-sm text-slate-100 sm:h-10 sm:pl-10"
+        />
+      </div>
+      </div>
+
+      <Card className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50">
+        <CardHeader className="shrink-0 space-y-0 py-2">
+          <CardTitle className="text-sm text-slate-100 sm:text-base">Emitidas</CardTitle>
+        </CardHeader>
+        <CardContent className="min-h-0 flex-1 overflow-auto p-0">
+          <div className="min-h-0 min-w-0">
+            <Table className="table-fixed">
+              <TableHeader>
+                <TableRow className="border-slate-800">
+                  <TableHead className="w-[22%] text-slate-400">Folio</TableHead>
+                  <TableHead className="w-[28%] text-slate-400">Cliente</TableHead>
+                  <TableHead className="w-[12%] text-slate-400">Fecha</TableHead>
+                  <TableHead className="w-[12%] text-slate-400">Total</TableHead>
+                  <TableHead className="w-[13%] text-slate-400">Estado</TableHead>
+                  <TableHead className="w-[13%] text-right text-slate-400">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8">
+                      <div className="w-8 h-8 border-2 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin mx-auto" />
+                    </TableCell>
+                  </TableRow>
+                ) : filteredInvoices.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-slate-500">
+                      No se encontraron facturas
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredInvoices.map((invoice) => (
+                    <TableRow key={invoice.id} className="border-slate-800/50">
+                      <TableCell className="align-top">
+                        <div className="min-w-0">
+                          <p className="font-medium text-slate-200">{invoice.serie}-{invoice.folio}</p>
+                          {invoice.uuid && (
+                            <p className="truncate text-xs text-slate-500">UUID: {invoice.uuid.slice(0, 8)}...</p>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="max-w-0 truncate text-slate-400">
+                        {invoice.cliente?.nombre || 'Mostrador'}
+                      </TableCell>
+                      <TableCell className="text-slate-400">
+                        {new Date(invoice.fechaEmision).toLocaleDateString('es-MX')}
+                      </TableCell>
+                      <TableCell className="text-cyan-400 font-medium">
+                        ${invoice.total.toFixed(2)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={cn('border', statusColors[invoice.estado])}>
+                          {statusLabels[invoice.estado]}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="text-slate-400">
+                              <MoreHorizontal className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent className="bg-slate-900 border-slate-800">
+                            <DropdownMenuItem 
+                              onClick={() => { setSelectedInvoice(invoice); setShowDetailDialog(true); }}
+                              className="text-slate-300 hover:text-slate-100 hover:bg-slate-800"
+                            >
+                              <Eye className="w-4 h-4 mr-2" />
+                              Ver Detalle
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => handleViewXML(invoice)}
+                              className="text-slate-300 hover:text-slate-100 hover:bg-slate-800"
+                            >
+                              <FileCode className="w-4 h-4 mr-2" />
+                              Ver XML
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => handleGeneratePDF(invoice)}
+                              className="text-slate-300 hover:text-slate-100 hover:bg-slate-800"
+                            >
+                              <Download className="w-4 h-4 mr-2" />
+                              Descargar PDF
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => handleViewXML(invoice)}
+                              className="text-slate-300 hover:text-slate-100 hover:bg-slate-800"
+                            >
+                              <Send className="w-4 h-4 mr-2" />
+                              Enviar por Email
+                            </DropdownMenuItem>
+                            {invoice.estado !== 'cancelada' && (
+                              <DropdownMenuItem 
+                                onClick={() => cancelInvoice(invoice.id, 'Error en datos')}
+                                className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                              >
+                                <X className="w-4 h-4 mr-2" />
+                                Cancelar
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+      </div>
+    </PageShell>
+
+      {/* Add Invoice Dialog */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="bg-slate-900 border-slate-800 text-slate-100 max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Generar Nueva Factura</DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {!fiscalConfig ? (
+              <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400">
+                <p className="flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5" />
+                  Configure los datos fiscales antes de generar facturas
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label>Seleccionar Venta *</Label>
+                  <select
+                    value={selectedSale?.id || ''}
+                    onChange={(e) => {
+                      const sale = salesWithoutInvoice.find(s => s.id === e.target.value);
+                      setSelectedSale(sale || null);
+                    }}
+                    className="w-full h-10 px-3 rounded-md bg-slate-800 border border-slate-700 text-slate-100"
+                  >
+                    <option value="">Seleccione una venta</option>
+                    {salesWithoutInvoice.map(sale => (
+                      <option key={sale.id} value={sale.id}>
+                        {sale.folio} - {sale.cliente?.nombre || 'Mostrador'} - ${sale.total.toFixed(2)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {selectedSale && (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Cliente (opcional, para cambiar)</Label>
+                      <select
+                        value={selectedClient?.id || ''}
+                        onChange={(e) => {
+                          const client = clients.find(c => c.id === e.target.value);
+                          setSelectedClient(client || null);
+                        }}
+                        className="w-full h-10 px-3 rounded-md bg-slate-800 border border-slate-700 text-slate-100"
+                      >
+                        <option value="">Usar cliente de la venta</option>
+                        {clients.filter(c => !c.isMostrador).map(client => (
+                          <option key={client.id} value={client.id}>
+                            {client.nombre} {client.rfc ? `(${client.rfc})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Forma de Pago</Label>
+                        <select
+                          value={formData.formaPago}
+                          onChange={(e) => setFormData({ ...formData, formaPago: e.target.value })}
+                          className="w-full h-10 px-3 rounded-md bg-slate-800 border border-slate-700 text-slate-100"
+                        >
+                          {FORMAS_PAGO.map(fp => (
+                            <option key={fp.clave} value={fp.clave}>{fp.descripcion}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Método de Pago</Label>
+                        <select
+                          value={formData.metodoPago}
+                          onChange={(e) => setFormData({ ...formData, metodoPago: e.target.value })}
+                          className="w-full h-10 px-3 rounded-md bg-slate-800 border border-slate-700 text-slate-100"
+                        >
+                          <option value="PUE">Pago en una sola exhibición</option>
+                          <option value="PPD">Pago en parcialidades</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Uso CFDI</Label>
+                      <select
+                        value={formData.usoCfdi}
+                        onChange={(e) => setFormData({ ...formData, usoCfdi: e.target.value })}
+                        className="w-full h-10 px-3 rounded-md bg-slate-800 border border-slate-700 text-slate-100"
+                      >
+                        {USOS_CFDI.map(uso => (
+                          <option key={uso.clave} value={uso.clave}>{uso.clave} - {uso.descripcion}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Resumen de la venta */}
+                    <div className="p-4 rounded-lg bg-slate-800/50 space-y-2">
+                      <p className="text-sm text-slate-400">Resumen de la Venta</p>
+                      <div className="flex justify-between text-slate-300">
+                        <span>Subtotal:</span>
+                        <span>${selectedSale.subtotal.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-slate-300">
+                        <span>IVA:</span>
+                        <span>${selectedSale.impuestos.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-xl font-bold text-cyan-400">
+                        <span>Total:</span>
+                        <span>${selectedSale.total.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddDialog(false)} className="border-slate-700 text-slate-400">
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleGenerateInvoice}
+              disabled={!selectedSale || !fiscalConfig}
+              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+            >
+              <Check className="w-4 h-4 mr-2" />
+              Generar Factura
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* XML Viewer Dialog */}
+      <Dialog open={showXMLDialog} onOpenChange={setShowXMLDialog}>
+        <DialogContent className="bg-slate-900 border-slate-800 text-slate-100 max-w-3xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>XML CFDI 4.0</DialogTitle>
+          </DialogHeader>
+          
+          <div className="py-4">
+            <pre className="p-4 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-300 overflow-auto max-h-96">
+              {generatedXML}
+            </pre>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowXMLDialog(false)} className="border-slate-700 text-slate-400">
+              Cerrar
+            </Button>
+            <Button 
+              onClick={handleDownloadXML}
+              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Descargar XML
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Detail Dialog */}
+      <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
+        <DialogContent className="bg-slate-900 border-slate-800 text-slate-100 max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Factura {selectedInvoice?.serie}-{selectedInvoice?.folio}</DialogTitle>
+          </DialogHeader>
+          
+          {selectedInvoice && (
+            <div className="space-y-4">
+              <div className="flex justify-between text-sm">
+                <div>
+                  <p className="text-slate-500">Emisor</p>
+                  <p className="text-slate-200">{selectedInvoice.emisor.razonSocial}</p>
+                  <p className="text-slate-400">{selectedInvoice.emisor.rfc}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-slate-500">Fecha de Emisión</p>
+                  <p className="text-slate-200">
+                    {new Date(selectedInvoice.fechaEmision).toLocaleString('es-MX')}
+                  </p>
+                </div>
+              </div>
+
+              <div className="border-t border-slate-800 pt-4">
+                <p className="text-slate-500 text-sm mb-2">Receptor</p>
+                <p className="text-slate-200">{selectedInvoice.cliente?.nombre || 'Público en General'}</p>
+                <p className="text-slate-400">{selectedInvoice.cliente?.rfc || 'XAXX010101000'}</p>
+              </div>
+
+              <div className="border border-slate-800 rounded-lg">
+                <table className="w-full">
+                  <thead className="bg-slate-800/50">
+                    <tr>
+                      <th className="text-left p-3 text-sm text-slate-400">Descripción</th>
+                      <th className="text-center p-3 text-sm text-slate-400">Cant.</th>
+                      <th className="text-right p-3 text-sm text-slate-400">P.Unit</th>
+                      <th className="text-right p-3 text-sm text-slate-400">Importe</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/50">
+                    {selectedInvoice.productos.map((item, idx) => (
+                      <tr key={idx}>
+                        <td className="p-3 text-slate-200">{item.descripcion}</td>
+                        <td className="p-3 text-center text-slate-400">{item.cantidad}</td>
+                        <td className="p-3 text-right text-slate-400">${item.precioUnitario.toFixed(2)}</td>
+                        <td className="p-3 text-right text-cyan-400">${item.total.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex justify-end space-y-1">
+                <div className="text-right">
+                  <p className="text-slate-400">Subtotal: ${selectedInvoice.subtotal.toFixed(2)}</p>
+                  <p className="text-slate-400">Descuento: ${selectedInvoice.descuento.toFixed(2)}</p>
+                  <p className="text-slate-400">IVA: ${selectedInvoice.impuestosTrasladados.toFixed(2)}</p>
+                  <p className="text-xl font-bold text-cyan-400 mt-2">
+                    Total: ${selectedInvoice.total.toFixed(2)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
