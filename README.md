@@ -73,6 +73,12 @@ npm run build
 
 Los archivos compilados se encuentran en la carpeta `dist/`.
 
+### Despliegue en Vercel
+
+La app **requiere** las variables `VITE_FIREBASE_*` en tiempo de build. En Vercel debes definirlas en **Settings → Environment Variables** y luego **Redeploy**; el `.env` local no se sube al repositorio.
+
+Guía paso a paso: **[docs/VERCEL.md](docs/VERCEL.md)** (incluye dominio autorizado en Firebase Auth).
+
 ## Uso
 
 ### Credenciales iniciales

@@ -6,7 +6,7 @@ function requireEnv(name: keyof ImportMetaEnv): string {
   const value = import.meta.env[name];
   if (typeof value !== 'string' || value.length === 0) {
     throw new Error(
-      `Falta variable de entorno ${String(name)}. Copia .env.example a .env y completa los valores de Firebase.`
+      `Falta variable de entorno ${String(name)}. En local: copia .env.example a .env. En Vercel: Settings → Environment Variables (VITE_*) y Redeploy. Ver docs/VERCEL.md.`
     );
   }
   return value;
