@@ -43,7 +43,8 @@ export function Layout() {
               <main
                 className={cn(
                   'flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden px-2 pt-0.5 sm:px-3 md:px-4 lg:px-5',
-                  'pb-[calc(3.75rem+0.5rem+env(safe-area-inset-bottom,0px))] md:pb-3.5'
+                  /* +0.75rem extra en móvil: iPhone (home indicator + nav) suele recortar el último botón */
+                  'pb-[calc(3.75rem+1.25rem+env(safe-area-inset-bottom,0px))] md:pb-3.5'
                 )}
               >
                 <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">

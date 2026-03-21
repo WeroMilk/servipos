@@ -896,7 +896,7 @@ export function POS() {
             </CardContent>
           </Card>
 
-          <div className="shrink-0 space-y-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+          <div className="max-md:-mt-3 shrink-0 space-y-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
             <Button
               type="button"
               onClick={() => openCheckoutDialog()}
@@ -904,7 +904,7 @@ export function POS() {
                 items.length === 0 ||
                 (formaPago === 'TTS' && isAdmin && !transferenciaDestinoSucursalId?.trim())
               }
-              className="h-11 w-full min-w-0 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-sm font-bold text-white shadow-lg shadow-cyan-500/25 sm:h-12 sm:text-base md:h-14 md:text-lg"
+              className="h-10 w-full min-w-0 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-sm font-bold text-white shadow-lg shadow-cyan-500/25 sm:h-12 sm:text-base md:h-14 md:text-lg"
             >
               Cobrar
             </Button>
