@@ -75,7 +75,9 @@ export function AdminSucursalSwitcher() {
     if (activeSucursalId) {
       const s = sucursales.find((x) => x.id === activeSucursalId);
       if (s) return labelForSucursal(s);
-      return `Tienda (${activeSucursalId.slice(0, 8)}…)`;
+      return activeSucursalId.length > 18
+        ? `${activeSucursalId.slice(0, 12)}…`
+        : activeSucursalId;
     }
     const eid = effectiveSucursalId;
     const s = eid ? sucursales.find((x) => x.id === eid) : undefined;

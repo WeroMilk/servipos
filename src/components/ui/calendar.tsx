@@ -17,7 +17,7 @@ import { Button, buttonVariants } from "@/components/ui/button"
 
 function Calendar({
   className,
-  classNames,
+  classNames: userClassNames,
   showOutsideDays = true,
   captionLayout = "label",
   buttonVariant = "ghost",
@@ -28,6 +28,11 @@ function Calendar({
   buttonVariant?: React.ComponentProps<typeof Button>["variant"]
 }) {
   const defaultClassNames = getDefaultClassNames()
+  const {
+    weekday: userWeekday,
+    weekdays: userWeekdays,
+    ...restUserClassNames
+  } = userClassNames ?? {}
 
   return (
     <DayPicker
@@ -89,10 +94,15 @@ function Calendar({
           defaultClassNames.caption_label
         ),
         table: "w-full border-collapse",
-        weekdays: cn("flex", defaultClassNames.weekdays),
+        weekdays: cn(
+          "flex w-full",
+          defaultClassNames.weekdays,
+          userWeekdays
+        ),
         weekday: cn(
-          "text-muted-foreground rounded-md flex-1 font-normal text-[0.8rem] select-none",
-          defaultClassNames.weekday
+          "text-muted-foreground flex min-w-0 flex-1 items-center justify-center rounded-md text-center text-[0.8rem] font-normal select-none",
+          defaultClassNames.weekday,
+          userWeekday
         ),
         week: cn("flex w-full mt-2", defaultClassNames.week),
         week_number_header: cn(
@@ -129,7 +139,7 @@ function Calendar({
           defaultClassNames.disabled
         ),
         hidden: cn("invisible", defaultClassNames.hidden),
-        ...classNames,
+        ...restUserClassNames,
       }}
       components={{
         Root: ({ className, rootRef, ...props }) => {

@@ -393,7 +393,7 @@ export function Inventario() {
         </button>
       </div>
 
-      <div className="relative w-full min-w-0 shrink-0">
+      <div className="relative mt-3 mb-3 w-full min-w-0 shrink-0 sm:mt-4 sm:mb-4">
         <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 sm:left-3 sm:h-5 sm:w-5" />
         <Input
           value={searchQuery}
