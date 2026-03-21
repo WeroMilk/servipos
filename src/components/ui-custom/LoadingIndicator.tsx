@@ -80,9 +80,9 @@ export function LoadingIndicator({
   const label = showMessage ? (
     <p
       className={cn(
-        'font-medium uppercase tracking-[0.32em] text-slate-600/95 dark:text-slate-500/95',
+        'font-medium uppercase tracking-[0.32em]',
         size === 'sm' ? 'text-[10px]' : 'text-[11px]',
-        onBrand && 'text-white/90'
+        onBrand ? 'text-white/90' : 'text-slate-600/95 dark:text-slate-500/95'
       )}
     >
       {message}

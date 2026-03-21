@@ -768,8 +768,11 @@ export function Facturas() {
                 <p className="text-slate-600 dark:text-slate-400">{selectedInvoice.cliente?.rfc || 'XAXX010101000'}</p>
               </div>
 
-              <div className="border border-slate-200 dark:border-slate-800 rounded-lg">
-                <table className="w-full">
+              <div
+                data-wheel-scroll-x="table"
+                className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800"
+              >
+                <table className="w-full min-w-[20rem]">
                   <thead className="bg-slate-200/80 dark:bg-slate-800/50">
                     <tr>
                       <th className="text-left p-3 text-sm text-slate-600 dark:text-slate-400">Descripción</th>

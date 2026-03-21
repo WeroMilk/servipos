@@ -475,6 +475,7 @@ export function Inventario() {
             inventario aquí.
           </p>
           <div
+            data-wheel-scroll-x="strip"
             className="w-full snap-x snap-mandatory overflow-x-auto overflow-y-visible scroll-smooth [-webkit-overflow-scrolling:touch]"
             style={{ scrollbarWidth: 'thin' }}
           >
@@ -525,7 +526,7 @@ export function Inventario() {
           type="button"
           variant="outline"
           size="sm"
-          className="border-amber-500/40 text-amber-200/90 hover:bg-amber-500/10"
+          className="border-blue-600/45 text-blue-800 hover:bg-blue-500/10 hover:text-blue-900 dark:border-amber-500/45 dark:text-amber-200/95 dark:hover:bg-amber-500/15 dark:hover:text-amber-100"
           onClick={() => {
             const items = products.filter(isStockBajo).map((p) => ({
               nombre: p.nombre,

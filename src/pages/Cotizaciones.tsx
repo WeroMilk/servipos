@@ -682,7 +682,10 @@ export function Cotizaciones() {
                 </div>
               </div>
 
-              <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
+              <div
+                data-wheel-scroll-x="table"
+                className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800"
+              >
                 <table className="w-full min-w-[20rem] text-sm">
                   <thead className="bg-slate-200/80 dark:bg-slate-800/50">
                     <tr>

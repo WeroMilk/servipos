@@ -178,6 +178,7 @@ export function Configuracion() {
           className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-1.5 overflow-y-auto overscroll-y-contain sm:gap-2 lg:overflow-hidden"
         >
         <TabsList
+          data-wheel-scroll-x="strip"
           className={cn(
             'flex h-auto w-full min-w-0 shrink-0 flex-nowrap gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-xl bg-slate-50/90 p-1 dark:bg-slate-900/50 [-webkit-overflow-scrolling:touch]',
             'xl:grid xl:w-full xl:overflow-x-visible xl:p-1',

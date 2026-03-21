@@ -721,34 +721,38 @@ export function POS() {
             mobileTab !== 'checkout' && 'hidden lg:flex'
           )}
         >
-          <div className={cn('shrink-0 p-2 sm:p-3', panelClass)}>
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-500/20 sm:h-10 sm:w-10">
-                  <User className="h-4 w-4 text-cyan-400 sm:h-5 sm:w-5" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] uppercase tracking-wide text-slate-600 dark:text-slate-500 sm:text-xs">
-                    Cliente
-                  </p>
-                  <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-200 sm:text-base">
-                    {client?.nombre || 'Mostrador'}
-                  </p>
-                </div>
+          <button
+            type="button"
+            className={cn(
+              'flex w-full shrink-0 items-center justify-between gap-2 p-2 text-left sm:gap-3 sm:p-3',
+              panelClass,
+              'cursor-pointer transition-colors',
+              'hover:border-cyan-500/40 hover:bg-slate-100/95 dark:hover:border-cyan-500/35 dark:hover:bg-slate-800/70',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40'
+            )}
+            onClick={() => {
+              void refreshClients();
+              setShowClientDialog(true);
+            }}
+            aria-label={`Cliente: ${client?.nombre || 'Mostrador'}. Cambiar cliente`}
+          >
+            <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-500/20 sm:h-10 sm:w-10">
+                <User className="h-4 w-4 text-cyan-400 sm:h-5 sm:w-5" />
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 shrink-0 px-2 text-xs text-cyan-700 hover:text-cyan-900 sm:h-9 sm:text-sm dark:text-cyan-400 dark:hover:text-cyan-300"
-                onClick={() => {
-                  void refreshClients();
-                  setShowClientDialog(true);
-                }}
-              >
-                Cambiar
-              </Button>
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase tracking-wide text-slate-600 dark:text-slate-500 sm:text-xs">
+                  Cliente
+                </p>
+                <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-200 sm:text-base">
+                  {client?.nombre || 'Mostrador'}
+                </p>
+              </div>
             </div>
-          </div>
+            <span className="shrink-0 text-xs font-medium text-cyan-700 sm:text-sm dark:text-cyan-400">
+              Cambiar
+            </span>
+          </button>
 
           <Card className="flex min-w-0 flex-col overflow-visible border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 max-lg:flex-none lg:min-h-0 lg:flex-1 lg:overflow-hidden">
             <CardContent className="flex flex-col gap-3 overflow-visible p-2 sm:p-3 lg:min-h-0 lg:flex-1 lg:overflow-hidden lg:p-4">
