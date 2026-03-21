@@ -390,17 +390,17 @@ export function Checador() {
               ) : (
                 <div className="min-w-0 max-w-full overflow-x-auto [-webkit-overflow-scrolling:touch]">
                 <Table className="w-max min-w-full">
-                  <TableHeader className="[&_th]:sticky [&_th]:top-0 [&_th]:z-[1] [&_th]:bg-slate-50 dark:bg-slate-950 [&_th]:shadow-[0_1px_0_0_rgb(226_232_240)] dark:[&_th]:shadow-[0_1px_0_0_rgb(30_41_59)]">
+                  <TableHeader className="[&_th]:sticky [&_th]:top-0 [&_th]:z-[1] [&_th]:bg-slate-50 [&_th]:backdrop-blur-sm dark:[&_th]:bg-slate-950/95 dark:[&_th]:backdrop-blur-sm [&_th]:shadow-[0_1px_0_0_rgb(226_232_240)] dark:[&_th]:shadow-[0_1px_0_0_rgb(30_41_59)]">
                     <TableRow className="border-slate-200 dark:border-slate-800 hover:bg-transparent">
-                      <TableHead className="text-slate-600 dark:text-slate-400">Colaborador</TableHead>
-                      <TableHead className="min-w-[10rem] text-slate-600 dark:text-slate-400">Correo</TableHead>
-                      <TableHead className="whitespace-nowrap text-slate-600 dark:text-slate-400">ID usuario</TableHead>
-                      <TableHead className="text-slate-600 dark:text-slate-400">Tienda (fichaje)</TableHead>
-                      <TableHead className="text-slate-600 dark:text-slate-400">Fecha</TableHead>
-                      <TableHead className="text-slate-600 dark:text-slate-400">Entrada</TableHead>
-                      <TableHead className="text-slate-600 dark:text-slate-400">Salida a comer</TableHead>
-                      <TableHead className="text-slate-600 dark:text-slate-400">Regreso</TableHead>
-                      <TableHead className="text-slate-600 dark:text-slate-400">Cierre</TableHead>
+                      <TableHead className="text-slate-600 dark:text-slate-300">Colaborador</TableHead>
+                      <TableHead className="min-w-[10rem] text-slate-600 dark:text-slate-300">Correo</TableHead>
+                      <TableHead className="whitespace-nowrap text-slate-600 dark:text-slate-300">ID usuario</TableHead>
+                      <TableHead className="text-slate-600 dark:text-slate-300">Tienda (fichaje)</TableHead>
+                      <TableHead className="text-slate-600 dark:text-slate-300">Fecha</TableHead>
+                      <TableHead className="text-slate-600 dark:text-slate-300">Entrada</TableHead>
+                      <TableHead className="text-slate-600 dark:text-slate-300">Salida a comer</TableHead>
+                      <TableHead className="text-slate-600 dark:text-slate-300">Regreso</TableHead>
+                      <TableHead className="text-slate-600 dark:text-slate-300">Cierre</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
