@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Search,
   Plus,
@@ -44,6 +44,21 @@ import { printThermalTicket } from '@/lib/printTicket';
 
 type MobileTab = 'cart' | 'checkout';
 
+/** Datos de la venta recién cobrada: el carrito se vacía al completar; el ticket y el modal usan esto. */
+type PosTicketSnapshot = {
+  clienteNombre: string;
+  lineas: {
+    descripcion: string;
+    cantidad: number;
+    precioUnit: number;
+    total: number;
+  }[];
+  subtotal: number;
+  impuestos: number;
+  total: number;
+  cambio: number;
+};
+
 export function POS() {
   const { user } = useAuthStore();
   const { addToast } = useAppStore();
@@ -75,18 +90,35 @@ export function POS() {
     getCambio,
   } = useCartStore();
 
-  /** Selectores primitivos: el UI se suscribe al total y se repinta al cambiar ítems/descuentos (evita totales en $0.00 desincronizados). */
-  const subtotalVenta = useCartStore((s) => s.getSubtotal());
-  const descuentoVenta = useCartStore((s) => s.getDescuento());
-  const impuestosVenta = useCartStore((s) => s.getImpuestos());
-  const totalVenta = useCartStore((s) => s.getTotal());
-  const totalPagadoVenta = useCartStore((s) => s.getTotalPagado());
-  const cambioVenta = useCartStore((s) => s.getCambio());
+  /**
+   * Totales derivados con useMemo desde items/discount/pagos: los selectores inline tipo `(s) => s.getTotal()`
+   * cambian de identidad cada render y en React 19 + useSyncExternalStore pueden dejar el snapshot desincronizado (ej. botón Cobrar en $0.00).
+   */
+  const { subtotalVenta, descuentoVenta, impuestosVenta, totalVenta } = useMemo(() => {
+    const st = useCartStore.getState();
+    return {
+      subtotalVenta: st.getSubtotal(),
+      descuentoVenta: st.getDescuento(),
+      impuestosVenta: st.getImpuestos(),
+      totalVenta: st.getTotal(),
+    };
+  }, [items, discount]);
+
+  const totalPagadoVenta = useMemo(
+    () => useCartStore.getState().getTotalPagado(),
+    [pagos]
+  );
+
+  const cambioVenta = useMemo(
+    () => useCartStore.getState().getCambio(),
+    [items, discount, pagos]
+  );
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showProductSearch, setShowProductSearch] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [showTicketDialog, setShowTicketDialog] = useState(false);
+  const [ticketSnapshot, setTicketSnapshot] = useState<PosTicketSnapshot | null>(null);
   const [showClientDialog, setShowClientDialog] = useState(false);
   const [montoRecibidoInput, setMontoRecibidoInput] = useState('');
   const [processingSale, setProcessingSale] = useState(false);
@@ -199,6 +231,26 @@ export function POS() {
 
       await addSale(saleData);
 
+      const clienteNombre = client?.nombre || 'Mostrador';
+      const lineas = items.map((item) => {
+        const unit = item.product.precioVenta * (1 - item.discount / 100);
+        const lineTot = item.product.precioVenta * item.quantity * (1 - item.discount / 100);
+        return {
+          descripcion: item.product.nombre,
+          cantidad: item.quantity,
+          precioUnit: unit,
+          total: lineTot,
+        };
+      });
+      setTicketSnapshot({
+        clienteNombre,
+        lineas,
+        subtotal: getSubtotal(),
+        impuestos: getImpuestos(),
+        total: getTotal(),
+        cambio: getCambio(),
+      });
+      clearCart();
       setShowPaymentDialog(false);
       setShowTicketDialog(true);
 
@@ -214,31 +266,33 @@ export function POS() {
   };
 
   const handleFinishSale = () => {
-    clearCart();
+    setTicketSnapshot(null);
     setShowTicketDialog(false);
     setMobileTab('cart');
+    clearCart();
   };
 
   const handlePrintTicket = () => {
+    const snap = ticketSnapshot;
+    if (!snap) return;
     printThermalTicket({
       negocio: 'SERVIPARTZ POS',
       fecha: new Date().toLocaleString('es-MX'),
-      cliente: client?.nombre || 'Mostrador',
-      lineas: items.map((item) => {
-        const unit = item.product.precioVenta * (1 - item.discount / 100);
-        const lineTot = item.product.precioVenta * item.quantity * (1 - item.discount / 100);
-        return {
-          descripcion: item.product.nombre,
-          cantidad: item.quantity,
-          precioUnit: unit,
-          total: lineTot,
-        };
-      }),
-      subtotal: getSubtotal(),
-      impuestos: getImpuestos(),
-      total: getTotal(),
-      cambio: getCambio(),
+      cliente: snap.clienteNombre,
+      lineas: snap.lineas,
+      subtotal: snap.subtotal,
+      impuestos: snap.impuestos,
+      total: snap.total,
+      cambio: snap.cambio,
     });
+  };
+
+  const handleTicketDialogOpenChange = (open: boolean) => {
+    setShowTicketDialog(open);
+    if (!open) {
+      setTicketSnapshot(null);
+      setMobileTab('cart');
+    }
   };
 
   const panelClass =
@@ -650,7 +704,7 @@ export function POS() {
       </div>
 
       <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
-        <DialogContent className="max-h-[min(92dvh,36rem)] overflow-y-auto border-slate-800 bg-slate-900 text-slate-100 sm:max-w-md">
+        <DialogContent className="top-4 left-1/2 max-h-[calc(100dvh-1rem)] w-[min(calc(100vw-1rem),28rem)] max-w-none -translate-x-1/2 translate-y-0 overflow-x-hidden overflow-y-auto border-slate-800 bg-slate-900 p-4 text-slate-100 sm:top-6 sm:max-h-[calc(100dvh-1.5rem)] sm:w-[min(calc(100vw-2rem),32rem)] sm:p-6">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
               <Receipt className="h-5 w-5 text-cyan-400 sm:h-6 sm:w-6" />
@@ -658,7 +712,7 @@ export function POS() {
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-2 sm:space-y-6 sm:py-4">
+          <div className="space-y-3 py-1 sm:space-y-4 sm:py-2">
             <div className="rounded-xl bg-slate-800/50 p-3 text-center sm:p-4">
               <p className="mb-1 text-xs text-slate-400 sm:text-sm">Total a pagar</p>
               <p className="text-2xl font-bold text-cyan-400 sm:text-4xl">{formatMoney(totalVenta)}</p>
@@ -708,7 +762,7 @@ export function POS() {
             {pagos.length > 0 && (
               <div className="space-y-2">
                 <Label>Pagos recibidos</Label>
-                <div className="max-h-32 space-y-2 overflow-y-auto sm:max-h-40">
+                <div className="space-y-2">
                   {pagos.map((pago, index) => (
                     <div
                       key={index}
@@ -770,7 +824,7 @@ export function POS() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showTicketDialog} onOpenChange={setShowTicketDialog}>
+      <Dialog open={showTicketDialog} onOpenChange={handleTicketDialogOpenChange}>
         <DialogContent className="border-slate-800 bg-slate-900 text-slate-100 sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-center text-lg sm:text-xl">¡Venta completada!</DialogTitle>
@@ -782,9 +836,11 @@ export function POS() {
             </div>
             <p className="mb-1 text-sm text-slate-400 sm:mb-2">Total</p>
             <p className="mb-3 text-3xl font-bold text-cyan-400 sm:mb-4 sm:text-4xl">
-              {formatMoney(totalVenta)}
+              {formatMoney(ticketSnapshot?.total ?? 0)}
             </p>
-            <p className="text-xs text-slate-500 sm:text-sm">Cambio: {formatMoney(cambioVenta)}</p>
+            <p className="text-xs text-slate-500 sm:text-sm">
+              Cambio: {formatMoney(ticketSnapshot?.cambio ?? 0)}
+            </p>
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row">
