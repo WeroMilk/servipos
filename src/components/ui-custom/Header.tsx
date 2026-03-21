@@ -12,7 +12,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import { BRAND_LOGO_URL } from '@/lib/branding';
 import { reportAppEvent } from '@/lib/appEventLog';
 import { AdminSucursalSwitcher } from '@/components/ui-custom/AdminSucursalSwitcher';
 import { AppEventsNotificationPanel } from '@/components/ui-custom/AppEventsNotificationPanel';
@@ -49,35 +48,8 @@ export function Header() {
         'transition-all duration-300'
       )}
     >
-      <div className="flex min-w-0 items-center gap-2 sm:gap-3 md:gap-4">
-        <button
-          type="button"
-          onClick={() => navigate('/')}
-          className={cn(
-            'flex min-w-0 items-center gap-2 rounded-xl border border-transparent p-1 text-left transition-colors',
-            'hover:border-slate-800/80 hover:bg-slate-800/40 sm:gap-3 sm:px-2 sm:py-1.5'
-          )}
-          aria-label="Ir al panel de inicio"
-        >
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg ring-1 ring-slate-700/50">
-            <img
-              src={BRAND_LOGO_URL}
-              alt=""
-              className="h-full w-full object-cover"
-              width={36}
-              height={36}
-              decoding="async"
-            />
-          </div>
-          <div className="min-w-0 leading-tight">
-            <p className="truncate text-sm font-bold tracking-tight text-slate-100 md:inline">
-              <span className="md:hidden">SERVIPARTZ</span>
-              <span className="hidden md:inline">SERVIPARTZ POS</span>
-            </p>
-            <p className="truncate text-[10px] text-slate-500 md:hidden">POS</p>
-            <p className="hidden truncate text-xs text-slate-500 md:block">Panel · inicio</p>
-          </div>
-        </button>
+      <div className="flex min-w-0 items-center px-0.5">
+        <p className="text-xs font-semibold tracking-[0.18em] text-slate-500 sm:text-sm">MENÚ</p>
       </div>
 
       <div className="flex shrink-0 items-center gap-2 sm:gap-3">

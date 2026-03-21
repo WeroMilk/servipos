@@ -5,6 +5,7 @@ import { Cloud, CloudOff } from 'lucide-react';
 import { useAuthStore, useSyncStore } from '@/stores';
 import { cn } from '@/lib/utils';
 import { MAIN_NAV_ITEMS } from '@/lib/mainNavItems';
+import { BRAND_LOGO_URL } from '@/lib/branding';
 
 interface NavItemProps {
   to: string;
@@ -57,12 +58,29 @@ export function Sidebar() {
         'fixed left-0 top-0 z-40 hidden h-dvh w-72 min-w-[18rem] flex-col border-r border-slate-800/50 bg-slate-950/95 backdrop-blur-xl md:flex'
       )}
     >
-      <div
-        className="flex h-14 shrink-0 items-end border-b border-slate-800/50 px-3 pb-2 sm:h-16"
-        aria-hidden
+      <NavLink
+        to="/"
+        className={cn(
+          'flex h-14 shrink-0 items-center gap-3 border-b border-slate-800/50 px-3 transition-colors sm:h-16',
+          'hover:bg-slate-800/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40'
+        )}
+        aria-label="Ir al panel de inicio"
       >
-        <p className="text-[10px] font-medium uppercase tracking-wider text-slate-600">Menú</p>
-      </div>
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg ring-1 ring-slate-700/50 sm:h-11 sm:w-11">
+          <img
+            src={BRAND_LOGO_URL}
+            alt=""
+            className="h-full w-full object-cover"
+            width={44}
+            height={44}
+            decoding="async"
+          />
+        </div>
+        <div className="min-w-0 leading-tight">
+          <p className="truncate text-sm font-bold tracking-tight text-slate-100">SERVIPARTZ POS</p>
+          <p className="truncate text-[11px] text-slate-500 sm:text-xs">Panel · inicio</p>
+        </div>
+      </NavLink>
 
       <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-y-contain p-3 pt-2">
         {MAIN_NAV_ITEMS.map(

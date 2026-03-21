@@ -29,23 +29,57 @@ function nombreDisplayFromId(id: string): string {
   return t.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/** Valores que a veces se guardan por error en `nombre`/`codigo` al confundirlos con flags booleanos. */
+function isGarbageDisplayToken(s: string): boolean {
+  const n = s
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  return (
+    n === 'true' ||
+    n === 'false' ||
+    n === 'verdadero' ||
+    n === 'falso' ||
+    n === 'yes' ||
+    n === 'no' ||
+    n === 'si' ||
+    n === 'sí'
+  );
+}
+
+function firstNonEmptyString(...candidates: unknown[]): string | undefined {
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.trim().length > 0) return c.trim();
+  }
+  return undefined;
+}
+
 function optionalCodigo(v: unknown): string | undefined {
   if (typeof v !== 'string') return undefined;
   const t = v.trim();
-  return t.length > 0 ? t : undefined;
+  if (t.length === 0 || isGarbageDisplayToken(t)) return undefined;
+  return t;
 }
 
 export function docToSucursal(id: string, d: Record<string, unknown>): Sucursal {
-  const rawNombre = d.nombre;
+  const rawNombre = firstNonEmptyString(
+    d.nombre,
+    d.name,
+    d.nombreSucursal,
+    d.titulo,
+    d.displayName,
+    d.label
+  );
   const nombre =
-    typeof rawNombre === 'string' && rawNombre.trim().length > 0
-      ? rawNombre.trim()
+    rawNombre && !isGarbageDisplayToken(rawNombre)
+      ? rawNombre
       : nombreDisplayFromId(id);
   return {
     id,
     nombre,
     codigo: optionalCodigo(d.codigo),
-    activo: d.activo !== false,
+    activo: d.activo !== false && d.activa !== false,
     createdAt: tsToDate(d.createdAt),
     updatedAt: tsToDate(d.updatedAt),
   };

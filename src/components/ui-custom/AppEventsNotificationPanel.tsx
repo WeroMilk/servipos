@@ -127,7 +127,7 @@ export function AppEventsNotificationPanel() {
           align="end"
           sideOffset={8}
           className={cn(
-            'flex max-h-[min(70dvh,28rem)] w-[min(100vw-2rem,26rem)] flex-col border-slate-800 bg-slate-900 p-0 text-slate-100 shadow-xl',
+            'flex h-[min(70dvh,28rem)] max-h-[min(70dvh,28rem)] w-[min(100vw-2rem,26rem)] flex-col overflow-hidden border-slate-800 bg-slate-900 p-0 text-slate-100 shadow-xl',
             'data-[state=open]:animate-in data-[state=closed]:animate-out'
           )}
           onOpenAutoFocus={(e) => e.preventDefault()}
@@ -150,43 +150,50 @@ export function AppEventsNotificationPanel() {
               </Button>
             ) : null}
           </div>
-          <ul className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain py-1">
-            {events.length === 0 ? (
-              <li className="px-3 py-6 text-center text-xs text-slate-500">
-                Aún no hay eventos registrados o no hay permisos de lectura en Firestore (
-                <code className="text-slate-400">appEvents</code>).
-              </li>
-            ) : (
-              events.map((ev) => (
-                <li
-                  key={ev.id}
-                  className="border-b border-slate-800/60 px-3 py-2.5 last:border-0"
-                >
-                  <button
-                    type="button"
-                    className="w-full text-left transition-colors hover:bg-slate-800/30 rounded-md -mx-1 px-1 py-0.5"
-                    onClick={() => {
-                      if (ev.route?.startsWith('/')) {
-                        navigate(ev.route);
-                        setOpen(false);
-                      }
-                    }}
-                    disabled={!ev.route?.startsWith('/')}
-                  >
-                    <p className={cn('text-xs font-medium', kindStyles(ev.kind))}>{ev.title}</p>
-                    {ev.detail ? (
-                      <p className="mt-0.5 text-[11px] leading-snug text-slate-500">{ev.detail}</p>
-                    ) : null}
-                    <p className="mt-1 font-mono text-[10px] text-slate-600">
-                      {formatEventTime(ev.createdAt)} · {ev.actorName}
-                      {ev.actorRole ? ` · ${ev.actorRole}` : ''}
-                      {ev.source ? ` · ${ev.source}` : ''}
-                    </p>
-                  </button>
+          {/* div intermedio: el <ul> como flex-1 a veces no recibe altura de scroll en Chrome dentro del portal */}
+          <div
+            className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain py-1 [-webkit-overflow-scrolling:touch] [touch-action:pan-y]"
+            role="region"
+            aria-label="Lista de eventos"
+          >
+            <ul className="m-0 list-none p-0">
+              {events.length === 0 ? (
+                <li className="px-3 py-6 text-center text-xs text-slate-500">
+                  Aún no hay eventos registrados o no hay permisos de lectura en Firestore (
+                  <code className="text-slate-400">appEvents</code>).
                 </li>
-              ))
-            )}
-          </ul>
+              ) : (
+                events.map((ev) => (
+                  <li
+                    key={ev.id}
+                    className="border-b border-slate-800/60 px-3 py-2.5 last:border-0"
+                  >
+                    <button
+                      type="button"
+                      className="w-full text-left transition-colors hover:bg-slate-800/30 rounded-md -mx-1 px-1 py-0.5"
+                      onClick={() => {
+                        if (ev.route?.startsWith('/')) {
+                          navigate(ev.route);
+                          setOpen(false);
+                        }
+                      }}
+                      disabled={!ev.route?.startsWith('/')}
+                    >
+                      <p className={cn('text-xs font-medium', kindStyles(ev.kind))}>{ev.title}</p>
+                      {ev.detail ? (
+                        <p className="mt-0.5 text-[11px] leading-snug text-slate-500">{ev.detail}</p>
+                      ) : null}
+                      <p className="mt-1 font-mono text-[10px] text-slate-600">
+                        {formatEventTime(ev.createdAt)} · {ev.actorName}
+                        {ev.actorRole ? ` · ${ev.actorRole}` : ''}
+                        {ev.source ? ` · ${ev.source}` : ''}
+                      </p>
+                    </button>
+                  </li>
+                ))
+              )}
+            </ul>
+          </div>
         </PopoverContent>
       </Popover>
 

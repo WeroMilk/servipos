@@ -45,8 +45,8 @@ function dayInSelectedSpan(day: Date, range: DateRange | undefined): boolean {
 }
 
 /**
- * Calendario del panel: día / semana / mes (estilo cercano a Google Calendar, tema oscuro).
- * react-day-picker v9: onSelect(selected, triggerDate, …) — el primer argumento es la fecha elegida.
+ * Calendario del panel: día / semana / mes.
+ * Portales en `body` + sin `onOpenAutoFocus` bloqueado + layout por defecto del DayPicker = clics fiables.
  */
 export function DashboardPeriodPopover({
   dateRange,
@@ -94,22 +94,21 @@ export function DashboardPeriodPopover({
   };
 
   const hint = useMemo(() => {
-    if (granularity === 'day') return 'Elige un día';
-    if (granularity === 'week') return 'Elige un día: se selecciona la semana (lun–dom)';
-    return 'Elige un día del mes que quieras analizar';
+    if (granularity === 'day') return 'Toca un día para elegirlo';
+    if (granularity === 'week') return 'Toca un día: se selecciona la semana (lun–dom)';
+    return 'Toca un día del mes que quieras analizar';
   }, [granularity]);
 
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
+    <Popover open={open} onOpenChange={onOpenChange} modal={false}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent
         align="end"
         sideOffset={8}
         className={cn(
           'w-[min(calc(100vw-1.5rem),20.5rem)] overflow-hidden border border-slate-700/80 bg-[#2d2d2d] p-0 text-slate-100 shadow-2xl',
-          'data-[state=open]:animate-in data-[state=closed]:animate-out'
+          'pointer-events-auto data-[state=open]:animate-in data-[state=closed]:animate-out'
         )}
-        onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <div className="border-b border-slate-600/50 bg-[#353535] px-3 py-2.5">
           <p className="text-center text-[11px] font-medium uppercase tracking-wide text-slate-400">
@@ -162,7 +161,7 @@ export function DashboardPeriodPopover({
           <p className="mt-2 text-center text-[11px] leading-snug text-slate-500">{hint}</p>
         </div>
 
-        <div className="px-2 pb-1 pt-2">
+        <div className="px-1 pb-2 pt-1 [&_button]:pointer-events-auto">
           <Calendar
             locale={es}
             weekStartsOn={1}
@@ -175,40 +174,21 @@ export function DashboardPeriodPopover({
             }}
             modifiers={modifiers}
             modifiersClassNames={{
-              in_span: 'bg-[#1a73e8]/35 text-slate-50',
+              in_span: 'bg-[#1a73e8]/35 text-slate-50 rounded-md',
             }}
-            className="w-full rounded-none bg-transparent p-0 [--cell-size:2.25rem]"
+            captionLayout="label"
+            className="w-full rounded-none border-0 bg-transparent p-2 text-slate-100 [--cell-size:2.35rem]"
             classNames={{
               root: 'w-full',
-              months: 'w-full flex flex-col',
-              month: 'relative w-full flex flex-col gap-2 px-1',
-              nav: 'absolute inset-x-1 top-0 z-10 flex w-auto items-center justify-between',
-              button_previous: cn(
-                'size-9 rounded-full border-0 bg-transparent text-slate-300',
-                'hover:bg-slate-600/60 hover:text-white',
-                'aria-disabled:opacity-30'
-              ),
-              button_next: cn(
-                'size-9 rounded-full border-0 bg-transparent text-slate-300',
-                'hover:bg-slate-600/60 hover:text-white',
-                'aria-disabled:opacity-30'
-              ),
-              month_caption:
-                'relative z-0 mb-1 flex min-h-[2.75rem] items-center justify-center pt-10',
-              caption_label: 'text-sm font-medium text-slate-100 select-none',
-              weekdays: 'mb-1 flex w-full px-0.5',
-              weekday: cn(
-                'flex-1 text-center text-[11px] font-medium uppercase tracking-wide text-slate-500',
-                'select-none'
-              ),
-              week: 'mt-0 flex w-full',
-              day: cn(
-                'relative flex h-9 flex-1 items-center justify-center p-0 text-center',
-                'focus-within:relative focus-within:z-20'
-              ),
+              caption_label: 'text-sm font-medium text-slate-100',
+              weekday: 'text-slate-500',
+              outside: 'text-slate-600 opacity-50',
               today: 'text-[#8ab4f8]',
-              outside: 'text-slate-600 opacity-40',
-              disabled: 'text-slate-600 opacity-25',
+              disabled: 'opacity-30',
+              button_previous:
+                'size-9 shrink-0 rounded-full border-0 bg-transparent text-slate-300 hover:bg-slate-600/60 hover:text-white',
+              button_next:
+                'size-9 shrink-0 rounded-full border-0 bg-transparent text-slate-300 hover:bg-slate-600/60 hover:text-white',
             }}
             formatters={{
               formatCaption: (date) => format(date, 'MMMM yyyy', { locale: es }),

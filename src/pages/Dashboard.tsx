@@ -29,9 +29,11 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import type { DateRange } from 'react-day-picker';
 import {
   endOfMonth,
+  endOfWeek,
   format,
   startOfDay,
   startOfMonth,
+  startOfWeek,
 } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { Sale } from '@/types';
@@ -177,42 +179,61 @@ export function Dashboard() {
   };
 
   const rangeLabel = useMemo(() => {
-    if (!dateRange?.from) return 'Hoy';
-    const a = dateRange.from;
-    const b = dateRange.to ?? dateRange.from;
-    if (a.getTime() === b.getTime()) {
-      return format(a, "EEE d MMM yyyy", { locale: es });
-    }
-    if (a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear()) {
-      return `${format(a, 'd', { locale: es })} – ${format(b, "d MMM yyyy", { locale: es })}`;
-    }
-    return `${format(a, 'd MMM', { locale: es })} – ${format(b, 'd MMM yyyy', { locale: es })}`;
-  }, [dateRange]);
+    if (!dateRange?.from) return 'fecha —';
+    const from = startOfDay(dateRange.from);
+    const to = startOfDay(dateRange.to ?? dateRange.from);
 
-  const setHoy = () => {
+    if (periodGranularity === 'day') {
+      return `fecha ${format(from, 'd MMM yyyy', { locale: es })}`;
+    }
+    if (periodGranularity === 'week') {
+      return `${format(from, 'dd/MM/yy')} - ${format(to, 'dd/MM/yy')}`;
+    }
+    const m = format(from, 'MMMM', { locale: es });
+    return m.charAt(0).toUpperCase() + m.slice(1);
+  }, [dateRange, periodGranularity]);
+
+  const handleGranularityChange = (g: PeriodGranularity) => {
+    setPeriodGranularity(g);
+    setDateRange((prev) => {
+      const anchor = startOfDay(prev?.from ?? new Date());
+      if (g === 'day') return { from: anchor, to: anchor };
+      if (g === 'week') {
+        return {
+          from: startOfWeek(anchor, { weekStartsOn: 1 }),
+          to: endOfWeek(anchor, { weekStartsOn: 1 }),
+        };
+      }
+      return {
+        from: startOfMonth(anchor),
+        to: endOfMonth(anchor),
+      };
+    });
+  };
+
+  const setQuickDia = () => {
     setPeriodGranularity('day');
     const t = startOfDay(new Date());
     setDateRange({ from: t, to: t });
     setDateOpen(true);
   };
 
-  const setEsteMes = () => {
+  const setQuickSemana = () => {
+    setPeriodGranularity('week');
+    const now = new Date();
+    setDateRange({
+      from: startOfWeek(now, { weekStartsOn: 1 }),
+      to: endOfWeek(now, { weekStartsOn: 1 }),
+    });
+    setDateOpen(true);
+  };
+
+  const setQuickMes = () => {
     setPeriodGranularity('month');
     const now = new Date();
     setDateRange({
       from: startOfMonth(now),
       to: endOfMonth(now),
-    });
-    setDateOpen(true);
-  };
-
-  const setMesAnterior = () => {
-    setPeriodGranularity('month');
-    const now = new Date();
-    const first = startOfMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1));
-    setDateRange({
-      from: first,
-      to: endOfMonth(first),
     });
     setDateOpen(true);
   };
@@ -231,27 +252,27 @@ export function Dashboard() {
             variant="outline"
             size="sm"
             className="border-slate-700 bg-slate-900/80 text-slate-200 hover:bg-slate-800"
-            onClick={setHoy}
+            onClick={setQuickDia}
           >
-            Hoy
+            Día
           </Button>
           <Button
             type="button"
             variant="outline"
             size="sm"
             className="border-slate-700 bg-slate-900/80 text-slate-200 hover:bg-slate-800"
-            onClick={setEsteMes}
+            onClick={setQuickSemana}
           >
-            Este mes
+            Semana
           </Button>
           <Button
             type="button"
             variant="outline"
             size="sm"
             className="border-slate-700 bg-slate-900/80 text-slate-200 hover:bg-slate-800"
-            onClick={setMesAnterior}
+            onClick={setQuickMes}
           >
-            Mes anterior
+            Mes
           </Button>
           <DashboardPeriodPopover
             dateRange={dateRange}
@@ -259,7 +280,7 @@ export function Dashboard() {
             open={dateOpen}
             onOpenChange={setDateOpen}
             granularity={periodGranularity}
-            onGranularityChange={setPeriodGranularity}
+            onGranularityChange={handleGranularityChange}
             rangeLabel={rangeLabel}
             trigger={
               <Button
@@ -319,7 +340,12 @@ export function Dashboard() {
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden lg:flex-row lg:gap-3">
         <div className="flex min-h-0 min-w-0 flex-[1.4] flex-col gap-2 overflow-hidden lg:min-h-0">
-          <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50">
+          <Card
+            className={cn(
+              'hidden overflow-hidden border-slate-800/50 bg-slate-900/50',
+              'md:flex md:min-h-0 md:flex-1 md:flex-col'
+            )}
+          >
             <CardHeader className="shrink-0 space-y-0 py-2">
               <CardTitle className="flex items-center gap-2 text-sm text-slate-100 sm:text-base">
                 <TrendingUp className="h-4 w-4 shrink-0 text-cyan-400" />

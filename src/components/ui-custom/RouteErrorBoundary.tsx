@@ -8,6 +8,14 @@ type Props = {
 
 type State = { hasError: boolean; error: Error | null; routePath: string };
 
+/** Fallos de reconciliación DOM (p. ej. portales + React 19) que no indican fallo lógico de la ruta. */
+function isTransientDomGlitch(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error);
+  return (
+    /removeChild|insertBefore|appendChild/.test(msg) && /not a child of this node/i.test(msg)
+  );
+}
+
 /**
  * Evita pantalla en blanco si falla el árbol de una ruta.
  * Al cambiar `routePath`, se limpia el error en getDerivedStateFromProps (mismo ciclo que la nueva ruta),
@@ -31,11 +39,18 @@ export class RouteErrorBoundary extends Component<Props, State> {
     return null;
   }
 
-  static getDerivedStateFromError(error: Error): Partial<State> {
+  static getDerivedStateFromError(error: Error): Partial<State> | null {
+    if (isTransientDomGlitch(error)) {
+      return { hasError: false, error: null };
+    }
     return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
+    if (isTransientDomGlitch(error)) {
+      console.warn('RouteErrorBoundary (glitch DOM ignorado):', error.message);
+      return;
+    }
     console.error('RouteErrorBoundary:', error, info.componentStack);
   }
 
