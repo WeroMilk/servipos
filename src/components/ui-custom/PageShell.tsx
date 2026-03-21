@@ -27,7 +27,9 @@ export function PageShell({ title, subtitle, actions, children, className }: Pag
             {title}
           </h1>
           {subtitle ? (
-            <p className="truncate text-xs text-slate-600 dark:text-slate-500 sm:text-sm">{subtitle}</p>
+            <p className="break-words text-xs leading-snug text-slate-600 dark:text-slate-500 [overflow-wrap:anywhere] sm:text-sm">
+              {subtitle}
+            </p>
           ) : null}
         </div>
         {actions ? (

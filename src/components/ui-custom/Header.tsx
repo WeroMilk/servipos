@@ -49,7 +49,7 @@ export function Header() {
             height={32}
           />
         </Link>
-        <p className="hidden text-xs font-semibold tracking-[0.18em] text-slate-500 sm:block sm:text-sm">
+        <p className="hidden text-xs font-semibold tracking-[0.18em] text-slate-500 xl:block xl:text-sm">
           MENÚ
         </p>
       </div>

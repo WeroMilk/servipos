@@ -214,8 +214,8 @@ export function Checador() {
       subtitle={`Fecha de trabajo (Hermosillo, Son.): ${formatDateKeyMx(dateKey)} · ${formatQuincenaLabel(quincenaIdFromDateKey(dateKey))}`}
       className="min-w-0 max-w-none"
     >
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden lg:flex-row lg:gap-4">
-        <Card className="w-full shrink-0 border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 lg:max-w-xl lg:self-start">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-y-contain xl:flex-row xl:gap-4 xl:overflow-hidden">
+        <Card className="w-full shrink-0 border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 xl:max-w-xl xl:shrink-0 xl:self-start">
           <CardHeader className="space-y-1 pb-2">
             <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-slate-100">
               <Clock className="h-5 w-5 text-cyan-400" />
@@ -355,11 +355,11 @@ export function Checador() {
         </Card>
 
         {canReporte ? (
-          <Card className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
+          <Card className="flex w-full min-w-0 flex-col border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 max-xl:flex-none xl:min-h-0 xl:flex-1 xl:basis-0 xl:overflow-hidden">
             <CardHeader className="flex shrink-0 flex-col gap-3 space-y-0 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <CardTitle className="text-base text-slate-900 dark:text-slate-100">Registros por quincena</CardTitle>
-                <p className="text-xs text-slate-600 dark:text-slate-500">
+                <p className="break-words text-xs text-slate-600 dark:text-slate-500 [overflow-wrap:anywhere]">
                   Solo se listan fichajes de la tienda seleccionada arriba (
                   {sucursalNombre(effectiveSucursalId)}). Colaboradores de otras tiendas no aparecen. Los
                   registros antiguos sin tienda se atribuyen por la sucursal del perfil del usuario.
@@ -381,14 +381,15 @@ export function Checador() {
                 </Select>
               </div>
             </CardHeader>
-            <CardContent className="min-h-0 flex-1 overflow-auto overscroll-contain p-2 sm:p-4 sm:pt-0">
+            <CardContent className="min-h-0 flex-1 overflow-auto overscroll-contain p-2 sm:p-4 sm:pt-0 xl:min-h-0">
               {reportLoading ? (
                 <p className="flex items-center gap-2 py-8 text-sm text-slate-600 dark:text-slate-500">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Cargando…
                 </p>
               ) : (
-                <Table>
+                <div className="min-w-0 max-w-full overflow-x-auto [-webkit-overflow-scrolling:touch]">
+                <Table className="w-max min-w-full">
                   <TableHeader className="[&_th]:sticky [&_th]:top-0 [&_th]:z-[1] [&_th]:bg-slate-50 dark:bg-slate-950 [&_th]:shadow-[0_1px_0_0_rgb(226_232_240)] dark:[&_th]:shadow-[0_1px_0_0_rgb(30_41_59)]">
                     <TableRow className="border-slate-200 dark:border-slate-800 hover:bg-transparent">
                       <TableHead className="text-slate-600 dark:text-slate-400">Colaborador</TableHead>
@@ -437,6 +438,7 @@ export function Checador() {
                     )}
                   </TableBody>
                 </Table>
+                </div>
               )}
             </CardContent>
           </Card>

@@ -111,6 +111,15 @@
     margin: 0;
     padding: 0;
   }
+
+  /* iOS Safari: zoom al enfocar si font-size computado < 16px (inputs/select/textarea). */
+  @media (max-width: 767.98px) {
+    input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='hidden']):not([type='button']):not([type='submit']):not([type='reset']):not([type='image']):not([type='file']),
+    textarea,
+    select {
+      font-size: 16px !important;
+    }
+  }
 }
 
 /* ============================================

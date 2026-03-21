@@ -18,7 +18,7 @@ export function Layout() {
         <div
           className={cn(
             'flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden',
-            'max-md:ml-0 md:ml-72 md:w-[calc(100%-18rem)]'
+            'max-md:ml-0 md:ml-20 md:w-[calc(100%-5rem)] xl:ml-72 xl:w-[calc(100%-18rem)]'
           )}
         >
           {/*

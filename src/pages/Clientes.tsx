@@ -283,7 +283,7 @@ export function Clientes() {
       }
     >
       <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden sm:gap-3">
-      <div className="grid w-full min-w-0 shrink-0 grid-cols-3 gap-2 sm:gap-3">
+      <div className="grid w-full min-w-0 shrink-0 grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3">
         <button
           type="button"
           onClick={() => setSortMode('nombre')}

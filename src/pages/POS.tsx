@@ -477,7 +477,7 @@ export function POS() {
       {/* Pestañas móvil: una vista completa por pestaña (sin scroll de página) */}
       <div
         className={cn(
-          'grid shrink-0 grid-cols-2 gap-1 rounded-xl border border-slate-200/80 dark:border-slate-800/60 bg-slate-100/90 dark:bg-slate-950/80 p-1 md:hidden'
+          'grid shrink-0 grid-cols-2 gap-1 rounded-xl border border-slate-200/80 dark:border-slate-800/60 bg-slate-100/90 dark:bg-slate-950/80 p-1 lg:hidden'
         )}
       >
         <button
@@ -513,12 +513,12 @@ export function POS() {
         </button>
       </div>
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 md:flex-row md:gap-3 lg:gap-4 xl:gap-5">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 lg:flex-row lg:gap-3 xl:gap-4 2xl:gap-5">
         {/* Columna carrito + búsqueda */}
         <section
           className={cn(
             'flex min-h-0 min-w-0 flex-1 flex-col gap-2 sm:gap-3',
-            mobileTab !== 'cart' && 'hidden md:flex'
+            mobileTab !== 'cart' && 'hidden lg:flex'
           )}
         >
           <div className={cn('shrink-0 p-2 sm:p-3', panelClass)}>
@@ -530,7 +530,7 @@ export function POS() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => setShowProductSearch(true)}
                 placeholder="Buscar (F2) · SKU, código, nombre"
-                className="h-10 border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 pl-9 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-600 focus:border-cyan-500/50 sm:h-11 sm:pl-10 sm:text-base"
+                className="h-10 border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 pl-9 text-base text-slate-900 dark:text-slate-100 placeholder:text-slate-600 focus:border-cyan-500/50 sm:h-11 sm:pl-10 md:text-sm"
               />
 
               {showProductSearch && searchResults.length > 0 && (
@@ -696,7 +696,7 @@ export function POS() {
           </Card>
 
           {/* Barra rápida móvil: total + ir a cobro */}
-          <div className="flex shrink-0 items-center gap-2 rounded-xl border border-slate-200/80 dark:border-slate-800/60 bg-white/95 dark:bg-slate-950/90 p-2 md:hidden">
+          <div className="flex shrink-0 items-center gap-2 rounded-xl border border-slate-200/80 dark:border-slate-800/60 bg-white/95 dark:bg-slate-950/90 p-2 lg:hidden">
             <div className="min-w-0 flex-1">
               <p className="text-[10px] uppercase tracking-wide text-slate-600 dark:text-slate-500">Total</p>
               <p className="truncate text-lg font-bold text-cyan-400">{formatMoney(totalCobro)}</p>
@@ -715,9 +715,10 @@ export function POS() {
         {/* Columna cobro / resumen */}
         <aside
           className={cn(
-            'flex w-full shrink-0 flex-col gap-2 sm:gap-3',
-            'md:min-h-0 md:w-[min(100%,26rem)] lg:w-[min(100%,30rem)] xl:w-[min(100%,34rem)]',
-            mobileTab !== 'checkout' && 'hidden md:flex'
+            'flex w-full flex-col gap-2 sm:gap-3',
+            'max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-y-auto max-lg:overscroll-y-contain',
+            'lg:min-h-0 lg:w-[min(100%,26rem)] lg:shrink-0 lg:overflow-hidden xl:w-[min(100%,30rem)] 2xl:w-[min(100%,34rem)]',
+            mobileTab !== 'checkout' && 'hidden lg:flex'
           )}
         >
           <div className={cn('shrink-0 p-2 sm:p-3', panelClass)}>
@@ -749,8 +750,8 @@ export function POS() {
             </div>
           </div>
 
-          <Card className="flex min-h-0 min-w-0 flex-1 flex-col overflow-visible border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 md:min-h-0">
-            <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-visible p-2 sm:p-3 md:p-4">
+          <Card className="flex min-w-0 flex-col overflow-visible border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 max-lg:flex-none lg:min-h-0 lg:flex-1 lg:overflow-hidden">
+            <CardContent className="flex flex-col gap-3 overflow-visible p-2 sm:p-3 lg:min-h-0 lg:flex-1 lg:overflow-hidden lg:p-4">
               <div className="shrink-0 space-y-2">
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs sm:text-sm">
                   <span className="text-slate-600 dark:text-slate-400">Subtotal</span>
@@ -794,7 +795,7 @@ export function POS() {
                       if (v !== 'TTS') setTransferenciaDestinoSucursalId('');
                     }}
                   >
-                    <SelectTrigger className="h-9 w-full min-w-0 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-xs text-slate-900 dark:text-slate-100 sm:h-10 sm:text-sm">
+                    <SelectTrigger className="h-10 w-full min-w-0 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100 md:h-10 md:text-sm">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent
@@ -825,7 +826,7 @@ export function POS() {
                         setTransferenciaDestinoSucursalId(v === '__none__' ? '' : v)
                       }
                     >
-                      <SelectTrigger className="h-9 w-full min-w-0 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-xs text-slate-900 dark:text-slate-100 sm:h-10 sm:text-sm">
+                      <SelectTrigger className="h-10 w-full min-w-0 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100 md:text-sm">
                         <SelectValue placeholder="Seleccione tienda" />
                       </SelectTrigger>
                       <SelectContent
@@ -850,7 +851,7 @@ export function POS() {
                 <div className="space-y-1">
                   <Label className="text-[10px] text-slate-600 dark:text-slate-400 sm:text-xs">Método</Label>
                   <Select value={metodoPago} onValueChange={setMetodoPago}>
-                    <SelectTrigger className="h-9 w-full min-w-0 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-xs text-slate-900 dark:text-slate-100 sm:h-10 sm:text-sm">
+                    <SelectTrigger className="h-10 w-full min-w-0 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100 md:text-sm">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent
@@ -887,7 +888,7 @@ export function POS() {
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') e.preventDefault();
                     }}
-                    className="h-9 w-full border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100 sm:h-10"
+                    className="h-10 w-full border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100 md:h-10 md:text-sm"
                     min={0}
                     max={100}
                   />
@@ -896,7 +897,7 @@ export function POS() {
             </CardContent>
           </Card>
 
-          <div className="max-md:-mt-3 shrink-0 space-y-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+          <div className="max-lg:mt-1 shrink-0 space-y-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             <Button
               type="button"
               onClick={() => openCheckoutDialog()}
@@ -904,7 +905,7 @@ export function POS() {
                 items.length === 0 ||
                 (formaPago === 'TTS' && isAdmin && !transferenciaDestinoSucursalId?.trim())
               }
-              className="h-10 w-full min-w-0 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-sm font-bold text-white shadow-lg shadow-cyan-500/25 sm:h-12 sm:text-base md:h-14 md:text-lg"
+              className="h-11 w-full min-w-0 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-base font-bold text-white shadow-lg shadow-cyan-500/25 sm:h-12 md:h-14 md:text-lg"
             >
               Cobrar
             </Button>

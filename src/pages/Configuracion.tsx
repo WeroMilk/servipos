@@ -144,9 +144,9 @@ export function Configuracion() {
   };
 
   const fieldClass =
-    'h-8 border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 text-sm text-slate-900 dark:text-slate-100';
+    'h-10 border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 text-base text-slate-900 dark:text-slate-100 sm:h-8 sm:text-sm';
   const selectClass =
-    'h-8 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 px-2 text-sm text-slate-900 dark:text-slate-100';
+    'h-10 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 px-2 text-base text-slate-900 dark:text-slate-100 sm:h-8 sm:text-sm';
 
   return (
     <PageShell
@@ -154,7 +154,7 @@ export function Configuracion() {
       subtitle="Sistema y datos fiscales"
       className="min-w-0 max-w-none"
     >
-      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-1.5 overflow-hidden sm:gap-2">
+      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-1.5 overflow-y-auto overscroll-y-contain sm:gap-2 lg:overflow-hidden">
         {!isConfigured ? (
           <div className="flex shrink-0 items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 sm:px-3">
             <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400 sm:h-5 sm:w-5" />
@@ -175,40 +175,41 @@ export function Configuracion() {
         <Tabs
           value={activeTab}
           onValueChange={setActiveTab}
-          className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-1.5 overflow-hidden sm:gap-2"
+          className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-1.5 overflow-y-auto overscroll-y-contain sm:gap-2 lg:overflow-hidden"
         >
         <TabsList
           className={cn(
-            'grid h-auto w-full shrink-0 gap-1 bg-slate-50/90 dark:bg-slate-900/50 p-1',
-            totalTabs <= 4 && 'grid-cols-2 sm:grid-cols-4',
-            totalTabs === 5 && 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5',
-            totalTabs >= 6 && 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6'
+            'flex h-auto w-full min-w-0 shrink-0 flex-nowrap gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-xl bg-slate-50/90 p-1 dark:bg-slate-900/50 [-webkit-overflow-scrolling:touch]',
+            'xl:grid xl:w-full xl:overflow-x-visible xl:p-1',
+            totalTabs <= 4 && 'xl:grid-cols-4',
+            totalTabs === 5 && 'xl:grid-cols-5',
+            totalTabs >= 6 && 'xl:grid-cols-6'
           )}
         >
           <TabsTrigger
             value="fiscal"
-            className="h-9 w-full text-xs data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-900 dark:data-[state=active]:bg-cyan-500/20 dark:data-[state=active]:text-cyan-400 sm:text-sm"
+            className="h-9 shrink-0 flex-none justify-center px-3 text-xs data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-900 dark:data-[state=active]:bg-cyan-500/20 dark:data-[state=active]:text-cyan-400 sm:text-sm xl:w-full xl:flex-1"
           >
             <Receipt className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
             Datos fiscales
           </TabsTrigger>
           <TabsTrigger
             value="empresa"
-            className="h-9 w-full text-xs data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-900 dark:data-[state=active]:bg-cyan-500/20 dark:data-[state=active]:text-cyan-400 sm:text-sm"
+            className="h-9 shrink-0 flex-none justify-center px-3 text-xs data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-900 dark:data-[state=active]:bg-cyan-500/20 dark:data-[state=active]:text-cyan-400 sm:text-sm xl:w-full xl:flex-1"
           >
             <Building2 className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
             Empresa
           </TabsTrigger>
           <TabsTrigger
             value="certificados"
-            className="h-9 w-full text-xs data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-900 dark:data-[state=active]:bg-cyan-500/20 dark:data-[state=active]:text-cyan-400 sm:text-sm"
+            className="h-9 shrink-0 flex-none justify-center px-3 text-xs data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-900 dark:data-[state=active]:bg-cyan-500/20 dark:data-[state=active]:text-cyan-400 sm:text-sm xl:w-full xl:flex-1"
           >
             <FileKey className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
             Certificados
           </TabsTrigger>
           <TabsTrigger
             value="nominas"
-            className="h-9 w-full text-xs data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-900 dark:data-[state=active]:bg-cyan-500/20 dark:data-[state=active]:text-cyan-400 sm:text-sm"
+            className="h-9 shrink-0 flex-none justify-center px-3 text-xs data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-900 dark:data-[state=active]:bg-cyan-500/20 dark:data-[state=active]:text-cyan-400 sm:text-sm xl:w-full xl:flex-1"
           >
             <Wallet className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
             Nominas
@@ -216,7 +217,7 @@ export function Configuracion() {
           {canManageSucursales && (
             <TabsTrigger
               value="sucursales"
-              className="h-9 w-full text-xs data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-900 dark:data-[state=active]:bg-cyan-500/20 dark:data-[state=active]:text-cyan-400 sm:text-sm"
+              className="h-9 shrink-0 flex-none justify-center px-3 text-xs data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-900 dark:data-[state=active]:bg-cyan-500/20 dark:data-[state=active]:text-cyan-400 sm:text-sm xl:w-full xl:flex-1"
             >
               <MapPin className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
               Sucursales
@@ -225,7 +226,7 @@ export function Configuracion() {
           {canManageUsers && (
             <TabsTrigger
               value="usuarios"
-              className="h-9 w-full text-xs data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-900 dark:data-[state=active]:bg-cyan-500/20 dark:data-[state=active]:text-cyan-400 sm:text-sm"
+              className="h-9 shrink-0 flex-none justify-center px-3 text-xs data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-900 dark:data-[state=active]:bg-cyan-500/20 dark:data-[state=active]:text-cyan-400 sm:text-sm xl:w-full xl:flex-1"
             >
               <Users className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
               Usuarios
@@ -238,15 +239,15 @@ export function Configuracion() {
           value="fiscal"
           className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
         >
-          <Card className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
+          <Card className="flex w-full min-w-0 flex-col border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 max-lg:flex-none lg:min-h-0 lg:flex-1 lg:overflow-hidden">
             <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
               <CardTitle className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100 sm:text-base">
                 <Receipt className="h-4 w-4 shrink-0 text-cyan-400 sm:h-5 sm:w-5" />
                 Datos fiscales CFDI 4.0
               </CardTitle>
             </CardHeader>
-            <CardContent className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-3 pt-0 sm:p-4 sm:pt-0">
-              <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain pr-0.5">
+            <CardContent className="flex flex-col gap-2 p-3 pt-0 sm:p-4 sm:pt-0 max-lg:overflow-visible lg:min-h-0 lg:flex-1 lg:overflow-hidden">
+              <div className="pr-0.5 max-lg:overflow-visible lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-y-contain">
                 <div className="grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   <div className="space-y-1">
                     <Label htmlFor="rfc" className="text-xs text-slate-600 dark:text-slate-400">
@@ -479,7 +480,7 @@ export function Configuracion() {
           value="empresa"
           className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
         >
-          <Card className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
+          <Card className="flex w-full min-w-0 flex-col border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 max-lg:flex-none lg:min-h-0 lg:flex-1 lg:overflow-hidden">
             <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
               <CardTitle className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100 sm:text-base">
                 <Building2 className="h-4 w-4 text-cyan-400 sm:h-5 sm:w-5" />
@@ -527,7 +528,7 @@ export function Configuracion() {
           value="certificados"
           className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
         >
-          <div className="grid min-h-0 w-full min-w-0 flex-1 grid-cols-1 gap-3 overflow-hidden lg:grid-cols-2 lg:gap-3">
+          <div className="grid min-h-0 w-full min-w-0 flex-1 grid-cols-1 gap-3 max-lg:overflow-visible lg:overflow-hidden xl:grid-cols-2 xl:gap-3">
             <Card className="flex min-h-0 min-w-0 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
               <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
                 <CardTitle className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100 sm:text-base">
@@ -629,7 +630,7 @@ export function Configuracion() {
           value="nominas"
           className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
         >
-          <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-3 overflow-hidden lg:grid lg:grid-cols-2 lg:gap-3">
+          <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-3 max-lg:overflow-visible lg:overflow-hidden xl:grid xl:grid-cols-2 xl:gap-3">
             <Card className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 lg:min-h-0 lg:flex-none">
               <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
                 <CardTitle className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100 sm:text-base">

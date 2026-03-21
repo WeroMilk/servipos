@@ -451,6 +451,7 @@ export function Facturas() {
           </div>
 
           <div className="hidden min-h-0 min-w-0 md:block">
+            <div className="min-w-0 overflow-x-auto [-webkit-overflow-scrolling:touch]">
             <Table>
               <TableHeader>
                 <TableRow className="border-slate-200 dark:border-slate-800">
@@ -568,6 +569,7 @@ export function Facturas() {
                 )}
               </TableBody>
             </Table>
+            </div>
           </div>
         </CardContent>
       </Card>
