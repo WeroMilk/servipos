@@ -324,6 +324,8 @@ export function POS() {
         transferenciaDestinoSucursalId;
       const saleData = {
         clienteId: client?.id || 'mostrador',
+        /** Snapshot para ticket / reimpresión (solo `clienteId` dejaba el UUID en el ticket). */
+        ...(client ? { cliente: client } : {}),
         productos: items.map((item) => ({
           id: crypto.randomUUID(),
           productId: item.product.id,

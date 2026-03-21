@@ -5,7 +5,21 @@ import {
   buildLetterHeaderHtml,
   getBrandLogoAbsoluteUrl,
 } from '@/lib/documentPrintBranding';
+import { getClientById } from '@/db/database';
 import { FORMAS_PAGO, type Sale } from '@/types';
+
+async function resolveClienteTicketLabel(sale: Sale): Promise<string> {
+  const embedded = sale.cliente?.nombre?.trim();
+  if (embedded) return embedded;
+  if (sale.clienteId === 'mostrador' || !sale.clienteId) return 'Mostrador';
+  try {
+    const c = await getClientById(sale.clienteId);
+    if (c?.nombre?.trim()) return c.nombre.trim();
+  } catch {
+    /* catálogo local no disponible o sin el cliente */
+  }
+  return sale.clienteId;
+}
 
 export type TicketLine = { descripcion: string; cantidad: number; precioUnit: number; total: number };
 
@@ -282,7 +296,9 @@ ${foot}
 }
 
 /** Reimprimir ticket a partir de una venta guardada (POS / historial). */
-export function printThermalTicketFromSale(sale: Sale): void {
+export async function printThermalTicketFromSale(sale: Sale): Promise<void> {
+  const cliente = await resolveClienteTicketLabel(sale);
+
   const lineas = (sale.productos ?? []).map((item) => {
     const desc =
       item.producto?.nombre?.trim() ||
@@ -302,10 +318,6 @@ export function printThermalTicketFromSale(sale: Sale): void {
       total: lineTot,
     };
   });
-
-  const cliente =
-    sale.cliente?.nombre?.trim() ||
-    (sale.clienteId === 'mostrador' || !sale.clienteId ? 'Mostrador' : sale.clienteId);
 
   const labelFp = (c: string) => FORMAS_PAGO.find((f) => f.clave === c)?.descripcion ?? c;
   const resumenPagos =

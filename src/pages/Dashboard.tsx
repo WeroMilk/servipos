@@ -694,7 +694,7 @@ export function Dashboard() {
                       className="shrink-0 border-slate-700 bg-slate-800 text-slate-100 hover:bg-slate-700"
                       onClick={(e) => {
                         e.stopPropagation();
-                        printThermalTicketFromSale(sale);
+                        void printThermalTicketFromSale(sale);
                       }}
                     >
                       <Printer className="mr-2 h-4 w-4" />
