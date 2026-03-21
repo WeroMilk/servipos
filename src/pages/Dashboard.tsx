@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   TrendingUp,
@@ -46,8 +46,6 @@ import { DashboardPeriodPopover, type PeriodGranularity } from '@/components/ui-
 const barCursor = { fill: 'rgba(15, 23, 42, 0.92)' };
 
 const WEEKDAY_SHORT_ES = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'] as const;
-/** Una letra por columna (lun→dom); Martes y Miércoles comparten M como pidió el diseño móvil. */
-const WEEKDAY_INITIAL_ES = ['L', 'M', 'M', 'J', 'V', 'S', 'D'] as const;
 
 interface StatCardProps {
   title: string;
@@ -137,9 +135,6 @@ function dateRangeToBounds(range: DateRange | undefined): { inicio: Date; fin: D
 export function Dashboard() {
   const navigate = useNavigate();
   const { effectiveSucursalId } = useEffectiveSucursalId();
-  const [compactChartAxis, setCompactChartAxis] = useState(() =>
-    typeof window !== 'undefined' ? window.matchMedia('(max-width: 639px)').matches : false
-  );
   const [dateOpen, setDateOpen] = useState(false);
   const [periodGranularity, setPeriodGranularity] = useState<PeriodGranularity>('day');
   const [todaySalesOpen, setTodaySalesOpen] = useState(false);
@@ -147,14 +142,6 @@ export function Dashboard() {
     const t = startOfDayFromDateKey(getMexicoDateKey());
     return { from: t, to: t };
   });
-
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 639px)');
-    const apply = () => setCompactChartAxis(mq.matches);
-    apply();
-    mq.addEventListener('change', apply);
-    return () => mq.removeEventListener('change', apply);
-  }, []);
 
   const { inicio, fin } = useMemo(() => dateRangeToBounds(dateRange), [dateRange]);
 
@@ -256,9 +243,7 @@ export function Dashboard() {
       const dowMon0 = (d.getDay() + 6) % 7;
       return {
         name: WEEKDAY_SHORT_ES[dowMon0]!,
-        dayInitial: WEEKDAY_INITIAL_ES[dowMon0]!,
         ventas,
-        dateKey: format(d, 'yyyy-MM-dd'),
         fullLabel: format(d, 'EEEE d MMM yyyy', { locale: es }),
       };
     });
@@ -410,10 +395,10 @@ export function Dashboard() {
       </div>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden lg:flex-row lg:gap-3">
-        <div className="flex min-h-0 min-w-0 flex-[1.4] flex-col gap-2 overflow-hidden lg:min-h-0">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden lg:min-h-0 lg:flex-[1.4]">
           <Card
             className={cn(
-              'flex min-h-0 flex-1 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50'
+              'hidden min-h-[11rem] flex-1 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50 lg:flex lg:min-h-0',
             )}
           >
             <CardHeader className="shrink-0 space-y-0 py-2">
@@ -428,105 +413,81 @@ export function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent className="flex min-h-0 flex-1 flex-col p-2 pt-0 sm:p-3">
-              <div
-                className={cn(
-                  'flex w-full min-w-0 flex-col',
-                  compactChartAxis ? 'min-h-[232px]' : 'min-h-[180px] flex-1 sm:min-h-[200px] lg:min-h-[11rem]'
-                )}
-              >
+              <div className="flex h-full min-h-[180px] w-full min-w-0 flex-1 flex-col">
                 {salesLoading ? (
                   <div className="flex h-full min-h-[120px] items-center justify-center text-xs text-slate-500">
                     Cargando ventas…
                   </div>
                 ) : (
-                <>
-                <div className={cn('w-full min-w-0', compactChartAxis ? 'h-[200px] shrink-0' : 'h-full min-h-[180px] flex-1')}>
-                <ResponsiveContainer width="100%" height="100%" minHeight={compactChartAxis ? 200 : 180}>
-                  <BarChart
-                    data={chartData}
-                    margin={
-                      compactChartAxis
-                        ? { top: 6, right: 4, left: -12, bottom: 2 }
-                        : { top: 8, right: 4, left: 4, bottom: 36 }
-                    }
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                    <XAxis
-                      dataKey={compactChartAxis ? 'dayInitial' : 'name'}
-                      hide={compactChartAxis}
-                      stroke="#64748b"
-                      fontSize={compactChartAxis ? 12 : 11}
-                      fontWeight={compactChartAxis ? 600 : undefined}
-                      tickLine={false}
-                      axisLine={{ stroke: '#334155' }}
-                      interval={0}
-                      tickMargin={compactChartAxis ? 6 : 8}
-                      angle={compactChartAxis ? 0 : -28}
-                      textAnchor={compactChartAxis ? 'middle' : 'end'}
-                      height={compactChartAxis ? 28 : 52}
-                    />
-                    <YAxis
-                      width={compactChartAxis ? 36 : 48}
-                      stroke="#64748b"
-                      fontSize={10}
-                      tickLine={false}
-                      tickFormatter={(value) => `$${value}`}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#0f172a',
-                        border: '1px solid #1e293b',
-                        borderRadius: '8px',
-                        color: '#f1f5f9',
-                        fontSize: '12px',
-                      }}
-                      labelFormatter={(_, payload) =>
-                        payload?.[0]?.payload?.fullLabel != null
-                          ? String(payload[0].payload.fullLabel)
-                          : ''
-                      }
-                      formatter={(value: number) => [formatMoney(value), 'Ventas']}
-                      cursor={barCursor}
-                    />
-                    <Bar
-                      dataKey="ventas"
-                      fill="url(#colorGradient)"
-                      radius={[3, 3, 0, 0]}
-                      isAnimationActive={false}
-                      activeBar={{ fill: 'url(#colorGradient)', fillOpacity: 0.95 }}
-                    />
-                    <defs>
-                      <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.85} />
-                        <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.25} />
-                      </linearGradient>
-                    </defs>
-                  </BarChart>
-                </ResponsiveContainer>
-                </div>
-                {compactChartAxis ? (
-                  <div className="flex shrink-0 justify-between gap-0 border-t border-slate-800/70 px-1 pb-1 pt-1.5 text-[11px] font-semibold tabular-nums text-slate-400">
-                    {chartData.map((d) => (
-                      <span key={d.dateKey} className="min-w-0 flex-1 text-center">
-                        {d.dayInitial}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-                </>
+                  <ResponsiveContainer width="100%" height="100%" minHeight={180}>
+                    <BarChart
+                      data={chartData}
+                      margin={{ top: 8, right: 4, left: 4, bottom: 36 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                      <XAxis
+                        dataKey="name"
+                        stroke="#64748b"
+                        fontSize={11}
+                        tickLine={false}
+                        axisLine={{ stroke: '#334155' }}
+                        interval={0}
+                        tickMargin={8}
+                        angle={-28}
+                        textAnchor="end"
+                        height={52}
+                      />
+                      <YAxis
+                        width={48}
+                        stroke="#64748b"
+                        fontSize={10}
+                        tickLine={false}
+                        tickFormatter={(value) => `$${value}`}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#0f172a',
+                          border: '1px solid #1e293b',
+                          borderRadius: '8px',
+                          color: '#f1f5f9',
+                          fontSize: '12px',
+                        }}
+                        labelFormatter={(_, payload) =>
+                          payload?.[0]?.payload?.fullLabel != null
+                            ? String(payload[0].payload.fullLabel)
+                            : ''
+                        }
+                        formatter={(value: number) => [formatMoney(value), 'Ventas']}
+                        cursor={barCursor}
+                      />
+                      <Bar
+                        dataKey="ventas"
+                        fill="url(#colorGradient)"
+                        radius={[3, 3, 0, 0]}
+                        isAnimationActive={false}
+                        activeBar={{ fill: 'url(#colorGradient)', fillOpacity: 0.95 }}
+                      />
+                      <defs>
+                        <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.85} />
+                          <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.25} />
+                        </linearGradient>
+                      </defs>
+                    </BarChart>
+                  </ResponsiveContainer>
                 )}
               </div>
             </CardContent>
           </Card>
 
-          <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-hidden sm:grid-cols-2 lg:grid-cols-2 lg:gap-3">
+          <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden sm:grid sm:grid-cols-2 sm:gap-3 lg:gap-3">
             <Card
               role="button"
               tabIndex={0}
               onClick={goInventarioStock}
               onKeyDown={stockCardKeyHandler}
               className={cn(
-                'flex min-h-0 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50',
+                'flex min-h-0 flex-1 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50 sm:flex-none',
                 'cursor-pointer transition-colors hover:border-amber-500/35 hover:bg-slate-900/70',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40'
               )}
@@ -554,7 +515,7 @@ export function Dashboard() {
                   </div>
                 ) : (
                   <div className="space-y-1.5">
-                    {lowStockProducts.slice(0, 8).map((product) => (
+                    {lowStockProducts.slice(0, 12).map((product) => (
                       <div
                         key={product.id}
                         className="flex items-center justify-between gap-2 rounded-lg bg-slate-800/30 px-2 py-1.5"
@@ -589,7 +550,7 @@ export function Dashboard() {
               onClick={openTodaySalesDialog}
               onKeyDown={recentSalesCardKeyHandler}
               className={cn(
-                'flex min-h-0 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50',
+                'flex min-h-0 flex-1 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50 sm:flex-none',
                 'cursor-pointer transition-colors hover:border-cyan-500/35 hover:bg-slate-900/70',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40'
               )}
@@ -617,7 +578,7 @@ export function Dashboard() {
                   </div>
                 ) : (
                   <div className="space-y-1.5">
-                    {kpiSales.slice(0, 8).map((sale) => (
+                    {kpiSales.slice(0, 12).map((sale) => (
                       <div
                         key={sale.id}
                         className="flex items-center justify-between gap-2 rounded-lg bg-slate-800/30 px-2 py-1.5"

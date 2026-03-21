@@ -629,15 +629,15 @@ export function Configuracion() {
           value="nominas"
           className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
         >
-          <div className="grid min-h-0 w-full min-w-0 flex-1 grid-cols-1 gap-3 overflow-y-auto overscroll-y-contain lg:grid-cols-2 lg:gap-3">
-            <Card className="flex min-h-0 min-w-0 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50">
+          <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-3 overflow-hidden lg:grid lg:grid-cols-2 lg:grid-rows-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-3">
+            <Card className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50 lg:row-start-1 lg:col-start-1 lg:min-h-0 lg:flex-none">
               <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
                 <CardTitle className="flex items-center gap-2 text-sm text-slate-100 sm:text-base">
                   <Wallet className="h-4 w-4 shrink-0 text-cyan-400 sm:h-5 sm:w-5" />
                   Nómina electrónica (CFDI)
                 </CardTitle>
               </CardHeader>
-              <CardContent className="flex min-h-0 flex-1 flex-col gap-3 p-3 sm:p-4">
+              <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain p-3 sm:p-4">
                 <div className="flex gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/10 p-2">
                   <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
                   <p className="text-[11px] leading-snug text-emerald-400/90 sm:text-xs">
@@ -669,14 +669,14 @@ export function Configuracion() {
               </CardContent>
             </Card>
 
-            <Card className="flex min-h-0 min-w-0 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50">
+            <Card className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50 lg:row-start-1 lg:col-start-2 lg:min-h-0 lg:flex-none">
               <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
                 <CardTitle className="flex items-center gap-2 text-sm text-slate-100 sm:text-base">
                   <Receipt className="h-4 w-4 shrink-0 text-cyan-400 sm:h-5 sm:w-5" />
                   Folios de nómina
                 </CardTitle>
               </CardHeader>
-              <CardContent className="flex min-h-0 flex-1 flex-col gap-3 p-3 sm:p-4">
+              <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain p-3 sm:p-4">
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <div className="space-y-1">
                     <Label htmlFor="serieNomina" className="text-xs text-slate-400">
@@ -739,14 +739,14 @@ export function Configuracion() {
               </CardContent>
             </Card>
 
-            <Card className="flex min-h-0 min-w-0 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50 lg:col-span-2">
+            <Card className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50 lg:col-span-2 lg:row-start-2 lg:min-h-0 lg:flex-none">
               <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
                 <CardTitle className="flex items-center gap-2 text-sm text-slate-100 sm:text-base">
                   <Wallet className="h-4 w-4 shrink-0 text-amber-400 sm:h-5 sm:w-5" />
                   Recibos de nómina: alcance y cumplimiento SAT
                 </CardTitle>
               </CardHeader>
-              <CardContent className="flex flex-col gap-3 p-3 text-xs leading-relaxed text-slate-400 sm:p-4 sm:text-sm">
+              <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain p-3 text-xs leading-relaxed text-slate-400 sm:p-4 sm:text-sm">
                 <p>
                   Un <strong className="text-slate-200">CFDI de nómina</strong> con validez fiscal en México solo existe
                   después del <strong className="text-slate-200">timbrado</strong> por un{' '}
