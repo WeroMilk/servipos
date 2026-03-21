@@ -2,6 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Shell POS: ancho completo en #root; evitar max-width/mx-auto global en el layout principal. */
+
 @layer utilities {
   .no-scrollbar {
     -ms-overflow-style: none;

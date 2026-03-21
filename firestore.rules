@@ -30,10 +30,41 @@ service cloud.firestore {
       return userExists() && (isAdmin() || userSucursalId() == sid);
     }
 
-    // Perfil: cada usuario lee el suyo; admin lee cualquiera (gestión). Escritura solo vía consola/Admin SDK.
+    function validUserRole(r) {
+      return r == 'admin' || r == 'cashier';
+    }
+
+    // Perfil: lectura propia o admin. Alta/edición de perfiles solo admin (app: UserManagement + REST signUp).
     match /users/{userId} {
       allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
-      allow write: if false;
+
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasOnly([
+          'email',
+          'username',
+          'name',
+          'role',
+          'isActive',
+          'sucursalId',
+          'createdAt',
+          'updatedAt',
+        ])
+        && request.resource.data.email is string
+        && request.resource.data.name is string
+        && request.resource.data.username is string
+        && validUserRole(request.resource.data.role)
+        && request.resource.data.isActive is bool
+        && (request.resource.data.sucursalId == null || request.resource.data.sucursalId is string)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['name', 'username', 'email', 'role', 'isActive', 'sucursalId', 'updatedAt'])
+        && validUserRole(request.resource.data.role)
+        && request.resource.data.updatedAt == request.time;
+
+      allow delete: if false;
     }
 
     // Metadatos de sucursal (mismo id que subcolecciones products/sales). Listado para selector admin.

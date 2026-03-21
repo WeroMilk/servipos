@@ -4,7 +4,6 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { Cloud, CloudOff } from 'lucide-react';
 import { useAuthStore, useSyncStore } from '@/stores';
 import { cn } from '@/lib/utils';
-import { BRAND_LOGO_URL } from '@/lib/branding';
 import { MAIN_NAV_ITEMS } from '@/lib/mainNavItems';
 
 interface NavItemProps {
@@ -58,24 +57,14 @@ export function Sidebar() {
         'fixed left-0 top-0 z-40 hidden h-dvh w-72 min-w-[18rem] flex-col border-r border-slate-800/50 bg-slate-950/95 backdrop-blur-xl md:flex'
       )}
     >
-      <div className="flex h-16 shrink-0 items-center gap-3 border-b border-slate-800/50 px-4">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl shadow-md ring-1 ring-slate-700/50">
-          <img
-            src={BRAND_LOGO_URL}
-            alt=""
-            className="h-full w-full object-cover"
-            width={40}
-            height={40}
-            decoding="async"
-          />
-        </div>
-        <div className="min-w-0">
-          <h1 className="text-sm font-bold text-slate-100">SERVIPARTZ POS</h1>
-          <p className="text-xs text-slate-500">Punto de venta</p>
-        </div>
+      <div
+        className="flex h-14 shrink-0 items-end border-b border-slate-800/50 px-3 pb-2 sm:h-16"
+        aria-hidden
+      >
+        <p className="text-[10px] font-medium uppercase tracking-wider text-slate-600">Menú</p>
       </div>
 
-      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-y-contain p-3">
+      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-y-contain p-3 pt-2">
         {MAIN_NAV_ITEMS.map(
           (item) =>
             hasPermission(item.permission) && (

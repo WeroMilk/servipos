@@ -22,11 +22,29 @@ function tsToDate(v: unknown): Date {
   return new Date();
 }
 
+/** Título legible si falta `nombre` o viene corrupto (p. ej. boolean en Firestore). */
+function nombreDisplayFromId(id: string): string {
+  const t = id.replace(/_/g, ' ').trim();
+  if (!t) return id;
+  return t.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function optionalCodigo(v: unknown): string | undefined {
+  if (typeof v !== 'string') return undefined;
+  const t = v.trim();
+  return t.length > 0 ? t : undefined;
+}
+
 export function docToSucursal(id: string, d: Record<string, unknown>): Sucursal {
+  const rawNombre = d.nombre;
+  const nombre =
+    typeof rawNombre === 'string' && rawNombre.trim().length > 0
+      ? rawNombre.trim()
+      : nombreDisplayFromId(id);
   return {
     id,
-    nombre: String(d.nombre ?? ''),
-    codigo: d.codigo != null ? String(d.codigo) : undefined,
+    nombre,
+    codigo: optionalCodigo(d.codigo),
     activo: d.activo !== false,
     createdAt: tsToDate(d.createdAt),
     updatedAt: tsToDate(d.updatedAt),
@@ -63,6 +81,22 @@ export function subscribeSucursales(onList: (list: Sucursal[]) => void): Unsubsc
     (err) => {
       console.error('Sucursales:', err);
       onList(mergeWithDefaultIds([]));
+    }
+  );
+}
+
+/** Solo documentos reales en Firestore (sin placeholders de `DEFAULT_SUCURSAL_IDS`). Para selectores y listas de tiendas. */
+export function subscribeSucursalesCatalog(onList: (list: Sucursal[]) => void): Unsubscribe {
+  return onSnapshot(
+    collection(db, COL),
+    (snap) => {
+      const list = snap.docs.map((s) => docToSucursal(s.id, s.data() as Record<string, unknown>));
+      list.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
+      onList(list);
+    },
+    (err) => {
+      console.error('Sucursales:', err);
+      onList([]);
     }
   );
 }

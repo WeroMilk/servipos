@@ -44,7 +44,7 @@ Sistema de Punto de Venta (POS) completo, profesional y 100% funcional, enfocado
 1. **Clonar o descargar el proyecto**
 
 ```bash
-cd /mnt/okcomputer/output/app
+cd ruta/al/proyecto
 ```
 
 2. **Instalar dependencias**

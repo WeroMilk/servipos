@@ -15,7 +15,6 @@ import { useAuthStore, useSyncStore, subscribeFirebaseAuth } from '@/stores';
 import { initializeDemoData, syncServipartzSeedUsers } from '@/db/database';
 import { setAppEventActorResolver } from '@/lib/appEventContext';
 import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
-import './App.css';
 
 setAppEventActorResolver(() => {
   const u = useAuthStore.getState().user;

@@ -9,6 +9,12 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Fuera de #root: React nunca hace removeChild de este nodo; evita NotFoundError con portales (Radix + RR + React 19). -->
+    <div
+      id="radix-portal-host"
+      class="pointer-events-none fixed inset-0 z-[100] overflow-visible"
+      aria-hidden="true"
+    ></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

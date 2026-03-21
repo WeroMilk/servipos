@@ -53,7 +53,10 @@ export function Header() {
         <button
           type="button"
           onClick={() => navigate('/')}
-          className="flex min-w-0 items-center gap-2 rounded-lg p-1 text-left transition-colors hover:bg-slate-800/50 md:hidden"
+          className={cn(
+            'flex min-w-0 items-center gap-2 rounded-xl border border-transparent p-1 text-left transition-colors',
+            'hover:border-slate-800/80 hover:bg-slate-800/40 sm:gap-3 sm:px-2 sm:py-1.5'
+          )}
           aria-label="Ir al panel de inicio"
         >
           <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg ring-1 ring-slate-700/50">
@@ -67,30 +70,12 @@ export function Header() {
             />
           </div>
           <div className="min-w-0 leading-tight">
-            <p className="truncate text-sm font-bold tracking-tight text-slate-100">SERVIPARTZ</p>
-            <p className="truncate text-[10px] text-slate-500">POS</p>
-          </div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => navigate('/')}
-          className="hidden min-w-0 items-center gap-3 rounded-xl border border-transparent px-2 py-1.5 text-left transition-colors hover:border-slate-800/80 hover:bg-slate-800/40 md:flex"
-          aria-label="Ir al panel de inicio"
-        >
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg ring-1 ring-slate-700/50">
-            <img
-              src={BRAND_LOGO_URL}
-              alt=""
-              className="h-full w-full object-cover"
-              width={36}
-              height={36}
-              decoding="async"
-            />
-          </div>
-          <div className="min-w-0 leading-tight">
-            <p className="truncate text-sm font-bold tracking-tight text-slate-100">SERVIPARTZ POS</p>
-            <p className="truncate text-xs text-slate-500">Panel · inicio</p>
+            <p className="truncate text-sm font-bold tracking-tight text-slate-100 md:inline">
+              <span className="md:hidden">SERVIPARTZ</span>
+              <span className="hidden md:inline">SERVIPARTZ POS</span>
+            </p>
+            <p className="truncate text-[10px] text-slate-500 md:hidden">POS</p>
+            <p className="hidden truncate text-xs text-slate-500 md:block">Panel · inicio</p>
           </div>
         </button>
       </div>

@@ -5,7 +5,6 @@ import { Header } from './Header';
 import { ToastContainer } from './ToastContainer';
 import { RouteErrorBoundary } from './RouteErrorBoundary';
 import { cn } from '@/lib/utils';
-import { RADIX_PORTAL_HOST_ID } from '@/lib/portalContainer';
 
 export function Layout() {
   const location = useLocation();
@@ -46,7 +45,7 @@ export function Layout() {
               )}
             >
               <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-                <RouteErrorBoundary key={location.pathname} routePath={location.pathname}>
+                <RouteErrorBoundary routePath={location.pathname}>
                   <Outlet />
                 </RouteErrorBoundary>
               </div>
@@ -54,12 +53,6 @@ export function Layout() {
           </div>
         </div>
       </div>
-
-      {/* Capa para Dialog/Select/Dropdown: dentro del árbol React, fuera del flujo */}
-      <div
-        id={RADIX_PORTAL_HOST_ID}
-        className="pointer-events-none fixed inset-0 z-[100] overflow-visible"
-      />
 
       <MobileBottomNav />
 

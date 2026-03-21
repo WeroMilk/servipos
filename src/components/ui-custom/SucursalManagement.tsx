@@ -34,7 +34,7 @@ import type { Sucursal } from '@/types';
 import {
   createSucursalMeta,
   softDeleteSucursal,
-  subscribeSucursales,
+  subscribeSucursalesCatalog,
   updateSucursalMeta,
 } from '@/lib/firestore/sucursalesMetaFirestore';
 import { useAppStore } from '@/stores';
@@ -60,7 +60,7 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    return subscribeSucursales(setList);
+    return subscribeSucursalesCatalog(setList);
   }, []);
 
   const visible = useMemo(
