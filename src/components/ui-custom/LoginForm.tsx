@@ -4,10 +4,17 @@ import { Eye, EyeOff, Lock, Moon, Sun, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useAuthStore, useAppStore, getResolvedIsDark } from '@/stores';
 import { cn } from '@/lib/utils';
 import { BRAND_LOGO_URL } from '@/lib/branding';
-import { getServipartzEmailDomain } from '@/lib/servipartzAuth';
+import { getServipartzEmailDomain, SERVIPARTZ_LOGIN_USERNAMES } from '@/lib/servipartzAuth';
 import { LoadingIndicator } from './LoadingIndicator';
 
 export function LoginForm() {
@@ -25,10 +32,10 @@ export function LoginForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!username || !password) {
+    if (!username?.trim() || !password) {
       addToast({
         type: 'error',
-        message: 'Por favor ingrese usuario y contraseña',
+        message: 'Por favor seleccione usuario e ingrese contraseña',
       });
       return;
     }
@@ -123,19 +130,39 @@ export function LoginForm() {
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="username" className="text-slate-700 dark:text-slate-300">Usuario</Label>
+              <Label htmlFor="login-username" className="text-slate-700 dark:text-slate-300">
+                Usuario
+              </Label>
               <div className="flex min-w-0 rounded-md border border-slate-300 bg-slate-50/80 focus-within:border-cyan-500/50 focus-within:ring-1 focus-within:ring-cyan-500/20 dark:border-slate-700 dark:bg-slate-900/50">
                 <div className="relative min-w-0 flex-1">
-                  <User className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" />
-                  <Input
-                    id="username"
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Ingrese su usuario"
-                    autoComplete="username"
-                    className="border-0 bg-transparent pl-10 text-slate-900 shadow-none placeholder:text-slate-500 focus-visible:ring-0 dark:text-slate-100 dark:placeholder:text-slate-600"
-                  />
+                  <User className="pointer-events-none absolute left-3 top-1/2 z-[1] h-5 w-5 -translate-y-1/2 text-slate-500" />
+                  <Select
+                    value={username || undefined}
+                    onValueChange={setUsername}
+                  >
+                    <SelectTrigger
+                      id="login-username"
+                      aria-label="Seleccionar usuario"
+                      className="h-10 w-full min-w-0 border-0 bg-transparent pl-10 pr-8 text-left text-base text-slate-900 shadow-none focus:ring-0 focus-visible:ring-0 data-[size=default]:h-10 dark:text-slate-100 md:h-10 md:text-sm"
+                    >
+                      <SelectValue placeholder="Seleccione usuario" />
+                    </SelectTrigger>
+                    <SelectContent
+                      position="popper"
+                      hideScrollButtons
+                      className="z-[100] border-slate-200 bg-white text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+                    >
+                      {SERVIPARTZ_LOGIN_USERNAMES.map((u) => (
+                        <SelectItem
+                          key={u}
+                          value={u}
+                          className="text-slate-900 focus:bg-slate-100 dark:text-slate-100 dark:focus:bg-slate-800"
+                        >
+                          {u.charAt(0).toUpperCase() + u.slice(1)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <span
                   className="hidden shrink-0 items-center border-l border-slate-300 px-3 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-400 sm:flex"
@@ -144,6 +171,9 @@ export function LoginForm() {
                   @{getServipartzEmailDomain()}
                 </span>
               </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-500 sm:hidden">
+                Dominio: @{getServipartzEmailDomain()}
+              </p>
             </div>
 
             <div className="space-y-2">
