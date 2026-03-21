@@ -75,13 +75,13 @@ function StatCard({
   return (
     <Card
       className={cn(
-        'flex h-full min-h-[10.5rem] flex-col border-slate-800/50 bg-slate-900/50 backdrop-blur-sm',
-        'transition-colors duration-200 hover:border-slate-700/50 sm:min-h-[11rem]'
+        'flex h-full min-h-[10.5rem] flex-col border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 backdrop-blur-sm',
+        'transition-colors duration-200 hover:border-slate-300/80 dark:border-slate-700/50 sm:min-h-[11rem]'
       )}
     >
       <CardContent className="flex flex-1 flex-col p-3 sm:p-4">
         <div className="flex items-start justify-between gap-2">
-          <h3 className="line-clamp-2 min-h-[2.5rem] max-w-[calc(100%-2.75rem)] text-left text-xs font-medium leading-tight text-slate-400 sm:text-sm">
+          <h3 className="line-clamp-2 min-h-[2.5rem] max-w-[calc(100%-2.75rem)] text-left text-xs font-medium leading-tight text-slate-600 dark:text-slate-400 sm:text-sm">
             {title}
           </h3>
           <div
@@ -94,8 +94,8 @@ function StatCard({
           </div>
         </div>
 
-        <p className="mt-3 text-xl font-bold tabular-nums text-slate-100 sm:text-2xl">{value}</p>
-        <p className="mt-1 min-h-[1.125rem] text-[10px] text-slate-500 sm:text-xs">{description}</p>
+        <p className="mt-3 text-xl font-bold tabular-nums text-slate-900 dark:text-slate-100 sm:text-2xl">{value}</p>
+        <p className="mt-1 min-h-[1.125rem] text-[10px] text-slate-600 dark:text-slate-500 sm:text-xs">{description}</p>
 
         <div className="mt-auto min-h-[1.35rem] pt-2">
           <div
@@ -105,7 +105,7 @@ function StatCard({
                 ? 'text-emerald-400'
                 : trend === 'down'
                   ? 'text-red-400'
-                  : 'text-slate-400'
+                  : 'text-slate-600 dark:text-slate-400'
             )}
           >
             {trend === 'up' ? (
@@ -303,10 +303,10 @@ export function Dashboard() {
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col gap-2 overflow-hidden sm:gap-3">
-      <header className="flex shrink-0 flex-col gap-2 border-b border-slate-800/40 pb-2 sm:flex-row sm:items-center sm:justify-between">
+      <header className="flex shrink-0 flex-col gap-2 border-b border-slate-200/80 dark:border-slate-800/40 pb-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <h1 className="truncate text-lg font-bold text-slate-100 sm:text-xl lg:text-2xl">Panel</h1>
-          <p className="truncate text-xs text-slate-500 sm:text-sm">Resumen del periodo</p>
+          <h1 className="truncate text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl lg:text-2xl">Panel</h1>
+          <p className="truncate text-xs text-slate-600 dark:text-slate-500 sm:text-sm">Resumen del periodo</p>
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-2">
@@ -314,7 +314,7 @@ export function Dashboard() {
             type="button"
             variant="outline"
             size="sm"
-            className="border-slate-700 bg-slate-900/80 text-slate-200 hover:bg-slate-800"
+            className="border-slate-300 dark:border-slate-700 bg-slate-100/90 dark:bg-slate-900/80 text-slate-800 dark:text-slate-200 hover:bg-slate-200 dark:bg-slate-800"
             onClick={setQuickDia}
           >
             Día
@@ -323,7 +323,7 @@ export function Dashboard() {
             type="button"
             variant="outline"
             size="sm"
-            className="border-slate-700 bg-slate-900/80 text-slate-200 hover:bg-slate-800"
+            className="border-slate-300 dark:border-slate-700 bg-slate-100/90 dark:bg-slate-900/80 text-slate-800 dark:text-slate-200 hover:bg-slate-200 dark:bg-slate-800"
             onClick={setQuickSemana}
           >
             Semana
@@ -332,7 +332,7 @@ export function Dashboard() {
             type="button"
             variant="outline"
             size="sm"
-            className="border-slate-700 bg-slate-900/80 text-slate-200 hover:bg-slate-800"
+            className="border-slate-300 dark:border-slate-700 bg-slate-100/90 dark:bg-slate-900/80 text-slate-800 dark:text-slate-200 hover:bg-slate-200 dark:bg-slate-800"
             onClick={setQuickMes}
           >
             Mes
@@ -349,7 +349,7 @@ export function Dashboard() {
                 type="button"
                 variant="outline"
                 size="sm"
-                className="border-[#1a73e8]/50 bg-slate-900/80 text-slate-100 hover:bg-slate-800"
+                className="border-[#1a73e8]/50 bg-slate-100/90 dark:bg-slate-900/80 text-slate-900 dark:text-slate-100 hover:bg-slate-200 dark:bg-slate-800"
               >
                 <CalendarDays className="mr-2 h-4 w-4 shrink-0 text-[#8ab4f8]" />
                 <span className="max-w-[10rem] truncate sm:max-w-none">{rangeLabel}</span>
@@ -404,16 +404,16 @@ export function Dashboard() {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden lg:min-h-0 lg:flex-[1.4]">
           <Card
             className={cn(
-              'hidden min-h-[11rem] flex-1 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50 lg:flex lg:min-h-0',
+              'hidden min-h-[11rem] flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 lg:flex lg:min-h-0',
             )}
           >
             <CardHeader className="shrink-0 space-y-0 py-2">
-              <CardTitle className="flex flex-col gap-0.5 text-sm text-slate-100 sm:text-base">
+              <CardTitle className="flex flex-col gap-0.5 text-sm text-slate-900 dark:text-slate-100 sm:text-base">
                 <span className="flex items-center gap-2">
                   <TrendingUp className="h-4 w-4 shrink-0 text-cyan-400" />
                   Ventas por día
                 </span>
-                <span className="text-[10px] font-normal text-slate-500 sm:text-xs">
+                <span className="text-[10px] font-normal text-slate-600 dark:text-slate-500 sm:text-xs">
                   Semana lun–dom (según fecha del selector)
                 </span>
               </CardTitle>
@@ -421,7 +421,7 @@ export function Dashboard() {
             <CardContent className="flex min-h-0 flex-1 flex-col p-2 pt-0 sm:p-3">
               <div className="flex h-full min-h-[180px] w-full min-w-0 flex-1 flex-col">
                 {salesLoading ? (
-                  <div className="flex h-full min-h-[120px] items-center justify-center text-xs text-slate-500">
+                  <div className="flex h-full min-h-[120px] items-center justify-center text-xs text-slate-600 dark:text-slate-500">
                     Cargando ventas…
                   </div>
                 ) : (
@@ -493,29 +493,29 @@ export function Dashboard() {
               onClick={goInventarioStock}
               onKeyDown={stockCardKeyHandler}
               className={cn(
-                'flex min-h-0 flex-1 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50 sm:flex-none',
-                'cursor-pointer transition-colors hover:border-amber-500/35 hover:bg-slate-900/70',
+                'flex min-h-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 sm:flex-none',
+                'cursor-pointer transition-colors hover:border-amber-500/35 hover:bg-slate-100 dark:bg-slate-900/70',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40'
               )}
             >
               <CardHeader className="shrink-0 py-2">
-                <CardTitle className="flex items-center justify-between gap-2 text-xs text-slate-100 sm:text-sm">
+                <CardTitle className="flex items-center justify-between gap-2 text-xs text-slate-900 dark:text-slate-100 sm:text-sm">
                   <span className="flex min-w-0 items-center gap-2">
                     <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400" />
                     Stock bajo
                   </span>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
+                  <ChevronRight className="h-4 w-4 shrink-0 text-slate-600 dark:text-slate-500" aria-hidden />
                 </CardTitle>
               </CardHeader>
               <CardContent className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-2 pt-0">
                 {stockLoading ? (
                   <div className="space-y-2">
                     {[1, 2, 3].map((i) => (
-                      <div key={i} className="h-9 animate-pulse rounded-lg bg-slate-800/50" />
+                      <div key={i} className="h-9 animate-pulse rounded-lg bg-slate-200/80 dark:bg-slate-800/50" />
                     ))}
                   </div>
                 ) : lowStockProducts.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-4 text-slate-500">
+                  <div className="flex flex-col items-center justify-center py-4 text-slate-600 dark:text-slate-500">
                     <Package className="mb-2 h-8 w-8 text-slate-600" />
                     <p className="text-xs">Sin alertas</p>
                   </div>
@@ -524,11 +524,11 @@ export function Dashboard() {
                     {lowStockProducts.slice(0, 12).map((product) => (
                       <div
                         key={product.id}
-                        className="flex items-center justify-between gap-2 rounded-lg bg-slate-800/30 px-2 py-1.5"
+                        className="flex items-center justify-between gap-2 rounded-lg bg-slate-200/60 dark:bg-slate-800/30 px-2 py-1.5"
                       >
                         <div className="min-w-0">
-                          <p className="truncate text-xs font-medium text-slate-200">{product.nombre}</p>
-                          <p className="text-[10px] text-slate-500">{product.sku}</p>
+                          <p className="truncate text-xs font-medium text-slate-800 dark:text-slate-200">{product.nombre}</p>
+                          <p className="text-[10px] text-slate-600 dark:text-slate-500">{product.sku}</p>
                         </div>
                         <div className="shrink-0 text-right">
                           <p
@@ -544,7 +544,7 @@ export function Dashboard() {
                     ))}
                   </div>
                 )}
-                <p className="mt-2 border-t border-slate-800/60 pt-2 text-center text-[10px] text-slate-500 md:hidden">
+                <p className="mt-2 border-t border-slate-200/80 dark:border-slate-800/60 pt-2 text-center text-[10px] text-slate-600 dark:text-slate-500 md:hidden">
                   Toca para abrir inventario · vista stock
                 </p>
               </CardContent>
@@ -556,29 +556,29 @@ export function Dashboard() {
               onClick={openTodaySalesDialog}
               onKeyDown={recentSalesCardKeyHandler}
               className={cn(
-                'flex min-h-0 flex-1 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50 sm:flex-none',
-                'cursor-pointer transition-colors hover:border-cyan-500/35 hover:bg-slate-900/70',
+                'flex min-h-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 sm:flex-none',
+                'cursor-pointer transition-colors hover:border-cyan-500/35 hover:bg-slate-100 dark:bg-slate-900/70',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40'
               )}
             >
               <CardHeader className="shrink-0 py-2">
-                <CardTitle className="flex items-center justify-between gap-2 text-xs text-slate-100 sm:text-sm">
+                <CardTitle className="flex items-center justify-between gap-2 text-xs text-slate-900 dark:text-slate-100 sm:text-sm">
                   <span className="flex min-w-0 items-center gap-2">
                     <ShoppingCart className="h-4 w-4 shrink-0 text-cyan-400" />
                     Ventas recientes
                   </span>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
+                  <ChevronRight className="h-4 w-4 shrink-0 text-slate-600 dark:text-slate-500" aria-hidden />
                 </CardTitle>
               </CardHeader>
               <CardContent className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-2 pt-0">
                 {salesLoading ? (
                   <div className="space-y-2">
                     {[1, 2, 3].map((i) => (
-                      <div key={i} className="h-9 animate-pulse rounded-lg bg-slate-800/50" />
+                      <div key={i} className="h-9 animate-pulse rounded-lg bg-slate-200/80 dark:bg-slate-800/50" />
                     ))}
                   </div>
                 ) : kpiSales.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-4 text-slate-500">
+                  <div className="flex flex-col items-center justify-center py-4 text-slate-600 dark:text-slate-500">
                     <Receipt className="mb-2 h-8 w-8 text-slate-600" />
                     <p className="text-xs">Sin ventas en el periodo</p>
                   </div>
@@ -587,11 +587,11 @@ export function Dashboard() {
                     {kpiSales.slice(0, 12).map((sale) => (
                       <div
                         key={sale.id}
-                        className="flex items-center justify-between gap-2 rounded-lg bg-slate-800/30 px-2 py-1.5"
+                        className="flex items-center justify-between gap-2 rounded-lg bg-slate-200/60 dark:bg-slate-800/30 px-2 py-1.5"
                       >
                         <div className="min-w-0">
-                          <p className="truncate text-xs font-medium text-slate-200">{sale.folio}</p>
-                          <p className="text-[10px] text-slate-500">
+                          <p className="truncate text-xs font-medium text-slate-800 dark:text-slate-200">{sale.folio}</p>
+                          <p className="text-[10px] text-slate-600 dark:text-slate-500">
                             {formatInAppTimezone(
                               sale.createdAt instanceof Date ? sale.createdAt : new Date(sale.createdAt),
                               { hour: '2-digit', minute: '2-digit' }
@@ -608,7 +608,7 @@ export function Dashboard() {
                     ))}
                   </div>
                 )}
-                <p className="mt-2 border-t border-slate-800/60 pt-2 text-center text-[10px] text-slate-500 md:hidden">
+                <p className="mt-2 border-t border-slate-200/80 dark:border-slate-800/60 pt-2 text-center text-[10px] text-slate-600 dark:text-slate-500 md:hidden">
                   Toca para ver ventas de hoy y reimprimir
                 </p>
               </CardContent>
@@ -618,12 +618,12 @@ export function Dashboard() {
       </div>
 
       <Dialog open={todaySalesOpen} onOpenChange={setTodaySalesOpen}>
-        <DialogContent className="flex max-h-[min(88dvh,36rem)] flex-col gap-0 overflow-hidden border-slate-800 bg-slate-900 p-0 text-slate-100 sm:max-w-md">
-          <DialogHeader className="shrink-0 space-y-0 border-b border-slate-800/80 px-4 pb-3 pt-4 pr-14 text-left">
+        <DialogContent className="flex max-h-[min(88dvh,36rem)] flex-col gap-0 overflow-hidden border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 p-0 text-slate-900 dark:text-slate-100 sm:max-w-md">
+          <DialogHeader className="shrink-0 space-y-0 border-b border-slate-200 dark:border-slate-800/80 px-4 pb-3 pt-4 pr-14 text-left">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <DialogTitle>Ventas de hoy</DialogTitle>
-                <p className="mt-1 text-sm font-normal text-slate-500">
+                <p className="mt-1 text-sm font-normal text-slate-600 dark:text-slate-500">
                   Lista del día para revisar o reimprimir el ticket.
                 </p>
               </div>
@@ -631,7 +631,7 @@ export function Dashboard() {
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="shrink-0 text-slate-400 hover:bg-slate-800 hover:text-cyan-400"
+                className="shrink-0 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:bg-slate-800 hover:text-cyan-400"
                 title="Reporte de ventas diario (térmica)"
                 aria-label="Imprimir reporte de ventas del día"
                 disabled={salesTodaySorted.length === 0}
@@ -654,11 +654,11 @@ export function Dashboard() {
             {todaySalesLoading ? (
               <div className="space-y-2">
                 {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-800/50" />
+                  <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-200/80 dark:bg-slate-800/50" />
                 ))}
               </div>
             ) : salesTodaySorted.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 text-slate-500">
+              <div className="flex flex-col items-center justify-center py-10 text-slate-600 dark:text-slate-500">
                 <Receipt className="mb-2 h-10 w-10 text-slate-600" />
                 <p className="text-sm">No hay ventas registradas hoy</p>
               </div>
@@ -667,11 +667,11 @@ export function Dashboard() {
                 {salesTodaySorted.map((sale: Sale) => (
                   <li
                     key={sale.id}
-                    className="flex flex-col gap-2 rounded-lg border border-slate-800/60 bg-slate-800/25 p-3 sm:flex-row sm:items-center sm:justify-between"
+                    className="flex flex-col gap-2 rounded-lg border border-slate-200/80 dark:border-slate-800/60 bg-slate-200 dark:bg-slate-800/25 p-3 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-slate-200">{sale.folio}</p>
-                      <p className="text-xs text-slate-500">
+                      <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-200">{sale.folio}</p>
+                      <p className="text-xs text-slate-600 dark:text-slate-500">
                         {formatInAppTimezone(
                           sale.createdAt instanceof Date ? sale.createdAt : new Date(sale.createdAt),
                           { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }
@@ -691,7 +691,7 @@ export function Dashboard() {
                       type="button"
                       variant="secondary"
                       size="sm"
-                      className="shrink-0 border-slate-700 bg-slate-800 text-slate-100 hover:bg-slate-700"
+                      className="shrink-0 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:bg-slate-700"
                       onClick={(e) => {
                         e.stopPropagation();
                         void printThermalTicketFromSale(sale);
@@ -705,11 +705,11 @@ export function Dashboard() {
               </ul>
             )}
           </div>
-          <DialogFooter className="shrink-0 border-t border-slate-800/80 px-4 py-3">
+          <DialogFooter className="shrink-0 border-t border-slate-200 dark:border-slate-800/80 px-4 py-3">
             <Button
               type="button"
               variant="outline"
-              className="w-full border-slate-700 text-slate-300 sm:w-auto"
+              className="w-full border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 sm:w-auto"
               onClick={() => setTodaySalesOpen(false)}
             >
               Cerrar

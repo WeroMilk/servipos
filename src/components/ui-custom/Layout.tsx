@@ -10,7 +10,7 @@ export function Layout() {
   const location = useLocation();
 
   return (
-    <div className="h-dvh min-h-dvh overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
+    <div className="h-dvh min-h-dvh overflow-hidden bg-gradient-to-br from-slate-100 via-slate-50 to-slate-100 text-slate-900 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 dark:text-slate-100">
       <Sidebar />
 
       <div
@@ -33,8 +33,8 @@ export function Layout() {
         >
           <div
             className={cn(
-              'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-slate-950',
-              'md:border-l md:border-slate-800/60'
+              'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-slate-50 dark:bg-slate-950',
+              'md:border-l md:border-slate-200/80 dark:md:border-slate-800/60'
             )}
           >
             <Header />

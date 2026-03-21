@@ -31,7 +31,7 @@ function SpinnerRing({
   return (
     <div
       className={cn(
-        onBrand ? 'text-white' : 'text-cyan-400',
+        onBrand ? 'text-white' : 'text-cyan-600 dark:text-cyan-400',
         'motion-safe:animate-spin',
         box
       )}
@@ -45,7 +45,7 @@ function SpinnerRing({
           r={r}
           stroke="currentColor"
           strokeWidth={sw}
-          className={onBrand ? 'text-white/25' : 'text-slate-600/35'}
+          className={onBrand ? 'text-white/25' : 'text-slate-300/60 dark:text-slate-600/35'}
         />
         <circle
           cx={c}
@@ -55,7 +55,7 @@ function SpinnerRing({
           strokeWidth={sw}
           strokeLinecap="round"
           strokeDasharray={`${dash} ${circumference}`}
-          className={onBrand ? 'text-white' : 'text-cyan-400'}
+          className={onBrand ? 'text-white' : 'text-cyan-600 dark:text-cyan-400'}
           transform={`rotate(-90 ${c} ${c})`}
         />
       </svg>
@@ -80,7 +80,7 @@ export function LoadingIndicator({
   const label = showMessage ? (
     <p
       className={cn(
-        'font-medium uppercase tracking-[0.32em] text-slate-500/95',
+        'font-medium uppercase tracking-[0.32em] text-slate-600/95 dark:text-slate-500/95',
         size === 'sm' ? 'text-[10px]' : 'text-[11px]',
         onBrand && 'text-white/90'
       )}
@@ -111,7 +111,7 @@ export function LoadingIndicator({
       <div
         className={cn(
           'flex min-h-dvh w-full items-center justify-center',
-          'bg-gradient-to-b from-slate-950 via-slate-950 to-cyan-950/25'
+          'bg-gradient-to-b from-slate-100 via-slate-50 to-cyan-100/30 dark:from-slate-950 dark:via-slate-950 dark:to-cyan-950/25'
         )}
       >
         {inner}

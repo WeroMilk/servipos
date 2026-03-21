@@ -25,23 +25,23 @@ function NavItem({ to, icon: Icon, label }: NavItemProps) {
       to={to}
       className={cn(
         'group relative flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200',
-        'hover:bg-slate-800/50 hover:shadow-lg hover:shadow-cyan-500/10',
+        'hover:bg-slate-200/80 hover:shadow-lg hover:shadow-cyan-500/10 dark:hover:bg-slate-800/50',
         isActive
-          ? 'border border-cyan-500/30 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-cyan-400 shadow-lg shadow-cyan-500/20'
-          : 'text-slate-400 hover:text-slate-100'
+          ? 'border border-cyan-500/30 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-cyan-700 shadow-lg shadow-cyan-500/15 dark:text-cyan-400 dark:shadow-cyan-500/20'
+          : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
       )}
     >
       <Icon
         className={cn(
           'h-5 w-5 transition-all duration-200',
-          isActive ? 'text-cyan-400' : 'group-hover:text-cyan-300'
+          isActive ? 'text-cyan-600 dark:text-cyan-400' : 'group-hover:text-cyan-600 dark:group-hover:text-cyan-300'
         )}
       />
 
       <span className="text-sm font-medium">{label}</span>
 
       {isActive ? (
-        <div className="absolute right-2 h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-400" />
+        <div className="absolute right-2 h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-500 dark:bg-cyan-400" />
       ) : null}
     </NavLink>
   );
@@ -55,18 +55,18 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        'fixed left-0 top-0 z-40 hidden h-dvh w-72 min-w-[18rem] flex-col border-r border-slate-800/50 bg-slate-950/95 backdrop-blur-xl md:flex'
+        'fixed left-0 top-0 z-40 hidden h-dvh w-72 min-w-[18rem] flex-col border-r border-slate-200/80 bg-white/95 backdrop-blur-xl dark:border-slate-800/50 dark:bg-slate-950/95 md:flex'
       )}
     >
       <NavLink
         to="/"
         className={cn(
-          'flex h-14 shrink-0 items-center gap-3 border-b border-slate-800/50 px-3 transition-colors sm:h-16',
-          'hover:bg-slate-800/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40'
+          'flex h-14 shrink-0 items-center gap-3 border-b border-slate-200/80 px-3 transition-colors dark:border-slate-800/50 sm:h-16',
+          'hover:bg-slate-100/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 dark:hover:bg-slate-800/30'
         )}
         aria-label="Ir al panel de inicio"
       >
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg ring-1 ring-slate-700/50 sm:h-11 sm:w-11">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg ring-1 ring-slate-300/80 dark:ring-slate-700/50 sm:h-11 sm:w-11">
           <img
             src={BRAND_LOGO_URL}
             alt=""
@@ -77,8 +77,8 @@ export function Sidebar() {
           />
         </div>
         <div className="min-w-0 leading-tight">
-          <p className="truncate text-sm font-bold tracking-tight text-slate-100">SERVIPARTZ POS</p>
-          <p className="truncate text-[11px] text-slate-500 sm:text-xs">Panel · inicio</p>
+          <p className="truncate text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100">SERVIPARTZ POS</p>
+          <p className="truncate text-[11px] text-slate-600 dark:text-slate-500 sm:text-xs">Panel · inicio</p>
         </div>
       </NavLink>
 
@@ -91,11 +91,13 @@ export function Sidebar() {
         )}
       </nav>
 
-      <div className="shrink-0 border-t border-slate-800/50 p-4">
+      <div className="shrink-0 border-t border-slate-200/80 p-4 dark:border-slate-800/50">
         <div
           className={cn(
             'flex items-center gap-2 rounded-lg px-3 py-2 text-xs',
-            isOnline ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'
+            isOnline
+              ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+              : 'bg-amber-500/10 text-amber-800 dark:text-amber-400'
           )}
         >
           {isOnline ? (
@@ -112,8 +114,8 @@ export function Sidebar() {
         </div>
 
         {pendingCount > 0 ? (
-          <div className="mt-2 flex items-center gap-2 rounded-lg bg-cyan-500/10 px-3 py-2 text-xs text-cyan-400">
-            <div className="h-2 w-2 animate-pulse rounded-full bg-cyan-400" />
+          <div className="mt-2 flex items-center gap-2 rounded-lg bg-cyan-500/10 px-3 py-2 text-xs text-cyan-800 dark:text-cyan-400">
+            <div className="h-2 w-2 animate-pulse rounded-full bg-cyan-600 dark:bg-cyan-400" />
             <span>
               {pendingCount} pendiente{pendingCount > 1 ? 's' : ''}
             </span>
@@ -121,10 +123,10 @@ export function Sidebar() {
         ) : null}
 
         {user ? (
-          <div className="mt-3 border-t border-slate-800/50 pt-3">
-            <p className="text-xs text-slate-500">Usuario</p>
-            <p className="truncate text-sm font-medium text-slate-300">{user.name}</p>
-            <p className="text-xs capitalize text-slate-500">{user.role}</p>
+          <div className="mt-3 border-t border-slate-200/80 pt-3 dark:border-slate-800/50">
+            <p className="text-xs text-slate-600 dark:text-slate-500">Usuario</p>
+            <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-300">{user.name}</p>
+            <p className="text-xs capitalize text-slate-600 dark:text-slate-500">{user.role}</p>
           </div>
         ) : null}
       </div>

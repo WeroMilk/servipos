@@ -144,9 +144,9 @@ export function Configuracion() {
   };
 
   const fieldClass =
-    'h-8 border-slate-700 bg-slate-800/50 text-sm text-slate-100';
+    'h-8 border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 text-sm text-slate-900 dark:text-slate-100';
   const selectClass =
-    'h-8 w-full rounded-md border border-slate-700 bg-slate-800/50 px-2 text-sm text-slate-100';
+    'h-8 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 px-2 text-sm text-slate-900 dark:text-slate-100';
 
   return (
     <PageShell
@@ -179,7 +179,7 @@ export function Configuracion() {
         >
         <TabsList
           className={cn(
-            'grid h-auto w-full shrink-0 gap-1 bg-slate-900/50 p-1',
+            'grid h-auto w-full shrink-0 gap-1 bg-slate-50/90 dark:bg-slate-900/50 p-1',
             totalTabs <= 4 && 'grid-cols-2 sm:grid-cols-4',
             totalTabs === 5 && 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5',
             totalTabs >= 6 && 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6'
@@ -238,9 +238,9 @@ export function Configuracion() {
           value="fiscal"
           className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
         >
-          <Card className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50">
+          <Card className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
             <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
-              <CardTitle className="flex items-center gap-2 text-sm text-slate-100 sm:text-base">
+              <CardTitle className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100 sm:text-base">
                 <Receipt className="h-4 w-4 shrink-0 text-cyan-400 sm:h-5 sm:w-5" />
                 Datos fiscales CFDI 4.0
               </CardTitle>
@@ -249,7 +249,7 @@ export function Configuracion() {
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain pr-0.5">
                 <div className="grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   <div className="space-y-1">
-                    <Label htmlFor="rfc" className="text-xs text-slate-400">
+                    <Label htmlFor="rfc" className="text-xs text-slate-600 dark:text-slate-400">
                       RFC *
                     </Label>
                     <Input
@@ -263,7 +263,7 @@ export function Configuracion() {
                     />
                   </div>
                   <div className="space-y-1 sm:col-span-2 lg:col-span-2">
-                    <Label htmlFor="razonSocial" className="text-xs text-slate-400">
+                    <Label htmlFor="razonSocial" className="text-xs text-slate-600 dark:text-slate-400">
                       Razón social *
                     </Label>
                     <Input
@@ -277,7 +277,7 @@ export function Configuracion() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor="nombreComercial" className="text-xs text-slate-400">
+                    <Label htmlFor="nombreComercial" className="text-xs text-slate-600 dark:text-slate-400">
                       Nombre comercial
                     </Label>
                     <Input
@@ -290,7 +290,7 @@ export function Configuracion() {
                     />
                   </div>
                   <div className="space-y-1 sm:col-span-2 lg:col-span-2">
-                    <Label htmlFor="regimenFiscal" className="text-xs text-slate-400">
+                    <Label htmlFor="regimenFiscal" className="text-xs text-slate-600 dark:text-slate-400">
                       Régimen fiscal *
                     </Label>
                     <select
@@ -310,7 +310,7 @@ export function Configuracion() {
                     </select>
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor="serie" className="text-xs text-slate-400">
+                    <Label htmlFor="serie" className="text-xs text-slate-600 dark:text-slate-400">
                       Serie *
                     </Label>
                     <Input
@@ -324,7 +324,7 @@ export function Configuracion() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor="folioActual" className="text-xs text-slate-400">
+                    <Label htmlFor="folioActual" className="text-xs text-slate-600 dark:text-slate-400">
                       Folio actual *
                     </Label>
                     <Input
@@ -341,7 +341,7 @@ export function Configuracion() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor="lugarExpedicion" className="text-xs text-slate-400">
+                    <Label htmlFor="lugarExpedicion" className="text-xs text-slate-600 dark:text-slate-400">
                       Lugar expedición (CP) *
                     </Label>
                     <Input
@@ -356,7 +356,7 @@ export function Configuracion() {
                     />
                   </div>
                   <div className="space-y-1 sm:col-span-2 lg:col-span-2">
-                    <Label htmlFor="codigoUsoCfdi" className="text-xs text-slate-400">
+                    <Label htmlFor="codigoUsoCfdi" className="text-xs text-slate-600 dark:text-slate-400">
                       Uso CFDI predeterminado
                     </Label>
                     <select
@@ -375,12 +375,12 @@ export function Configuracion() {
                     </select>
                   </div>
 
-                  <div className="col-span-full mt-1 border-t border-slate-800/80 pt-2">
-                    <p className="text-xs font-medium text-slate-500">Dirección fiscal</p>
+                  <div className="col-span-full mt-1 border-t border-slate-200 dark:border-slate-800/80 pt-2">
+                    <p className="text-xs font-medium text-slate-600 dark:text-slate-500">Dirección fiscal</p>
                   </div>
 
                   <div className="space-y-1 sm:col-span-2 xl:col-span-2">
-                    <Label className="text-xs text-slate-400">Calle</Label>
+                    <Label className="text-xs text-slate-600 dark:text-slate-400">Calle</Label>
                     <Input
                       value={fiscalForm.calle}
                       onChange={(e) => setFiscalForm({ ...fiscalForm, calle: e.target.value })}
@@ -388,7 +388,7 @@ export function Configuracion() {
                     />
                   </div>
                   <div className="space-y-1 sm:col-span-2 xl:col-span-2">
-                    <Label className="text-xs text-slate-400">Colonia</Label>
+                    <Label className="text-xs text-slate-600 dark:text-slate-400">Colonia</Label>
                     <Input
                       value={fiscalForm.colonia}
                       onChange={(e) => setFiscalForm({ ...fiscalForm, colonia: e.target.value })}
@@ -397,7 +397,7 @@ export function Configuracion() {
                   </div>
                   <div className="grid grid-cols-2 gap-2 sm:col-span-2 xl:col-span-2">
                     <div className="space-y-1">
-                      <Label className="text-xs text-slate-400">No. ext.</Label>
+                      <Label className="text-xs text-slate-600 dark:text-slate-400">No. ext.</Label>
                       <Input
                         value={fiscalForm.numeroExterior}
                         onChange={(e) =>
@@ -407,7 +407,7 @@ export function Configuracion() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs text-slate-400">No. int.</Label>
+                      <Label className="text-xs text-slate-600 dark:text-slate-400">No. int.</Label>
                       <Input
                         value={fiscalForm.numeroInterior}
                         onChange={(e) =>
@@ -418,7 +418,7 @@ export function Configuracion() {
                     </div>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs text-slate-400">C.P.</Label>
+                    <Label className="text-xs text-slate-600 dark:text-slate-400">C.P.</Label>
                     <Input
                       value={fiscalForm.codigoPostal}
                       onChange={(e) =>
@@ -428,7 +428,7 @@ export function Configuracion() {
                     />
                   </div>
                   <div className="space-y-1 sm:col-span-2 lg:col-span-2 xl:col-span-1">
-                    <Label className="text-xs text-slate-400">Ciudad</Label>
+                    <Label className="text-xs text-slate-600 dark:text-slate-400">Ciudad</Label>
                     <Input
                       value={fiscalForm.ciudad}
                       onChange={(e) => setFiscalForm({ ...fiscalForm, ciudad: e.target.value })}
@@ -436,7 +436,7 @@ export function Configuracion() {
                     />
                   </div>
                   <div className="space-y-1 sm:col-span-2 lg:col-span-2 xl:col-span-1">
-                    <Label className="text-xs text-slate-400">Municipio</Label>
+                    <Label className="text-xs text-slate-600 dark:text-slate-400">Municipio</Label>
                     <Input
                       value={fiscalForm.municipio}
                       onChange={(e) =>
@@ -446,7 +446,7 @@ export function Configuracion() {
                     />
                   </div>
                   <div className="space-y-1 sm:col-span-2">
-                    <Label className="text-xs text-slate-400">Estado</Label>
+                    <Label className="text-xs text-slate-600 dark:text-slate-400">Estado</Label>
                     <Input
                       value={fiscalForm.estado}
                       onChange={(e) => setFiscalForm({ ...fiscalForm, estado: e.target.value })}
@@ -456,7 +456,7 @@ export function Configuracion() {
                 </div>
               </div>
 
-              <div className="flex shrink-0 justify-end border-t border-slate-800/60 pt-2">
+              <div className="flex shrink-0 justify-end border-t border-slate-200/80 dark:border-slate-800/60 pt-2">
                 <Button
                   type="button"
                   size="sm"
@@ -479,9 +479,9 @@ export function Configuracion() {
           value="empresa"
           className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
         >
-          <Card className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50">
+          <Card className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
             <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
-              <CardTitle className="flex items-center gap-2 text-sm text-slate-100 sm:text-base">
+              <CardTitle className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100 sm:text-base">
                 <Building2 className="h-4 w-4 text-cyan-400 sm:h-5 sm:w-5" />
                 Información de la empresa
               </CardTitle>
@@ -489,7 +489,7 @@ export function Configuracion() {
             <CardContent className="flex min-h-0 flex-1 flex-col justify-between gap-3 p-3 sm:flex-row sm:items-end sm:p-4">
               <div className="grid w-full min-w-0 flex-1 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:gap-4">
                 <div className="space-y-1">
-                  <Label className="text-xs text-slate-400">Teléfono</Label>
+                  <Label className="text-xs text-slate-600 dark:text-slate-400">Teléfono</Label>
                   <Input
                     value={fiscalForm.telefono}
                     onChange={(e) => setFiscalForm({ ...fiscalForm, telefono: e.target.value })}
@@ -498,7 +498,7 @@ export function Configuracion() {
                   />
                 </div>
                 <div className="space-y-1 sm:col-span-2 lg:col-span-2">
-                  <Label className="text-xs text-slate-400">Email de contacto</Label>
+                  <Label className="text-xs text-slate-600 dark:text-slate-400">Email de contacto</Label>
                   <Input
                     type="email"
                     value={fiscalForm.email}
@@ -528,9 +528,9 @@ export function Configuracion() {
           className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
         >
           <div className="grid min-h-0 w-full min-w-0 flex-1 grid-cols-1 gap-3 overflow-hidden lg:grid-cols-2 lg:gap-3">
-            <Card className="flex min-h-0 min-w-0 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50">
+            <Card className="flex min-h-0 min-w-0 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
               <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
-                <CardTitle className="flex items-center gap-2 text-sm text-slate-100 sm:text-base">
+                <CardTitle className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100 sm:text-base">
                   <FileKey className="h-4 w-4 text-cyan-400 sm:h-5 sm:w-5" />
                   CSD (sello digital)
                 </CardTitle>
@@ -545,7 +545,7 @@ export function Configuracion() {
                 </div>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <div className="space-y-1">
-                    <Label className="text-xs text-slate-400">Certificado (.cer)</Label>
+                    <Label className="text-xs text-slate-600 dark:text-slate-400">Certificado (.cer)</Label>
                     <Input
                       type="file"
                       accept=".cer"
@@ -554,7 +554,7 @@ export function Configuracion() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs text-slate-400">Llave (.key)</Label>
+                    <Label className="text-xs text-slate-600 dark:text-slate-400">Llave (.key)</Label>
                     <Input
                       type="file"
                       accept=".key"
@@ -563,7 +563,7 @@ export function Configuracion() {
                     />
                   </div>
                   <div className="space-y-1 sm:col-span-2">
-                    <Label className="text-xs text-slate-400">Contraseña de la llave</Label>
+                    <Label className="text-xs text-slate-600 dark:text-slate-400">Contraseña de la llave</Label>
                     <Input
                       type="password"
                       disabled
@@ -586,19 +586,19 @@ export function Configuracion() {
               </CardContent>
             </Card>
 
-            <Card className="flex min-h-0 min-w-0 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50">
+            <Card className="flex min-h-0 min-w-0 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
               <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
-                <CardTitle className="flex items-center gap-2 text-sm text-slate-100 sm:text-base">
+                <CardTitle className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100 sm:text-base">
                   <Key className="h-4 w-4 text-cyan-400 sm:h-5 sm:w-5" />
                   PAC (timbrado)
                 </CardTitle>
               </CardHeader>
               <CardContent className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-3 sm:p-4">
-                <div className="rounded-lg bg-slate-800/30 p-2 sm:p-3">
-                  <p className="text-xs text-slate-400 sm:text-sm">
+                <div className="rounded-lg bg-slate-200/60 dark:bg-slate-800/30 p-2 sm:p-3">
+                  <p className="text-xs text-slate-600 dark:text-slate-400 sm:text-sm">
                     Para timbrar ante el SAT contrate un PAC autorizado:
                   </p>
-                  <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-300 sm:text-sm">
+                  <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-700 dark:text-slate-300 sm:text-sm">
                     <li className="flex items-center gap-1.5">
                       <Check className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
                       Facturama
@@ -616,7 +616,7 @@ export function Configuracion() {
                       Edicom
                     </li>
                   </ul>
-                  <p className="mt-2 text-[11px] text-slate-500 sm:text-xs">
+                  <p className="mt-2 text-[11px] text-slate-600 dark:text-slate-500 sm:text-xs">
                     El XML CFDI 4.0 generado aquí puede enviarse a cualquiera de ellos.
                   </p>
                 </div>
@@ -630,9 +630,9 @@ export function Configuracion() {
           className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
         >
           <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-3 overflow-hidden lg:grid lg:grid-cols-2 lg:gap-3">
-            <Card className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50 lg:min-h-0 lg:flex-none">
+            <Card className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 lg:min-h-0 lg:flex-none">
               <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
-                <CardTitle className="flex items-center gap-2 text-sm text-slate-100 sm:text-base">
+                <CardTitle className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100 sm:text-base">
                   <Wallet className="h-4 w-4 shrink-0 text-cyan-400 sm:h-5 sm:w-5" />
                   Nómina electrónica (CFDI)
                 </CardTitle>
@@ -647,12 +647,12 @@ export function Configuracion() {
                     CFDI cumple el esquema oficial y es válido ante el SAT.
                   </p>
                 </div>
-                <p className="text-xs leading-relaxed text-slate-400 sm:text-sm">
+                <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-400 sm:text-sm">
                   Solicita en el portal del SAT los folios para el tipo de comprobante de nómina que uses. Aquí defines
                   la serie y el folio consecutivo que se aplicarán al generar cada recibo; deben coincidir con el
                   rango autorizado.
                 </p>
-                <ul className="space-y-1.5 text-xs text-slate-300 sm:text-sm">
+                <ul className="space-y-1.5 text-xs text-slate-700 dark:text-slate-300 sm:text-sm">
                   <li className="flex gap-2">
                     <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-400" />
                     Datos fiscales del emisor completos (misma pestaña &quot;Datos fiscales&quot;).
@@ -669,9 +669,9 @@ export function Configuracion() {
               </CardContent>
             </Card>
 
-            <Card className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50 lg:min-h-0 lg:flex-none">
+            <Card className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 lg:min-h-0 lg:flex-none">
               <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
-                <CardTitle className="flex items-center gap-2 text-sm text-slate-100 sm:text-base">
+                <CardTitle className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100 sm:text-base">
                   <Receipt className="h-4 w-4 shrink-0 text-cyan-400 sm:h-5 sm:w-5" />
                   Folios de nómina
                 </CardTitle>
@@ -679,7 +679,7 @@ export function Configuracion() {
               <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain p-3 sm:p-4">
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <div className="space-y-1">
-                    <Label htmlFor="serieNomina" className="text-xs text-slate-400">
+                    <Label htmlFor="serieNomina" className="text-xs text-slate-600 dark:text-slate-400">
                       Serie nómina *
                     </Label>
                     <Input
@@ -696,7 +696,7 @@ export function Configuracion() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor="folioNominaActual" className="text-xs text-slate-400">
+                    <Label htmlFor="folioNominaActual" className="text-xs text-slate-600 dark:text-slate-400">
                       Folio actual nómina *
                     </Label>
                     <Input

@@ -598,8 +598,14 @@ export interface CartItem {
   discount: number;
 }
 
+export type ThemePreference = 'system' | 'light' | 'dark';
+
 export interface AppState {
-  isDarkMode: boolean;
+  /** Preferencia guardada; `system` sigue a `prefers-color-scheme`. */
+  themePreference: ThemePreference;
+  /** Último valor del media query (solo afecta cuando `themePreference === 'system'`). */
+  systemPrefersDark: boolean;
+  toggleTheme: () => void;
 
   // Sidebar
   sidebarCollapsed: boolean;

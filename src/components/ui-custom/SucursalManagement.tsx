@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Ban, Pencil, Plus, Store, Trash2 } from 'lucide-react';
+import { Ban, CheckCircle2, Pencil, Plus, Store, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -34,6 +34,7 @@ import type { Sucursal } from '@/types';
 import {
   createSucursalMeta,
   hardDeleteSucursal,
+  reactivateSucursal,
   softDeleteSucursal,
   subscribeSucursalesCatalog,
   updateSucursalMeta,
@@ -60,6 +61,7 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
   const [editing, setEditing] = useState<Sucursal | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [deactivateTarget, setDeactivateTarget] = useState<Sucursal | null>(null);
+  const [reactivateTarget, setReactivateTarget] = useState<Sucursal | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Sucursal | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -133,6 +135,20 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
     }
   }, [addToast, deactivateTarget]);
 
+  const confirmReactivate = useCallback(async () => {
+    if (!reactivateTarget) return;
+    try {
+      await reactivateSucursal(reactivateTarget.id);
+      addToast({ type: 'success', message: 'Sucursal reactivada' });
+      setReactivateTarget(null);
+    } catch (e) {
+      addToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'No se pudo reactivar',
+      });
+    }
+  }, [addToast, reactivateTarget]);
+
   const confirmHardDelete = useCallback(async () => {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -154,7 +170,7 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
   return (
     <>
       <div className="flex min-h-0 flex-1 flex-col">
-        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50">
+        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
           <CardHeader
             className={cn(
               'flex shrink-0 flex-row flex-wrap items-center justify-between gap-2 space-y-0',
@@ -163,7 +179,7 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
           >
             <CardTitle
               className={cn(
-                'flex items-center gap-2 text-slate-100',
+                'flex items-center gap-2 text-slate-900 dark:text-slate-100',
                 embedded && 'text-sm sm:text-base'
               )}
             >
@@ -171,8 +187,8 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
               Sucursales
             </CardTitle>
             <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-800/40 px-2 py-1">
-                <Label htmlFor="sm-inactive" className="cursor-pointer text-xs text-slate-400">
+              <div className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-200/70 dark:bg-slate-800/40 px-2 py-1">
+                <Label htmlFor="sm-inactive" className="cursor-pointer text-xs text-slate-600 dark:text-slate-400">
                   Ver inactivas
                 </Label>
                 <Switch
@@ -198,39 +214,39 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
               embedded ? 'p-2 sm:p-3 sm:pt-0' : 'p-3 sm:p-4 sm:pt-0'
             )}
           >
-            <div className="overflow-x-auto rounded-lg border border-slate-800/60">
+            <div className="overflow-x-auto rounded-lg border border-slate-200/80 dark:border-slate-800/60">
               <Table className={embedded ? 'text-sm' : undefined}>
                 <TableHeader>
-                  <TableRow className="border-slate-800 hover:bg-transparent">
-                    <TableHead className="text-slate-400">Nombre</TableHead>
-                    <TableHead className="hidden text-slate-400 sm:table-cell">Código</TableHead>
-                    <TableHead className="text-slate-400">Id</TableHead>
-                    <TableHead className="text-slate-400">Estado</TableHead>
-                    <TableHead className="w-[132px] text-right text-slate-400">Acciones</TableHead>
+                  <TableRow className="border-slate-200 dark:border-slate-800 hover:bg-transparent">
+                    <TableHead className="text-slate-600 dark:text-slate-400">Nombre</TableHead>
+                    <TableHead className="hidden text-slate-600 dark:text-slate-400 sm:table-cell">Código</TableHead>
+                    <TableHead className="text-slate-600 dark:text-slate-400">Id</TableHead>
+                    <TableHead className="text-slate-600 dark:text-slate-400">Estado</TableHead>
+                    <TableHead className="w-[168px] text-right text-slate-600 dark:text-slate-400">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {visible.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-slate-500">
+                      <TableCell colSpan={5} className="text-center text-slate-600 dark:text-slate-500">
                         No hay sucursales. Cree una para asignar empleados y datos por tienda.
                       </TableCell>
                     </TableRow>
                   ) : (
                     visible.map((s) => (
-                      <TableRow key={s.id} className="border-slate-800/80">
-                        <TableCell className="font-medium text-slate-200">{s.nombre}</TableCell>
-                        <TableCell className="hidden text-slate-400 sm:table-cell">
+                      <TableRow key={s.id} className="border-slate-200 dark:border-slate-800/80">
+                        <TableCell className="font-medium text-slate-800 dark:text-slate-200">{s.nombre}</TableCell>
+                        <TableCell className="hidden text-slate-600 dark:text-slate-400 sm:table-cell">
                           {s.codigo || '—'}
                         </TableCell>
-                        <TableCell className="max-w-[140px] truncate font-mono text-xs text-slate-500">
+                        <TableCell className="max-w-[140px] truncate font-mono text-xs text-slate-600 dark:text-slate-500">
                           {s.id}
                         </TableCell>
                         <TableCell>
                           <span
                             className={cn(
                               'text-xs font-medium',
-                              s.activo ? 'text-emerald-400' : 'text-slate-500'
+                              s.activo ? 'text-emerald-400' : 'text-slate-600 dark:text-slate-500'
                             )}
                           >
                             {s.activo ? 'Activa' : 'Inactiva'}
@@ -242,7 +258,7 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
                               type="button"
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-slate-400 hover:text-cyan-400"
+                              className="h-8 w-8 text-slate-600 dark:text-slate-400 hover:text-cyan-400"
                               onClick={() => openEdit(s)}
                               aria-label="Editar"
                             >
@@ -252,7 +268,7 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
                               type="button"
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-slate-400 hover:text-amber-400"
+                              className="h-8 w-8 text-slate-600 dark:text-slate-400 hover:text-amber-400"
                               disabled={!s.activo}
                               onClick={() => setDeactivateTarget(s)}
                               aria-label="Desactivar"
@@ -263,7 +279,19 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
                               type="button"
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-slate-400 hover:text-red-400"
+                              className="h-8 w-8 text-slate-600 dark:text-slate-400 hover:text-emerald-400"
+                              disabled={s.activo}
+                              onClick={() => setReactivateTarget(s)}
+                              aria-label="Reactivar"
+                              title="Volver a activar"
+                            >
+                              <CheckCircle2 className="h-4 w-4 opacity-70" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-slate-600 dark:text-slate-400 hover:text-red-400"
                               disabled={s.activo}
                               title={
                                 s.activo
@@ -283,7 +311,7 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
                 </TableBody>
               </Table>
             </div>
-            <p className="mt-2 text-[11px] text-slate-500 sm:text-xs">
+            <p className="mt-2 text-[11px] text-slate-600 dark:text-slate-500 sm:text-xs">
               Desactivar solo oculta la tienda en listas habituales. Para borrar todo (productos, ventas,
               contadores, checador y documento de la sucursal), desactívela y use el ícono de papelera.
             </p>
@@ -292,7 +320,7 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="border-slate-800 bg-slate-900 text-slate-100 sm:max-w-md">
+        <DialogContent className="border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
               {mode === 'create' ? 'Nueva sucursal' : 'Editar sucursal'}
@@ -307,9 +335,9 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
                   value={form.docId}
                   onChange={(e) => setForm((f) => ({ ...f, docId: e.target.value }))}
                   placeholder="ej. hermosillo — mismo id que productos/ventas"
-                  className="border-slate-700 bg-slate-800 font-mono text-sm text-slate-100"
+                  className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 font-mono text-sm text-slate-900 dark:text-slate-100"
                 />
-                <p className="text-[11px] text-slate-500">
+                <p className="text-[11px] text-slate-600 dark:text-slate-500">
                   Si lo deja vacío, el id se genera a partir del nombre (letras, números, guiones).
                 </p>
               </div>
@@ -320,7 +348,7 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
                 id="sm-nombre"
                 value={form.nombre}
                 onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
-                className="border-slate-700 bg-slate-800 text-slate-100"
+                className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               />
             </div>
             <div className="space-y-2">
@@ -330,7 +358,7 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
                 value={form.codigo}
                 onChange={(e) => setForm((f) => ({ ...f, codigo: e.target.value }))}
                 placeholder="ej. HMO-01"
-                className="border-slate-700 bg-slate-800 text-slate-100"
+                className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               />
             </div>
           </div>
@@ -338,7 +366,7 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
             <Button
               type="button"
               variant="outline"
-              className="border-slate-700 text-slate-300"
+              className="border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300"
               onClick={() => setDialogOpen(false)}
             >
               Cancelar
@@ -356,16 +384,16 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
       </Dialog>
 
       <AlertDialog open={!!deactivateTarget} onOpenChange={(o) => !o && setDeactivateTarget(null)}>
-        <AlertDialogContent className="border-slate-800 bg-slate-900 text-slate-100">
+        <AlertDialogContent className="border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100">
           <AlertDialogHeader>
             <AlertDialogTitle>¿Desactivar sucursal?</AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-400">
-              <strong className="text-slate-200">{deactivateTarget?.nombre}</strong> dejará de
+            <AlertDialogDescription className="text-slate-600 dark:text-slate-400">
+              <strong className="text-slate-800 dark:text-slate-200">{deactivateTarget?.nombre}</strong> dejará de
               mostrarse como activa. Los datos en Firestore bajo su id no se eliminan.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700">
+            <AlertDialogCancel className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-700">
               Cancelar
             </AlertDialogCancel>
             <AlertDialogAction
@@ -378,15 +406,38 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog open={!!reactivateTarget} onOpenChange={(o) => !o && setReactivateTarget(null)}>
+        <AlertDialogContent className="border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100">
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Reactivar sucursal?</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-600 dark:text-slate-400">
+              <strong className="text-slate-800 dark:text-slate-200">{reactivateTarget?.nombre}</strong> volverá a
+              mostrarse como activa en listas y selectores.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-700">
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => void confirmReactivate()}
+              className="bg-emerald-600 text-white hover:bg-emerald-500"
+            >
+              Reactivar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && !deleting && setDeleteTarget(null)}>
-        <AlertDialogContent className="border-slate-800 bg-slate-900 text-slate-100">
+        <AlertDialogContent className="border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100">
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar sucursal por completo?</AlertDialogTitle>
             <AlertDialogDescription asChild>
-              <div className="space-y-2 text-sm text-slate-400">
+              <div className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
                 <p>
-                  Se borrará <strong className="text-slate-200">{deleteTarget?.nombre}</strong>{' '}
-                  <span className="font-mono text-xs text-slate-500">({deleteTarget?.id})</span> y{' '}
+                  Se borrará <strong className="text-slate-800 dark:text-slate-200">{deleteTarget?.nombre}</strong>{' '}
+                  <span className="font-mono text-xs text-slate-600 dark:text-slate-500">({deleteTarget?.id})</span> y{' '}
                   <strong className="text-red-300">todos</strong> los datos de esa tienda en Firestore:
                   productos, ventas, movimientos de inventario, contadores y fichajes del checador
                   asociados.
@@ -395,14 +446,14 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
                   Los usuarios que tenían esta sucursal asignada quedarán sin tienda hasta que les asigne
                   otra.
                 </p>
-                <p className="text-slate-500">Esta acción no se puede deshacer.</p>
+                <p className="text-slate-600 dark:text-slate-500">Esta acción no se puede deshacer.</p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel
               disabled={deleting}
-              className="border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700"
+              className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-700"
             >
               Cancelar
             </AlertDialogCancel>

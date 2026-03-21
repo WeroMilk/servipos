@@ -39,7 +39,7 @@ export function ToastContainer() {
           <div
             key={toast.id}
             className={cn(
-              'ml-6 flex items-center gap-3 px-4 py-3 rounded-xl border backdrop-blur-xl',
+              'ml-6 flex items-center gap-3 rounded-xl border border-slate-200/90 bg-white/95 px-4 py-3 backdrop-blur-xl dark:border-transparent dark:bg-slate-950/85',
               'shadow-lg transform transition-all duration-300',
               'animate-slideInRight',
               colorMap[toast.type]
@@ -52,7 +52,7 @@ export function ToastContainer() {
             <p className="text-sm font-medium">{toast.message}</p>
             <button
               onClick={() => removeToast(toast.id)}
-              className="ml-2 p-1 rounded-lg hover:bg-white/10 transition-colors"
+              className="ml-2 rounded-lg p-1 transition-colors hover:bg-slate-200/80 dark:hover:bg-white/10"
             >
               <X className="w-4 h-4" />
             </button>

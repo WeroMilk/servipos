@@ -49,7 +49,7 @@ const statusColors: Record<string, string> = {
   pendiente: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
   aceptada: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
   rechazada: 'bg-red-500/10 text-red-400 border-red-500/30',
-  vencida: 'bg-slate-500/10 text-slate-400 border-slate-500/30',
+  vencida: 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/30',
   convertida: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30',
 };
 
@@ -313,18 +313,18 @@ export function Cotizaciones() {
       >
         <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden sm:gap-3">
           <div className="relative w-full min-w-0 shrink-0">
-            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 sm:left-3 sm:h-5 sm:w-5" />
+            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-600 dark:text-slate-500 sm:left-3 sm:h-5 sm:w-5" />
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Folio o cliente..."
-              className="h-9 w-full border-slate-800 bg-slate-900/50 pl-9 text-sm text-slate-100 sm:h-10 sm:pl-10"
+              className="h-9 w-full border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900/50 pl-9 text-sm text-slate-900 dark:text-slate-100 sm:h-10 sm:pl-10"
             />
           </div>
 
-          <Card className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50">
+          <Card className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
             <CardHeader className="shrink-0 space-y-0 py-2">
-              <CardTitle className="text-sm text-slate-100 sm:text-base">Lista</CardTitle>
+              <CardTitle className="text-sm text-slate-900 dark:text-slate-100 sm:text-base">Lista</CardTitle>
             </CardHeader>
             <CardContent className="min-h-0 flex-1 overflow-auto p-0">
               {/* Móvil: tarjetas */}
@@ -334,29 +334,29 @@ export function Cotizaciones() {
                     <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500/30 border-t-cyan-500" />
                   </div>
                 ) : filteredQuotations.length === 0 ? (
-                  <p className="py-8 text-center text-slate-500">No se encontraron cotizaciones</p>
+                  <p className="py-8 text-center text-slate-600 dark:text-slate-500">No se encontraron cotizaciones</p>
                 ) : (
                   filteredQuotations.map((q) => (
                     <div
                       key={q.id}
-                      className="flex gap-1 rounded-xl border border-slate-800/80 bg-slate-950/40 p-1 transition-colors hover:border-slate-700"
+                      className="flex gap-1 rounded-xl border border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-950/40 p-1 transition-colors hover:border-slate-300 dark:border-slate-700"
                     >
                       <button
                         type="button"
                         onClick={() => openDetail(q)}
-                        className="min-w-0 flex-1 rounded-lg p-2 text-left transition-colors hover:bg-slate-900/60"
+                        className="min-w-0 flex-1 rounded-lg p-2 text-left transition-colors hover:bg-slate-100/90 dark:bg-slate-900/60"
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <p className="min-w-0 truncate font-medium text-slate-100">{q.folio}</p>
+                          <p className="min-w-0 truncate font-medium text-slate-900 dark:text-slate-100">{q.folio}</p>
                           <span className="shrink-0 text-sm font-semibold text-cyan-400">
                             {formatMoney(q.total)}
                           </span>
                         </div>
-                        <p className="mt-1 truncate text-sm text-slate-400">
+                        <p className="mt-1 truncate text-sm text-slate-600 dark:text-slate-400">
                           {q.cliente?.nombre ?? 'Mostrador'}
                         </p>
                         <div className="mt-2 flex flex-wrap items-center gap-2">
-                          <span className="text-xs text-slate-500">
+                          <span className="text-xs text-slate-600 dark:text-slate-500">
                             {new Date(q.createdAt).toLocaleDateString('es-MX')}
                           </span>
                           <Badge className={cn('border text-[10px]', statusColors[q.estado])}>
@@ -369,7 +369,7 @@ export function Cotizaciones() {
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="h-9 w-9 shrink-0 self-start text-slate-500 hover:text-red-400"
+                        className="h-9 w-9 shrink-0 self-start text-slate-600 dark:text-slate-500 hover:text-red-400"
                         aria-label="Eliminar cotización"
                         onClick={(e) => {
                           e.stopPropagation();
@@ -387,14 +387,14 @@ export function Cotizaciones() {
               <div className="hidden min-h-0 min-w-0 md:block">
                 <Table>
                   <TableHeader>
-                    <TableRow className="border-slate-800">
-                      <TableHead className="text-slate-400">Folio</TableHead>
-                      <TableHead className="text-slate-400">Cliente</TableHead>
-                      <TableHead className="text-slate-400">Fecha</TableHead>
-                      <TableHead className="text-slate-400">Vigencia</TableHead>
-                      <TableHead className="text-slate-400">Total</TableHead>
-                      <TableHead className="text-slate-400">Estado</TableHead>
-                      <TableHead className="text-right text-slate-400">Acciones</TableHead>
+                    <TableRow className="border-slate-200 dark:border-slate-800">
+                      <TableHead className="text-slate-600 dark:text-slate-400">Folio</TableHead>
+                      <TableHead className="text-slate-600 dark:text-slate-400">Cliente</TableHead>
+                      <TableHead className="text-slate-600 dark:text-slate-400">Fecha</TableHead>
+                      <TableHead className="text-slate-600 dark:text-slate-400">Vigencia</TableHead>
+                      <TableHead className="text-slate-600 dark:text-slate-400">Total</TableHead>
+                      <TableHead className="text-slate-600 dark:text-slate-400">Estado</TableHead>
+                      <TableHead className="text-right text-slate-600 dark:text-slate-400">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -406,21 +406,21 @@ export function Cotizaciones() {
                       </TableRow>
                     ) : filteredQuotations.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="py-8 text-center text-slate-500">
+                        <TableCell colSpan={7} className="py-8 text-center text-slate-600 dark:text-slate-500">
                           No se encontraron cotizaciones
                         </TableCell>
                       </TableRow>
                     ) : (
                       filteredQuotations.map((quotation) => (
-                        <TableRow key={quotation.id} className="border-slate-800/50">
-                          <TableCell className="font-medium text-slate-200">{quotation.folio}</TableCell>
-                          <TableCell className="max-w-[12rem] truncate text-slate-400">
+                        <TableRow key={quotation.id} className="border-slate-200/80 dark:border-slate-800/50">
+                          <TableCell className="font-medium text-slate-800 dark:text-slate-200">{quotation.folio}</TableCell>
+                          <TableCell className="max-w-[12rem] truncate text-slate-600 dark:text-slate-400">
                             {quotation.cliente?.nombre || 'Mostrador'}
                           </TableCell>
-                          <TableCell className="whitespace-nowrap text-slate-400">
+                          <TableCell className="whitespace-nowrap text-slate-600 dark:text-slate-400">
                             {new Date(quotation.createdAt).toLocaleDateString('es-MX')}
                           </TableCell>
-                          <TableCell className="whitespace-nowrap text-slate-400">
+                          <TableCell className="whitespace-nowrap text-slate-600 dark:text-slate-400">
                             {new Date(quotation.fechaVigencia).toLocaleDateString('es-MX')}
                           </TableCell>
                           <TableCell className="whitespace-nowrap font-medium text-cyan-400">
@@ -434,14 +434,14 @@ export function Cotizaciones() {
                           <TableCell className="text-right">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="text-slate-400">
+                                <Button variant="ghost" size="icon" className="text-slate-600 dark:text-slate-400">
                                   <MoreHorizontal className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent className="border-slate-800 bg-slate-900">
+                              <DropdownMenuContent className="border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900">
                                 <DropdownMenuItem
                                   onClick={() => openDetail(quotation)}
-                                  className="text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+                                  className="text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:bg-slate-800 hover:text-slate-900 dark:text-slate-100"
                                 >
                                   <FileText className="mr-2 h-4 w-4" />
                                   Ver Detalle
@@ -449,7 +449,7 @@ export function Cotizaciones() {
                                 {quotation.estado === 'pendiente' && (
                                   <DropdownMenuItem
                                     onClick={() => handleConvertToSale(quotation)}
-                                    className="text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+                                    className="text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:bg-slate-800 hover:text-slate-900 dark:text-slate-100"
                                   >
                                     <ShoppingCart className="mr-2 h-4 w-4" />
                                     Convertir a Venta
@@ -457,7 +457,7 @@ export function Cotizaciones() {
                                 )}
                                 <DropdownMenuItem
                                   onClick={() => openEmailForQuotation(quotation)}
-                                  className="text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+                                  className="text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:bg-slate-800 hover:text-slate-900 dark:text-slate-100"
                                 >
                                   <Send className="mr-2 h-4 w-4" />
                                   Enviar por Email
@@ -492,7 +492,7 @@ export function Cotizaciones() {
       />
 
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="max-h-[min(92dvh,40rem)] overflow-y-auto border-slate-800 bg-slate-900 text-slate-100 sm:max-w-2xl lg:max-w-4xl">
+        <DialogContent className="max-h-[min(92dvh,40rem)] overflow-y-auto border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 sm:max-w-2xl lg:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Nueva Cotización</DialogTitle>
           </DialogHeader>
@@ -500,29 +500,29 @@ export function Cotizaciones() {
           <div className="flex flex-col gap-6 lg:grid lg:grid-cols-2 lg:gap-8">
             <div className="min-w-0 space-y-4">
               <div>
-                <label className="mb-2 block text-sm text-slate-400">Buscar Productos</label>
+                <label className="mb-2 block text-sm text-slate-600 dark:text-slate-400">Buscar Productos</label>
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-600 dark:text-slate-500" />
                   <Input
                     placeholder="Nombre, SKU o código..."
                     value={productSearchQuery}
                     onChange={(e) => setProductSearchQuery(e.target.value)}
-                    className="border-slate-700 bg-slate-800 pl-9 text-slate-100"
+                    className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 pl-9 text-slate-900 dark:text-slate-100"
                   />
                 </div>
               </div>
 
-              <div className="max-h-48 overflow-auto rounded-lg border border-slate-800">
+              <div className="max-h-48 overflow-auto rounded-lg border border-slate-200 dark:border-slate-800">
                 {filteredProducts.slice(0, 20).map((product) => (
                   <button
                     key={product.id}
                     type="button"
                     onClick={() => handleAddItem(product)}
-                    className="flex w-full items-center justify-between gap-2 border-b border-slate-800/50 p-3 text-left last:border-0 hover:bg-slate-800/50"
+                    className="flex w-full items-center justify-between gap-2 border-b border-slate-200/80 dark:border-slate-800/50 p-3 text-left last:border-0 hover:bg-slate-200/80 dark:bg-slate-800/50"
                   >
                     <div className="min-w-0">
-                      <p className="truncate text-sm text-slate-200">{product.nombre}</p>
-                      <p className="text-xs text-slate-500">{product.sku}</p>
+                      <p className="truncate text-sm text-slate-800 dark:text-slate-200">{product.nombre}</p>
+                      <p className="text-xs text-slate-600 dark:text-slate-500">{product.sku}</p>
                     </div>
                     <p className="shrink-0 text-sm text-cyan-400">{formatMoney(product.precioVenta)}</p>
                   </button>
@@ -530,21 +530,21 @@ export function Cotizaciones() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm text-slate-400">Productos seleccionados</label>
-                <div className="divide-y divide-slate-800/50 rounded-lg border border-slate-800">
+                <label className="text-sm text-slate-600 dark:text-slate-400">Productos seleccionados</label>
+                <div className="divide-y divide-slate-200 dark:divide-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-800">
                   {quotationItems.length === 0 ? (
-                    <p className="p-4 text-center text-sm text-slate-500">No hay productos</p>
+                    <p className="p-4 text-center text-sm text-slate-600 dark:text-slate-500">No hay productos</p>
                   ) : (
                     quotationItems.map((item) => (
                       <div key={item.product.id} className="flex flex-wrap items-center gap-2 p-3">
                         <div className="min-w-0 flex-1 basis-[8rem]">
-                          <p className="text-sm text-slate-200">{item.product.nombre}</p>
+                          <p className="text-sm text-slate-800 dark:text-slate-200">{item.product.nombre}</p>
                         </div>
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
                             onClick={() => handleUpdateQuantity(item.product.id, item.quantity - 1)}
-                            className="flex h-8 w-8 items-center justify-center rounded bg-slate-800"
+                            className="flex h-8 w-8 items-center justify-center rounded bg-slate-200 dark:bg-slate-800"
                           >
                             <X className="h-3 w-3" />
                           </button>
@@ -552,7 +552,7 @@ export function Cotizaciones() {
                           <button
                             type="button"
                             onClick={() => handleUpdateQuantity(item.product.id, item.quantity + 1)}
-                            className="flex h-8 w-8 items-center justify-center rounded bg-slate-800"
+                            className="flex h-8 w-8 items-center justify-center rounded bg-slate-200 dark:bg-slate-800"
                           >
                             <Plus className="h-3 w-3" />
                           </button>
@@ -567,13 +567,13 @@ export function Cotizaciones() {
               </div>
             </div>
 
-            <div className="min-w-0 space-y-4 border-t border-slate-800 pt-4 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
+            <div className="min-w-0 space-y-4 border-t border-slate-200 dark:border-slate-800 pt-4 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
               <div>
-                <label className="mb-2 block text-sm text-slate-400">Cliente</label>
+                <label className="mb-2 block text-sm text-slate-600 dark:text-slate-400">Cliente</label>
                 <select
                   value={selectedClient}
                   onChange={(e) => setSelectedClient(e.target.value)}
-                  className="h-10 w-full rounded-md border border-slate-700 bg-slate-800 px-3 text-slate-100"
+                  className="h-10 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 px-3 text-slate-900 dark:text-slate-100"
                 >
                   <option value="">Mostrador</option>
                   {clients
@@ -587,7 +587,7 @@ export function Cotizaciones() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm text-slate-400">Vigencia (días)</label>
+                <label className="mb-2 block text-sm text-slate-600 dark:text-slate-400">Vigencia (días)</label>
                 <Input
                   type="number"
                   inputMode="numeric"
@@ -602,31 +602,31 @@ export function Cotizaciones() {
                     if (v === '') setVigenciaDias(0);
                     else setVigenciaDias(parseInt(v, 10) || 0);
                   }}
-                  className="border-slate-700 bg-slate-800 text-slate-100"
+                  className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                 />
               </div>
 
               <div>
-                <label className="mb-2 block text-sm text-slate-400">Notas</label>
+                <label className="mb-2 block text-sm text-slate-600 dark:text-slate-400">Notas</label>
                 <textarea
                   value={notas}
                   onChange={(e) => setNotas(e.target.value)}
                   rows={3}
-                  className="w-full resize-none rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-slate-100"
+                  className="w-full resize-none rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-slate-100"
                   placeholder="Condiciones, observaciones, etc."
                 />
               </div>
 
-              <div className="space-y-2 border-t border-slate-800 pt-4">
-                <div className="flex justify-between text-slate-400">
+              <div className="space-y-2 border-t border-slate-200 dark:border-slate-800 pt-4">
+                <div className="flex justify-between text-slate-600 dark:text-slate-400">
                   <span>Subtotal</span>
                   <span>{formatMoney(calculateTotals().subtotal)}</span>
                 </div>
-                <div className="flex justify-between text-slate-400">
+                <div className="flex justify-between text-slate-600 dark:text-slate-400">
                   <span>IVA (16%)</span>
                   <span>{formatMoney(calculateTotals().impuestos)}</span>
                 </div>
-                <div className="flex justify-between text-lg font-bold text-slate-100">
+                <div className="flex justify-between text-lg font-bold text-slate-900 dark:text-slate-100">
                   <span>Total</span>
                   <span className="text-cyan-400">{formatMoney(calculateTotals().total)}</span>
                 </div>
@@ -638,7 +638,7 @@ export function Cotizaciones() {
             <Button
               variant="outline"
               onClick={() => setShowAddDialog(false)}
-              className="border-slate-700 text-slate-400"
+              className="border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400"
             >
               Cancelar
             </Button>
@@ -655,7 +655,7 @@ export function Cotizaciones() {
       </Dialog>
 
       <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
-        <DialogContent className="max-h-[min(90dvh,36rem)] overflow-y-auto border-slate-800 bg-slate-900 text-slate-100 sm:max-w-2xl">
+        <DialogContent className="max-h-[min(90dvh,36rem)] overflow-y-auto border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Cotización {selectedQuotation?.folio}</DialogTitle>
           </DialogHeader>
@@ -664,39 +664,39 @@ export function Cotizaciones() {
             <div className="space-y-4">
               <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
                 <div>
-                  <p className="text-slate-500">Cliente</p>
-                  <p className="text-slate-200">{selectedQuotation.cliente?.nombre || 'Mostrador'}</p>
+                  <p className="text-slate-600 dark:text-slate-500">Cliente</p>
+                  <p className="text-slate-800 dark:text-slate-200">{selectedQuotation.cliente?.nombre || 'Mostrador'}</p>
                 </div>
                 <div>
-                  <p className="text-slate-500">Fecha</p>
-                  <p className="text-slate-200">
+                  <p className="text-slate-600 dark:text-slate-500">Fecha</p>
+                  <p className="text-slate-800 dark:text-slate-200">
                     {new Date(selectedQuotation.createdAt).toLocaleDateString('es-MX')}
                   </p>
                 </div>
                 <div>
-                  <p className="text-slate-500">Cajero</p>
-                  <p className="text-slate-200">
+                  <p className="text-slate-600 dark:text-slate-500">Cajero</p>
+                  <p className="text-slate-800 dark:text-slate-200">
                     {selectedQuotation.usuarioNombre?.trim() || '—'}
                   </p>
                 </div>
               </div>
 
-              <div className="overflow-x-auto rounded-lg border border-slate-800">
+              <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
                 <table className="w-full min-w-[20rem] text-sm">
-                  <thead className="bg-slate-800/50">
+                  <thead className="bg-slate-200/80 dark:bg-slate-800/50">
                     <tr>
-                      <th className="p-3 text-left text-slate-400">Producto</th>
-                      <th className="p-3 text-center text-slate-400">Cant.</th>
-                      <th className="p-3 text-right text-slate-400">Precio</th>
-                      <th className="p-3 text-right text-slate-400">Total</th>
+                      <th className="p-3 text-left text-slate-600 dark:text-slate-400">Producto</th>
+                      <th className="p-3 text-center text-slate-600 dark:text-slate-400">Cant.</th>
+                      <th className="p-3 text-right text-slate-600 dark:text-slate-400">Precio</th>
+                      <th className="p-3 text-right text-slate-600 dark:text-slate-400">Total</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/50">
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800/50">
                     {selectedQuotation.productos.map((item, idx) => (
                       <tr key={idx}>
-                        <td className="p-3 text-slate-200">{item.producto?.nombre}</td>
-                        <td className="p-3 text-center text-slate-400">{item.cantidad}</td>
-                        <td className="p-3 text-right text-slate-400">
+                        <td className="p-3 text-slate-800 dark:text-slate-200">{item.producto?.nombre}</td>
+                        <td className="p-3 text-center text-slate-600 dark:text-slate-400">{item.cantidad}</td>
+                        <td className="p-3 text-right text-slate-600 dark:text-slate-400">
                           {formatMoney(item.precioUnitario)}
                         </td>
                         <td className="p-3 text-right text-cyan-400">{formatMoney(item.total)}</td>
@@ -706,12 +706,12 @@ export function Cotizaciones() {
                 </table>
               </div>
 
-              <div className="flex flex-col gap-3 border-t border-slate-800 pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-3 border-t border-slate-200 dark:border-slate-800 pt-4 sm:flex-row sm:items-center sm:justify-between">
                 <Badge className={cn('w-fit border', statusColors[selectedQuotation.estado])}>
                   {statusLabels[selectedQuotation.estado]}
                 </Badge>
                 <div className="text-right">
-                  <p className="text-slate-500">Total</p>
+                  <p className="text-slate-600 dark:text-slate-500">Total</p>
                   <p className="text-2xl font-bold text-cyan-400">
                     {formatMoney(selectedQuotation.total)}
                   </p>
@@ -722,7 +722,7 @@ export function Cotizaciones() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="border-slate-700 text-slate-300"
+                  className="border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300"
                   onClick={() => printQuotationLetter(selectedQuotation, effectiveSucursalId)}
                 >
                   <Printer className="mr-2 h-4 w-4" />
@@ -731,7 +731,7 @@ export function Cotizaciones() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="border-slate-700 text-slate-300"
+                  className="border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300"
                   onClick={() => openEmailForQuotation(selectedQuotation)}
                 >
                   <Send className="mr-2 h-4 w-4" />

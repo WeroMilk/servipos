@@ -4,6 +4,27 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#0f172a" />
+    <script>
+      (function () {
+        try {
+          var storageKey = 'pos-app-storage';
+          var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var dark = prefersDark;
+          var raw = localStorage.getItem(storageKey);
+          if (raw) {
+            var parsed = JSON.parse(raw);
+            var st = parsed.state || parsed;
+            if (st.themePreference === 'light') dark = false;
+            else if (st.themePreference === 'dark') dark = true;
+            else if (st.themePreference === 'system') dark = prefersDark;
+            else if (typeof st.isDarkMode === 'boolean') dark = st.isDarkMode;
+          }
+          document.documentElement.classList.toggle('dark', dark);
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', dark ? '#0f172a' : '#f1f5f9');
+        } catch (e) {}
+      })();
+    </script>
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="SERVIPARTZ" />
     <link rel="manifest" href="./manifest.webmanifest" />

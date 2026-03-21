@@ -222,7 +222,7 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
   return (
     <>
       <div className="flex min-h-0 flex-1 flex-col">
-        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50">
+        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
           <CardHeader
             className={cn(
               'flex shrink-0 flex-row flex-wrap items-center justify-between gap-2 space-y-0',
@@ -231,7 +231,7 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
           >
             <CardTitle
               className={cn(
-                'flex items-center gap-2 text-slate-100',
+                'flex items-center gap-2 text-slate-900 dark:text-slate-100',
                 embedded && 'text-sm sm:text-base'
               )}
             >
@@ -254,41 +254,41 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
               embedded ? 'p-2 sm:p-3 sm:pt-0' : 'p-3 sm:p-4 sm:pt-0'
             )}
           >
-            <p className="mb-2 text-[11px] text-slate-500 sm:text-xs">
+            <p className="mb-2 text-[11px] text-slate-600 dark:text-slate-500 sm:text-xs">
               Los accesos se crean con el mismo dominio de correo que en el inicio de sesión. La
               contraseña de usuarios existentes se gestiona desde Firebase o recuperación de
               correo.
             </p>
-            <p className="mb-3 rounded-md border border-slate-800/80 bg-slate-800/30 px-2.5 py-2 text-[11px] leading-snug text-slate-400 sm:text-xs">
-              <span className="font-medium text-slate-300">Tienda asignada:</span> indica en qué
+            <p className="mb-3 rounded-md border border-slate-200 dark:border-slate-800/80 bg-slate-200/60 dark:bg-slate-800/30 px-2.5 py-2 text-[11px] leading-snug text-slate-600 dark:text-slate-400 sm:text-xs">
+              <span className="font-medium text-slate-700 dark:text-slate-300">Tienda asignada:</span> indica en qué
               sucursal opera el usuario (mismo id que el documento en{' '}
               <code className="text-cyan-500/90">sucursales</code> en Firestore). Los{' '}
-              <span className="text-slate-300">administradores</span> pueden además cambiar la tienda
+              <span className="text-slate-700 dark:text-slate-300">administradores</span> pueden además cambiar la tienda
               activa en la barra superior; si no eligen una, se usa la del perfil o la predeterminada
               del entorno.
             </p>
-            <div className="overflow-x-auto rounded-lg border border-slate-800/60">
+            <div className="overflow-x-auto rounded-lg border border-slate-200/80 dark:border-slate-800/60">
               <Table className={embedded ? 'text-sm' : undefined}>
                 <TableHeader>
-                  <TableRow className="border-slate-800 hover:bg-transparent">
-                    <TableHead className={cn('text-slate-400', embedded && 'h-8 py-1.5')}>
+                  <TableRow className="border-slate-200 dark:border-slate-800 hover:bg-transparent">
+                    <TableHead className={cn('text-slate-600 dark:text-slate-400', embedded && 'h-8 py-1.5')}>
                       Acceso
                     </TableHead>
-                    <TableHead className={cn('text-slate-400', embedded && 'h-8 py-1.5')}>
+                    <TableHead className={cn('text-slate-600 dark:text-slate-400', embedded && 'h-8 py-1.5')}>
                       Nombre
                     </TableHead>
-                    <TableHead className={cn('min-w-[11rem] text-slate-400', embedded && 'h-8 py-1.5')}>
+                    <TableHead className={cn('min-w-[11rem] text-slate-600 dark:text-slate-400', embedded && 'h-8 py-1.5')}>
                       Tienda / sucursal
                     </TableHead>
-                    <TableHead className={cn('text-slate-400', embedded && 'h-8 py-1.5')}>
+                    <TableHead className={cn('text-slate-600 dark:text-slate-400', embedded && 'h-8 py-1.5')}>
                       Rol
                     </TableHead>
-                    <TableHead className={cn('text-slate-400', embedded && 'h-8 py-1.5')}>
+                    <TableHead className={cn('text-slate-600 dark:text-slate-400', embedded && 'h-8 py-1.5')}>
                       Activo
                     </TableHead>
                     <TableHead
                       className={cn(
-                        'w-[100px] text-right text-slate-400',
+                        'w-[100px] text-right text-slate-600 dark:text-slate-400',
                         embedded && 'h-8 py-1.5'
                       )}
                     >
@@ -299,14 +299,14 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-slate-500">
+                      <TableCell colSpan={6} className="text-center text-slate-600 dark:text-slate-500">
                         Cargando…
                       </TableCell>
                     </TableRow>
                   ) : users.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-slate-500">
-                        No hay perfiles en <code className="text-slate-400">users</code>. Cree uno
+                      <TableCell colSpan={6} className="text-center text-slate-600 dark:text-slate-500">
+                        No hay perfiles en <code className="text-slate-600 dark:text-slate-400">users</code>. Cree uno
                         o revise reglas de Firestore.
                       </TableCell>
                     </TableRow>
@@ -314,15 +314,15 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
                     users.map((u) => (
                       <TableRow
                         key={u.id}
-                        className={cn('border-slate-800/80', embedded && 'h-9')}
+                        className={cn('border-slate-200 dark:border-slate-800/80', embedded && 'h-9')}
                       >
                         <TableCell
-                          className={cn('max-w-[160px] truncate font-mono text-xs text-slate-200', embedded && 'py-1.5')}
+                          className={cn('max-w-[160px] truncate font-mono text-xs text-slate-800 dark:text-slate-200', embedded && 'py-1.5')}
                           title={u.email}
                         >
                           {u.email || u.username}
                         </TableCell>
-                        <TableCell className={cn('text-slate-300', embedded && 'py-1.5')}>
+                        <TableCell className={cn('text-slate-700 dark:text-slate-300', embedded && 'py-1.5')}>
                           {u.name}
                         </TableCell>
                         <TableCell className={cn('py-1.5 align-middle', embedded && 'py-1.5')}>
@@ -333,25 +333,25 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
                           >
                             <SelectTrigger
                               className={cn(
-                                'h-8 w-[min(100%,11rem)] border-slate-700 bg-slate-800/90 text-xs text-slate-100',
+                                'h-8 w-[min(100%,11rem)] border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800/90 text-xs text-slate-900 dark:text-slate-100',
                                 embedded && 'h-7 text-[11px]'
                               )}
                               aria-label={`Tienda de ${u.name}`}
                             >
                               <SelectValue placeholder="Sin asignar" />
                             </SelectTrigger>
-                            <SelectContent className="border-slate-800 bg-slate-900">
-                              <SelectItem value="__none__" className="text-slate-100">
+                            <SelectContent className="border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900">
+                              <SelectItem value="__none__" className="text-slate-900 dark:text-slate-100">
                                 Sin asignar
                               </SelectItem>
                               {u.sucursalId &&
                                 !sucursalesActivas.some((s) => s.id === u.sucursalId) && (
-                                  <SelectItem value={u.sucursalId} className="text-slate-100">
+                                  <SelectItem value={u.sucursalId} className="text-slate-900 dark:text-slate-100">
                                     {sucursalLabel(u.sucursalId)} (id actual)
                                   </SelectItem>
                                 )}
                               {sucursalesActivas.map((s) => (
-                                <SelectItem key={s.id} value={s.id} className="text-slate-100">
+                                <SelectItem key={s.id} value={s.id} className="text-slate-900 dark:text-slate-100">
                                   {s.nombre}
                                   {s.codigo ? ` (${s.codigo})` : ''}
                                 </SelectItem>
@@ -359,14 +359,14 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
                             </SelectContent>
                           </Select>
                         </TableCell>
-                        <TableCell className={cn('text-slate-400', embedded && 'py-1.5')}>
+                        <TableCell className={cn('text-slate-600 dark:text-slate-400', embedded && 'py-1.5')}>
                           {u.role === 'admin' ? 'Administrador' : 'Cajero'}
                         </TableCell>
                         <TableCell>
                           <span
                             className={cn(
                               'text-xs font-medium',
-                              u.isActive ? 'text-emerald-400' : 'text-slate-500'
+                              u.isActive ? 'text-emerald-400' : 'text-slate-600 dark:text-slate-500'
                             )}
                           >
                             {u.isActive ? 'Sí' : 'No'}
@@ -379,7 +379,7 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
                               variant="ghost"
                               size="icon"
                               className={cn(
-                                'text-slate-400 hover:text-cyan-400',
+                                'text-slate-600 dark:text-slate-400 hover:text-cyan-400',
                                 embedded ? 'h-7 w-7' : 'h-8 w-8'
                               )}
                               onClick={() => openEdit(u)}
@@ -392,7 +392,7 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
                               variant="ghost"
                               size="icon"
                               className={cn(
-                                'text-slate-400 hover:text-amber-400',
+                                'text-slate-600 dark:text-slate-400 hover:text-amber-400',
                                 embedded ? 'h-7 w-7' : 'h-8 w-8'
                               )}
                               disabled={u.id === currentUser?.id || !u.isActive}
@@ -414,7 +414,7 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-h-[90dvh] overflow-y-auto border-slate-800 bg-slate-900 text-slate-100 sm:max-w-md">
+        <DialogContent className="max-h-[90dvh] overflow-y-auto border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
               {mode === 'create' ? 'Nuevo usuario' : 'Editar usuario'}
@@ -428,7 +428,7 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
                   id="um-login"
                   value={form.loginEmail}
                   onChange={(e) => setForm((f) => ({ ...f, loginEmail: e.target.value }))}
-                  className="border-slate-700 bg-slate-800 text-slate-100"
+                  className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                   placeholder="ej. maria o maria@dominio.com"
                   autoComplete="off"
                 />
@@ -439,7 +439,7 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
                 <Input
                   value={form.lockedEmail ?? form.loginEmail}
                   readOnly
-                  className="border-slate-800 bg-slate-900/80 text-slate-400"
+                  className="border-slate-200 dark:border-slate-800 bg-slate-100/90 dark:bg-slate-900/80 text-slate-600 dark:text-slate-400"
                 />
               </div>
             )}
@@ -449,7 +449,7 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
                 id="um-username"
                 value={form.username}
                 onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
-                className="border-slate-700 bg-slate-800 text-slate-100"
+                className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                 autoComplete="off"
               />
             </div>
@@ -461,7 +461,7 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
                   type="password"
                   value={form.password}
                   onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                  className="border-slate-700 bg-slate-800 text-slate-100"
+                  className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                   autoComplete="new-password"
                 />
               </div>
@@ -472,14 +472,14 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
                 id="um-name"
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                className="border-slate-700 bg-slate-800 text-slate-100"
+                className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               />
             </div>
             <div className="space-y-2">
               <Label>Tienda / sucursal asignada</Label>
-              <p className="text-[11px] leading-snug text-slate-500">
+              <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-500">
                 Debe coincidir con el id del documento en Firestore{' '}
-                <code className="text-slate-400">sucursales</code> (ej. Olivares).
+                <code className="text-slate-600 dark:text-slate-400">sucursales</code> (ej. Olivares).
               </p>
               <Select
                 value={form.sucursalId || '__none__'}
@@ -487,15 +487,15 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
                   setForm((f) => ({ ...f, sucursalId: v === '__none__' ? '' : v }))
                 }
               >
-                <SelectTrigger className="border-slate-700 bg-slate-800 text-slate-100">
+                <SelectTrigger className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">
                   <SelectValue placeholder="Sin asignar" />
                 </SelectTrigger>
-                <SelectContent className="border-slate-800 bg-slate-900">
-                  <SelectItem value="__none__" className="text-slate-100">
+                <SelectContent className="border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900">
+                  <SelectItem value="__none__" className="text-slate-900 dark:text-slate-100">
                     Sin asignar
                   </SelectItem>
                   {sucursalesActivas.map((s) => (
-                    <SelectItem key={s.id} value={s.id} className="text-slate-100">
+                    <SelectItem key={s.id} value={s.id} className="text-slate-900 dark:text-slate-100">
                       {s.nombre}
                       {s.codigo ? ` (${s.codigo})` : ''}
                     </SelectItem>
@@ -509,20 +509,20 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
                 value={form.role}
                 onValueChange={(v) => setForm((f) => ({ ...f, role: v as User['role'] }))}
               >
-                <SelectTrigger className="border-slate-700 bg-slate-800 text-slate-100">
+                <SelectTrigger className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="border-slate-800 bg-slate-900">
-                  <SelectItem value="admin" className="text-slate-100">
+                <SelectContent className="border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900">
+                  <SelectItem value="admin" className="text-slate-900 dark:text-slate-100">
                     Administrador
                   </SelectItem>
-                  <SelectItem value="cashier" className="text-slate-100">
+                  <SelectItem value="cashier" className="text-slate-900 dark:text-slate-100">
                     Cajero
                   </SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center justify-between gap-4 rounded-lg border border-slate-800 bg-slate-800/40 px-3 py-2">
+            <div className="flex items-center justify-between gap-4 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-200/70 dark:bg-slate-800/40 px-3 py-2">
               <Label htmlFor="um-active" className="cursor-pointer">
                 Cuenta activa
               </Label>
@@ -537,7 +537,7 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
             <Button
               type="button"
               variant="outline"
-              className="border-slate-700 text-slate-300"
+              className="border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300"
               onClick={() => setDialogOpen(false)}
             >
               Cancelar
@@ -555,16 +555,16 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
       </Dialog>
 
       <AlertDialog open={!!deactivateTarget} onOpenChange={(o) => !o && setDeactivateTarget(null)}>
-        <AlertDialogContent className="border-slate-800 bg-slate-900 text-slate-100">
+        <AlertDialogContent className="border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100">
           <AlertDialogHeader>
             <AlertDialogTitle>¿Desactivar usuario?</AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-400">
-              <strong className="text-slate-200">{deactivateTarget?.name}</strong> no podrá iniciar
+            <AlertDialogDescription className="text-slate-600 dark:text-slate-400">
+              <strong className="text-slate-800 dark:text-slate-200">{deactivateTarget?.name}</strong> no podrá iniciar
               sesión. El perfil permanece en Firestore y puede reactivarse editando la cuenta.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700">
+            <AlertDialogCancel className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-700">
               Cancelar
             </AlertDialogCancel>
             <AlertDialogAction

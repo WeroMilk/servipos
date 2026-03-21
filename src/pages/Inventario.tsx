@@ -381,8 +381,8 @@ export function Inventario() {
           className={cn(
             'rounded-xl border text-left transition-all',
             inventoryMode === 'productos'
-              ? 'border-cyan-500/50 bg-slate-900/80 ring-2 ring-cyan-500/25'
-              : 'border-slate-800/50 bg-slate-900/50 hover:border-slate-700/60'
+              ? 'border-cyan-500/50 bg-slate-100/90 dark:bg-slate-900/80 ring-2 ring-cyan-500/25'
+              : 'border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 hover:border-slate-300 dark:border-slate-700/60'
           )}
         >
           <CardContent className="flex items-center gap-2 p-2 sm:gap-3 sm:p-3">
@@ -390,8 +390,8 @@ export function Inventario() {
               <Package className="h-4 w-4 text-cyan-400 sm:h-5 sm:w-5" />
             </div>
             <div className="min-w-0">
-              <p className="text-lg font-bold text-slate-100 sm:text-xl">{products.length}</p>
-              <p className="text-[10px] text-slate-500 sm:text-xs">Productos</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl">{products.length}</p>
+              <p className="text-[10px] text-slate-600 dark:text-slate-500 sm:text-xs">Productos</p>
             </div>
           </CardContent>
         </button>
@@ -401,8 +401,8 @@ export function Inventario() {
           className={cn(
             'rounded-xl border text-left transition-all',
             inventoryMode === 'stock'
-              ? 'border-cyan-500/50 bg-slate-900/80 ring-2 ring-cyan-500/25'
-              : 'border-slate-800/50 bg-slate-900/50 hover:border-slate-700/60'
+              ? 'border-cyan-500/50 bg-slate-100/90 dark:bg-slate-900/80 ring-2 ring-cyan-500/25'
+              : 'border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 hover:border-slate-300 dark:border-slate-700/60'
           )}
         >
           <CardContent className="flex items-center gap-2 p-2 sm:gap-3 sm:p-3">
@@ -410,8 +410,8 @@ export function Inventario() {
               <AlertTriangle className="h-4 w-4 text-amber-400 sm:h-5 sm:w-5" />
             </div>
             <div className="min-w-0">
-              <p className="text-lg font-bold text-slate-100 sm:text-xl">{stockBajoCount}</p>
-              <p className="text-[10px] text-slate-500 sm:text-xs">Stock bajo</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl">{stockBajoCount}</p>
+              <p className="text-[10px] text-slate-600 dark:text-slate-500 sm:text-xs">Stock bajo</p>
             </div>
           </CardContent>
         </button>
@@ -421,8 +421,8 @@ export function Inventario() {
           className={cn(
             'rounded-xl border text-left transition-all',
             inventoryMode === 'valor'
-              ? 'border-cyan-500/50 bg-slate-900/80 ring-2 ring-cyan-500/25'
-              : 'border-slate-800/50 bg-slate-900/50 hover:border-slate-700/60'
+              ? 'border-cyan-500/50 bg-slate-100/90 dark:bg-slate-900/80 ring-2 ring-cyan-500/25'
+              : 'border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 hover:border-slate-300 dark:border-slate-700/60'
           )}
         >
           <CardContent className="flex items-center gap-2 p-2 sm:gap-3 sm:p-3">
@@ -430,10 +430,10 @@ export function Inventario() {
               <TrendingUp className="h-4 w-4 text-emerald-400 sm:h-5 sm:w-5" />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-base font-bold tabular-nums text-slate-100 sm:text-lg">
+              <p className="truncate text-base font-bold tabular-nums text-slate-900 dark:text-slate-100 sm:text-lg">
                 {formatMoney(valorInventarioTotal)}
               </p>
-              <p className="text-[10px] text-slate-500 sm:text-xs">Valor</p>
+              <p className="text-[10px] text-slate-600 dark:text-slate-500 sm:text-xs">Valor</p>
             </div>
           </CardContent>
         </button>
@@ -443,8 +443,8 @@ export function Inventario() {
           className={cn(
             'rounded-xl border text-left transition-all',
             inventoryMode === 'codigos'
-              ? 'border-cyan-500/50 bg-slate-900/80 ring-2 ring-cyan-500/25'
-              : 'border-slate-800/50 bg-slate-900/50 hover:border-slate-700/60'
+              ? 'border-cyan-500/50 bg-slate-100/90 dark:bg-slate-900/80 ring-2 ring-cyan-500/25'
+              : 'border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 hover:border-slate-300 dark:border-slate-700/60'
           )}
         >
           <CardContent className="flex items-center gap-2 p-2 sm:gap-3 sm:p-3">
@@ -452,10 +452,10 @@ export function Inventario() {
               <Barcode className="h-4 w-4 text-violet-400 sm:h-5 sm:w-5" />
             </div>
             <div className="min-w-0">
-              <p className="text-lg font-bold text-slate-100 sm:text-xl">
+              <p className="text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl">
                 {products.filter((p) => p.codigoBarras).length}
               </p>
-              <p className="text-[10px] text-slate-500 sm:text-xs">Códigos</p>
+              <p className="text-[10px] text-slate-600 dark:text-slate-500 sm:text-xs">Códigos</p>
             </div>
           </CardContent>
         </button>
@@ -470,7 +470,7 @@ export function Inventario() {
               {pendingIncoming.length}
             </Badge>
           </div>
-          <p className="mb-2 text-[11px] leading-snug text-slate-500 sm:text-xs">
+          <p className="mb-2 text-[11px] leading-snug text-slate-600 dark:text-slate-500 sm:text-xs">
             Otro almacén envió mercancía a esta tienda. Confirma cuando la hayas recibido físicamente para sumar el
             inventario aquí.
           </p>
@@ -481,19 +481,19 @@ export function Inventario() {
             <div className="grid auto-cols-[100%] grid-flow-col gap-3">
               {pendingIncoming.map((t) => (
                 <div key={t.id} className="min-w-0 snap-center snap-always px-0.5">
-                  <div className="rounded-lg border border-slate-800/80 bg-slate-950/50 p-3 text-xs text-slate-300 sm:text-sm">
+                  <div className="rounded-lg border border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-950/50 p-3 text-xs text-slate-700 dark:text-slate-300 sm:text-sm">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0 space-y-1">
-                        <p className="font-medium text-slate-100">
+                        <p className="font-medium text-slate-900 dark:text-slate-100">
                           Desde {nombreSucursal(t.origenSucursalId)} ·{' '}
                           <span className="font-mono text-cyan-400/90">{t.origenFolio}</span>
                         </p>
-                        <p className="text-[11px] text-slate-500">
+                        <p className="text-[11px] text-slate-600 dark:text-slate-500">
                           {t.items.length} partida(s) ·{' '}
                           {t.items.reduce((s, it) => s + it.cantidad, 0)} pzas. total
                           {t.usuarioNombre ? ` · Enviado por ${t.usuarioNombre}` : ''}
                         </p>
-                        <ul className="mt-2 max-h-24 list-inside list-disc overflow-y-auto text-[11px] text-slate-500">
+                        <ul className="mt-2 max-h-24 list-inside list-disc overflow-y-auto text-[11px] text-slate-600 dark:text-slate-500">
                           {t.items.map((it, i) => (
                             <li key={i}>
                               {it.nombre} × {it.cantidad}
@@ -552,56 +552,56 @@ export function Inventario() {
       </div>
 
       <div className="relative mt-3 mb-3 w-full min-w-0 shrink-0 sm:mt-4 sm:mb-4">
-        <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 sm:left-3 sm:h-5 sm:w-5" />
+        <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-600 dark:text-slate-500 sm:left-3 sm:h-5 sm:w-5" />
         <Input
           value={searchQuery}
           onChange={(e) => handleSearch(e.target.value)}
           placeholder="Buscar nombre, SKU, código..."
-          className="h-9 w-full border-slate-800 bg-slate-900/50 pl-9 text-sm text-slate-100 sm:h-10 sm:pl-10"
+          className="h-9 w-full border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900/50 pl-9 text-sm text-slate-900 dark:text-slate-100 sm:h-10 sm:pl-10"
         />
       </div>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <div className="shrink-0 pb-1">
-          <CardTitle className="text-sm text-slate-100 sm:text-base">Lista de productos</CardTitle>
-          <p className="mt-0.5 text-[11px] text-slate-500 sm:text-xs">{modeHint[inventoryMode]}</p>
+          <CardTitle className="text-sm text-slate-900 dark:text-slate-100 sm:text-base">Lista de productos</CardTitle>
+          <p className="mt-0.5 text-[11px] text-slate-600 dark:text-slate-500 sm:text-xs">{modeHint[inventoryMode]}</p>
         </div>
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-800/70 bg-slate-950/40 shadow-inner">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800/70 bg-slate-50 dark:bg-slate-950/40 shadow-inner">
           <div className="min-h-0 flex-1 overflow-auto overscroll-y-contain">
             <div className="min-w-0 overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="border-slate-800 hover:bg-transparent">
+                  <TableRow className="border-slate-200 dark:border-slate-800 hover:bg-transparent">
                     {inventoryMode === 'codigos' ? (
                       <>
-                        <TableHead className="sticky top-0 z-10 bg-slate-950/95 text-slate-400 backdrop-blur-sm">
+                        <TableHead className="sticky top-0 z-10 bg-white/95 dark:bg-slate-950/95 text-slate-600 dark:text-slate-400 backdrop-blur-sm">
                           Producto
                         </TableHead>
-                        <TableHead className="sticky top-0 z-10 bg-slate-950/95 text-slate-400 backdrop-blur-sm">
+                        <TableHead className="sticky top-0 z-10 bg-white/95 dark:bg-slate-950/95 text-slate-600 dark:text-slate-400 backdrop-blur-sm">
                           SKU
                         </TableHead>
-                        <TableHead className="sticky top-0 z-10 w-24 bg-slate-950/95 text-right text-slate-400 backdrop-blur-sm">
+                        <TableHead className="sticky top-0 z-10 w-24 bg-white/95 dark:bg-slate-950/95 text-right text-slate-600 dark:text-slate-400 backdrop-blur-sm">
                           Acciones
                         </TableHead>
                       </>
                     ) : (
                       <>
-                        <TableHead className="sticky top-0 z-10 bg-slate-950/95 text-slate-400 backdrop-blur-sm">
+                        <TableHead className="sticky top-0 z-10 bg-white/95 dark:bg-slate-950/95 text-slate-600 dark:text-slate-400 backdrop-blur-sm">
                           Producto
                         </TableHead>
-                        <TableHead className="sticky top-0 z-10 bg-slate-950/95 text-slate-400 backdrop-blur-sm">
+                        <TableHead className="sticky top-0 z-10 bg-white/95 dark:bg-slate-950/95 text-slate-600 dark:text-slate-400 backdrop-blur-sm">
                           SKU
                         </TableHead>
-                        <TableHead className="sticky top-0 z-10 bg-slate-950/95 text-slate-400 backdrop-blur-sm">
+                        <TableHead className="sticky top-0 z-10 bg-white/95 dark:bg-slate-950/95 text-slate-600 dark:text-slate-400 backdrop-blur-sm">
                           Precio
                         </TableHead>
-                        <TableHead className="sticky top-0 z-10 bg-slate-950/95 text-slate-400 backdrop-blur-sm">
+                        <TableHead className="sticky top-0 z-10 bg-white/95 dark:bg-slate-950/95 text-slate-600 dark:text-slate-400 backdrop-blur-sm">
                           Stock
                         </TableHead>
-                        <TableHead className="sticky top-0 z-10 bg-slate-950/95 text-slate-400 backdrop-blur-sm">
+                        <TableHead className="sticky top-0 z-10 bg-white/95 dark:bg-slate-950/95 text-slate-600 dark:text-slate-400 backdrop-blur-sm">
                           Categoría
                         </TableHead>
-                        <TableHead className="sticky top-0 z-10 bg-slate-950/95 text-right text-slate-400 backdrop-blur-sm">
+                        <TableHead className="sticky top-0 z-10 bg-white/95 dark:bg-slate-950/95 text-right text-slate-600 dark:text-slate-400 backdrop-blur-sm">
                           Acciones
                         </TableHead>
                       </>
@@ -622,35 +622,35 @@ export function Inventario() {
                     <TableRow>
                       <TableCell
                         colSpan={inventoryMode === 'codigos' ? 3 : 6}
-                        className="py-8 text-center text-slate-500"
+                        className="py-8 text-center text-slate-600 dark:text-slate-500"
                       >
                         No se encontraron productos
                       </TableCell>
                     </TableRow>
                   ) : inventoryMode === 'codigos' ? (
                     displayProducts.map((product) => (
-                      <TableRow key={product.id} className="border-slate-800/50">
-                        <TableCell className="font-medium text-slate-200">{product.nombre}</TableCell>
+                      <TableRow key={product.id} className="border-slate-200/80 dark:border-slate-800/50">
+                        <TableCell className="font-medium text-slate-800 dark:text-slate-200">{product.nombre}</TableCell>
                         <TableCell>
                           <Input
                             value={skuDrafts[product.id] ?? product.sku}
                             onChange={(e) => handleSkuDraftChange(product.id, e.target.value)}
                             onBlur={() => void commitSkuIfChanged(product)}
-                            className="h-9 min-w-[8rem] border-slate-700 bg-slate-800/80 font-mono text-sm text-slate-100"
+                            className="h-9 min-w-[8rem] border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800/80 font-mono text-sm text-slate-900 dark:text-slate-100"
                             aria-label={`SKU de ${product.nombre}`}
                           />
                         </TableCell>
                         <TableCell className="text-right">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button type="button" variant="ghost" size="icon" className="text-slate-400">
+                              <Button type="button" variant="ghost" size="icon" className="text-slate-600 dark:text-slate-400">
                                 <MoreHorizontal className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent className="border-slate-800 bg-slate-900">
+                            <DropdownMenuContent className="border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900">
                               <DropdownMenuItem
                                 onClick={() => openEditDialog(product)}
-                                className="text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+                                className="text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:bg-slate-800 hover:text-slate-900 dark:text-slate-100"
                               >
                                 <Edit2 className="mr-2 h-4 w-4" />
                                 Editar completo
@@ -669,16 +669,16 @@ export function Inventario() {
                     ))
                   ) : (
                     displayProducts.map((product) => (
-                      <TableRow key={product.id} className="border-slate-800/50">
+                      <TableRow key={product.id} className="border-slate-200/80 dark:border-slate-800/50">
                         <TableCell>
                           <div>
-                            <p className="font-medium text-slate-200">{product.nombre}</p>
+                            <p className="font-medium text-slate-800 dark:text-slate-200">{product.nombre}</p>
                             {product.descripcion ? (
-                              <p className="text-xs text-slate-500">{product.descripcion}</p>
+                              <p className="text-xs text-slate-600 dark:text-slate-500">{product.descripcion}</p>
                             ) : null}
                           </div>
                         </TableCell>
-                        <TableCell className="text-slate-400">{product.sku}</TableCell>
+                        <TableCell className="text-slate-600 dark:text-slate-400">{product.sku}</TableCell>
                         <TableCell className="font-medium tabular-nums text-cyan-400">
                           {formatMoney(product.precioVenta)}
                         </TableCell>
@@ -700,28 +700,28 @@ export function Inventario() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="secondary" className="bg-slate-800 text-slate-300">
+                          <Badge variant="secondary" className="bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                             {product.categoria || 'Sin categoría'}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button type="button" variant="ghost" size="icon" className="text-slate-400">
+                              <Button type="button" variant="ghost" size="icon" className="text-slate-600 dark:text-slate-400">
                                 <MoreHorizontal className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent className="border-slate-800 bg-slate-900">
+                            <DropdownMenuContent className="border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900">
                               <DropdownMenuItem
                                 onClick={() => openEditDialog(product)}
-                                className="text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+                                className="text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:bg-slate-800 hover:text-slate-900 dark:text-slate-100"
                               >
                                 <Edit2 className="mr-2 h-4 w-4" />
                                 Editar
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => openStockDialog(product)}
-                                className="text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+                                className="text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:bg-slate-800 hover:text-slate-900 dark:text-slate-100"
                               >
                                 <TrendingUp className="mr-2 h-4 w-4" />
                                 Ajustar Stock
@@ -749,7 +749,7 @@ export function Inventario() {
 
       {/* Add Product Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="bg-slate-900 border-slate-800 text-slate-100 max-w-2xl max-h-[90vh] overflow-auto">
+        <DialogContent className="bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-w-2xl max-h-[90vh] overflow-auto">
           <DialogHeader>
             <DialogTitle>Nuevo Producto</DialogTitle>
           </DialogHeader>
@@ -760,7 +760,7 @@ export function Inventario() {
               <Input
                 value={formData.sku}
                 onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                className="bg-slate-800 border-slate-700 text-slate-100"
+                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
             </div>
             <div className="space-y-2">
@@ -768,7 +768,7 @@ export function Inventario() {
               <Input
                 value={formData.codigoBarras}
                 onChange={(e) => setFormData({ ...formData, codigoBarras: e.target.value })}
-                className="bg-slate-800 border-slate-700 text-slate-100"
+                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
             </div>
             <div className="col-span-2 space-y-2">
@@ -776,7 +776,7 @@ export function Inventario() {
               <Input
                 value={formData.nombre}
                 onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                className="bg-slate-800 border-slate-700 text-slate-100"
+                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
             </div>
             <div className="col-span-2 space-y-2">
@@ -784,7 +784,7 @@ export function Inventario() {
               <Input
                 value={formData.descripcion}
                 onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-                className="bg-slate-800 border-slate-700 text-slate-100"
+                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
             </div>
             <div className="space-y-2">
@@ -802,7 +802,7 @@ export function Inventario() {
                   if (v === '') setFormData((d) => ({ ...d, precioVenta: 0 }));
                   else setFormData((d) => ({ ...d, precioVenta: parseFloat(v) || 0 }));
                 }}
-                className="bg-slate-800 border-slate-700 text-slate-100"
+                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
             </div>
             <div className="space-y-2">
@@ -820,7 +820,7 @@ export function Inventario() {
                   if (v === '') setFormData((d) => ({ ...d, precioCompra: 0 }));
                   else setFormData((d) => ({ ...d, precioCompra: parseFloat(v) || 0 }));
                 }}
-                className="bg-slate-800 border-slate-700 text-slate-100"
+                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
             </div>
             <div className="space-y-2">
@@ -838,7 +838,7 @@ export function Inventario() {
                   if (v === '') setFormData((d) => ({ ...d, existencia: 0 }));
                   else setFormData((d) => ({ ...d, existencia: parseInt(v, 10) || 0 }));
                 }}
-                className="bg-slate-800 border-slate-700 text-slate-100"
+                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
             </div>
             <div className="space-y-2">
@@ -856,7 +856,7 @@ export function Inventario() {
                   if (v === '') setFormData((d) => ({ ...d, existenciaMinima: 0 }));
                   else setFormData((d) => ({ ...d, existenciaMinima: parseInt(v, 10) || 0 }));
                 }}
-                className="bg-slate-800 border-slate-700 text-slate-100"
+                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
             </div>
             <div className="space-y-2">
@@ -864,7 +864,7 @@ export function Inventario() {
               <Input
                 value={formData.categoria}
                 onChange={(e) => setFormData({ ...formData, categoria: e.target.value })}
-                className="bg-slate-800 border-slate-700 text-slate-100"
+                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
             </div>
             <div className="space-y-2">
@@ -872,7 +872,7 @@ export function Inventario() {
               <Input
                 value={formData.proveedor}
                 onChange={(e) => setFormData({ ...formData, proveedor: e.target.value })}
-                className="bg-slate-800 border-slate-700 text-slate-100"
+                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
             </div>
           </div>
@@ -882,7 +882,7 @@ export function Inventario() {
               type="button"
               variant="outline"
               onClick={() => setShowAddDialog(false)}
-              className="border-slate-700 text-slate-400"
+              className="border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400"
             >
               Cancelar
             </Button>
@@ -899,7 +899,7 @@ export function Inventario() {
 
       {/* Edit Dialog - Similar al Add */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="bg-slate-900 border-slate-800 text-slate-100 max-w-2xl max-h-[90vh] overflow-auto">
+        <DialogContent className="bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-w-2xl max-h-[90vh] overflow-auto">
           <DialogHeader>
             <DialogTitle>Editar Producto</DialogTitle>
           </DialogHeader>
@@ -911,7 +911,7 @@ export function Inventario() {
               <Input
                 value={formData.sku}
                 onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                className="bg-slate-800 border-slate-700 text-slate-100"
+                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
             </div>
             <div className="space-y-2">
@@ -919,7 +919,7 @@ export function Inventario() {
               <Input
                 value={formData.codigoBarras}
                 onChange={(e) => setFormData({ ...formData, codigoBarras: e.target.value })}
-                className="bg-slate-800 border-slate-700 text-slate-100"
+                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
             </div>
             <div className="col-span-2 space-y-2">
@@ -927,7 +927,7 @@ export function Inventario() {
               <Input
                 value={formData.nombre}
                 onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                className="bg-slate-800 border-slate-700 text-slate-100"
+                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
             </div>
             <div className="col-span-2 space-y-2">
@@ -935,7 +935,7 @@ export function Inventario() {
               <Input
                 value={formData.descripcion}
                 onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-                className="bg-slate-800 border-slate-700 text-slate-100"
+                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
             </div>
             <div className="space-y-2">
@@ -953,7 +953,7 @@ export function Inventario() {
                   if (v === '') setFormData((d) => ({ ...d, precioVenta: 0 }));
                   else setFormData((d) => ({ ...d, precioVenta: parseFloat(v) || 0 }));
                 }}
-                className="bg-slate-800 border-slate-700 text-slate-100"
+                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
             </div>
             <div className="space-y-2">
@@ -971,7 +971,7 @@ export function Inventario() {
                   if (v === '') setFormData((d) => ({ ...d, precioCompra: 0 }));
                   else setFormData((d) => ({ ...d, precioCompra: parseFloat(v) || 0 }));
                 }}
-                className="bg-slate-800 border-slate-700 text-slate-100"
+                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
             </div>
             <div className="space-y-2">
@@ -991,7 +991,7 @@ export function Inventario() {
                   if (v === '') setFormData((d) => ({ ...d, existenciaMinima: 0 }));
                   else setFormData((d) => ({ ...d, existenciaMinima: parseInt(v, 10) || 0 }));
                 }}
-                className="bg-slate-800 border-slate-700 text-slate-100"
+                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
             </div>
             <div className="space-y-2">
@@ -999,7 +999,7 @@ export function Inventario() {
               <Input
                 value={formData.categoria}
                 onChange={(e) => setFormData({ ...formData, categoria: e.target.value })}
-                className="bg-slate-800 border-slate-700 text-slate-100"
+                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
             </div>
           </div>
@@ -1009,7 +1009,7 @@ export function Inventario() {
               type="button"
               variant="outline"
               onClick={() => setShowEditDialog(false)}
-              className="border-slate-700 text-slate-400"
+              className="border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400"
             >
               Cancelar
             </Button>
@@ -1026,15 +1026,15 @@ export function Inventario() {
 
       {/* Stock Adjustment Dialog */}
       <Dialog open={showStockDialog} onOpenChange={setShowStockDialog}>
-        <DialogContent className="bg-slate-900 border-slate-800 text-slate-100">
+        <DialogContent className="bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100">
           <DialogHeader>
             <DialogTitle>Ajustar Stock - {selectedProduct?.nombre}</DialogTitle>
           </DialogHeader>
           
           <div className="space-y-4 py-4">
-            <div className="p-4 rounded-lg bg-slate-800/50">
-              <p className="text-sm text-slate-400">Stock Actual</p>
-              <p className="text-2xl font-bold text-slate-200">{selectedProduct?.existencia}</p>
+            <div className="p-4 rounded-lg bg-slate-200/80 dark:bg-slate-800/50">
+              <p className="text-sm text-slate-600 dark:text-slate-400">Stock Actual</p>
+              <p className="text-2xl font-bold text-slate-800 dark:text-slate-200">{selectedProduct?.existencia}</p>
             </div>
 
             <div className="space-y-2">
@@ -1042,7 +1042,7 @@ export function Inventario() {
               <select
                 value={stockAdjustment.tipo}
                 onChange={(e) => setStockAdjustment({ ...stockAdjustment, tipo: e.target.value })}
-                className="w-full h-10 px-3 rounded-md bg-slate-800 border border-slate-700 text-slate-100"
+                className="w-full h-10 px-3 rounded-md bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               >
                 <option value="entrada">Entrada</option>
                 <option value="salida">Salida</option>
@@ -1063,7 +1063,7 @@ export function Inventario() {
                   if (v === '') setStockAdjustment((s) => ({ ...s, cantidad: 0 }));
                   else setStockAdjustment((s) => ({ ...s, cantidad: parseInt(v, 10) || 0 }));
                 }}
-                className="border-slate-700 bg-slate-800 text-slate-100"
+                className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               />
             </div>
 
@@ -1073,7 +1073,7 @@ export function Inventario() {
                 value={stockAdjustment.motivo}
                 onChange={(e) => setStockAdjustment({ ...stockAdjustment, motivo: e.target.value })}
                 placeholder="Ej: Compra a proveedor, merma, etc."
-                className="bg-slate-800 border-slate-700 text-slate-100"
+                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
             </div>
           </div>
@@ -1083,7 +1083,7 @@ export function Inventario() {
               type="button"
               variant="outline"
               onClick={() => setShowStockDialog(false)}
-              className="border-slate-700 text-slate-400"
+              className="border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400"
             >
               Cancelar
             </Button>

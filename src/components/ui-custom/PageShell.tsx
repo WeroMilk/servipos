@@ -21,13 +21,13 @@ export function PageShell({ title, subtitle, actions, children, className }: Pag
         className
       )}
     >
-      <header className="flex shrink-0 flex-col gap-2 border-b border-slate-800/40 pb-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+      <header className="flex shrink-0 flex-col gap-2 border-b border-slate-200/80 pb-2 dark:border-slate-800/40 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-lg font-bold text-slate-100 sm:text-xl lg:text-2xl">
+          <h1 className="truncate text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl lg:text-2xl">
             {title}
           </h1>
           {subtitle ? (
-            <p className="truncate text-xs text-slate-500 sm:text-sm">{subtitle}</p>
+            <p className="truncate text-xs text-slate-600 dark:text-slate-500 sm:text-sm">{subtitle}</p>
           ) : null}
         </div>
         {actions ? (

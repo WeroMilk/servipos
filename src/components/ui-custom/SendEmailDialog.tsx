@@ -52,11 +52,11 @@ export function SendEmailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="border-slate-800 bg-slate-900 text-slate-100 sm:max-w-md">
+      <DialogContent className="border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-slate-600 dark:text-slate-500">
           Remitente previsto: <span className="text-cyan-400/90">{SERVIPARTZ_SENDER_EMAIL}</span> — inicie sesión en Outlook
           con esa cuenta en el navegador para que el envío salga desde ella.
         </p>
@@ -69,11 +69,11 @@ export function SendEmailDialog({
             placeholder="cliente@ejemplo.com"
             value={to}
             onChange={(e) => setTo(e.target.value)}
-            className="border-slate-700 bg-slate-800 text-slate-100"
+            className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
           />
         </div>
         <DialogFooter className="gap-2 sm:gap-0">
-          <Button type="button" variant="outline" className="border-slate-700 text-slate-300" onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="outline" className="border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
           <Button

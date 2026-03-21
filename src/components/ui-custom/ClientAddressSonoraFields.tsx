@@ -62,8 +62,8 @@ export function ClientAddressSonoraFields<T extends AddressFormSlice>({
   };
 
   return (
-    <div className="col-span-full border-t border-slate-800 pt-4 sm:col-span-2">
-      <p className="mb-3 text-sm text-slate-500">Dirección (México)</p>
+    <div className="col-span-full border-t border-slate-200 dark:border-slate-800 pt-4 sm:col-span-2">
+      <p className="mb-3 text-sm text-slate-600 dark:text-slate-500">Dirección (México)</p>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2 sm:col-span-2">
@@ -78,7 +78,7 @@ export function ClientAddressSonoraFields<T extends AddressFormSlice>({
                 setCpHint(null);
               }
             }}
-            className="h-10 w-full rounded-md border border-slate-700 bg-slate-800 px-3 text-slate-100"
+            className="h-10 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 px-3 text-slate-900 dark:text-slate-100"
           >
             {ENTIDADES_FEDERATIVAS_MX.map((e) => (
               <option key={e} value={e}>
@@ -98,7 +98,7 @@ export function ClientAddressSonoraFields<T extends AddressFormSlice>({
               setMunicipio(m);
               setFormData((f) => ({ ...f, estado: ESTADO_SONORA, ciudad: m === 'Cajeme' ? 'Ciudad Obregón' : m }));
             }}
-            className="h-10 w-full rounded-md border border-slate-700 bg-slate-800 px-3 text-slate-100"
+            className="h-10 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 px-3 text-slate-900 dark:text-slate-100"
           >
             <option value="">Seleccione municipio…</option>
             {MUNICIPIOS_SONORA.map((m) => (
@@ -119,7 +119,7 @@ export function ClientAddressSonoraFields<T extends AddressFormSlice>({
               setFormData((f) => ({ ...f, ciudad: f.ciudad || m }));
             }}
             placeholder="Ej. Guadalajara, Monterrey…"
-            className="border-slate-700 bg-slate-800 text-slate-100"
+            className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
           />
         </div>
         )}
@@ -136,7 +136,7 @@ export function ClientAddressSonoraFields<T extends AddressFormSlice>({
             onBlur={() => applyCpLookup()}
             placeholder="5 dígitos"
             maxLength={5}
-            className="border-slate-700 bg-slate-800 text-slate-100"
+            className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
           />
         </div>
 
@@ -145,7 +145,7 @@ export function ClientAddressSonoraFields<T extends AddressFormSlice>({
           <Input
             value={formData.ciudad}
             onChange={(e) => setFormData((f) => ({ ...f, ciudad: e.target.value }))}
-            className="border-slate-700 bg-slate-800 text-slate-100"
+            className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
             placeholder="Se llena con CP o municipio"
           />
         </div>
@@ -156,7 +156,7 @@ export function ClientAddressSonoraFields<T extends AddressFormSlice>({
             <select
               value={formData.colonia}
               onChange={(e) => setFormData((f) => ({ ...f, colonia: e.target.value }))}
-              className="h-10 w-full rounded-md border border-slate-700 bg-slate-800 px-3 text-slate-100"
+              className="h-10 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 px-3 text-slate-900 dark:text-slate-100"
             >
               <option value="">Seleccione…</option>
               {colonias.map((c) => (
@@ -172,7 +172,7 @@ export function ClientAddressSonoraFields<T extends AddressFormSlice>({
             <Input
               value={formData.colonia}
               onChange={(e) => setFormData((f) => ({ ...f, colonia: e.target.value }))}
-              className="border-slate-700 bg-slate-800 text-slate-100"
+              className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
             />
           </div>
         )}
@@ -183,7 +183,7 @@ export function ClientAddressSonoraFields<T extends AddressFormSlice>({
             <select
               value={calles.includes(formData.calle) ? formData.calle : ''}
               onChange={(e) => setFormData((f) => ({ ...f, calle: e.target.value }))}
-              className="h-10 w-full rounded-md border border-slate-700 bg-slate-800 px-3 text-slate-100"
+              className="h-10 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 px-3 text-slate-900 dark:text-slate-100"
             >
               <option value="">Seleccione o escriba abajo…</option>
               {calles.map((c) => (
@@ -196,7 +196,7 @@ export function ClientAddressSonoraFields<T extends AddressFormSlice>({
               value={formData.calle}
               onChange={(e) => setFormData((f) => ({ ...f, calle: e.target.value }))}
               placeholder="O escriba la calle manualmente"
-              className="border-slate-700 bg-slate-800 text-sm text-slate-100"
+              className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100"
             />
           </div>
         ) : (
@@ -205,7 +205,7 @@ export function ClientAddressSonoraFields<T extends AddressFormSlice>({
             <Input
               value={formData.calle}
               onChange={(e) => setFormData((f) => ({ ...f, calle: e.target.value }))}
-              className="border-slate-700 bg-slate-800 text-slate-100"
+              className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
             />
           </div>
         )}
@@ -216,7 +216,7 @@ export function ClientAddressSonoraFields<T extends AddressFormSlice>({
             inputMode="numeric"
             value={formData.numeroExterior}
             onChange={(e) => setFormData((f) => ({ ...f, numeroExterior: e.target.value }))}
-            className="border-slate-700 bg-slate-800 text-slate-100"
+            className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
           />
         </div>
 
@@ -226,7 +226,7 @@ export function ClientAddressSonoraFields<T extends AddressFormSlice>({
             inputMode="numeric"
             value={formData.numeroInterior}
             onChange={(e) => setFormData((f) => ({ ...f, numeroInterior: e.target.value }))}
-            className="border-slate-700 bg-slate-800 text-slate-100"
+            className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
           />
         </div>
       </div>

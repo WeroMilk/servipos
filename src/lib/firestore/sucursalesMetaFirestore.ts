@@ -190,6 +190,11 @@ export async function softDeleteSucursal(id: string): Promise<void> {
   await updateSucursalMeta(id, { activo: false });
 }
 
+/** Vuelve a marcar la sucursal como activa en el catálogo. */
+export async function reactivateSucursal(id: string): Promise<void> {
+  await updateSucursalMeta(id, { activo: true });
+}
+
 const CHECADOR_COL = 'checadorRegistros';
 const USERS_COL = 'users';
 const BRANCH_SUBCOLLECTIONS = ['sales', 'inventoryMovements', 'products', 'counters'] as const;

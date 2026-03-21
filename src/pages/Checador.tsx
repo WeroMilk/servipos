@@ -190,12 +190,12 @@ export function Checador() {
   }, [todayRow]);
 
   const timeCell = (d: Date | null) =>
-    d ? <span className="font-mono text-slate-200">{formatTimeMx(d)}</span> : <span className="text-slate-600">—</span>;
+    d ? <span className="font-mono text-slate-800 dark:text-slate-200">{formatTimeMx(d)}</span> : <span className="text-slate-600">—</span>;
 
   if (!user?.isActive) {
     return (
       <PageShell title="Checador" subtitle="Asistencia">
-        <p className="text-sm text-slate-400">Cuenta inactiva.</p>
+        <p className="text-sm text-slate-600 dark:text-slate-400">Cuenta inactiva.</p>
       </PageShell>
     );
   }
@@ -203,7 +203,7 @@ export function Checador() {
   if (!canRegistrar) {
     return (
       <PageShell title="Checador" subtitle="Asistencia">
-        <p className="text-sm text-slate-400">No tiene permiso para usar el checador.</p>
+        <p className="text-sm text-slate-600 dark:text-slate-400">No tiene permiso para usar el checador.</p>
       </PageShell>
     );
   }
@@ -215,40 +215,40 @@ export function Checador() {
       className="min-w-0 max-w-none"
     >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden lg:flex-row lg:gap-4">
-        <Card className="w-full shrink-0 border-slate-800/50 bg-slate-900/50 lg:max-w-xl lg:self-start">
+        <Card className="w-full shrink-0 border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 lg:max-w-xl lg:self-start">
           <CardHeader className="space-y-1 pb-2">
-            <CardTitle className="flex items-center gap-2 text-base text-slate-100">
+            <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-slate-100">
               <Clock className="h-5 w-5 text-cyan-400" />
               Mi jornada hoy
             </CardTitle>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-600 dark:text-slate-500">
               Horarios en hora de Hermosillo, Sonora. Toque cada acción en orden; puede cerrar el día
               sin comida (sin usar salida/regreso).
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
             {loadingSub ? (
-              <div className="flex items-center gap-2 text-sm text-slate-500">
+              <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-500">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Cargando registro…
               </div>
             ) : (
               <>
                 <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-                  <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-2">
-                    <p className="text-slate-500">Entrada</p>
+                  <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 p-2">
+                    <p className="text-slate-600 dark:text-slate-500">Entrada</p>
                     {timeCell(todayRow?.entrada ?? null)}
                   </div>
-                  <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-2">
-                    <p className="text-slate-500">Salida comer</p>
+                  <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 p-2">
+                    <p className="text-slate-600 dark:text-slate-500">Salida comer</p>
                     {timeCell(todayRow?.salidaComer ?? null)}
                   </div>
-                  <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-2">
-                    <p className="text-slate-500">Regreso</p>
+                  <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 p-2">
+                    <p className="text-slate-600 dark:text-slate-500">Regreso</p>
                     {timeCell(todayRow?.regresoComer ?? null)}
                   </div>
-                  <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-2">
-                    <p className="text-slate-500">Cierre</p>
+                  <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 p-2">
+                    <p className="text-slate-600 dark:text-slate-500">Cierre</p>
                     {timeCell(todayRow?.cierre ?? null)}
                   </div>
                 </div>
@@ -355,25 +355,25 @@ export function Checador() {
         </Card>
 
         {canReporte ? (
-          <Card className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50">
+          <Card className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
             <CardHeader className="flex shrink-0 flex-col gap-3 space-y-0 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <CardTitle className="text-base text-slate-100">Registros por quincena</CardTitle>
-                <p className="text-xs text-slate-500">
+                <CardTitle className="text-base text-slate-900 dark:text-slate-100">Registros por quincena</CardTitle>
+                <p className="text-xs text-slate-600 dark:text-slate-500">
                   Solo se listan fichajes de la tienda seleccionada arriba (
                   {sucursalNombre(effectiveSucursalId)}). Colaboradores de otras tiendas no aparecen. Los
                   registros antiguos sin tienda se atribuyen por la sucursal del perfil del usuario.
                 </p>
               </div>
               <div className="w-full min-w-[14rem] sm:w-72">
-                <Label className="text-xs text-slate-500">Quincena</Label>
+                <Label className="text-xs text-slate-600 dark:text-slate-500">Quincena</Label>
                 <Select value={quincenaSel} onValueChange={setQuincenaSel}>
-                  <SelectTrigger className="mt-1 border-slate-700 bg-slate-800 text-slate-100">
+                  <SelectTrigger className="mt-1 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="border-slate-800 bg-slate-900">
+                  <SelectContent className="border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900">
                     {quincenaOptions.map((id) => (
-                      <SelectItem key={id} value={id} className="text-slate-100">
+                      <SelectItem key={id} value={id} className="text-slate-900 dark:text-slate-100">
                         {formatQuincenaLabel(id)}
                       </SelectItem>
                     ))}
@@ -383,51 +383,51 @@ export function Checador() {
             </CardHeader>
             <CardContent className="min-h-0 flex-1 overflow-auto overscroll-contain p-2 sm:p-4 sm:pt-0">
               {reportLoading ? (
-                <p className="flex items-center gap-2 py-8 text-sm text-slate-500">
+                <p className="flex items-center gap-2 py-8 text-sm text-slate-600 dark:text-slate-500">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Cargando…
                 </p>
               ) : (
                 <Table>
-                  <TableHeader className="[&_th]:sticky [&_th]:top-0 [&_th]:z-[1] [&_th]:bg-slate-950 [&_th]:shadow-[0_1px_0_0_rgb(30_41_59)]">
-                    <TableRow className="border-slate-800 hover:bg-transparent">
-                      <TableHead className="text-slate-400">Colaborador</TableHead>
-                      <TableHead className="min-w-[10rem] text-slate-400">Correo</TableHead>
-                      <TableHead className="whitespace-nowrap text-slate-400">ID usuario</TableHead>
-                      <TableHead className="text-slate-400">Tienda (fichaje)</TableHead>
-                      <TableHead className="text-slate-400">Fecha</TableHead>
-                      <TableHead className="text-slate-400">Entrada</TableHead>
-                      <TableHead className="text-slate-400">Salida a comer</TableHead>
-                      <TableHead className="text-slate-400">Regreso</TableHead>
-                      <TableHead className="text-slate-400">Cierre</TableHead>
+                  <TableHeader className="[&_th]:sticky [&_th]:top-0 [&_th]:z-[1] [&_th]:bg-slate-50 dark:bg-slate-950 [&_th]:shadow-[0_1px_0_0_rgb(226_232_240)] dark:[&_th]:shadow-[0_1px_0_0_rgb(30_41_59)]">
+                    <TableRow className="border-slate-200 dark:border-slate-800 hover:bg-transparent">
+                      <TableHead className="text-slate-600 dark:text-slate-400">Colaborador</TableHead>
+                      <TableHead className="min-w-[10rem] text-slate-600 dark:text-slate-400">Correo</TableHead>
+                      <TableHead className="whitespace-nowrap text-slate-600 dark:text-slate-400">ID usuario</TableHead>
+                      <TableHead className="text-slate-600 dark:text-slate-400">Tienda (fichaje)</TableHead>
+                      <TableHead className="text-slate-600 dark:text-slate-400">Fecha</TableHead>
+                      <TableHead className="text-slate-600 dark:text-slate-400">Entrada</TableHead>
+                      <TableHead className="text-slate-600 dark:text-slate-400">Salida a comer</TableHead>
+                      <TableHead className="text-slate-600 dark:text-slate-400">Regreso</TableHead>
+                      <TableHead className="text-slate-600 dark:text-slate-400">Cierre</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredReportRows.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center text-slate-500">
+                        <TableCell colSpan={9} className="text-center text-slate-600 dark:text-slate-500">
                           Sin registros en esta quincena para esta tienda.
                         </TableCell>
                       </TableRow>
                     ) : (
                       filteredReportRows.map((row) => (
-                        <TableRow key={row.id} className="border-slate-800/80">
-                          <TableCell className="font-medium text-slate-200">{row.userName}</TableCell>
+                        <TableRow key={row.id} className="border-slate-200 dark:border-slate-800/80">
+                          <TableCell className="font-medium text-slate-800 dark:text-slate-200">{row.userName}</TableCell>
                           <TableCell
-                            className="max-w-[14rem] truncate text-xs text-slate-400"
+                            className="max-w-[14rem] truncate text-xs text-slate-600 dark:text-slate-400"
                             title={row.userEmail || undefined}
                           >
                             {row.userEmail?.trim() ? row.userEmail : '—'}
                           </TableCell>
-                          <TableCell className="font-mono text-[11px] text-slate-500" title={row.userId}>
+                          <TableCell className="font-mono text-[11px] text-slate-600 dark:text-slate-500" title={row.userId}>
                             {row.userId && row.userId.length > 12
                               ? `${row.userId.slice(0, 10)}…`
                               : row.userId || '—'}
                           </TableCell>
-                          <TableCell className="max-w-[12rem] truncate text-xs text-slate-400" title={sucursalNombre(row.sucursalId)}>
+                          <TableCell className="max-w-[12rem] truncate text-xs text-slate-600 dark:text-slate-400" title={sucursalNombre(row.sucursalId)}>
                             {sucursalNombre(row.sucursalId)}
                           </TableCell>
-                          <TableCell className="text-slate-400">{formatDateKeyMx(row.dateKey)}</TableCell>
+                          <TableCell className="text-slate-600 dark:text-slate-400">{formatDateKeyMx(row.dateKey)}</TableCell>
                           <TableCell>{timeCell(row.entrada)}</TableCell>
                           <TableCell>{timeCell(row.salidaComer)}</TableCell>
                           <TableCell>{timeCell(row.regresoComer)}</TableCell>

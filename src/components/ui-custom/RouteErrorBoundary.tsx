@@ -57,9 +57,9 @@ export class RouteErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex min-h-[12rem] flex-1 flex-col items-center justify-center gap-4 rounded-xl border border-red-500/30 bg-red-950/20 p-6 text-center">
-          <p className="text-sm font-medium text-red-200">Algo salió mal al cargar esta pantalla.</p>
-          <p className="max-w-md text-xs text-slate-500">
+        <div className="flex min-h-[12rem] flex-1 flex-col items-center justify-center gap-4 rounded-xl border border-red-500/30 bg-red-100/80 p-6 text-center dark:bg-red-950/20">
+          <p className="text-sm font-medium text-red-800 dark:text-red-200">Algo salió mal al cargar esta pantalla.</p>
+          <p className="max-w-md text-xs text-slate-600 dark:text-slate-500">
             Puedes reintentar o usar el menú para ir a otra sección. Si el problema continúa, recarga la página
             (F5).
           </p>

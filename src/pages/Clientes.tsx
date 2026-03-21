@@ -290,8 +290,8 @@ export function Clientes() {
           className={cn(
             'rounded-xl border text-left transition-all',
             sortMode === 'nombre'
-              ? 'border-cyan-500/50 bg-slate-900/80 ring-2 ring-cyan-500/25'
-              : 'border-slate-800/50 bg-slate-900/50 hover:border-slate-700/60'
+              ? 'border-cyan-500/50 bg-slate-100/90 dark:bg-slate-900/80 ring-2 ring-cyan-500/25'
+              : 'border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 hover:border-slate-300 dark:border-slate-700/60'
           )}
         >
           <CardContent className="flex items-center gap-2 p-2 sm:gap-3 sm:p-3">
@@ -299,8 +299,8 @@ export function Clientes() {
               <User className="h-4 w-4 text-cyan-400 sm:h-5 sm:w-5" />
             </div>
             <div className="min-w-0">
-              <p className="text-lg font-bold text-slate-100 sm:text-xl">{countRegistrados}</p>
-              <p className="text-[10px] text-slate-500 sm:text-xs">Registrados</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl">{countRegistrados}</p>
+              <p className="text-[10px] text-slate-600 dark:text-slate-500 sm:text-xs">Registrados</p>
             </div>
           </CardContent>
         </button>
@@ -310,8 +310,8 @@ export function Clientes() {
           className={cn(
             'rounded-xl border text-left transition-all',
             sortMode === 'rfc'
-              ? 'border-cyan-500/50 bg-slate-900/80 ring-2 ring-cyan-500/25'
-              : 'border-slate-800/50 bg-slate-900/50 hover:border-slate-700/60'
+              ? 'border-cyan-500/50 bg-slate-100/90 dark:bg-slate-900/80 ring-2 ring-cyan-500/25'
+              : 'border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 hover:border-slate-300 dark:border-slate-700/60'
           )}
         >
           <CardContent className="flex items-center gap-2 p-2 sm:gap-3 sm:p-3">
@@ -319,8 +319,8 @@ export function Clientes() {
               <Building2 className="h-4 w-4 text-emerald-400 sm:h-5 sm:w-5" />
             </div>
             <div className="min-w-0">
-              <p className="text-lg font-bold text-slate-100 sm:text-xl">{countConRfc}</p>
-              <p className="text-[10px] text-slate-500 sm:text-xs">Con RFC</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl">{countConRfc}</p>
+              <p className="text-[10px] text-slate-600 dark:text-slate-500 sm:text-xs">Con RFC</p>
             </div>
           </CardContent>
         </button>
@@ -330,8 +330,8 @@ export function Clientes() {
           className={cn(
             'rounded-xl border text-left transition-all',
             sortMode === 'email'
-              ? 'border-cyan-500/50 bg-slate-900/80 ring-2 ring-cyan-500/25'
-              : 'border-slate-800/50 bg-slate-900/50 hover:border-slate-700/60'
+              ? 'border-cyan-500/50 bg-slate-100/90 dark:bg-slate-900/80 ring-2 ring-cyan-500/25'
+              : 'border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 hover:border-slate-300 dark:border-slate-700/60'
           )}
         >
           <CardContent className="flex items-center gap-2 p-2 sm:gap-3 sm:p-3">
@@ -339,32 +339,32 @@ export function Clientes() {
               <Mail className="h-4 w-4 text-violet-400 sm:h-5 sm:w-5" />
             </div>
             <div className="min-w-0">
-              <p className="text-lg font-bold text-slate-100 sm:text-xl">{countConEmail}</p>
-              <p className="text-[10px] text-slate-500 sm:text-xs">Con email</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl">{countConEmail}</p>
+              <p className="text-[10px] text-slate-600 dark:text-slate-500 sm:text-xs">Con email</p>
             </div>
           </CardContent>
         </button>
       </div>
 
       <div className="relative w-full min-w-0 shrink-0">
-        <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 sm:left-3 sm:h-5 sm:w-5" />
+        <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-600 dark:text-slate-500 sm:left-3 sm:h-5 sm:w-5" />
         <Input
           value={searchQuery}
           onChange={(e) => handleSearch(e.target.value)}
           placeholder="Nombre o RFC..."
-          className="h-9 w-full border-slate-800 bg-slate-900/50 pl-9 text-sm text-slate-100 sm:h-10 sm:pl-10"
+          className="h-9 w-full border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900/50 pl-9 text-sm text-slate-900 dark:text-slate-100 sm:h-10 sm:pl-10"
         />
       </div>
 
-      <Card className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50">
+      <Card className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
         <CardHeader className="flex shrink-0 flex-row flex-wrap items-center justify-between gap-2 space-y-0 py-2">
-          <CardTitle className="text-sm text-slate-100 sm:text-base">Lista</CardTitle>
+          <CardTitle className="text-sm text-slate-900 dark:text-slate-100 sm:text-base">Lista</CardTitle>
           <Button
             type="button"
             variant="ghost"
             size="sm"
             className={cn(
-              'h-8 shrink-0 text-xs text-slate-400 hover:bg-slate-800 hover:text-cyan-400',
+              'h-8 shrink-0 text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:bg-slate-800 hover:text-cyan-400',
               sortMode === 'tickets' && 'text-cyan-400'
             )}
             onClick={() => setSortMode((m) => (m === 'tickets' ? 'nombre' : 'tickets'))}
@@ -380,23 +380,23 @@ export function Clientes() {
                 <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500/30 border-t-cyan-500" />
               </div>
             ) : displayClients.length === 0 ? (
-              <p className="py-8 text-center text-slate-500">No se encontraron clientes</p>
+              <p className="py-8 text-center text-slate-600 dark:text-slate-500">No se encontraron clientes</p>
             ) : (
               displayClients.map((client) => (
                 <div
                   key={client.id}
-                  className="rounded-xl border border-slate-800/80 bg-slate-950/40 p-3"
+                  className="rounded-xl border border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-950/40 p-3"
                 >
                   <div className="min-w-0 space-y-1">
-                    <p className="text-sm font-medium leading-snug text-slate-100">{client.nombre}</p>
+                    <p className="text-sm font-medium leading-snug text-slate-900 dark:text-slate-100">{client.nombre}</p>
                     {client.rfc ? (
                       <p className="truncate text-xs text-emerald-400">{client.rfc}</p>
                     ) : null}
-                    <p className="line-clamp-2 text-xs text-slate-500">
+                    <p className="line-clamp-2 text-xs text-slate-600 dark:text-slate-500">
                       {client.email || client.telefono || 'Sin contacto'}
                     </p>
                   </div>
-                  <div className="mt-3 flex items-center gap-2 border-t border-slate-800/60 pt-2">
+                  <div className="mt-3 flex items-center gap-2 border-t border-slate-200/80 dark:border-slate-800/60 pt-2">
                     <button
                       type="button"
                       className="min-w-0 flex-1 truncate text-left text-xs font-medium text-cyan-500/90 hover:text-cyan-400"
@@ -425,14 +425,14 @@ export function Clientes() {
                     ) : null}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="shrink-0 text-slate-400">
+                        <Button variant="ghost" size="icon" className="shrink-0 text-slate-600 dark:text-slate-400">
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent className="border-slate-800 bg-slate-900">
+                      <DropdownMenuContent className="border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900">
                         <DropdownMenuItem
                           onClick={() => openEditDialog(client)}
-                          className="text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+                          className="text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:bg-slate-800 hover:text-slate-900 dark:text-slate-100"
                         >
                           <Edit2 className="mr-2 h-4 w-4" />
                           Editar
@@ -448,13 +448,13 @@ export function Clientes() {
           <div className="hidden min-h-0 min-w-0 md:block">
             <Table>
               <TableHeader>
-                <TableRow className="border-slate-800">
-                  <TableHead className="text-slate-400">Cliente</TableHead>
-                  <TableHead className="w-[5.5rem] text-center text-slate-400">Compras</TableHead>
-                  <TableHead className="text-slate-400">RFC</TableHead>
-                  <TableHead className="text-slate-400">Contacto</TableHead>
-                  <TableHead className="text-slate-400">Dirección</TableHead>
-                  <TableHead className="text-right text-slate-400">Acciones</TableHead>
+                <TableRow className="border-slate-200 dark:border-slate-800">
+                  <TableHead className="text-slate-600 dark:text-slate-400">Cliente</TableHead>
+                  <TableHead className="w-[5.5rem] text-center text-slate-600 dark:text-slate-400">Compras</TableHead>
+                  <TableHead className="text-slate-600 dark:text-slate-400">RFC</TableHead>
+                  <TableHead className="text-slate-600 dark:text-slate-400">Contacto</TableHead>
+                  <TableHead className="text-slate-600 dark:text-slate-400">Dirección</TableHead>
+                  <TableHead className="text-right text-slate-600 dark:text-slate-400">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -466,13 +466,13 @@ export function Clientes() {
                   </TableRow>
                 ) : displayClients.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="py-8 text-center text-slate-500">
+                    <TableCell colSpan={6} className="py-8 text-center text-slate-600 dark:text-slate-500">
                       No se encontraron clientes
                     </TableCell>
                   </TableRow>
                 ) : (
                   displayClients.map((client) => (
-                    <TableRow key={client.id} className="border-slate-800/50">
+                    <TableRow key={client.id} className="border-slate-200/80 dark:border-slate-800/50">
                       <TableCell className="max-w-[14rem] align-top">
                         <button
                           type="button"
@@ -481,7 +481,7 @@ export function Clientes() {
                         >
                           <p className="truncate font-medium text-cyan-300/90 hover:underline">{client.nombre}</p>
                           {client.razonSocial ? (
-                            <p className="truncate text-xs text-slate-500">{client.razonSocial}</p>
+                            <p className="truncate text-xs text-slate-600 dark:text-slate-500">{client.razonSocial}</p>
                           ) : null}
                         </button>
                       </TableCell>
@@ -503,19 +503,19 @@ export function Clientes() {
                             {client.rfc}
                           </Badge>
                         ) : (
-                          <span className="text-slate-500">-</span>
+                          <span className="text-slate-600 dark:text-slate-500">-</span>
                         )}
                       </TableCell>
                       <TableCell className="max-w-[12rem] align-top">
                         <div className="min-w-0 text-sm">
                           {client.email ? (
-                            <p className="truncate text-slate-400">
+                            <p className="truncate text-slate-600 dark:text-slate-400">
                               <Mail className="mr-1 inline h-3 w-3" />
                               {client.email}
                             </p>
                           ) : null}
                           {client.telefono ? (
-                            <p className="truncate text-slate-400">
+                            <p className="truncate text-slate-600 dark:text-slate-400">
                               <Phone className="mr-1 inline h-3 w-3" />
                               {client.telefono}
                             </p>
@@ -524,12 +524,12 @@ export function Clientes() {
                       </TableCell>
                       <TableCell className="max-w-[12rem] align-top">
                         {client.direccion ? (
-                          <p className="line-clamp-2 text-sm text-slate-400">
+                          <p className="line-clamp-2 text-sm text-slate-600 dark:text-slate-400">
                             <MapPin className="mr-1 inline h-3 w-3 shrink-0" />
                             {client.direccion.colonia}, {client.direccion.ciudad}
                           </p>
                         ) : (
-                          <span className="text-slate-500">-</span>
+                          <span className="text-slate-600 dark:text-slate-500">-</span>
                         )}
                       </TableCell>
                       <TableCell className="text-right">
@@ -548,14 +548,14 @@ export function Clientes() {
                           ) : null}
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="text-slate-400">
+                              <Button variant="ghost" size="icon" className="text-slate-600 dark:text-slate-400">
                                 <MoreHorizontal className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent className="border-slate-800 bg-slate-900">
+                            <DropdownMenuContent className="border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900">
                               <DropdownMenuItem
                                 onClick={() => openEditDialog(client)}
-                                className="text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+                                className="text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:bg-slate-800 hover:text-slate-900 dark:text-slate-100"
                               >
                                 <Edit2 className="mr-2 h-4 w-4" />
                                 Editar
@@ -577,8 +577,8 @@ export function Clientes() {
 
       {/* Add Client Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="flex max-h-[min(92dvh,40rem)] w-[calc(100%-1.5rem)] max-w-2xl flex-col gap-0 overflow-hidden border-slate-800 bg-slate-900 p-0 text-slate-100 sm:w-full">
-          <div className="shrink-0 border-b border-slate-800/80 px-4 pb-3 pt-4 pr-14">
+        <DialogContent className="flex max-h-[min(92dvh,40rem)] w-[calc(100%-1.5rem)] max-w-2xl flex-col gap-0 overflow-hidden border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 p-0 text-slate-900 dark:text-slate-100 sm:w-full">
+          <div className="shrink-0 border-b border-slate-200 dark:border-slate-800/80 px-4 pb-3 pt-4 pr-14">
             <DialogHeader className="space-y-0 p-0 text-left">
               <DialogTitle>Nuevo Cliente</DialogTitle>
             </DialogHeader>
@@ -591,7 +591,7 @@ export function Clientes() {
               <Input
                 value={formData.nombre}
                 onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                className="border-slate-700 bg-slate-800 text-slate-100"
+                className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               />
             </div>
 
@@ -601,7 +601,7 @@ export function Clientes() {
                 value={formData.rfc}
                 onChange={(e) => setFormData({ ...formData, rfc: e.target.value.toUpperCase() })}
                 placeholder="XAXX010101000"
-                className="border-slate-700 bg-slate-800 text-slate-100"
+                className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               />
             </div>
 
@@ -610,7 +610,7 @@ export function Clientes() {
               <Input
                 value={formData.razonSocial}
                 onChange={(e) => setFormData({ ...formData, razonSocial: e.target.value })}
-                className="border-slate-700 bg-slate-800 text-slate-100"
+                className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               />
             </div>
 
@@ -620,7 +620,7 @@ export function Clientes() {
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="border-slate-700 bg-slate-800 text-slate-100"
+                className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               />
             </div>
 
@@ -632,7 +632,7 @@ export function Clientes() {
                 autoComplete="tel"
                 value={formData.telefono}
                 onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
-                className="border-slate-700 bg-slate-800 text-slate-100"
+                className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               />
             </div>
 
@@ -641,7 +641,7 @@ export function Clientes() {
               <select
                 value={formData.regimenFiscal}
                 onChange={(e) => setFormData({ ...formData, regimenFiscal: e.target.value })}
-                className="h-10 w-full rounded-md border border-slate-700 bg-slate-800 px-3 text-slate-100"
+                className="h-10 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 px-3 text-slate-900 dark:text-slate-100"
               >
                 <option value="">Seleccione...</option>
                 {REGIMENES_FISCALES.map((r) => (
@@ -657,7 +657,7 @@ export function Clientes() {
               <select
                 value={formData.usoCfdi}
                 onChange={(e) => setFormData({ ...formData, usoCfdi: e.target.value })}
-                className="h-10 w-full rounded-md border border-slate-700 bg-slate-800 px-3 text-slate-100"
+                className="h-10 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 px-3 text-slate-900 dark:text-slate-100"
               >
                 {USOS_CFDI.map((u) => (
                   <option key={u.clave} value={u.clave}>
@@ -676,8 +676,8 @@ export function Clientes() {
           </div>
           </div>
 
-          <DialogFooter className="shrink-0 gap-2 border-t border-slate-800/80 px-4 py-3 sm:justify-end">
-            <Button variant="outline" onClick={() => setShowAddDialog(false)} className="border-slate-700 text-slate-400">
+          <DialogFooter className="shrink-0 gap-2 border-t border-slate-200 dark:border-slate-800/80 px-4 py-3 sm:justify-end">
+            <Button variant="outline" onClick={() => setShowAddDialog(false)} className="border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400">
               Cancelar
             </Button>
             <Button 
@@ -693,8 +693,8 @@ export function Clientes() {
 
       {/* Edit Dialog - Similar structure */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="flex max-h-[min(92dvh,40rem)] w-[calc(100%-1.5rem)] max-w-2xl flex-col gap-0 overflow-hidden border-slate-800 bg-slate-900 p-0 text-slate-100 sm:w-full">
-          <div className="shrink-0 border-b border-slate-800/80 px-4 pb-3 pt-4 pr-14">
+        <DialogContent className="flex max-h-[min(92dvh,40rem)] w-[calc(100%-1.5rem)] max-w-2xl flex-col gap-0 overflow-hidden border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 p-0 text-slate-900 dark:text-slate-100 sm:w-full">
+          <div className="shrink-0 border-b border-slate-200 dark:border-slate-800/80 px-4 pb-3 pt-4 pr-14">
             <DialogHeader className="space-y-0 p-0 text-left">
               <DialogTitle>Editar Cliente</DialogTitle>
             </DialogHeader>
@@ -707,7 +707,7 @@ export function Clientes() {
               <Input
                 value={formData.nombre}
                 onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                className="border-slate-700 bg-slate-800 text-slate-100"
+                className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               />
             </div>
 
@@ -716,7 +716,7 @@ export function Clientes() {
               <Input
                 value={formData.rfc}
                 onChange={(e) => setFormData({ ...formData, rfc: e.target.value.toUpperCase() })}
-                className="border-slate-700 bg-slate-800 text-slate-100"
+                className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               />
             </div>
 
@@ -725,7 +725,7 @@ export function Clientes() {
               <Input
                 value={formData.razonSocial}
                 onChange={(e) => setFormData({ ...formData, razonSocial: e.target.value })}
-                className="border-slate-700 bg-slate-800 text-slate-100"
+                className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               />
             </div>
 
@@ -735,7 +735,7 @@ export function Clientes() {
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="border-slate-700 bg-slate-800 text-slate-100"
+                className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               />
             </div>
 
@@ -746,7 +746,7 @@ export function Clientes() {
                 inputMode="tel"
                 value={formData.telefono}
                 onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
-                className="border-slate-700 bg-slate-800 text-slate-100"
+                className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               />
             </div>
 
@@ -755,7 +755,7 @@ export function Clientes() {
               <select
                 value={formData.regimenFiscal}
                 onChange={(e) => setFormData({ ...formData, regimenFiscal: e.target.value })}
-                className="h-10 w-full rounded-md border border-slate-700 bg-slate-800 px-3 text-slate-100"
+                className="h-10 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 px-3 text-slate-900 dark:text-slate-100"
               >
                 <option value="">Seleccione...</option>
                 {REGIMENES_FISCALES.map((r) => (
@@ -771,7 +771,7 @@ export function Clientes() {
               <select
                 value={formData.usoCfdi}
                 onChange={(e) => setFormData({ ...formData, usoCfdi: e.target.value })}
-                className="h-10 w-full rounded-md border border-slate-700 bg-slate-800 px-3 text-slate-100"
+                className="h-10 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 px-3 text-slate-900 dark:text-slate-100"
               >
                 {USOS_CFDI.map((u) => (
                   <option key={u.clave} value={u.clave}>
@@ -790,8 +790,8 @@ export function Clientes() {
           </div>
           </div>
 
-          <DialogFooter className="shrink-0 gap-2 border-t border-slate-800/80 px-4 py-3 sm:justify-end">
-            <Button variant="outline" onClick={() => setShowEditDialog(false)} className="border-slate-700 text-slate-400">
+          <DialogFooter className="shrink-0 gap-2 border-t border-slate-200 dark:border-slate-800/80 px-4 py-3 sm:justify-end">
+            <Button variant="outline" onClick={() => setShowEditDialog(false)} className="border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400">
               Cancelar
             </Button>
             <Button 
@@ -805,48 +805,48 @@ export function Clientes() {
       </Dialog>
 
       <Dialog open={!!detailClient} onOpenChange={(o) => !o && setDetailClient(null)}>
-        <DialogContent className="max-h-[min(88dvh,32rem)] overflow-y-auto border-slate-800 bg-slate-900 text-slate-100 sm:max-w-md">
+        <DialogContent className="max-h-[min(88dvh,32rem)] overflow-y-auto border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Ficha de cliente</DialogTitle>
           </DialogHeader>
           {detailClient && (
             <div className="space-y-3 text-sm">
               <div>
-                <p className="text-slate-500">Nombre</p>
-                <p className="text-slate-100">{detailClient.nombre}</p>
+                <p className="text-slate-600 dark:text-slate-500">Nombre</p>
+                <p className="text-slate-900 dark:text-slate-100">{detailClient.nombre}</p>
               </div>
               <div>
-                <p className="text-slate-500">Tickets de compra</p>
+                <p className="text-slate-600 dark:text-slate-500">Tickets de compra</p>
                 <p className="inline-flex items-center gap-1.5 text-amber-400">
                   <Ticket className="h-4 w-4 shrink-0" />
                   <span className="text-lg font-semibold tabular-nums">
                     {detailClient.ticketsComprados ?? 0}
                   </span>
-                  <span className="text-xs font-normal text-slate-500">(ventas por ticket)</span>
+                  <span className="text-xs font-normal text-slate-600 dark:text-slate-500">(ventas por ticket)</span>
                 </p>
               </div>
               {detailClient.rfc ? (
                 <div>
-                  <p className="text-slate-500">RFC</p>
+                  <p className="text-slate-600 dark:text-slate-500">RFC</p>
                   <p className="text-emerald-400">{detailClient.rfc}</p>
                 </div>
               ) : null}
               {detailClient.email ? (
                 <div>
-                  <p className="text-slate-500">Email</p>
-                  <p className="break-all text-slate-300">{detailClient.email}</p>
+                  <p className="text-slate-600 dark:text-slate-500">Email</p>
+                  <p className="break-all text-slate-700 dark:text-slate-300">{detailClient.email}</p>
                 </div>
               ) : null}
               {detailClient.telefono ? (
                 <div>
-                  <p className="text-slate-500">Teléfono</p>
-                  <p className="text-slate-300">{detailClient.telefono}</p>
+                  <p className="text-slate-600 dark:text-slate-500">Teléfono</p>
+                  <p className="text-slate-700 dark:text-slate-300">{detailClient.telefono}</p>
                 </div>
               ) : null}
               {detailClient.direccion ? (
                 <div>
-                  <p className="text-slate-500">Dirección</p>
-                  <p className="text-slate-300">
+                  <p className="text-slate-600 dark:text-slate-500">Dirección</p>
+                  <p className="text-slate-700 dark:text-slate-300">
                     {detailClient.direccion.calle} {detailClient.direccion.numeroExterior}{' '}
                     {detailClient.direccion.colonia}, {detailClient.direccion.ciudad},{' '}
                     {detailClient.direccion.estado} CP {detailClient.direccion.codigoPostal}
@@ -857,7 +857,7 @@ export function Clientes() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="border-slate-700 text-slate-300"
+                  className="border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300"
                   onClick={() => setDetailClient(null)}
                 >
                   Cerrar
@@ -880,16 +880,16 @@ export function Clientes() {
       </Dialog>
 
       <AlertDialog open={!!clientToDelete} onOpenChange={(o) => !o && setClientToDelete(null)}>
-        <AlertDialogContent className="border-slate-800 bg-slate-900 text-slate-100">
+        <AlertDialogContent className="border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100">
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminar cliente</AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-400">
-              ¿Eliminar a <strong className="text-slate-200">{clientToDelete?.nombre}</strong>? Esta acción no se
+            <AlertDialogDescription className="text-slate-600 dark:text-slate-400">
+              ¿Eliminar a <strong className="text-slate-800 dark:text-slate-200">{clientToDelete?.nombre}</strong>? Esta acción no se
               puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700">
+            <AlertDialogCancel className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-700">
               Cancelar
             </AlertDialogCancel>
             <AlertDialogAction

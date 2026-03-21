@@ -225,6 +225,11 @@ export function POS() {
   }, [checkoutOpen, checkoutPhase]);
 
   const esFormaTarjeta = (fp: string) => fp === '04' || fp === '28';
+  const esFormaEfectivo = (fp: string) => fp === '01';
+
+  /** Tarjeta en una sola exhibición: solo voucher (4 dígitos), sin capturar monto ni billetes. */
+  const cobroTarjetaPue =
+    !esTraspasoTienda && esFormaTarjeta(formaPago) && metodoPago === 'PUE';
 
   const digitos4TarjetaPendiente = () => tarjetaUltimos4.replace(/\D/g, '').slice(0, 4);
 
@@ -282,13 +287,30 @@ export function POS() {
       return;
     }
 
-    if (getTotalPagado() < totalCobro) {
-      addToast({ type: 'error', message: 'El pago es insuficiente' });
-      return;
+    const cobroTarjetaPueLocal =
+      !esTraspasoTienda && esFormaTarjeta(formaPago) && metodoPago === 'PUE';
+
+    let pagosParaVenta = pagos;
+
+    if (cobroTarjetaPueLocal) {
+      const d4 = digitos4TarjetaPendiente();
+      if (d4.length !== 4) {
+        addToast({
+          type: 'warning',
+          message: 'Ingrese los 4 dígitos del voucher para cobrar con tarjeta.',
+        });
+        return;
+      }
+      pagosParaVenta = [{ formaPago, monto: totalCobro, referencia: d4 }];
+    } else if (!esTraspasoTienda) {
+      if (getTotalPagado() < totalCobro) {
+        addToast({ type: 'error', message: 'El pago es insuficiente' });
+        return;
+      }
     }
 
     if (!esTraspasoTienda) {
-      for (const p of pagos) {
+      for (const p of pagosParaVenta) {
         if (esFormaTarjeta(p.formaPago)) {
           const ref = p.referencia?.trim() ?? '';
           if (!/^\d{4}$/.test(ref)) {
@@ -317,6 +339,8 @@ export function POS() {
     setProcessingSale(true);
 
     try {
+      const cambioVentaFinal = esTraspasoTienda ? 0 : cobroTarjetaPueLocal ? 0 : getCambio();
+
       const cajeroNombre =
         user?.name?.trim() || user?.username?.trim() || user?.email?.trim() || undefined;
       const destNombre =
@@ -349,13 +373,13 @@ export function POS() {
         metodoPago: metodoPago as 'PUE' | 'PPD',
         pagos: esTraspasoTienda
           ? [{ id: crypto.randomUUID(), formaPago: 'TTS' as FormaPago, monto: 0 }]
-          : pagos.map((p) => ({
+          : pagosParaVenta.map((p) => ({
               id: crypto.randomUUID(),
               formaPago: p.formaPago as FormaPago,
               monto: p.monto,
               referencia: p.referencia,
             })),
-        cambio: esTraspasoTienda ? 0 : getCambio(),
+        cambio: cambioVentaFinal,
         estado: 'completada' as const,
         notas: esTraspasoTienda ? `Traspaso tienda a tienda → ${destNombre}` : '',
         transferenciaSucursalDestinoId: esTraspasoTienda
@@ -379,8 +403,8 @@ export function POS() {
         };
       });
       const resumenPagos =
-        !esTraspasoTienda && pagos.length > 0
-          ? pagos.map((p) => ({
+        !esTraspasoTienda && pagosParaVenta.length > 0
+          ? pagosParaVenta.map((p) => ({
               label: labelFormaPago(p.formaPago),
               monto: p.monto,
               ultimos4:
@@ -397,7 +421,7 @@ export function POS() {
         subtotal: subtotalCobro,
         impuestos: impuestosCobro,
         total: totalCobro,
-        cambio: esTraspasoTienda ? 0 : getCambio(),
+        cambio: cambioVentaFinal,
         sucursalId: effectiveSucursalId,
         folio: folioVenta?.trim() || undefined,
         notas: esTraspasoTienda ? saleData.notas : undefined,
@@ -446,14 +470,14 @@ export function POS() {
   };
 
   const panelClass =
-    'rounded-xl border border-slate-800/50 bg-slate-900/50 shadow-sm';
+    'rounded-xl border border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 shadow-sm';
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col gap-2 sm:gap-3">
       {/* Pestañas móvil: una vista completa por pestaña (sin scroll de página) */}
       <div
         className={cn(
-          'grid shrink-0 grid-cols-2 gap-1 rounded-xl border border-slate-800/60 bg-slate-950/80 p-1 md:hidden'
+          'grid shrink-0 grid-cols-2 gap-1 rounded-xl border border-slate-200/80 dark:border-slate-800/60 bg-slate-100/90 dark:bg-slate-950/80 p-1 md:hidden'
         )}
       >
         <button
@@ -463,13 +487,13 @@ export function POS() {
             'flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-colors',
             mobileTab === 'cart'
               ? 'bg-cyan-500/20 text-cyan-300'
-              : 'text-slate-500 hover:bg-slate-800/50 hover:text-slate-300'
+              : 'text-slate-600 dark:text-slate-500 hover:bg-slate-200/80 dark:bg-slate-800/50 hover:text-slate-700 dark:text-slate-300'
           )}
         >
           <ShoppingCart className="h-4 w-4 shrink-0" />
           Carrito
           {items.length > 0 ? (
-            <span className="rounded-full bg-slate-800 px-1.5 text-xs text-slate-300">
+            <span className="rounded-full bg-slate-200 dark:bg-slate-800 px-1.5 text-xs text-slate-700 dark:text-slate-300">
               {items.length}
             </span>
           ) : null}
@@ -481,7 +505,7 @@ export function POS() {
             'flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-colors',
             mobileTab === 'checkout'
               ? 'bg-cyan-500/20 text-cyan-300'
-              : 'text-slate-500 hover:bg-slate-800/50 hover:text-slate-300'
+              : 'text-slate-600 dark:text-slate-500 hover:bg-slate-200/80 dark:bg-slate-800/50 hover:text-slate-700 dark:text-slate-300'
           )}
         >
           <Wallet className="h-4 w-4 shrink-0" />
@@ -499,19 +523,19 @@ export function POS() {
         >
           <div className={cn('shrink-0 p-2 sm:p-3', panelClass)}>
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 sm:left-3 sm:h-5 sm:w-5" />
+              <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-600 dark:text-slate-500 sm:left-3 sm:h-5 sm:w-5" />
               <Input
                 ref={searchInputRef}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => setShowProductSearch(true)}
                 placeholder="Buscar (F2) · SKU, código, nombre"
-                className="h-10 border-slate-700 bg-slate-800/50 pl-9 text-sm text-slate-100 placeholder:text-slate-600 focus:border-cyan-500/50 sm:h-11 sm:pl-10 sm:text-base"
+                className="h-10 border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 pl-9 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-600 focus:border-cyan-500/50 sm:h-11 sm:pl-10 sm:text-base"
               />
 
               {showProductSearch && searchResults.length > 0 && (
                 <div
-                  className="absolute left-0 right-0 top-full z-50 mt-1 max-h-[min(42dvh,16rem)] overflow-y-auto overscroll-contain rounded-xl border border-slate-800 bg-slate-900 shadow-xl sm:mt-2"
+                  className="absolute left-0 right-0 top-full z-50 mt-1 max-h-[min(42dvh,16rem)] overflow-y-auto overscroll-contain rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 shadow-xl sm:mt-2"
                   onMouseDown={(e) => e.preventDefault()}
                 >
                   {searchResults.map((product) => (
@@ -519,11 +543,11 @@ export function POS() {
                       key={product.id}
                       type="button"
                       onClick={() => handleAddProduct(product)}
-                      className="flex w-full items-center justify-between gap-2 border-b border-slate-800/50 p-2.5 text-left transition-colors last:border-0 hover:bg-slate-800/50 sm:p-3"
+                      className="flex w-full items-center justify-between gap-2 border-b border-slate-200/80 dark:border-slate-800/50 p-2.5 text-left transition-colors last:border-0 hover:bg-slate-200/80 dark:bg-slate-800/50 sm:p-3"
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium text-slate-200">{product.nombre}</p>
-                        <p className="text-xs text-slate-500">SKU: {product.sku}</p>
+                        <p className="truncate font-medium text-slate-800 dark:text-slate-200">{product.nombre}</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-500">SKU: {product.sku}</p>
                       </div>
                       <div className="shrink-0 text-right">
                         <p className="font-bold text-cyan-400">{formatMoney(product.precioVenta)}</p>
@@ -532,7 +556,7 @@ export function POS() {
                             'text-xs',
                             product.existencia <= product.existenciaMinima
                               ? 'text-amber-400'
-                              : 'text-slate-500'
+                              : 'text-slate-600 dark:text-slate-500'
                           )}
                         >
                           Stk {product.existencia}
@@ -547,36 +571,36 @@ export function POS() {
 
           <Card
             className={cn(
-              'flex min-h-0 flex-1 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50'
+              'flex min-h-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50'
             )}
           >
-            <CardHeader className="shrink-0 space-y-0 border-b border-slate-800/50 py-2 sm:py-3">
-              <CardTitle className="flex items-center gap-2 text-sm font-semibold text-slate-100 sm:text-base">
+            <CardHeader className="shrink-0 space-y-0 border-b border-slate-200/80 dark:border-slate-800/50 py-2 sm:py-3">
+              <CardTitle className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100 sm:text-base">
                 <ShoppingCart className="h-4 w-4 text-cyan-400 sm:h-5 sm:w-5" />
                 <span className="truncate">Carrito</span>
-                <span className="ml-auto text-xs font-normal text-slate-500 sm:text-sm">
+                <span className="ml-auto text-xs font-normal text-slate-600 dark:text-slate-500 sm:text-sm">
                   {items.length} ít.
                 </span>
               </CardTitle>
             </CardHeader>
             <CardContent className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
               {items.length === 0 ? (
-                <div className="flex min-h-[8rem] flex-1 flex-col items-center justify-center gap-1 px-4 text-center text-slate-500">
+                <div className="flex min-h-[8rem] flex-1 flex-col items-center justify-center gap-1 px-4 text-center text-slate-600 dark:text-slate-500">
                   <ShoppingCart className="h-12 w-12 opacity-40 sm:h-16 sm:w-16" />
                   <p className="text-sm">Vacío</p>
                   <p className="text-xs text-slate-600">Busque y agregue productos</p>
                 </div>
               ) : (
                 <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
-                  <div className="divide-y divide-slate-800/50">
+                  <div className="divide-y divide-slate-200 dark:divide-slate-800/50">
                     {items.map((item) => (
                       <div
                         key={item.product.id}
                         className="grid gap-2 p-2 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-3 sm:p-3"
                       >
                         <div className="min-w-0">
-                          <p className="truncate font-medium text-slate-200">{item.product.nombre}</p>
-                          <p className="text-xs text-slate-500">SKU {item.product.sku}</p>
+                          <p className="truncate font-medium text-slate-800 dark:text-slate-200">{item.product.nombre}</p>
+                          <p className="text-xs text-slate-600 dark:text-slate-500">SKU {item.product.sku}</p>
                           <p className="text-xs text-cyan-400/90 sm:text-sm">
                             {formatMoney(item.product.precioVenta)} c/u
                           </p>
@@ -599,7 +623,7 @@ export function POS() {
                                   });
                                 }
                               }}
-                              className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800 transition-colors hover:bg-slate-700"
+                              className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-200 dark:bg-slate-800 transition-colors hover:bg-slate-700"
                             >
                               <Minus className="h-4 w-4" />
                             </button>
@@ -621,14 +645,14 @@ export function POS() {
                                   });
                                 }
                               }}
-                              className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800 transition-colors hover:bg-slate-700"
+                              className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-200 dark:bg-slate-800 transition-colors hover:bg-slate-700"
                             >
                               <Plus className="h-4 w-4" />
                             </button>
                           </div>
 
                           <div className="flex items-center gap-1.5">
-                            <Percent className="hidden h-3.5 w-3.5 text-slate-500 sm:block" />
+                            <Percent className="hidden h-3.5 w-3.5 text-slate-600 dark:text-slate-500 sm:block" />
                             <Input
                               type="number"
                               inputMode="decimal"
@@ -639,14 +663,14 @@ export function POS() {
                               onChange={(e) =>
                                 updateDiscount(item.product.id, parseFloat(e.target.value) || 0)
                               }
-                              className="h-8 w-14 border-slate-700 bg-slate-800 px-1 text-center text-xs text-slate-100 sm:w-16"
+                              className="h-8 w-14 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 px-1 text-center text-xs text-slate-900 dark:text-slate-100 sm:w-16"
                               min={0}
                               max={100}
                               aria-label="Descuento porcentaje"
                             />
                           </div>
 
-                          <p className="min-w-[4.5rem] text-right text-sm font-bold text-slate-200">
+                          <p className="min-w-[4.5rem] text-right text-sm font-bold text-slate-800 dark:text-slate-200">
                             {formatMoney(
                               item.product.precioVenta *
                                 item.quantity *
@@ -672,9 +696,9 @@ export function POS() {
           </Card>
 
           {/* Barra rápida móvil: total + ir a cobro */}
-          <div className="flex shrink-0 items-center gap-2 rounded-xl border border-slate-800/60 bg-slate-950/90 p-2 md:hidden">
+          <div className="flex shrink-0 items-center gap-2 rounded-xl border border-slate-200/80 dark:border-slate-800/60 bg-white/95 dark:bg-slate-950/90 p-2 md:hidden">
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] uppercase tracking-wide text-slate-500">Total</p>
+              <p className="text-[10px] uppercase tracking-wide text-slate-600 dark:text-slate-500">Total</p>
               <p className="truncate text-lg font-bold text-cyan-400">{formatMoney(totalCobro)}</p>
             </div>
             <Button
@@ -703,10 +727,10 @@ export function POS() {
                   <User className="h-4 w-4 text-cyan-400 sm:h-5 sm:w-5" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[10px] uppercase tracking-wide text-slate-500 sm:text-xs">
+                  <p className="text-[10px] uppercase tracking-wide text-slate-600 dark:text-slate-500 sm:text-xs">
                     Cliente
                   </p>
-                  <p className="truncate text-sm font-medium text-slate-200 sm:text-base">
+                  <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-200 sm:text-base">
                     {client?.nombre || 'Mostrador'}
                   </p>
                 </div>
@@ -725,21 +749,21 @@ export function POS() {
             </div>
           </div>
 
-          <Card className="flex min-h-0 min-w-0 flex-1 flex-col overflow-visible border-slate-800/50 bg-slate-900/50 md:min-h-0">
+          <Card className="flex min-h-0 min-w-0 flex-1 flex-col overflow-visible border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 md:min-h-0">
             <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-visible p-2 sm:p-3 md:p-4">
               <div className="shrink-0 space-y-2">
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs sm:text-sm">
-                  <span className="text-slate-400">Subtotal</span>
-                  <span className="text-right text-slate-300">{formatMoney(subtotalCobro)}</span>
-                  <span className="text-slate-400">Descuento</span>
+                  <span className="text-slate-600 dark:text-slate-400">Subtotal</span>
+                  <span className="text-right text-slate-700 dark:text-slate-300">{formatMoney(subtotalCobro)}</span>
+                  <span className="text-slate-600 dark:text-slate-400">Descuento</span>
                   <span className="text-right text-amber-400">-{formatMoney(descuentoCobro)}</span>
-                  <span className="text-slate-400">IVA 16%</span>
-                  <span className="text-right text-slate-300">{formatMoney(impuestosCobro)}</span>
+                  <span className="text-slate-600 dark:text-slate-400">IVA 16%</span>
+                  <span className="text-right text-slate-700 dark:text-slate-300">{formatMoney(impuestosCobro)}</span>
                 </div>
 
-                <div className="border-t border-slate-800 pt-2">
+                <div className="border-t border-slate-200 dark:border-slate-800 pt-2">
                   <div className="flex items-end justify-between gap-2">
-                    <span className="text-sm font-medium text-slate-200 sm:text-base">Total</span>
+                    <span className="text-sm font-medium text-slate-800 dark:text-slate-200 sm:text-base">Total</span>
                     <span className="text-xl font-bold tabular-nums text-cyan-400 sm:text-2xl lg:text-3xl">
                       {formatMoney(totalCobro)}
                     </span>
@@ -757,9 +781,9 @@ export function POS() {
                 Controles de pago fuera de overflow-y-auto: evita que Radix Select
                 (portal + focus) choque con el scroll y provoque “refresh” o cierres raros.
               */}
-              <div className="shrink-0 space-y-3 border-t border-slate-800/80 pt-3">
+              <div className="shrink-0 space-y-3 border-t border-slate-200 dark:border-slate-800/80 pt-3">
                 <div className="space-y-1">
-                  <Label className="text-[10px] text-slate-400 sm:text-xs">Forma de pago</Label>
+                  <Label className="text-[10px] text-slate-600 dark:text-slate-400 sm:text-xs">Forma de pago</Label>
                   <Select
                     value={formaPago}
                     onValueChange={(v) => {
@@ -770,20 +794,20 @@ export function POS() {
                       if (v !== 'TTS') setTransferenciaDestinoSucursalId('');
                     }}
                   >
-                    <SelectTrigger className="h-9 w-full min-w-0 border-slate-700 bg-slate-800 text-xs text-slate-100 sm:h-10 sm:text-sm">
+                    <SelectTrigger className="h-9 w-full min-w-0 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-xs text-slate-900 dark:text-slate-100 sm:h-10 sm:text-sm">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent
                       position="popper"
                       sideOffset={6}
                       align="start"
-                      className="z-[300] max-h-[min(50dvh,18rem)] w-[var(--radix-select-trigger-width)] border-slate-800 bg-slate-900"
+                      className="z-[300] max-h-[min(50dvh,18rem)] w-[var(--radix-select-trigger-width)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
                     >
                       {formasPagoPos.map((fp) => (
                         <SelectItem
                           key={fp.clave}
                           value={fp.clave}
-                          className="text-slate-100"
+                          className="text-slate-900 dark:text-slate-100"
                         >
                           {fp.descripcion}
                         </SelectItem>
@@ -794,26 +818,26 @@ export function POS() {
 
                 {formaPago === 'TTS' && isAdmin ? (
                   <div className="space-y-1">
-                    <Label className="text-[10px] text-slate-400 sm:text-xs">Tienda destino</Label>
+                    <Label className="text-[10px] text-slate-600 dark:text-slate-400 sm:text-xs">Tienda destino</Label>
                     <Select
                       value={transferenciaDestinoSucursalId || '__none__'}
                       onValueChange={(v) =>
                         setTransferenciaDestinoSucursalId(v === '__none__' ? '' : v)
                       }
                     >
-                      <SelectTrigger className="h-9 w-full min-w-0 border-slate-700 bg-slate-800 text-xs text-slate-100 sm:h-10 sm:text-sm">
+                      <SelectTrigger className="h-9 w-full min-w-0 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-xs text-slate-900 dark:text-slate-100 sm:h-10 sm:text-sm">
                         <SelectValue placeholder="Seleccione tienda" />
                       </SelectTrigger>
                       <SelectContent
                         position="popper"
                         sideOffset={6}
-                        className="z-[300] border-slate-800 bg-slate-900"
+                        className="z-[300] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
                       >
-                        <SelectItem value="__none__" className="text-slate-100">
+                        <SelectItem value="__none__" className="text-slate-900 dark:text-slate-100">
                           Seleccione…
                         </SelectItem>
                         {otrasSucursales.map((s) => (
-                          <SelectItem key={s.id} value={s.id} className="text-slate-100">
+                          <SelectItem key={s.id} value={s.id} className="text-slate-900 dark:text-slate-100">
                             {s.codigo ? `${s.nombre} (${s.codigo})` : s.nombre}
                           </SelectItem>
                         ))}
@@ -823,21 +847,21 @@ export function POS() {
                 ) : null}
 
                 <div className="space-y-1">
-                  <Label className="text-[10px] text-slate-400 sm:text-xs">Método</Label>
+                  <Label className="text-[10px] text-slate-600 dark:text-slate-400 sm:text-xs">Método</Label>
                   <Select value={metodoPago} onValueChange={setMetodoPago}>
-                    <SelectTrigger className="h-9 w-full min-w-0 border-slate-700 bg-slate-800 text-xs text-slate-100 sm:h-10 sm:text-sm">
+                    <SelectTrigger className="h-9 w-full min-w-0 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-xs text-slate-900 dark:text-slate-100 sm:h-10 sm:text-sm">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent
                       position="popper"
                       sideOffset={6}
                       align="start"
-                      className="z-[300] w-[var(--radix-select-trigger-width)] border-slate-800 bg-slate-900"
+                      className="z-[300] w-[var(--radix-select-trigger-width)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
                     >
-                      <SelectItem value="PUE" className="text-slate-100">
+                      <SelectItem value="PUE" className="text-slate-900 dark:text-slate-100">
                         Una exhibición (PUE)
                       </SelectItem>
-                      <SelectItem value="PPD" className="text-slate-100">
+                      <SelectItem value="PPD" className="text-slate-900 dark:text-slate-100">
                         Parcialidades (PPD)
                       </SelectItem>
                     </SelectContent>
@@ -845,7 +869,7 @@ export function POS() {
                 </div>
 
                 <div className="space-y-1">
-                  <Label className="text-[10px] text-slate-400 sm:text-xs">Desc. global %</Label>
+                  <Label className="text-[10px] text-slate-600 dark:text-slate-400 sm:text-xs">Desc. global %</Label>
                   <Input
                     type="number"
                     inputMode="decimal"
@@ -862,7 +886,7 @@ export function POS() {
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') e.preventDefault();
                     }}
-                    className="h-9 w-full border-slate-700 bg-slate-800 text-slate-100 sm:h-10"
+                    className="h-9 w-full border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100 sm:h-10"
                     min={0}
                     max={100}
                   />
@@ -889,7 +913,7 @@ export function POS() {
               onClick={clearCart}
               variant="outline"
               disabled={items.length === 0}
-              className="h-10 w-full rounded-xl border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-slate-200 sm:h-11"
+              className="h-10 w-full rounded-xl border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:bg-slate-800 hover:text-slate-800 dark:text-slate-200 sm:h-11"
             >
               <X className="mr-2 h-4 w-4" />
               Cancelar venta
@@ -901,7 +925,7 @@ export function POS() {
       <Dialog open={checkoutOpen} onOpenChange={handleCheckoutOpenChange}>
         <DialogContent
           className={cn(
-            'left-1/2 top-1/2 max-w-none -translate-x-1/2 -translate-y-1/2 border-slate-800 bg-slate-900 text-slate-100',
+            'left-1/2 top-1/2 max-w-none -translate-x-1/2 -translate-y-1/2 border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100',
             checkoutPhase === 'payment'
               ? 'max-h-[calc(100dvh-2rem)] w-[min(calc(100vw-1rem),28rem)] overflow-x-hidden overflow-y-auto p-4 sm:max-h-[calc(100dvh-2.5rem)] sm:w-[min(calc(100vw-2rem),32rem)] sm:p-6'
               : 'w-[min(calc(100vw-1rem),24rem)] p-4 sm:max-w-sm sm:p-6'
@@ -917,38 +941,40 @@ export function POS() {
               </DialogHeader>
 
               <div className="space-y-3 py-1 sm:space-y-4 sm:py-2">
-                <div className="rounded-xl bg-slate-800/50 p-3 text-center sm:p-4">
-                  <p className="mb-1 text-xs text-slate-400 sm:text-sm">Total a pagar</p>
+                <div className="rounded-xl bg-slate-200/80 dark:bg-slate-800/50 p-3 text-center sm:p-4">
+                  <p className="mb-1 text-xs text-slate-600 dark:text-slate-400 sm:text-sm">Total a pagar</p>
                   <p className="text-2xl font-bold text-cyan-400 sm:text-4xl">{formatMoney(totalCobro)}</p>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Monto recibido</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      type="text"
-                      inputMode="decimal"
-                      placeholder="0.00"
-                      value={montoRecibidoInput}
-                      onChange={(e) => setMontoRecibidoInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          commitMontoRecibido();
-                        }
-                      }}
-                      className="h-12 border-slate-700 bg-slate-800 text-center text-xl text-slate-100 sm:h-14 sm:text-2xl"
-                    />
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      className="h-12 shrink-0 bg-slate-800 text-slate-100 hover:bg-slate-700 sm:h-14"
-                      onClick={commitMontoRecibido}
-                    >
-                      Agregar
-                    </Button>
+                {!cobroTarjetaPue && !esTraspasoTienda ? (
+                  <div className="space-y-2">
+                    <Label>Monto recibido</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="0.00"
+                        value={montoRecibidoInput}
+                        onChange={(e) => setMontoRecibidoInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            commitMontoRecibido();
+                          }
+                        }}
+                        className="h-12 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-center text-xl text-slate-900 dark:text-slate-100 sm:h-14 sm:text-2xl"
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="h-12 shrink-0 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:bg-slate-700 sm:h-14"
+                        onClick={commitMontoRecibido}
+                      >
+                        Agregar
+                      </Button>
+                    </div>
                   </div>
-                </div>
+                ) : null}
 
                 {esFormaTarjeta(formaPago) && !esTraspasoTienda ? (
                   <div className="space-y-2">
@@ -963,58 +989,51 @@ export function POS() {
                       onChange={(e) =>
                         setTarjetaUltimos4(e.target.value.replace(/\D/g, '').slice(0, 4))
                       }
-                      className="h-11 border-slate-700 bg-slate-800 text-center font-mono text-lg tracking-widest text-slate-100"
+                      className="h-11 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-center font-mono text-lg tracking-widest text-slate-900 dark:text-slate-100"
                     />
-                    <p className="text-[11px] leading-snug text-slate-500 sm:text-xs">
+                    <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-500 sm:text-xs">
                       Los mismos que en el comprobante del terminal, para cruzar ticket y voucher en
                       auditoría.
+                      {cobroTarjetaPue ?
+                        ' Al completar la venta se registra el cobro por el total mostrado arriba.'
+                      : null}
                     </p>
                   </div>
                 ) : null}
 
-                <div className="flex flex-wrap gap-2">
-                  {[50, 100, 200, 500, 1000].map((amount) => (
-                    <button
-                      key={amount}
-                      type="button"
-                      onClick={() => {
-                        if (esFormaTarjeta(formaPago)) {
-                          const d4 = digitos4TarjetaPendiente();
-                          if (d4.length !== 4) {
-                            toastTarjeta4Requeridos();
-                            return;
-                          }
-                          addPago({ formaPago, monto: amount, referencia: d4 });
-                          setTarjetaUltimos4('');
-                        } else {
-                          addPago({ formaPago, monto: amount });
-                        }
-                      }}
-                      className="rounded-lg bg-slate-800 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-700"
-                    >
-                      {formatMoney(amount)}
-                    </button>
-                  ))}
-                </div>
+                {esFormaEfectivo(formaPago) && !esTraspasoTienda ? (
+                  <div className="flex flex-wrap gap-2">
+                    {[50, 100, 200, 500, 1000].map((amount) => (
+                      <button
+                        key={amount}
+                        type="button"
+                        onClick={() => addPago({ formaPago, monto: amount })}
+                        className="rounded-lg bg-slate-200 dark:bg-slate-800 px-3 py-2 text-sm text-slate-700 dark:text-slate-300 transition-colors hover:bg-slate-700"
+                      >
+                        {formatMoney(amount)}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
 
-                {pagos.length > 0 && (
+                {pagos.length > 0 && !cobroTarjetaPue && (
                   <div className="space-y-2">
                     <Label>Pagos recibidos</Label>
                     <div className="space-y-2">
                       {pagos.map((pago, index) => (
                         <div
                           key={index}
-                          className="flex items-center justify-between rounded-lg bg-slate-800/50 p-2.5 sm:p-3"
+                          className="flex items-center justify-between rounded-lg bg-slate-200/80 dark:bg-slate-800/50 p-2.5 sm:p-3"
                         >
-                          <span className="truncate pr-2 text-sm text-slate-300">
+                          <span className="truncate pr-2 text-sm text-slate-700 dark:text-slate-300">
                             {labelFormaPago(pago.formaPago)}
                             {esFormaTarjeta(pago.formaPago) &&
                             /^\d{4}$/.test(pago.referencia?.trim() ?? '') ?
-                              <span className="text-slate-500"> · ****{pago.referencia!.trim()}</span>
+                              <span className="text-slate-600 dark:text-slate-500"> · ****{pago.referencia!.trim()}</span>
                             : null}
                           </span>
                           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-                            <span className="font-bold text-slate-200">{formatMoney(pago.monto)}</span>
+                            <span className="font-bold text-slate-800 dark:text-slate-200">{formatMoney(pago.monto)}</span>
                             <button
                               type="button"
                               onClick={() => removePago(index)}
@@ -1045,14 +1064,19 @@ export function POS() {
                   type="button"
                   variant="outline"
                   onClick={() => handleCheckoutOpenChange(false)}
-                  className="w-full border-slate-700 text-slate-400 sm:w-auto"
+                  className="w-full border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 sm:w-auto"
                 >
                   Cancelar
                 </Button>
                 <Button
                   type="button"
                   onClick={() => void handleProcessSale()}
-                  disabled={totalPagadoVenta < totalCobro || processingSale}
+                  disabled={
+                    processingSale ||
+                    (cobroTarjetaPue
+                      ? digitos4TarjetaPendiente().length !== 4
+                      : totalPagadoVenta < totalCobro)
+                  }
                   className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white sm:w-auto"
                 >
                   {processingSale ? (
@@ -1075,15 +1099,15 @@ export function POS() {
                   <Check className="h-8 w-8 text-emerald-400 sm:h-10 sm:w-10" />
                 </div>
                 {ticketSnapshot?.folio ? (
-                  <p className="mb-2 font-mono text-sm font-medium text-slate-300 sm:text-base">
+                  <p className="mb-2 font-mono text-sm font-medium text-slate-700 dark:text-slate-300 sm:text-base">
                     Folio {ticketSnapshot.folio}
                   </p>
                 ) : null}
-                <p className="mb-1 text-sm text-slate-400 sm:mb-2">Total</p>
+                <p className="mb-1 text-sm text-slate-600 dark:text-slate-400 sm:mb-2">Total</p>
                 <p className="mb-3 text-3xl font-bold text-cyan-400 sm:mb-4 sm:text-4xl">
                   {formatMoney(ticketSnapshot?.total ?? 0)}
                 </p>
-                <p className="text-xs text-slate-500 sm:text-sm">
+                <p className="text-xs text-slate-600 dark:text-slate-500 sm:text-sm">
                   Cambio: {formatMoney(ticketSnapshot?.cambio ?? 0)}
                 </p>
               </div>
@@ -1092,7 +1116,7 @@ export function POS() {
                 <Button
                   onClick={handlePrintTicket}
                   variant="outline"
-                  className="flex-1 border-slate-700 text-slate-400"
+                  className="flex-1 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400"
                 >
                   <Printer className="mr-2 h-4 w-4" />
                   Imprimir
@@ -1111,7 +1135,7 @@ export function POS() {
       </Dialog>
 
       <Dialog open={showClientDialog} onOpenChange={setShowClientDialog}>
-        <DialogContent className="max-h-[min(85dvh,28rem)] border-slate-800 bg-slate-900 text-slate-100 sm:max-w-md">
+        <DialogContent className="max-h-[min(85dvh,28rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Cliente de la venta</DialogTitle>
           </DialogHeader>
@@ -1122,10 +1146,10 @@ export function POS() {
                 setClient(null);
                 setShowClientDialog(false);
               }}
-              className="w-full rounded-lg border border-slate-700/80 bg-slate-800/80 p-3 text-left transition-colors hover:bg-slate-800"
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700/80 bg-slate-200 dark:bg-slate-800/80 p-3 text-left transition-colors hover:bg-slate-200 dark:bg-slate-800"
             >
-              <p className="font-medium text-slate-100">Mostrador</p>
-              <p className="text-xs text-slate-500">Sin cliente registrado</p>
+              <p className="font-medium text-slate-900 dark:text-slate-100">Mostrador</p>
+              <p className="text-xs text-slate-600 dark:text-slate-500">Sin cliente registrado</p>
             </button>
             {clients
               .filter((c) => !c.isMostrador)
@@ -1137,10 +1161,10 @@ export function POS() {
                     setClient(c);
                     setShowClientDialog(false);
                   }}
-                  className="w-full rounded-lg border border-slate-800 bg-slate-800/50 p-3 text-left transition-colors hover:bg-slate-800"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-200/80 dark:bg-slate-800/50 p-3 text-left transition-colors hover:bg-slate-200 dark:bg-slate-800"
                 >
-                  <p className="font-medium text-slate-200">{c.nombre}</p>
-                  {c.rfc ? <p className="text-xs text-slate-500">RFC: {c.rfc}</p> : null}
+                  <p className="font-medium text-slate-800 dark:text-slate-200">{c.nombre}</p>
+                  {c.rfc ? <p className="text-xs text-slate-600 dark:text-slate-500">RFC: {c.rfc}</p> : null}
                 </button>
               ))}
           </div>
