@@ -1,7 +1,13 @@
 #!/usr/bin/env node
 /**
- * Borra datos operativos de una sucursal en Firestore (ventas, movimientos, productos, contador folio).
- * Requiere cuenta de servicio con permisos en el proyecto (IAM: roles/datastore.owner o editor acotado).
+ * Reset duro de una sucursal en Firestore:
+ * - Ventas (sales)
+ * - Inventario: productos + movimientos (products, inventoryMovements)
+ * - Contadores bajo sucursales/{id}/counters (p. ej. folio diario)
+ * - Checador: registros con sucursalId = sucursal, y registros sin sucursal (null/vacío)
+ *   cuyo userId está en users con sucursalId = sucursal (fichajes viejos sin campo).
+ *
+ * Requiere GOOGLE_APPLICATION_CREDENTIALS → JSON de cuenta de servicio (Firestore).
  *
  * Uso:
  *   set GOOGLE_APPLICATION_CREDENTIALS=C:\ruta\serviceAccount.json
@@ -9,10 +15,10 @@
  *
  * Opciones:
  *   --sucursal=olivares   (default: olivares)
- *   --project=ID          (default: servipartzpos-26417 desde .firebaserc)
- *   --dry-run             solo imprime qué haría
+ *   --project=ID
+ *   --dry-run
  *
- * IndexedDB (POSMexicoDB) en cada navegador: limpiar manualmente o ver docs/RESET_OLIVARES.md
+ * IndexedDB (POSMexicoDB): ventas/clientes/cotiz/facturas locales → docs/RESET_OLIVARES.md
  */
 
 import { readFileSync, existsSync } from 'node:fs';
@@ -48,17 +54,17 @@ function parseArgs() {
   return out;
 }
 
-async function deleteInBatches(query, label, dryRun) {
+async function deleteQueryUntilEmpty(baseQuery, label, dryRun) {
   const db = admin.firestore();
+  if (dryRun) {
+    const agg = await baseQuery.count().get();
+    console.log(`[dry-run] ${label}: ${agg.data().count} documento(s)`);
+    return;
+  }
   let total = 0;
   for (;;) {
-    const snap = await query.limit(500).get();
+    const snap = await baseQuery.limit(500).get();
     if (snap.empty) break;
-    if (dryRun) {
-      total += snap.size;
-      console.log(`[dry-run] ${label}: borraría ${snap.size} docs (lote; total acumulado ${total})`);
-      break;
-    }
     const batch = db.batch();
     snap.docs.forEach((d) => batch.delete(d.ref));
     await batch.commit();
@@ -66,7 +72,54 @@ async function deleteInBatches(query, label, dryRun) {
     console.log(`  ${label}: +${snap.size} eliminados (total ${total})`);
     if (snap.size < 500) break;
   }
-  if (total === 0 && !dryRun) console.log(`  ${label}: (ya vacío)`);
+  if (total === 0) console.log(`  ${label}: (ya vacío)`);
+}
+
+/** users/{uid} con sucursalId asignada a la tienda (perfil actual). */
+async function loadUserIdsForSucursal(db, sucursalId) {
+  const snap = await db.collection('users').where('sucursalId', '==', sucursalId).get();
+  return new Set(snap.docs.map((d) => d.id));
+}
+
+async function wipeChecador(db, sucursalId, olivaresUserIds, dryRun) {
+  const col = db.collection('checadorRegistros');
+  const label = 'checadorRegistros (por sucursalId)';
+  await deleteQueryUntilEmpty(col.where('sucursalId', '==', sucursalId), label, dryRun);
+
+  const ids = [...olivaresUserIds];
+  if (ids.length === 0) {
+    console.log('checadorRegistros (legado sin sucursal): sin userIds en users con esta sucursal; omitido.');
+    return;
+  }
+
+  console.log(
+    `\nchecadorRegistros (legado: userId en ${ids.length} usuario(s) de la tienda, sin sucursalId) …`
+  );
+  let legacyTotal = 0;
+  const chunkSize = 10;
+  for (let i = 0; i < ids.length; i += chunkSize) {
+    const chunk = ids.slice(i, i + chunkSize);
+    const q = col.where('userId', 'in', chunk);
+    const snap = await q.get();
+    const toRemove = snap.docs.filter((d) => {
+      const data = d.data();
+      const sid = data.sucursalId;
+      const noBranch = sid == null || sid === '';
+      return noBranch && chunk.includes(data.userId);
+    });
+    if (toRemove.length === 0) continue;
+    if (dryRun) {
+      legacyTotal += toRemove.length;
+      console.log(`[dry-run] legado: ${toRemove.length} docs (chunk userId in [...])`);
+      continue;
+    }
+    const batch = db.batch();
+    toRemove.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+    legacyTotal += toRemove.length;
+    console.log(`  legado: +${toRemove.length} eliminados (total ${legacyTotal})`);
+  }
+  if (legacyTotal === 0 && !dryRun) console.log('  legado: (nada que borrar)');
 }
 
 async function main() {
@@ -105,28 +158,26 @@ async function main() {
     console.log(`  OK (recursiveDelete)`);
   }
 
-  const counterRef = sucRef.collection('counters').doc('ventasDiario');
-  const cSnap = await counterRef.get();
-  if (cSnap.exists) {
-    if (dryRun) console.log('[dry-run] Borraría counters/ventasDiario');
-    else {
-      await counterRef.delete();
-      console.log('Documento counters/ventasDiario eliminado.');
-    }
-  } else {
-    console.log('counters/ventasDiario: no existía.');
-  }
-
-  console.log('\nchecadorRegistros con sucursalId == sucursal …');
-  const ch = db.collection('checadorRegistros').where('sucursalId', '==', sucursal);
+  console.log(`\nSubcolección sucursales/${sucursal}/counters …`);
+  const countersCol = sucRef.collection('counters');
   if (dryRun) {
-    const agg = await ch.count().get();
-    console.log(`[dry-run] documentos a borrar: ${agg.data().count}`);
+    const c = await countersCol.count().get();
+    console.log(`[dry-run] documentos en counters: ${c.data().count}`);
   } else {
-    await deleteInBatches(ch, 'checadorRegistros', false);
+    await db.recursiveDelete(countersCol);
+    console.log('  OK (recursiveDelete counters)');
   }
 
-  console.log(dryRun ? '\nDry-run terminado.' : '\nListo. Limpia IndexedDB en cada navegador si usas la PWA (ver docs/RESET_OLIVARES.md).');
+  const olivaresUserIds = await loadUserIdsForSucursal(db, sucursal);
+  console.log(`\nUsuarios con perfil sucursalId="${sucursal}": ${olivaresUserIds.size}`);
+
+  await wipeChecador(db, sucursal, olivaresUserIds, dryRun);
+
+  console.log(
+    dryRun
+      ? '\nDry-run terminado.'
+      : '\nListo (Firestore). Limpia IndexedDB en cada navegador/PWA: ver docs/RESET_OLIVARES.md'
+  );
 }
 
 main().catch((e) => {

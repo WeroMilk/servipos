@@ -1,22 +1,17 @@
-# Reiniciar datos de la sucursal Olivares
+# Reiniciar sucursal Olivares (ventas, inventario, checador)
 
-Objetivo: dejar **Olivares** en cero operativo (ventas, inventario de esa tienda en Firestore, fichajes ligados a esa sucursal). **No borra Matriz** ni usuarios. El documento `sucursales/olivares` (nombre de la tienda) **no se elimina**.
+Objetivo: dejar **Olivares** en cero en **Firestore**: ventas, inventario (productos + movimientos), **todos** los documentos bajo `counters` de esa tienda, y **fichajes del checador** ligados a Olivares. **No borra Matriz** ni el documento `sucursales/olivares` (nombre de la tienda).
 
-## Opción A — Script automático (Firestore)
+## Script automático (recomendado)
 
-1. En [Firebase Console](https://console.firebase.google.com) → tu proyecto → **Project settings** → **Service accounts** → **Generate new private key**. Guarda el JSON en tu PC (no lo subas a git).
+1. Firebase Console → **Project settings** → **Service accounts** → **Generate new private key** (JSON). No lo subas a git.
 
-2. En PowerShell (ejemplo):
+2. PowerShell:
 
    ```powershell
    $env:GOOGLE_APPLICATION_CREDENTIALS="C:\ruta\a\tu-service-account.json"
    cd c:\Users\alfon\proyectos\app
    npm run reset:olivares:dry
-   ```
-
-   Revisa los conteos. Luego, **sin** `--dry-run`:
-
-   ```powershell
    npm run reset:olivares
    ```
 
@@ -26,39 +21,35 @@ Objetivo: dejar **Olivares** en cero operativo (ventas, inventario de esa tienda
    node scripts/reset-olivares-firestore.mjs --sucursal=olivares --project=servipartzpos-26417
    ```
 
-El script hace:
+### Qué hace el script en Firestore
 
 | Ruta | Acción |
 |------|--------|
-| `sucursales/{id}/sales` | `recursiveDelete` (todas las ventas) |
-| `sucursales/{id}/inventoryMovements` | idem |
-| `sucursales/{id}/products` | idem (catálogo/stock de **esa** tienda) |
-| `sucursales/{id}/counters/ventasDiario` | borra el documento del folio diario |
-| `checadorRegistros` | borra docs con `sucursalId == {id}` |
+| `sucursales/{id}/sales` | Vacía toda la colección (`recursiveDelete`) |
+| `sucursales/{id}/inventoryMovements` | Idem |
+| `sucursales/{id}/products` | Idem (inventario/catálogo **de esa tienda**) |
+| `sucursales/{id}/counters` | Vacía **toda** la subcolección (folio diario y cualquier otro contador) |
+| `checadorRegistros` | Borra docs con `sucursalId == {id}` |
+| `checadorRegistros` (legado) | Borra docs **sin** `sucursalId` (null/vacío) si `userId` está en `users` con `sucursalId == {id}` |
 
-**Cliente, cotizaciones y facturas** en esta app viven sobre todo en **IndexedDB** (Dexie). El script **no** limpia el navegador.
+Si un cajero ya no es de Olivares pero su perfil en `users` sigue con `sucursalId: olivares`, sus fichajes “sin sucursal” también se borrarán en ese paso; conviene tener el perfil al día.
 
-## Opción B — Consola Firebase (manual)
+## IndexedDB (cada navegador / PWA)
 
-Misma tabla que arriba: borrar colecciones bajo `sucursales/OLIVARES_ID/` o usar la CLI:
+El script **no** toca datos locales. En Chrome → F12 → **Application** → **IndexedDB** → `POSMexicoDB`, borra filas con `sucursalId === "olivares"` en `sales`, `clients`, `quotations`, `invoices` si quieres cero también en el dispositivo.
+
+## Manual (CLI Firebase)
 
 ```bash
-firebase firestore:delete "sucursales/olivares/sales" --recursive --project servipartzpos-26417
-firebase firestore:delete "sucursales/olivares/inventoryMovements" --recursive --project servipartzpos-26417
-firebase firestore:delete "sucursales/olivares/products" --recursive --project servipartzpos-26417
+firebase firestore:delete "sucursales/olivares/sales" --recursive --project TU_PROJECT_ID
+firebase firestore:delete "sucursales/olivares/inventoryMovements" --recursive --project TU_PROJECT_ID
+firebase firestore:delete "sucursales/olivares/products" --recursive --project TU_PROJECT_ID
+firebase firestore:delete "sucursales/olivares/counters" --recursive --project TU_PROJECT_ID
 ```
 
-(y eliminar `sucursales/olivares/counters/ventasDiario`).
+El checador por `sucursalId` y el legado conviene hacerlo con el script o desde la consola con consultas.
 
-## 2. Navegador / PWA (IndexedDB — obligatorio en cada equipo)
+## Comprobación
 
-1. Abre la app → F12 → **Application** → **IndexedDB** → `POSMexicoDB`.
-2. Borra registros con `sucursalId === "olivares"` (o el id real) en: `clients`, `quotations`, `invoices`, `sales`.
-3. Los productos en Dexie suelen ser globales; al vaciar Firestore de Olivares, al sincronizar con tienda Olivares el catálogo volverá desde la nube. Si hace falta, borra también filas huérfanas en `products` / movimientos según tu flujo.
-
-**Clear site data** borra **todo** el origen (incluida Matriz en ese dispositivo).
-
-## 3. Comprobación
-
-- Tienda **Olivares**: sin ventas, sin productos en Firestore hasta que vuelvas a cargar o copies desde Matriz.
-- Tienda **Matriz**: intacta si solo tocaste rutas de Olivares.
+- Tienda **Olivares**: sin ventas, sin productos en Firestore hasta volver a cargar catálogo, checador limpio para esa sucursal.
+- **Matriz**: intacta si solo se usó `sucursales/olivares/...` y consultas de checador filtradas a Olivares.
