@@ -49,13 +49,19 @@ function SelectTrigger({
   )
 }
 
+type SelectContentProps = React.ComponentProps<typeof SelectPrimitive.Content> & {
+  /** Oculta flechas ↑↓ de Radix: evita saltos y `scrollIntoView` al desplazar listas largas (p. ej. POS). */
+  hideScrollButtons?: boolean;
+};
+
 function SelectContent({
   className,
   children,
   position = "item-aligned",
   align = "center",
+  hideScrollButtons = false,
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.Content>) {
+}: SelectContentProps) {
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
@@ -70,7 +76,7 @@ function SelectContent({
         align={align}
         {...props}
       >
-        <SelectScrollUpButton />
+        {hideScrollButtons ? null : <SelectScrollUpButton />}
         <SelectPrimitive.Viewport
           className={cn(
             "p-1",
@@ -81,7 +87,7 @@ function SelectContent({
         >
           {children}
         </SelectPrimitive.Viewport>
-        <SelectScrollDownButton />
+        {hideScrollButtons ? null : <SelectScrollDownButton />}
       </SelectPrimitive.Content>
     </SelectPrimitive.Portal>
   )

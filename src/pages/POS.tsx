@@ -798,10 +798,10 @@ export function POS() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent
-                      position="popper"
-                      sideOffset={6}
                       align="start"
-                      className="z-[300] max-h-[min(50dvh,18rem)] w-[var(--radix-select-trigger-width)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
+                      sideOffset={6}
+                      hideScrollButtons
+                      className="z-[300] max-h-[min(50dvh,18rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
                     >
                       {formasPagoPos.map((fp) => (
                         <SelectItem
@@ -829,9 +829,10 @@ export function POS() {
                         <SelectValue placeholder="Seleccione tienda" />
                       </SelectTrigger>
                       <SelectContent
-                        position="popper"
+                        align="start"
                         sideOffset={6}
-                        className="z-[300] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
+                        hideScrollButtons
+                        className="z-[300] max-h-[min(50dvh,18rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
                       >
                         <SelectItem value="__none__" className="text-slate-900 dark:text-slate-100">
                           Seleccione…
@@ -853,10 +854,10 @@ export function POS() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent
-                      position="popper"
-                      sideOffset={6}
                       align="start"
-                      className="z-[300] w-[var(--radix-select-trigger-width)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
+                      sideOffset={6}
+                      hideScrollButtons
+                      className="z-[300] max-h-[min(50dvh,18rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
                     >
                       <SelectItem value="PUE" className="text-slate-900 dark:text-slate-100">
                         Una exhibición (PUE)
