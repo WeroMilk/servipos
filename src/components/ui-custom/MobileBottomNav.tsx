@@ -20,7 +20,7 @@ export function MobileBottomNav() {
       )}
       aria-label="Navegación principal"
     >
-      <div className="no-scrollbar flex h-[3.75rem] w-full items-stretch justify-between gap-0.5 overflow-x-auto px-1 pt-0.5">
+      <div className="no-scrollbar flex h-[3.75rem] w-full items-stretch justify-between gap-0.5 overflow-x-auto pt-0.5 pl-[max(0.25rem,env(safe-area-inset-left,0px))] pr-[max(0.25rem,env(safe-area-inset-right,0px))]">
         {MAIN_NAV_ITEMS.map((item) => {
           if (!hasPermission(item.permission)) return null;
           const Icon = item.icon;

@@ -473,7 +473,7 @@ export function POS() {
     'rounded-xl border border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 shadow-sm';
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col gap-2 sm:gap-3">
+    <div className="flex h-full min-h-0 w-full min-w-0 flex-col gap-2 sm:gap-3">
       {/* Pestañas móvil: una vista completa por pestaña (sin scroll de página) */}
       <div
         className={cn(
@@ -928,7 +928,7 @@ export function POS() {
           className={cn(
             'left-1/2 top-1/2 max-w-none -translate-x-1/2 -translate-y-1/2 border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100',
             checkoutPhase === 'payment'
-              ? 'max-h-[calc(100dvh-2rem)] w-[min(calc(100vw-1rem),28rem)] overflow-x-hidden overflow-y-auto p-4 sm:max-h-[calc(100dvh-2.5rem)] sm:w-[min(calc(100vw-2rem),32rem)] sm:p-6'
+              ? 'max-h-[calc(100vh-2rem)] max-h-[calc(100dvh-2rem)] w-[min(calc(100vw-1rem),28rem)] overflow-x-hidden overflow-y-auto p-4 sm:max-h-[calc(100vh-2.5rem)] sm:max-h-[calc(100dvh-2.5rem)] sm:w-[min(calc(100vw-2rem),32rem)] sm:p-6'
               : 'w-[min(calc(100vw-1rem),24rem)] p-4 sm:max-w-sm sm:p-6'
           )}
         >

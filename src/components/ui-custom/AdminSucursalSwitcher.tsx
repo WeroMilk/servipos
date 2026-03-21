@@ -126,7 +126,7 @@ export function AdminSucursalSwitcher() {
 
   return (
     <>
-      <div className="flex min-w-0 max-w-[min(100vw-8rem,16rem)] items-center gap-1 sm:max-w-[20rem]">
+      <div className="flex min-w-0 max-w-full flex-1 items-center gap-0.5 sm:max-w-[20rem] sm:flex-none sm:gap-1 md:max-w-[min(24rem,100%)]">
         <MapPin className="hidden h-4 w-4 shrink-0 text-cyan-500/90 sm:block" aria-hidden />
         <Select
           value={resolvedSucursalId || (options[0]?.id ?? '')}

@@ -119,7 +119,7 @@ export function AppEventsNotificationPanel() {
             type="button"
             variant="ghost"
             size="icon"
-            className="relative h-10 w-10 rounded-xl bg-slate-200/80 text-slate-600 hover:bg-slate-300/80 hover:text-slate-900 dark:bg-slate-800/50 dark:text-slate-400 dark:hover:bg-slate-700/50 dark:hover:text-slate-100"
+            className="relative h-10 w-10 shrink-0 rounded-xl bg-slate-200/80 text-slate-600 hover:bg-slate-300/80 hover:text-slate-900 dark:bg-slate-800/50 dark:text-slate-400 dark:hover:bg-slate-700/50 dark:hover:text-slate-100"
             aria-label="Notificaciones y eventos"
           >
             <Bell className="h-5 w-5" />

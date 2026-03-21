@@ -85,21 +85,28 @@
     height: 100%;
     width: 100%;
     overflow: hidden;
+    overscroll-behavior: none;
   }
   body {
     @apply bg-background text-foreground;
     min-height: 100%;
     min-height: 100dvh;
+    /* Safari iOS: altura útil cuando la barra de URL muestra/oculta */
+    min-height: -webkit-fill-available;
     width: 100%;
     margin: 0;
     overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: manipulation;
   }
   #root {
     width: 100%;
     max-width: none;
+    min-height: 100vh;
+    min-height: 100dvh;
+    min-height: -webkit-fill-available;
     height: 100dvh;
     max-height: 100dvh;
-    min-height: 100dvh;
     overflow: hidden;
     margin: 0;
     padding: 0;

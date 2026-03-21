@@ -30,12 +30,12 @@ export function Header() {
   return (
     <header
       className={cn(
-        'z-30 flex h-14 shrink-0 items-center justify-between gap-2 border-b border-slate-200/80 dark:border-slate-800/50',
-        'bg-white/70 px-2 backdrop-blur-md dark:bg-slate-950/60 sm:h-16 sm:px-3 md:px-4 lg:px-4',
+        'z-30 flex h-14 min-w-0 shrink-0 items-center justify-between gap-1 border-b border-slate-200/80 dark:border-slate-800/50',
+        'bg-white/70 px-1.5 backdrop-blur-md dark:bg-slate-950/60 sm:h-16 sm:gap-2 sm:px-3 md:gap-2 md:px-4 lg:px-4',
         'transition-all duration-300'
       )}
     >
-      <div className="flex min-w-0 items-center px-0.5">
+      <div className="flex shrink-0 items-center px-0.5">
         <Link
           to="/"
           className="flex shrink-0 items-center rounded-lg p-1 outline-none ring-cyan-500/40 focus-visible:ring-2 sm:hidden"
@@ -54,14 +54,14 @@ export function Header() {
         </p>
       </div>
 
-      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+      <div className="flex min-w-0 flex-1 items-center justify-end gap-1 sm:gap-2 md:gap-3">
         <AdminSucursalSwitcher />
         <button
           type="button"
           onClick={() => void sync()}
           disabled={!isOnline || isSyncing}
           className={cn(
-            'flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm transition-all duration-200 sm:px-3',
+            'flex shrink-0 items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-all duration-200 sm:px-3',
             isSyncing
               ? 'bg-cyan-500/15 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-400'
               : pendingCount > 0
@@ -92,7 +92,7 @@ export function Header() {
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
-              className="flex items-center gap-2 rounded-xl bg-slate-200/80 px-2 py-2 text-slate-900 hover:bg-slate-300/80 dark:bg-slate-800/50 dark:text-slate-100 dark:hover:bg-slate-700/50 sm:gap-3 sm:px-3"
+              className="flex shrink-0 items-center gap-2 rounded-xl bg-slate-200/80 px-2 py-2 text-slate-900 hover:bg-slate-300/80 dark:bg-slate-800/50 dark:text-slate-100 dark:hover:bg-slate-700/50 sm:gap-3 sm:px-3"
             >
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600">
                 <User className="h-4 w-4 text-white" />
