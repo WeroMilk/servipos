@@ -1,5 +1,4 @@
-import { useEffect, useRef } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { LogOut, User, Zap } from 'lucide-react';
 import { useAuthStore, useSyncStore } from '@/stores';
 import { Button } from '@/components/ui/button';
@@ -12,29 +11,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import { reportAppEvent } from '@/lib/appEventLog';
 import { AdminSucursalSwitcher } from '@/components/ui-custom/AdminSucursalSwitcher';
 import { AppEventsNotificationPanel } from '@/components/ui-custom/AppEventsNotificationPanel';
 import { BRAND_LOGO_URL } from '@/lib/branding';
 
 export function Header() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const prevPathRef = useRef<string | null>(null);
   const { user, logout } = useAuthStore();
   const { isOnline, isSyncing, pendingCount, sync } = useSyncStore();
-
-  useEffect(() => {
-    const path = location.pathname + location.search;
-    if (prevPathRef.current === path) return;
-    prevPathRef.current = path;
-    reportAppEvent({
-      kind: 'info',
-      source: 'navegacion',
-      title: `Vista: ${location.pathname}`,
-      route: path,
-    });
-  }, [location.pathname, location.search]);
 
   const handleLogout = async () => {
     await logout();
