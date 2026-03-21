@@ -248,6 +248,31 @@ export interface Payment {
 
 export type SaleStatus = 'pendiente' | 'completada' | 'cancelada' | 'facturada';
 
+/** Traspaso tienda→tienda (documentos en Firestore por sucursal). */
+export type StoreTransferEstado = 'pendiente' | 'recibida';
+
+export interface StoreTransferLine {
+  productIdOrigen: string;
+  sku: string;
+  nombre: string;
+  cantidad: number;
+}
+
+export interface IncomingStoreTransfer {
+  id: string;
+  estado: StoreTransferEstado;
+  origenSucursalId: string;
+  origenSaleId: string;
+  origenFolio: string;
+  items: StoreTransferLine[];
+  usuarioNombre?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  recibidaAt?: Date;
+  recibidaPorUserId?: string;
+  recibidaPorNombre?: string;
+}
+
 export type FormaPago = 
   | '01' // Efectivo
   | '02' // Cheque nominativo

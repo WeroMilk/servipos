@@ -11,7 +11,6 @@ import {
 import { es } from 'date-fns/locale';
 import type { DateRange } from 'react-day-picker';
 import { Calendar } from '@/components/ui/calendar';
-import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { cn } from '@/lib/utils';
@@ -25,7 +24,6 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   granularity: PeriodGranularity;
   onGranularityChange: (g: PeriodGranularity) => void;
-  rangeLabel: string;
   trigger: React.ReactNode;
 };
 
@@ -55,7 +53,6 @@ export function DashboardPeriodPopover({
   onOpenChange,
   granularity,
   onGranularityChange,
-  rangeLabel,
   trigger,
 }: Props) {
   const [month, setMonth] = useState<Date>(() => startOfMonth(new Date()));
@@ -170,7 +167,9 @@ export function DashboardPeriodPopover({
             onMonthChange={setMonth}
             selected={selectedDay}
             onSelect={(date) => {
-              if (date) applySelection(date);
+              if (!date) return;
+              applySelection(date);
+              onOpenChange(false);
             }}
             modifiers={modifiers}
             modifiersClassNames={{
@@ -194,20 +193,6 @@ export function DashboardPeriodPopover({
               formatCaption: (date) => format(date, 'MMMM yyyy', { locale: es }),
             }}
           />
-        </div>
-
-        <div className="flex items-center justify-between gap-2 border-t border-slate-600/50 bg-[#353535] px-3 py-2">
-          <p className="min-w-0 truncate text-xs text-slate-400" title={rangeLabel}>
-            {rangeLabel}
-          </p>
-          <Button
-            type="button"
-            size="sm"
-            className="h-8 shrink-0 bg-[#1a73e8] px-4 text-xs font-medium text-white hover:bg-[#1967d2]"
-            onClick={() => onOpenChange(false)}
-          >
-            Listo
-          </Button>
         </div>
       </PopoverContent>
     </Popover>

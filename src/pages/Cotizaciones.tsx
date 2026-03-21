@@ -662,7 +662,7 @@ export function Cotizaciones() {
 
           {selectedQuotation && (
             <div className="space-y-4">
-              <div className="flex flex-col gap-3 text-sm sm:flex-row sm:justify-between">
+              <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
                 <div>
                   <p className="text-slate-500">Cliente</p>
                   <p className="text-slate-200">{selectedQuotation.cliente?.nombre || 'Mostrador'}</p>
@@ -671,6 +671,12 @@ export function Cotizaciones() {
                   <p className="text-slate-500">Fecha</p>
                   <p className="text-slate-200">
                     {new Date(selectedQuotation.createdAt).toLocaleDateString('es-MX')}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-slate-500">Cajero</p>
+                  <p className="text-slate-200">
+                    {selectedQuotation.usuarioNombre?.trim() || '—'}
                   </p>
                 </div>
               </div>

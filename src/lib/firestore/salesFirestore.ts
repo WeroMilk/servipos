@@ -229,6 +229,18 @@ export async function createSaleFirestore(
     );
     const productSnaps = await Promise.all(productRefs.map((r) => transaction.get(r)));
 
+    const isTts =
+      sale.formaPago === 'TTS' &&
+      Boolean(sale.transferenciaSucursalDestinoId?.trim()) &&
+      sale.transferenciaSucursalDestinoId != null;
+
+    const transferItems: {
+      productIdOrigen: string;
+      sku: string;
+      nombre: string;
+      cantidad: number;
+    }[] = [];
+
     for (let i = 0; i < sale.productos.length; i++) {
       const item = sale.productos[i]!;
       const ps = productSnaps[i]!;
@@ -251,10 +263,45 @@ export async function createSaleFirestore(
         cantidad: item.cantidad,
         cantidadAnterior,
         cantidadNueva,
-        motivo: 'Venta',
+        motivo: isTts ? 'Traspaso a tienda (salida)' : 'Venta',
         referencia: saleRef.id,
         usuarioId: sale.usuarioId,
         createdAt: serverTimestamp(),
+      });
+
+      if (isTts) {
+        transferItems.push({
+          productIdOrigen: item.productId,
+          sku: String(pdata.sku ?? ''),
+          nombre: String(pdata.nombre ?? ''),
+          cantidad: item.cantidad,
+        });
+      }
+    }
+
+    if (isTts && transferItems.length > 0) {
+      const destId = sale.transferenciaSucursalDestinoId!.trim();
+      const tid = saleRef.id;
+      const incRef = doc(db, 'sucursales', destId, 'incomingTransfers', tid);
+      const outRef = doc(db, 'sucursales', sucursalId, 'outgoingTransfers', tid);
+      transaction.set(incRef, {
+        estado: 'pendiente',
+        origenSucursalId: sucursalId,
+        origenSaleId: tid,
+        origenFolio: folio,
+        items: transferItems,
+        usuarioNombre: sale.usuarioNombre?.trim() || null,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      transaction.set(outRef, {
+        estado: 'pendiente',
+        destinoSucursalId: destId,
+        saleId: tid,
+        folio,
+        items: transferItems,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       });
     }
 

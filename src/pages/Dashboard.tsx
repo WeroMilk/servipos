@@ -22,7 +22,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { useSalesByDateRange, useLowStockProducts, useTodaySales, useEffectiveSucursalId } from '@/hooks';
+import {
+  useSalesByDateRange,
+  useLowStockProducts,
+  useTodaySales,
+  useEffectiveSucursalId,
+  useOutgoingPendingTransferIds,
+} from '@/hooks';
 import { cn, formatMoney } from '@/lib/utils';
 import { printThermalDailySalesReport, printThermalTicketFromSale } from '@/lib/printTicket';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -182,6 +188,7 @@ export function Dashboard() {
   }, [kpiSales]);
   const { products: lowStockProducts, loading: stockLoading } = useLowStockProducts();
   const { sales: salesToday, loading: todaySalesLoading } = useTodaySales();
+  const outgoingTransferPendingIds = useOutgoingPendingTransferIds();
 
   const salesTodaySorted = useMemo(
     () =>
@@ -337,7 +344,6 @@ export function Dashboard() {
             onOpenChange={setDateOpen}
             granularity={periodGranularity}
             onGranularityChange={handleGranularityChange}
-            rangeLabel={rangeLabel}
             trigger={
               <Button
                 type="button"
@@ -590,6 +596,9 @@ export function Dashboard() {
                               sale.createdAt instanceof Date ? sale.createdAt : new Date(sale.createdAt),
                               { hour: '2-digit', minute: '2-digit' }
                             )}
+                            {sale.formaPago === 'TTS' && outgoingTransferPendingIds.has(sale.id) ? (
+                              <span className="ml-1.5 text-amber-400">· Traspaso pendiente</span>
+                            ) : null}
                           </p>
                         </div>
                         <p className="shrink-0 text-xs font-bold tabular-nums text-cyan-400">
@@ -669,6 +678,9 @@ export function Dashboard() {
                         )}
                         {sale.estado === 'cancelada' ? (
                           <span className="ml-2 text-amber-400">· Cancelada</span>
+                        ) : null}
+                        {sale.formaPago === 'TTS' && outgoingTransferPendingIds.has(sale.id) ? (
+                          <span className="ml-2 text-amber-400">· Traspaso pendiente recepción</span>
                         ) : null}
                       </p>
                       <p className="text-sm font-semibold tabular-nums text-cyan-400">

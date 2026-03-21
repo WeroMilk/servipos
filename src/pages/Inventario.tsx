@@ -11,6 +11,7 @@ import {
   TrendingUp,
   MoreHorizontal,
   Printer,
+  Truck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,9 +39,11 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { useProducts, useProductSearch, useEffectiveSucursalId } from '@/hooks';
-import { useAppStore } from '@/stores';
-import type { Product } from '@/types';
+import { useProducts, useProductSearch, useEffectiveSucursalId, usePendingIncomingTransfers } from '@/hooks';
+import { useAppStore, useAuthStore } from '@/stores';
+import type { Product, Sucursal } from '@/types';
+import { subscribeSucursales } from '@/lib/firestore/sucursalesMetaFirestore';
+import { confirmIncomingStoreTransfer } from '@/lib/firestore/storeTransfersFirestore';
 import { cn, formatMoney } from '@/lib/utils';
 import { PageShell } from '@/components/ui-custom/PageShell';
 import { printThermalLowStockReport } from '@/lib/printTicket';
@@ -63,6 +66,38 @@ export function Inventario() {
   const { products, loading, addProduct, editProduct, removeProduct, adjustStock } = useProducts();
   const { effectiveSucursalId } = useEffectiveSucursalId();
   const { addToast } = useAppStore();
+  const { user } = useAuthStore();
+  const { pendingIncoming } = usePendingIncomingTransfers();
+  const [sucursalesCat, setSucursalesCat] = useState<Sucursal[]>([]);
+  const [confirmingTransferId, setConfirmingTransferId] = useState<string | null>(null);
+
+  useEffect(() => subscribeSucursales(setSucursalesCat), []);
+
+  const nombreSucursal = useCallback(
+    (id: string) => sucursalesCat.find((s) => s.id === id)?.nombre?.trim() || id,
+    [sucursalesCat]
+  );
+
+  const handleConfirmIncomingTransfer = useCallback(
+    async (transferId: string) => {
+      if (!effectiveSucursalId || !user?.id) return;
+      const actor =
+        user.name?.trim() || user.username?.trim() || user.email?.trim() || 'Usuario';
+      setConfirmingTransferId(transferId);
+      try {
+        await confirmIncomingStoreTransfer(effectiveSucursalId, transferId, user.id, actor);
+        addToast({ type: 'success', message: 'Traspaso recibido; el stock de esta tienda se actualizó.' });
+      } catch (err) {
+        addToast({
+          type: 'error',
+          message: err instanceof Error ? err.message : 'No se pudo confirmar el traspaso',
+        });
+      } finally {
+        setConfirmingTransferId(null);
+      }
+    },
+    [effectiveSucursalId, user, addToast]
+  );
   
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -425,6 +460,61 @@ export function Inventario() {
           </CardContent>
         </button>
       </div>
+
+      {effectiveSucursalId && pendingIncoming.length > 0 ? (
+        <div className="shrink-0 rounded-xl border border-amber-500/35 bg-amber-500/5 p-3 sm:p-4">
+          <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-200/95">
+            <Truck className="h-4 w-4 shrink-0 text-amber-400" />
+            Traspasos pendientes de recibir
+            <Badge variant="secondary" className="border-amber-500/40 bg-amber-500/15 text-amber-200">
+              {pendingIncoming.length}
+            </Badge>
+          </div>
+          <p className="mb-3 text-[11px] leading-snug text-slate-500 sm:text-xs">
+            Otro almacén envió mercancía a esta tienda. Confirma cuando la hayas recibido físicamente para sumar el
+            inventario aquí.
+          </p>
+          <ul className="space-y-3">
+            {pendingIncoming.map((t) => (
+              <li
+                key={t.id}
+                className="rounded-lg border border-slate-800/80 bg-slate-950/50 p-3 text-xs text-slate-300 sm:text-sm"
+              >
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0 space-y-1">
+                    <p className="font-medium text-slate-100">
+                      Desde {nombreSucursal(t.origenSucursalId)} ·{' '}
+                      <span className="font-mono text-cyan-400/90">{t.origenFolio}</span>
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      {t.items.length} partida(s) ·{' '}
+                      {t.items.reduce((s, it) => s + it.cantidad, 0)} pzas. total
+                      {t.usuarioNombre ? ` · Enviado por ${t.usuarioNombre}` : ''}
+                    </p>
+                    <ul className="mt-2 max-h-24 list-inside list-disc overflow-y-auto text-[11px] text-slate-500">
+                      {t.items.map((it, i) => (
+                        <li key={i}>
+                          {it.nombre} × {it.cantidad}
+                          {it.sku ? ` (SKU ${it.sku})` : ''}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={confirmingTransferId === t.id}
+                    className="shrink-0 bg-emerald-600 text-white hover:bg-emerald-500"
+                    onClick={() => void handleConfirmIncomingTransfer(t.id)}
+                  >
+                    {confirmingTransferId === t.id ? 'Confirmando…' : 'Confirmar recepción'}
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <div className="mt-2 flex shrink-0 justify-end pb-2 sm:mt-3">
         <Button

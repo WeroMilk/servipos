@@ -71,7 +71,48 @@ service cloud.firestore {
     match /sucursales/{sucursalId} {
       allow read: if signedIn();
       allow create, update, delete: if isAdmin();
-      match /{document=**} {
+
+      // Traspaso TTS: la tienda destino puede marcar como recibido el doc de salida en la tienda origen.
+      match /outgoingTransfers/{tid} {
+        allow read: if userExists() && (
+          canAccessSucursal(sucursalId)
+          || resource.data.destinoSucursalId == userSucursalId()
+        );
+        allow create: if canAccessSucursal(sucursalId);
+        allow update: if userExists() && (
+          (canAccessSucursal(sucursalId)
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['estado', 'recibidaAt', 'recibidaPorUserId', 'recibidaPorNombre', 'updatedAt']))
+          || (
+            resource.data.destinoSucursalId == userSucursalId()
+            && resource.data.estado == 'pendiente'
+            && request.resource.data.estado == 'recibida'
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['estado', 'recibidaAt', 'recibidaPorUserId', 'recibidaPorNombre', 'updatedAt'])
+          )
+        );
+        allow delete: if false;
+      }
+
+      match /incomingTransfers/{tid} {
+        allow read: if canAccessSucursal(sucursalId);
+        allow create: if canAccessSucursal(sucursalId);
+        allow update: if canAccessSucursal(sucursalId)
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['estado', 'recibidaAt', 'recibidaPorUserId', 'recibidaPorNombre', 'updatedAt']);
+        allow delete: if false;
+      }
+
+      match /products/{productId} {
+        allow read, write: if canAccessSucursal(sucursalId);
+      }
+      match /sales/{saleId} {
+        allow read, write: if canAccessSucursal(sucursalId);
+      }
+      match /inventoryMovements/{movId} {
+        allow read, write: if canAccessSucursal(sucursalId);
+      }
+      match /counters/{counterId} {
         allow read, write: if canAccessSucursal(sucursalId);
       }
     }

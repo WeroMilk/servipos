@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  getDoc,
   setDoc,
   updateDoc,
   query,
@@ -250,6 +251,28 @@ export async function adjustStockFirestore(
       createdAt: serverTimestamp(),
     });
   });
+}
+
+/**
+ * Para recibir traspaso: mismo id de documento en destino, o un único producto activo con el mismo SKU.
+ */
+export async function resolveDestProductIdForTransfer(
+  destSucursalId: string,
+  productIdOrigen: string,
+  sku: string
+): Promise<string | null> {
+  const byIdRef = doc(db, 'sucursales', destSucursalId, 'products', productIdOrigen);
+  const byId = await getDoc(byIdRef);
+  if (byId.exists()) {
+    const act = byId.data()?.activo;
+    if (act !== false) return byId.id;
+  }
+  const sk = (sku ?? '').trim();
+  if (!sk) return null;
+  const q = query(productsCol(destSucursalId), where('sku', '==', sk), where('activo', '==', true), limit(2));
+  const snap = await getDocs(q);
+  if (snap.docs.length === 1) return snap.docs[0]!.id;
+  return null;
 }
 
 export async function getProductByBarcodeFirestore(
