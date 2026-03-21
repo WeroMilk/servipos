@@ -17,6 +17,7 @@ import {
   cancelSaleFirestore,
   patchSaleInvoiceFirestore,
 } from '@/lib/firestore/salesFirestore';
+import { getDefaultSucursalIdForNewData } from '@/lib/sucursales';
 
 // ============================================
 // BASE DE DATOS LOCAL (IndexedDB / Dexie) — SERVIPARTZ POS
@@ -65,6 +66,31 @@ class POSDatabase extends Dexie {
       
       // Logs de sincronización
       syncLogs: '++id, entidad, entidadId, operacion, estado, createdAt',
+    });
+
+    this.version(2).stores({
+      users: '++id, username, email, role, isActive, createdAt',
+      fiscalConfig: '++id, rfc, serie, folioActual',
+      products:
+        '++id, sku, codigoBarras, nombre, categoria, existencia, existenciaMinima, activo, syncStatus, updatedAt',
+      inventoryMovements: '++id, productId, tipo, referencia, createdAt, syncStatus',
+      purchaseOrders: '++id, proveedor, estado, createdAt',
+      clients: '++id, rfc, nombre, isMostrador, sucursalId, syncStatus, createdAt',
+      sales: '++id, folio, clienteId, estado, facturaId, usuarioId, createdAt, syncStatus',
+      quotations: '++id, folio, clienteId, estado, ventaId, sucursalId, createdAt, syncStatus',
+      invoices: '++id, uuid, folio, serie, ventaId, clienteId, estado, sucursalId, createdAt, syncStatus',
+      syncLogs: '++id, entidad, entidadId, operacion, estado, createdAt',
+    }).upgrade(async (tx) => {
+      const def = getDefaultSucursalIdForNewData();
+      await tx.table('quotations').toCollection().modify((q) => {
+        if (q.sucursalId == null) (q as Quotation).sucursalId = def;
+      });
+      await tx.table('clients').toCollection().modify((c) => {
+        if (c.sucursalId == null) (c as Client).sucursalId = def;
+      });
+      await tx.table('invoices').toCollection().modify((inv) => {
+        if (inv.sucursalId == null) (inv as Invoice).sucursalId = def;
+      });
     });
 
     // Hooks para actualizar timestamps
@@ -376,13 +402,16 @@ export async function getProductBySku(sku: string): Promise<Product | undefined>
 export async function searchProducts(query: string): Promise<Product[]> {
   const lowerQuery = query.toLowerCase();
   return await db.products
-    .filter((p): boolean => 
-      p.activo === true && (
-        p.nombre.toLowerCase().includes(lowerQuery) ||
-        p.sku.toLowerCase().includes(lowerQuery) ||
+    .filter((p): boolean => {
+      if (p.activo !== true) return false;
+      const nombre = String(p.nombre ?? '').toLowerCase();
+      const sku = String(p.sku ?? '').toLowerCase();
+      return (
+        nombre.includes(lowerQuery) ||
+        sku.includes(lowerQuery) ||
         (p.codigoBarras !== undefined && p.codigoBarras.includes(lowerQuery))
-      )
-    )
+      );
+    })
     .toArray();
 }
 
@@ -511,11 +540,12 @@ export async function cancelSale(
 // FUNCIONES DE COTIZACIONES
 // ============================================
 
-export async function getQuotations(): Promise<Quotation[]> {
-  return await db.quotations
-    .orderBy('createdAt')
-    .reverse()
-    .toArray();
+export async function getQuotations(sucursalId?: string): Promise<Quotation[]> {
+  if (sucursalId) {
+    const rows = await db.quotations.where('sucursalId').equals(sucursalId).toArray();
+    return rows.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+  return await db.quotations.orderBy('createdAt').reverse().toArray();
 }
 
 export async function getQuotationById(id: string): Promise<Quotation | undefined> {
@@ -591,11 +621,12 @@ export async function convertQuotationToSale(
 // FUNCIONES DE FACTURAS
 // ============================================
 
-export async function getInvoices(): Promise<Invoice[]> {
-  return await db.invoices
-    .orderBy('createdAt')
-    .reverse()
-    .toArray();
+export async function getInvoices(sucursalId?: string): Promise<Invoice[]> {
+  if (sucursalId) {
+    const rows = await db.invoices.where('sucursalId').equals(sucursalId).toArray();
+    return rows.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+  return await db.invoices.orderBy('createdAt').reverse().toArray();
 }
 
 export async function getInvoiceById(id: string): Promise<Invoice | undefined> {
@@ -609,6 +640,7 @@ export async function createInvoice(
   const id = await db.invoices.add({
     ...invoice,
     id: crypto.randomUUID(),
+    sucursalId: options?.sucursalId,
     createdAt: new Date(),
     updatedAt: new Date(),
     syncStatus: 'pending',
@@ -671,7 +703,10 @@ export async function cancelInvoice(
 // FUNCIONES DE CLIENTES
 // ============================================
 
-export async function getClients(): Promise<Client[]> {
+export async function getClients(sucursalId?: string): Promise<Client[]> {
+  if (sucursalId) {
+    return await db.clients.where('sucursalId').equals(sucursalId).toArray();
+  }
   return await db.clients.toArray();
 }
 
@@ -679,13 +714,16 @@ export async function getClientById(id: string): Promise<Client | undefined> {
   return await db.clients.get(id);
 }
 
-export async function searchClients(query: string): Promise<Client[]> {
+export async function searchClients(query: string, sucursalId?: string): Promise<Client[]> {
   const lowerQuery = query.toLowerCase();
   return await db.clients
-    .filter((c): boolean => 
-      c.nombre.toLowerCase().includes(lowerQuery) ||
-      (c.rfc !== undefined && c.rfc.toLowerCase().includes(lowerQuery))
-    )
+    .filter((c): boolean => {
+      if (sucursalId && c.sucursalId !== sucursalId) return false;
+      return (
+        c.nombre.toLowerCase().includes(lowerQuery) ||
+        (c.rfc !== undefined && c.rfc.toLowerCase().includes(lowerQuery))
+      );
+    })
     .toArray();
 }
 
@@ -744,11 +782,18 @@ export async function generateFolio(prefix: string = 'V'): Promise<string> {
 }
 
 // Generar folio de cotización
-export async function generateQuotationFolio(): Promise<string> {
+export async function generateQuotationFolio(sucursalId?: string): Promise<string> {
   const now = new Date();
   const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-  const count = await db.quotations.where('folio').startsWith(`C-${dateStr}`).count();
-  return `C-${dateStr}-${String(count + 1).padStart(4, '0')}`;
+  const prefix = `C-${dateStr}`;
+  const count = sucursalId
+    ? await db.quotations
+        .where('sucursalId')
+        .equals(sucursalId)
+        .filter((q) => q.folio.startsWith(prefix))
+        .count()
+    : await db.quotations.where('folio').startsWith(prefix).count();
+  return `${prefix}-${String(count + 1).padStart(4, '0')}`;
 }
 
 // Obtener siguiente folio fiscal

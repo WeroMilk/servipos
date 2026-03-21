@@ -1,30 +1,42 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 
-type Props = { children: ReactNode; /** Al cambiar de ruta se limpia el error sin desmontar el árbol (evita flashes en desktop). */
-  routePath?: string };
+type Props = {
+  children: ReactNode;
+  routePath?: string;
+};
 
-type State = { hasError: boolean; error: Error | null };
+type State = { hasError: boolean; error: Error | null; routePath: string };
 
 /**
  * Evita pantalla en blanco si falla el árbol de una ruta.
- * No usar `key={pathname}` en el boundary: desmontar todo el Outlet en cada navegación provoca flashes/pantalla negra en escritorio.
+ * Al cambiar `routePath`, se limpia el error en getDerivedStateFromProps (mismo ciclo que la nueva ruta),
+ * no solo en componentDidUpdate, para no quedar un frame con el fallo de la pantalla anterior.
  */
 export class RouteErrorBoundary extends Component<Props, State> {
-  state: State = { hasError: false, error: null };
+  constructor(props: Props) {
+    super(props);
+    this.state = {
+      hasError: false,
+      error: null,
+      routePath: props.routePath ?? '',
+    };
+  }
 
-  static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromProps(props: Props, state: State): Partial<State> | null {
+    const next = props.routePath ?? '';
+    if (next !== state.routePath) {
+      return { routePath: next, hasError: false, error: null };
+    }
+    return null;
+  }
+
+  static getDerivedStateFromError(error: Error): Partial<State> {
     return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('RouteErrorBoundary:', error, info.componentStack);
-  }
-
-  componentDidUpdate(prevProps: Props) {
-    if (prevProps.routePath !== this.props.routePath && this.state.hasError) {
-      this.setState({ hasError: false, error: null });
-    }
   }
 
   render() {

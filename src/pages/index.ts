@@ -9,3 +9,4 @@ export { Cotizaciones } from './Cotizaciones';
 export { Facturas } from './Facturas';
 export { Clientes } from './Clientes';
 export { Configuracion } from './Configuracion';
+export { Checador } from './Checador';

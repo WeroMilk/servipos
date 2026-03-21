@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { SyncState } from '@/types';
 import { getPendingSyncCount } from '@/db/database';
+import { reportAppEvent } from '@/lib/appEventLog';
 
 // ============================================
 // STORE DE SINCRONIZACIÓN (ONLINE/OFFLINE)
@@ -58,9 +59,20 @@ export const useSyncStore = create<SyncStore>()(
           });
           
           console.log('Sincronización completada');
+          reportAppEvent({
+            kind: 'success',
+            source: 'sync',
+            title: 'Sincronización completada',
+          });
         } catch (error) {
           console.error('Error en sincronización:', error);
           set({ isSyncing: false });
+          reportAppEvent({
+            kind: 'error',
+            source: 'sync',
+            title: 'Error en sincronización',
+            detail: error instanceof Error ? error.message : String(error),
+          });
         }
       },
 

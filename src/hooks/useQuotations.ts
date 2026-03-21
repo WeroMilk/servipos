@@ -8,13 +8,16 @@ import {
   convertQuotationToSale,
   generateQuotationFolio
 } from '@/db/database';
-import { useAuthStore } from '@/stores';
+import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
+import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
+import { reportHookFailure } from '@/lib/appEventLog';
 
 // ============================================
 // HOOK DE COTIZACIONES
 // ============================================
 
 export function useQuotations() {
+  const { effectiveSucursalId } = useEffectiveSucursalId();
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +25,7 @@ export function useQuotations() {
   const loadQuotations = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await getQuotations();
+      const data = await getQuotations(effectiveSucursalId);
       setQuotations(data);
       setError(null);
     } catch (err) {
@@ -31,7 +34,7 @@ export function useQuotations() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [effectiveSucursalId]);
 
   useEffect(() => {
     loadQuotations();
@@ -39,11 +42,13 @@ export function useQuotations() {
 
   const addQuotation = async (quotation: Omit<Quotation, 'id' | 'folio' | 'createdAt' | 'updatedAt' | 'syncStatus'>) => {
     try {
-      const folio = await generateQuotationFolio();
-      const id = await createQuotation({ ...quotation, folio });
+      const sid = getEffectiveSucursalId();
+      const folio = await generateQuotationFolio(sid);
+      const id = await createQuotation({ ...quotation, folio, sucursalId: sid });
       await loadQuotations();
       return id;
     } catch (err) {
+      reportHookFailure('hook:useQuotations', 'Crear cotización', err);
       setError('Error al crear cotización');
       throw err;
     }
@@ -54,6 +59,7 @@ export function useQuotations() {
       await updateQuotation(id, updates);
       await loadQuotations();
     } catch (err) {
+      reportHookFailure('hook:useQuotations', 'Actualizar cotización', err);
       setError('Error al actualizar cotización');
       throw err;
     }
@@ -61,11 +67,12 @@ export function useQuotations() {
 
   const convertToSale = async (quotationId: string, usuarioId: string) => {
     try {
-      const sucursalId = useAuthStore.getState().user?.sucursalId;
+      const sucursalId = getEffectiveSucursalId();
       const saleId = await convertQuotationToSale(quotationId, usuarioId, sucursalId);
       await loadQuotations();
       return saleId;
     } catch (err) {
+      reportHookFailure('hook:useQuotations', 'Convertir cotización a venta', err);
       setError('Error al convertir cotización');
       throw err;
     }
@@ -98,6 +105,7 @@ export function useQuotationDetails(quotationId: string | null) {
         const data = await getQuotationById(quotationId);
         setQuotation(data || null);
       } catch (err) {
+        reportHookFailure('hook:useQuotationDetails', 'Cargar cotización', err);
         console.error('Error al cargar cotización:', err);
       } finally {
         setLoading(false);

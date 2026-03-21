@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { 
-  Building2, 
-  Receipt, 
+import {
+  Building2,
+  Receipt,
   Save,
   AlertTriangle,
   Check,
@@ -9,6 +9,7 @@ import {
   FileKey,
   Lock,
   Users,
+  MapPin,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useFiscalConfig } from '@/hooks';
 import { useAppStore, useAuthStore } from '@/stores';
 import { UserManagement } from '@/components/ui-custom/UserManagement';
+import { SucursalManagement } from '@/components/ui-custom/SucursalManagement';
 import { PageShell } from '@/components/ui-custom/PageShell';
 import { REGIMENES_FISCALES, USOS_CFDI } from '@/types';
 import { cn } from '@/lib/utils';
@@ -27,6 +29,8 @@ export function Configuracion() {
   const { addToast } = useAppStore();
   const { hasPermission } = useAuthStore();
   const canManageUsers = hasPermission('usuarios:gestionar');
+  const canManageSucursales = hasPermission('sucursales:gestionar');
+  const adminExtraTabs = (canManageUsers ? 1 : 0) + (canManageSucursales ? 1 : 0);
   
   const [activeTab, setActiveTab] = useState('fiscal');
   
@@ -148,9 +152,9 @@ export function Configuracion() {
         <TabsList
           className={cn(
             'grid h-auto w-full shrink-0 gap-1 bg-slate-900/50 p-1',
-            canManageUsers
-              ? 'grid-cols-2 sm:grid-cols-4'
-              : 'grid-cols-3'
+            adminExtraTabs === 0 && 'grid-cols-3',
+            adminExtraTabs === 1 && 'grid-cols-2 sm:grid-cols-4',
+            adminExtraTabs >= 2 && 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5'
           )}
         >
           <TabsTrigger
@@ -174,6 +178,15 @@ export function Configuracion() {
             <FileKey className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
             Certificados
           </TabsTrigger>
+          {canManageSucursales && (
+            <TabsTrigger
+              value="sucursales"
+              className="h-9 w-full text-xs data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400 sm:text-sm"
+            >
+              <MapPin className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
+              Sucursales
+            </TabsTrigger>
+          )}
           {canManageUsers && (
             <TabsTrigger
               value="usuarios"
@@ -576,6 +589,17 @@ export function Configuracion() {
             </Card>
           </div>
         </TabsContent>
+
+        {canManageSucursales && (
+          <TabsContent
+            value="sucursales"
+            className="mt-0 flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
+          >
+            <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
+              <SucursalManagement embedded />
+            </div>
+          </TabsContent>
+        )}
 
         {canManageUsers && (
           <TabsContent

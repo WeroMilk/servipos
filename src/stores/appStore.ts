@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { AppState, Toast } from '@/types';
+import { reportAppEvent } from '@/lib/appEventLog';
 
 // ============================================
 // STORE DE APLICACIÓN (UI/UX)
@@ -35,6 +36,13 @@ export const useAppStore = create<AppStore>()(
         };
         
         set({ toasts: [...get().toasts, newToast] });
+
+        reportAppEvent({
+          kind: toast.type,
+          source: 'toast',
+          title: toast.message.slice(0, 500),
+          meta: { toastType: toast.type },
+        });
 
         // Auto-remover después de la duración
         setTimeout(() => {

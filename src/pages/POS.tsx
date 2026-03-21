@@ -75,6 +75,14 @@ export function POS() {
     getCambio,
   } = useCartStore();
 
+  /** Selectores primitivos: el UI se suscribe al total y se repinta al cambiar ítems/descuentos (evita totales en $0.00 desincronizados). */
+  const subtotalVenta = useCartStore((s) => s.getSubtotal());
+  const descuentoVenta = useCartStore((s) => s.getDescuento());
+  const impuestosVenta = useCartStore((s) => s.getImpuestos());
+  const totalVenta = useCartStore((s) => s.getTotal());
+  const totalPagadoVenta = useCartStore((s) => s.getTotalPagado());
+  const cambioVenta = useCartStore((s) => s.getCambio());
+
   const [searchQuery, setSearchQuery] = useState('');
   const [showProductSearch, setShowProductSearch] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
@@ -463,7 +471,7 @@ export function POS() {
           <div className="flex shrink-0 items-center gap-2 rounded-xl border border-slate-800/60 bg-slate-950/90 p-2 md:hidden">
             <div className="min-w-0 flex-1">
               <p className="text-[10px] uppercase tracking-wide text-slate-500">Total</p>
-              <p className="truncate text-lg font-bold text-cyan-400">{formatMoney(getTotal())}</p>
+              <p className="truncate text-lg font-bold text-cyan-400">{formatMoney(totalVenta)}</p>
             </div>
             <Button
               type="button"
@@ -518,18 +526,18 @@ export function POS() {
               <div className="shrink-0 space-y-2">
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs sm:text-sm">
                   <span className="text-slate-400">Subtotal</span>
-                  <span className="text-right text-slate-300">{formatMoney(getSubtotal())}</span>
+                  <span className="text-right text-slate-300">{formatMoney(subtotalVenta)}</span>
                   <span className="text-slate-400">Descuento</span>
-                  <span className="text-right text-amber-400">-{formatMoney(getDescuento())}</span>
+                  <span className="text-right text-amber-400">-{formatMoney(descuentoVenta)}</span>
                   <span className="text-slate-400">IVA 16%</span>
-                  <span className="text-right text-slate-300">{formatMoney(getImpuestos())}</span>
+                  <span className="text-right text-slate-300">{formatMoney(impuestosVenta)}</span>
                 </div>
 
                 <div className="border-t border-slate-800 pt-2">
                   <div className="flex items-end justify-between gap-2">
                     <span className="text-sm font-medium text-slate-200 sm:text-base">Total</span>
                     <span className="text-xl font-bold tabular-nums text-cyan-400 sm:text-2xl lg:text-3xl">
-                      {formatMoney(getTotal())}
+                      {formatMoney(totalVenta)}
                     </span>
                   </div>
                 </div>
@@ -619,10 +627,12 @@ export function POS() {
               type="button"
               onClick={() => setShowPaymentDialog(true)}
               disabled={items.length === 0}
-              className="h-11 w-full rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-sm font-bold text-white shadow-lg shadow-cyan-500/25 sm:h-12 sm:text-base md:h-14 md:text-lg"
+              className="h-11 w-full min-w-0 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-sm font-bold text-white shadow-lg shadow-cyan-500/25 sm:h-12 sm:text-base md:h-14 md:text-lg"
             >
-              <Receipt className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
-              Cobrar {formatMoney(getTotal())}
+              <Wallet className="mr-2 h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
+              <span className="min-w-0 tabular-nums">
+                Cobrar {formatMoney(totalVenta)}
+              </span>
             </Button>
 
             <Button
@@ -651,7 +661,7 @@ export function POS() {
           <div className="space-y-4 py-2 sm:space-y-6 sm:py-4">
             <div className="rounded-xl bg-slate-800/50 p-3 text-center sm:p-4">
               <p className="mb-1 text-xs text-slate-400 sm:text-sm">Total a pagar</p>
-              <p className="text-2xl font-bold text-cyan-400 sm:text-4xl">{formatMoney(getTotal())}</p>
+              <p className="text-2xl font-bold text-cyan-400 sm:text-4xl">{formatMoney(totalVenta)}</p>
             </div>
 
             <div className="space-y-2">
@@ -724,11 +734,11 @@ export function POS() {
               </div>
             )}
 
-            {getCambio() > 0 && (
+            {cambioVenta > 0 && (
               <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 sm:p-4">
                 <p className="text-center text-emerald-400">
                   Cambio:{' '}
-                  <span className="text-xl font-bold sm:text-2xl">{formatMoney(getCambio())}</span>
+                  <span className="text-xl font-bold sm:text-2xl">{formatMoney(cambioVenta)}</span>
                 </p>
               </div>
             )}
@@ -746,7 +756,7 @@ export function POS() {
             <Button
               type="button"
               onClick={() => void handleProcessSale()}
-              disabled={getTotalPagado() < getTotal() || processingSale}
+              disabled={totalPagadoVenta < totalVenta || processingSale}
               className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white sm:w-auto"
             >
               {processingSale ? (
@@ -772,9 +782,9 @@ export function POS() {
             </div>
             <p className="mb-1 text-sm text-slate-400 sm:mb-2">Total</p>
             <p className="mb-3 text-3xl font-bold text-cyan-400 sm:mb-4 sm:text-4xl">
-              {formatMoney(getTotal())}
+              {formatMoney(totalVenta)}
             </p>
-            <p className="text-xs text-slate-500 sm:text-sm">Cambio: {formatMoney(getCambio())}</p>
+            <p className="text-xs text-slate-500 sm:text-sm">Cambio: {formatMoney(cambioVenta)}</p>
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row">

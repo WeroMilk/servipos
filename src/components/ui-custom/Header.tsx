@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Bell, LogOut, User, Zap, X } from 'lucide-react';
-import { useAuthStore, useSyncStore, useNotificationStore } from '@/stores';
+import { useEffect, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { LogOut, User, Zap } from 'lucide-react';
+import { useAuthStore, useSyncStore } from '@/stores';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -11,56 +11,35 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { BRAND_LOGO_URL } from '@/lib/branding';
-
-type HeaderNotification = {
-  id: string;
-  title: string;
-  body: string;
-  time: string;
-  /** Ruta al hacer clic (panel de notificaciones). */
-  to: string;
-};
-
-const HEADER_NOTIFICATIONS: HeaderNotification[] = [
-  {
-    id: 'stock',
-    title: 'Stock bajo',
-    body: 'Revise productos por debajo del mínimo en Inventario.',
-    time: 'Hoy',
-    to: '/inventario?tab=stock',
-  },
-  {
-    id: 'sync',
-    title: 'Sincronización',
-    body: 'Los datos locales se sincronizarán al estar en línea.',
-    time: 'Hoy',
-    to: '/configuracion',
-  },
-  {
-    id: 'welcome',
-    title: 'Bienvenido',
-    body: 'SERVIPARTZ POS — panel listo para operar.',
-    time: 'Reciente',
-    to: '/',
-  },
-];
+import { reportAppEvent } from '@/lib/appEventLog';
+import { AdminSucursalSwitcher } from '@/components/ui-custom/AdminSucursalSwitcher';
+import { AppEventsNotificationPanel } from '@/components/ui-custom/AppEventsNotificationPanel';
 
 export function Header() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const prevPathRef = useRef<string | null>(null);
   const { user, logout } = useAuthStore();
   const { isOnline, isSyncing, pendingCount, sync } = useSyncStore();
-  const { panelOpenedOnce, markPanelSeen } = useNotificationStore();
-  const [notifOpen, setNotifOpen] = useState(false);
+
+  useEffect(() => {
+    const path = location.pathname + location.search;
+    if (prevPathRef.current === path) return;
+    prevPathRef.current = path;
+    reportAppEvent({
+      kind: 'info',
+      source: 'navegacion',
+      title: `Vista: ${location.pathname}`,
+      route: path,
+    });
+  }, [location.pathname, location.search]);
 
   const handleLogout = async () => {
     await logout();
     navigate('/login');
   };
-
-  const showUnreadDot = !panelOpenedOnce;
 
   return (
     <header
@@ -71,7 +50,12 @@ export function Header() {
       )}
     >
       <div className="flex min-w-0 items-center gap-2 sm:gap-3 md:gap-4">
-        <div className="flex min-w-0 items-center gap-2 md:hidden">
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          className="flex min-w-0 items-center gap-2 rounded-lg p-1 text-left transition-colors hover:bg-slate-800/50 md:hidden"
+          aria-label="Ir al panel de inicio"
+        >
           <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg ring-1 ring-slate-700/50">
             <img
               src={BRAND_LOGO_URL}
@@ -86,10 +70,33 @@ export function Header() {
             <p className="truncate text-sm font-bold tracking-tight text-slate-100">SERVIPARTZ</p>
             <p className="truncate text-[10px] text-slate-500">POS</p>
           </div>
-        </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          className="hidden min-w-0 items-center gap-3 rounded-xl border border-transparent px-2 py-1.5 text-left transition-colors hover:border-slate-800/80 hover:bg-slate-800/40 md:flex"
+          aria-label="Ir al panel de inicio"
+        >
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg ring-1 ring-slate-700/50">
+            <img
+              src={BRAND_LOGO_URL}
+              alt=""
+              className="h-full w-full object-cover"
+              width={36}
+              height={36}
+              decoding="async"
+            />
+          </div>
+          <div className="min-w-0 leading-tight">
+            <p className="truncate text-sm font-bold tracking-tight text-slate-100">SERVIPARTZ POS</p>
+            <p className="truncate text-xs text-slate-500">Panel · inicio</p>
+          </div>
+        </button>
       </div>
 
       <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+        <AdminSucursalSwitcher />
         <button
           type="button"
           onClick={() => void sync()}
@@ -109,67 +116,7 @@ export function Header() {
           </span>
         </button>
 
-        <Popover
-          open={notifOpen}
-          onOpenChange={(open) => {
-            setNotifOpen(open);
-            if (open) markPanelSeen();
-          }}
-        >
-          <PopoverTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="relative h-10 w-10 rounded-xl bg-slate-800/50 text-slate-400 hover:bg-slate-700/50 hover:text-slate-100"
-              aria-label="Notificaciones"
-            >
-              <Bell className="h-5 w-5" />
-              {showUnreadDot ? (
-                <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-cyan-400 ring-2 ring-slate-950" />
-              ) : null}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent
-            align="end"
-            sideOffset={8}
-            className={cn(
-              'w-[min(100vw-2rem,22rem)] border-slate-800 bg-slate-900 p-0 text-slate-100 shadow-xl',
-              'data-[state=open]:animate-in data-[state=closed]:animate-out'
-            )}
-            onOpenAutoFocus={(e) => e.preventDefault()}
-          >
-            <div className="flex items-center justify-between border-b border-slate-800 px-3 py-2.5">
-              <p className="text-sm font-semibold">Notificaciones</p>
-              <button
-                type="button"
-                className="rounded-lg p-1 text-slate-500 transition-colors hover:bg-slate-800 hover:text-slate-200"
-                aria-label="Cerrar"
-                onClick={() => setNotifOpen(false)}
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <ul className="max-h-[min(60dvh,20rem)] overflow-y-auto overscroll-y-contain py-1">
-              {HEADER_NOTIFICATIONS.map((n) => (
-                <li key={n.id} className="border-b border-slate-800/60 last:border-0">
-                  <button
-                    type="button"
-                    className="w-full px-3 py-2.5 text-left transition-colors hover:bg-slate-800/40"
-                    onClick={() => {
-                      navigate(n.to);
-                      setNotifOpen(false);
-                    }}
-                  >
-                    <p className="text-xs font-medium text-slate-200">{n.title}</p>
-                    <p className="mt-0.5 text-[11px] leading-snug text-slate-500">{n.body}</p>
-                    <p className="mt-1 text-[10px] uppercase tracking-wide text-slate-600">{n.time}</p>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </PopoverContent>
-        </Popover>
+        <AppEventsNotificationPanel />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

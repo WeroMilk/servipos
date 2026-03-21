@@ -1,0 +1,71 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function userExists() {
+      return signedIn() && exists(userPath());
+    }
+
+    function userData() {
+      return get(userPath()).data;
+    }
+
+    function isAdmin() {
+      return userExists() && userData().role == 'admin';
+    }
+
+    function userSucursalId() {
+      return userData().sucursalId;
+    }
+
+    function canAccessSucursal(sid) {
+      return userExists() && (isAdmin() || userSucursalId() == sid);
+    }
+
+    // Perfil: cada usuario lee el suyo; admin lee cualquiera (gestión). Escritura solo vía consola/Admin SDK.
+    match /users/{userId} {
+      allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
+      allow write: if false;
+    }
+
+    // Metadatos de sucursal (mismo id que subcolecciones products/sales). Listado para selector admin.
+    match /sucursales/{sucursalId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+      match /{document=**} {
+        allow read, write: if canAccessSucursal(sucursalId);
+      }
+    }
+
+    // Auditoría / panel de eventos (append-only para usuarios autenticados; vaciar solo admin).
+    match /appEvents/{eventId} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow delete: if isAdmin();
+      allow update: if false;
+    }
+
+    match /checadorRegistros/{docId} {
+      allow read: if signedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && docId == request.auth.uid + '_' + request.resource.data.dateKey;
+      allow update: if signedIn()
+        && resource.data.userId == request.auth.uid
+        && docId == request.auth.uid + '_' + resource.data.dateKey;
+      allow delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

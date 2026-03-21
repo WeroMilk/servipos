@@ -7,6 +7,7 @@ import {
   Receipt,
   Users,
   Settings,
+  Clock,
 } from 'lucide-react';
 import type { Permission } from '@/types';
 
@@ -42,6 +43,13 @@ export const MAIN_NAV_ITEMS: MainNavItem[] = [
     label: 'Cotizaciones',
     shortLabel: 'Cotiz.',
     permission: 'cotizaciones:ver',
+  },
+  {
+    to: '/checador',
+    icon: Clock,
+    label: 'Checador',
+    shortLabel: 'Checador',
+    permission: 'checador:registrar',
   },
   { to: '/facturas', icon: Receipt, label: 'Facturación', shortLabel: 'Facturas', permission: 'facturas:ver' },
   { to: '/clientes', icon: Users, label: 'Clientes', shortLabel: 'Clientes', permission: 'ventas:ver' },

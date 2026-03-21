@@ -473,13 +473,16 @@ export function Clientes() {
 
       {/* Add Client Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="bg-slate-900 border-slate-800 text-slate-100 max-w-2xl max-h-[90vh] overflow-auto">
-          <DialogHeader>
-            <DialogTitle>Nuevo Cliente</DialogTitle>
-          </DialogHeader>
-          
-          <div className="grid grid-cols-1 gap-4 py-4 sm:grid-cols-2">
-            <div className="space-y-2 sm:col-span-2">
+        <DialogContent className="flex max-h-[min(92dvh,40rem)] w-[calc(100%-1.5rem)] max-w-2xl flex-col gap-0 overflow-hidden border-slate-800 bg-slate-900 p-0 text-slate-100 sm:w-full">
+          <div className="shrink-0 border-b border-slate-800/80 px-4 pb-3 pt-4 pr-14">
+            <DialogHeader className="space-y-0 p-0 text-left">
+              <DialogTitle>Nuevo Cliente</DialogTitle>
+            </DialogHeader>
+          </div>
+
+          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
+          <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="min-w-0 space-y-2 sm:col-span-2">
               <Label>Nombre *</Label>
               <Input
                 value={formData.nombre}
@@ -488,7 +491,7 @@ export function Clientes() {
               />
             </div>
 
-            <div className="space-y-2">
+            <div className="min-w-0 space-y-2">
               <Label>RFC</Label>
               <Input
                 value={formData.rfc}
@@ -498,7 +501,7 @@ export function Clientes() {
               />
             </div>
 
-            <div className="space-y-2">
+            <div className="min-w-0 space-y-2">
               <Label>Razón Social</Label>
               <Input
                 value={formData.razonSocial}
@@ -507,7 +510,7 @@ export function Clientes() {
               />
             </div>
 
-            <div className="space-y-2">
+            <div className="min-w-0 space-y-2">
               <Label>Email</Label>
               <Input
                 type="email"
@@ -517,7 +520,7 @@ export function Clientes() {
               />
             </div>
 
-            <div className="space-y-2">
+            <div className="min-w-0 space-y-2">
               <Label>Teléfono</Label>
               <Input
                 type="tel"
@@ -529,7 +532,7 @@ export function Clientes() {
               />
             </div>
 
-            <div className="space-y-2">
+            <div className="min-w-0 space-y-2">
               <Label>Régimen Fiscal</Label>
               <select
                 value={formData.regimenFiscal}
@@ -545,7 +548,7 @@ export function Clientes() {
               </select>
             </div>
 
-            <div className="space-y-2 sm:col-span-2">
+            <div className="min-w-0 space-y-2 sm:col-span-2">
               <Label>Uso CFDI Predeterminado</Label>
               <select
                 value={formData.usoCfdi}
@@ -567,8 +570,9 @@ export function Clientes() {
               setMunicipio={setMunicipioSonora}
             />
           </div>
+          </div>
 
-          <DialogFooter>
+          <DialogFooter className="shrink-0 gap-2 border-t border-slate-800/80 px-4 py-3 sm:justify-end">
             <Button variant="outline" onClick={() => setShowAddDialog(false)} className="border-slate-700 text-slate-400">
               Cancelar
             </Button>
@@ -585,13 +589,16 @@ export function Clientes() {
 
       {/* Edit Dialog - Similar structure */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="bg-slate-900 border-slate-800 text-slate-100 max-w-2xl max-h-[90vh] overflow-auto">
-          <DialogHeader>
-            <DialogTitle>Editar Cliente</DialogTitle>
-          </DialogHeader>
-          
-          <div className="grid grid-cols-1 gap-4 py-4 sm:grid-cols-2">
-            <div className="space-y-2 sm:col-span-2">
+        <DialogContent className="flex max-h-[min(92dvh,40rem)] w-[calc(100%-1.5rem)] max-w-2xl flex-col gap-0 overflow-hidden border-slate-800 bg-slate-900 p-0 text-slate-100 sm:w-full">
+          <div className="shrink-0 border-b border-slate-800/80 px-4 pb-3 pt-4 pr-14">
+            <DialogHeader className="space-y-0 p-0 text-left">
+              <DialogTitle>Editar Cliente</DialogTitle>
+            </DialogHeader>
+          </div>
+
+          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
+          <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="min-w-0 space-y-2 sm:col-span-2">
               <Label>Nombre *</Label>
               <Input
                 value={formData.nombre}
@@ -600,7 +607,7 @@ export function Clientes() {
               />
             </div>
 
-            <div className="space-y-2">
+            <div className="min-w-0 space-y-2">
               <Label>RFC</Label>
               <Input
                 value={formData.rfc}
@@ -609,7 +616,7 @@ export function Clientes() {
               />
             </div>
 
-            <div className="space-y-2">
+            <div className="min-w-0 space-y-2">
               <Label>Razón Social</Label>
               <Input
                 value={formData.razonSocial}
@@ -618,7 +625,7 @@ export function Clientes() {
               />
             </div>
 
-            <div className="space-y-2">
+            <div className="min-w-0 space-y-2">
               <Label>Email</Label>
               <Input
                 type="email"
@@ -628,7 +635,7 @@ export function Clientes() {
               />
             </div>
 
-            <div className="space-y-2">
+            <div className="min-w-0 space-y-2">
               <Label>Teléfono</Label>
               <Input
                 type="tel"
@@ -639,7 +646,7 @@ export function Clientes() {
               />
             </div>
 
-            <div className="space-y-2">
+            <div className="min-w-0 space-y-2">
               <Label>Régimen Fiscal</Label>
               <select
                 value={formData.regimenFiscal}
@@ -655,7 +662,7 @@ export function Clientes() {
               </select>
             </div>
 
-            <div className="space-y-2 sm:col-span-2">
+            <div className="min-w-0 space-y-2 sm:col-span-2">
               <Label>Uso CFDI Predeterminado</Label>
               <select
                 value={formData.usoCfdi}
@@ -677,8 +684,9 @@ export function Clientes() {
               setMunicipio={setMunicipioSonora}
             />
           </div>
+          </div>
 
-          <DialogFooter>
+          <DialogFooter className="shrink-0 gap-2 border-t border-slate-800/80 px-4 py-3 sm:justify-end">
             <Button variant="outline" onClick={() => setShowEditDialog(false)} className="border-slate-700 text-slate-400">
               Cancelar
             </Button>

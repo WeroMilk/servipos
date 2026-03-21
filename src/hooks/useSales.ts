@@ -7,17 +7,19 @@ import {
   createSale,
   cancelSale,
 } from '@/db/database';
-import { useAuthStore } from '@/stores';
+import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
+import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 import { subscribeSalesCatalog, saleDocToSale } from '@/lib/firestore/salesFirestore';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { reportHookFailure } from '@/lib/appEventLog';
 
 // ============================================
 // HOOK DE VENTAS
 // ============================================
 
 export function useSales(limit: number = 100) {
-  const sucursalId = useAuthStore((s) => s.user?.sucursalId);
+  const { effectiveSucursalId: sucursalId } = useEffectiveSucursalId();
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +31,7 @@ export function useSales(limit: number = 100) {
       setSales(data);
       setError(null);
     } catch (err) {
+      reportHookFailure('hook:useSales', 'Cargar ventas (local)', err);
       setError('Error al cargar ventas');
       console.error(err);
     } finally {
@@ -58,6 +61,7 @@ export function useSales(limit: number = 100) {
         }
       } catch (err) {
         if (!cancelled) {
+          reportHookFailure('hook:useSales', 'Cargar ventas', err);
           setError('Error al cargar ventas');
           console.error(err);
         }
@@ -79,7 +83,7 @@ export function useSales(limit: number = 100) {
 
   const addSale = async (sale: Omit<Sale, 'id' | 'folio' | 'createdAt' | 'updatedAt' | 'syncStatus'>) => {
     try {
-      const sid = useAuthStore.getState().user?.sucursalId;
+      const sid = getEffectiveSucursalId();
       const id = await createSale(
         { ...sale, folio: '' } as Omit<Sale, 'id' | 'createdAt' | 'updatedAt' | 'syncStatus'>,
         { sucursalId: sid }
@@ -89,6 +93,7 @@ export function useSales(limit: number = 100) {
       }
       return id;
     } catch (err) {
+      reportHookFailure('hook:useSales', 'Crear venta', err);
       setError('Error al crear venta');
       throw err;
     }
@@ -96,12 +101,13 @@ export function useSales(limit: number = 100) {
 
   const cancel = async (id: string, motivo?: string) => {
     try {
-      const sid = useAuthStore.getState().user?.sucursalId;
+      const sid = getEffectiveSucursalId();
       await cancelSale(id, motivo, { sucursalId: sid });
       if (!sid) {
         await loadSalesLocal();
       }
     } catch (err) {
+      reportHookFailure('hook:useSales', 'Cancelar venta', err);
       setError('Error al cancelar venta');
       throw err;
     }
@@ -118,15 +124,19 @@ export function useSales(limit: number = 100) {
 }
 
 export function useSalesByDateRange(inicio: Date, fin: Date) {
-  const sucursalId = useAuthStore((s) => s.user?.sucursalId);
+  const { effectiveSucursalId: sucursalId } = useEffectiveSucursalId();
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [totals, setTotals] = useState({ total: 0, count: 0 });
 
   const applyFilter = useCallback(
     (all: Sale[]) => {
-      const filtered = all.filter((s) => s.createdAt >= inicio && s.createdAt < fin);
-      const total = filtered.reduce((sum, sale) => sum + sale.total, 0);
+      const normalized = all.map((s) => ({
+        ...s,
+        productos: Array.isArray(s.productos) ? s.productos : [],
+      }));
+      const filtered = normalized.filter((s) => s.createdAt >= inicio && s.createdAt < fin);
+      const total = filtered.reduce((sum, sale) => sum + (Number(sale.total) || 0), 0);
       setSales(filtered);
       setTotals({ total, count: filtered.length });
     },
@@ -137,10 +147,15 @@ export function useSalesByDateRange(inicio: Date, fin: Date) {
     try {
       setLoading(true);
       const data = await getSalesByDateRange(inicio, fin);
-      setSales(data);
-      const total = data.reduce((sum, sale) => sum + sale.total, 0);
-      setTotals({ total, count: data.length });
+      const normalized = data.map((s) => ({
+        ...s,
+        productos: Array.isArray(s.productos) ? s.productos : [],
+      }));
+      setSales(normalized);
+      const total = normalized.reduce((sum, sale) => sum + (Number(sale.total) || 0), 0);
+      setTotals({ total, count: normalized.length });
     } catch (err) {
+      reportHookFailure('hook:useSalesByDateRange', 'Cargar ventas por rango', err);
       console.error('Error al cargar ventas:', err);
     } finally {
       setLoading(false);
@@ -184,7 +199,7 @@ export function useTodaySales() {
 }
 
 export function useSaleDetails(saleId: string | null) {
-  const sucursalId = useAuthStore((s) => s.user?.sucursalId);
+  const { effectiveSucursalId: sucursalId } = useEffectiveSucursalId();
   const [sale, setSale] = useState<Sale | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -204,6 +219,7 @@ export function useSaleDetails(saleId: string | null) {
           setLoading(false);
         },
         (err) => {
+          reportHookFailure('hook:useSaleDetails', 'Suscripción venta Firestore', err);
           console.error('Error al cargar venta:', err);
           setSale(null);
           setLoading(false);
@@ -219,6 +235,7 @@ export function useSaleDetails(saleId: string | null) {
         const data = await getSaleById(saleId);
         if (!cancelled) setSale(data || null);
       } catch (err) {
+        reportHookFailure('hook:useSaleDetails', 'Cargar venta (local)', err);
         console.error('Error al cargar venta:', err);
         if (!cancelled) setSale(null);
       } finally {

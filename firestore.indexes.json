@@ -1,0 +1,13 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "checadorRegistros",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "quincenaId", "order": "ASCENDING" },
+        { "fieldPath": "dateKey", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

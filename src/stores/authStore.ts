@@ -6,6 +6,8 @@ import type { AuthState, Permission, User } from '@/types';
 import { auth, db } from '@/lib/firebase';
 import { normalizeServipartzEmail } from '@/lib/servipartzAuth';
 import { mapFirestoreUserProfile, userFromAuthOnly } from '@/lib/mapFirestoreUser';
+import { useSucursalContextStore } from '@/stores/sucursalContextStore';
+import { reportAppEvent } from '@/lib/appEventLog';
 
 // ============================================
 // STORE DE AUTENTICACIÓN (Firebase Auth + perfil Firestore)
@@ -29,6 +31,9 @@ const rolePermissions: Record<string, Permission[]> = {
     'configuracion:ver',
     'configuracion:editar',
     'usuarios:gestionar',
+    'sucursales:gestionar',
+    'checador:registrar',
+    'checador:reporte',
   ],
   cashier: [
     'ventas:ver',
@@ -36,6 +41,7 @@ const rolePermissions: Record<string, Permission[]> = {
     'inventario:ver',
     'cotizaciones:ver',
     'cotizaciones:crear',
+    'checador:registrar',
   ],
 };
 
@@ -69,6 +75,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
   },
 
   logout: async () => {
+    useSucursalContextStore.getState().setActiveSucursalId(null);
     await signOut(auth);
     set({ user: null, isAuthenticated: false });
   },
@@ -85,18 +92,48 @@ export const useAuthStore = create<AuthStore>((set) => ({
 export function subscribeFirebaseAuth(): () => void {
   return onAuthStateChanged(auth, async (fbUser) => {
     if (!fbUser) {
-      useAuthStore.setState({ user: null, isAuthenticated: false, authReady: true });
+      const prev = useAuthStore.getState().user;
+      useSucursalContextStore.getState().setActiveSucursalId(null);
+      if (prev) {
+        reportAppEvent({
+          kind: 'info',
+          source: 'auth',
+          title: 'Sesión finalizada',
+          detail: prev.email,
+          meta: { userId: prev.id, role: prev.role },
+        });
+      }
+      useAuthStore.setState({
+        user: null,
+        isAuthenticated: false,
+        authReady: true,
+      });
       return;
     }
     try {
       const user = await loadUserProfile(fbUser.uid, fbUser.email);
       useAuthStore.setState({ user, isAuthenticated: true, authReady: true });
+      reportAppEvent({
+        kind: 'success',
+        source: 'auth',
+        title: 'Sesión iniciada',
+        detail: user.email,
+        meta: { userId: user.id, role: user.role },
+      });
     } catch (e) {
       console.error('Error cargando perfil Firestore:', e);
+      const user = userFromAuthOnly(fbUser.uid, fbUser.email);
       useAuthStore.setState({
-        user: userFromAuthOnly(fbUser.uid, fbUser.email),
+        user,
         isAuthenticated: true,
         authReady: true,
+      });
+      reportAppEvent({
+        kind: 'warning',
+        source: 'auth',
+        title: 'Sesión iniciada (perfil Firestore incompleto)',
+        detail: user.email,
+        meta: { userId: user.id },
       });
     }
   });

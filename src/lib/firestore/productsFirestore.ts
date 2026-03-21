@@ -102,7 +102,11 @@ export function subscribeProductCatalog(
   sucursalId: string,
   onProducts: (products: Product[]) => void
 ): () => void {
-  onProducts([...lastProducts]);
+  try {
+    onProducts([...lastProducts]);
+  } catch (e) {
+    console.error('subscribeProductCatalog (initial):', e);
+  }
   catalogListeners.add(onProducts);
 
   if (catalogSucursalId !== sucursalId) {
@@ -113,8 +117,16 @@ export function subscribeProductCatalog(
       q,
       (snap) => {
         lastProducts = snap.docs.map(docToProduct);
-        lastProducts.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
-        catalogListeners.forEach((l) => l([...lastProducts]));
+        lastProducts.sort((a, b) =>
+          String(a.nombre ?? '').localeCompare(String(b.nombre ?? ''), 'es')
+        );
+        catalogListeners.forEach((l) => {
+          try {
+            l([...lastProducts]);
+          } catch (e) {
+            console.error('subscribeProductCatalog listener:', e);
+          }
+        });
       },
       (err) => {
         console.error('Firestore products:', err);

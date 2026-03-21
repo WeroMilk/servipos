@@ -9,13 +9,16 @@ import {
   incrementInvoiceFolio,
   getFiscalConfig
 } from '@/db/database';
-import { useAuthStore } from '@/stores';
+import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
+import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
+import { reportHookFailure } from '@/lib/appEventLog';
 
 // ============================================
 // HOOK DE FACTURAS
 // ============================================
 
 export function useInvoices() {
+  const { effectiveSucursalId } = useEffectiveSucursalId();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -23,16 +26,17 @@ export function useInvoices() {
   const loadInvoices = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await getInvoices();
+      const data = await getInvoices(effectiveSucursalId);
       setInvoices(data);
       setError(null);
     } catch (err) {
+      reportHookFailure('hook:useInvoices', 'Cargar facturas', err);
       setError('Error al cargar facturas');
       console.error(err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [effectiveSucursalId]);
 
   useEffect(() => {
     loadInvoices();
@@ -43,7 +47,7 @@ export function useInvoices() {
       // Obtener siguiente folio
       const { serie, folio } = await getNextInvoiceFolio();
       
-      const sucursalId = useAuthStore.getState().user?.sucursalId;
+      const sucursalId = getEffectiveSucursalId();
       const id = await createInvoice(
         {
           ...invoice,
@@ -66,10 +70,11 @@ export function useInvoices() {
 
   const cancel = async (id: string, motivo: string) => {
     try {
-      const sucursalId = useAuthStore.getState().user?.sucursalId;
+      const sucursalId = getEffectiveSucursalId();
       await cancelInvoice(id, motivo, { sucursalId });
       await loadInvoices();
     } catch (err) {
+      reportHookFailure('hook:useInvoices', 'Cancelar factura', err);
       setError('Error al cancelar factura');
       throw err;
     }
@@ -101,6 +106,7 @@ export function useInvoiceDetails(invoiceId: string | null) {
         const data = await getInvoiceById(invoiceId);
         setInvoice(data || null);
       } catch (err) {
+        reportHookFailure('hook:useInvoiceDetails', 'Cargar factura', err);
         console.error('Error al cargar factura:', err);
       } finally {
         setLoading(false);
@@ -123,6 +129,7 @@ export function useNextFolio() {
       const folio = await getNextInvoiceFolio();
       setNextFolio(folio);
     } catch (err) {
+      reportHookFailure('hook:useNextFolio', 'Obtener folio de factura', err);
       console.error('Error al obtener siguiente folio:', err);
     } finally {
       setLoading(false);

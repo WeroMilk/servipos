@@ -205,9 +205,15 @@ export function Inventario() {
       list = list.filter(isStockBajo);
     }
     if (inventoryMode === 'productos' || inventoryMode === 'stock' || inventoryMode === 'codigos') {
-      list.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
+      list.sort((a, b) =>
+        String(a.nombre ?? '').localeCompare(String(b.nombre ?? ''), 'es', { sensitivity: 'base' })
+      );
     } else if (inventoryMode === 'valor') {
-      list.sort((a, b) => b.precioVenta - a.precioVenta || a.nombre.localeCompare(b.nombre, 'es'));
+      list.sort(
+        (a, b) =>
+          b.precioVenta - a.precioVenta ||
+          String(a.nombre ?? '').localeCompare(String(b.nombre ?? ''), 'es')
+      );
     }
     return list;
   }, [pool, inventoryMode]);

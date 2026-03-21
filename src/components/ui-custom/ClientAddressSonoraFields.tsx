@@ -58,7 +58,7 @@ export function ClientAddressSonoraFields<T extends AddressFormSlice>({
   };
 
   return (
-    <div className="col-span-2 border-t border-slate-800 pt-4">
+    <div className="col-span-full border-t border-slate-800 pt-4 sm:col-span-2">
       <p className="mb-3 text-sm text-slate-500">Dirección (Sonora)</p>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

@@ -1,10 +1,32 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout, LoginForm, LoadingIndicator } from '@/components/ui-custom';
-import { Dashboard, POS, Inventario, Cotizaciones, Facturas, Clientes, Configuracion } from '@/pages';
+import {
+  Dashboard,
+  POS,
+  Inventario,
+  Cotizaciones,
+  Facturas,
+  Clientes,
+  Configuracion,
+  Checador,
+} from '@/pages';
 import { useAuthStore, useSyncStore, subscribeFirebaseAuth } from '@/stores';
 import { initializeDemoData, syncServipartzSeedUsers } from '@/db/database';
+import { setAppEventActorResolver } from '@/lib/appEventContext';
+import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
 import './App.css';
+
+setAppEventActorResolver(() => {
+  const u = useAuthStore.getState().user;
+  return {
+    userId: u?.id ?? null,
+    name: u?.name ?? 'Invitado',
+    email: u?.email ?? '',
+    role: u?.role ?? 'guest',
+    sucursalId: getEffectiveSucursalId(),
+  };
+});
 
 // ============================================
 // COMPONENTE PRINCIPAL DE LA APLICACIÓN
@@ -78,6 +100,7 @@ function App() {
           <Route path="pos" element={<POS />} />
           <Route path="inventario" element={<Inventario />} />
           <Route path="cotizaciones" element={<Cotizaciones />} />
+          <Route path="checador" element={<Checador />} />
           <Route path="facturas" element={<Facturas />} />
           <Route path="clientes" element={<Clientes />} />
           <Route path="configuracion" element={<Configuracion />} />

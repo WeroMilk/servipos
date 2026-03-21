@@ -18,14 +18,16 @@ import {
   deleteProductFirestore,
   getProductByBarcodeFirestore,
 } from '@/lib/firestore/productsFirestore';
-import { useAuthStore } from '@/stores';
+import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
+import { coerceProductList } from '@/lib/productCoerce';
+import { reportHookFailure } from '@/lib/appEventLog';
 
 // ============================================
 // HOOK DE PRODUCTOS (Dexie local o Firestore por sucursal)
 // ============================================
 
 export function useProducts() {
-  const sucursalId = useAuthStore((s) => s.user?.sucursalId);
+  const { effectiveSucursalId: sucursalId } = useEffectiveSucursalId();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,9 +36,10 @@ export function useProducts() {
     try {
       setLoading(true);
       const data = await getProducts();
-      setProducts(data);
+      setProducts(coerceProductList(data));
       setError(null);
     } catch (err) {
+      reportHookFailure('hook:useProducts', 'Cargar productos (local)', err);
       setError('Error al cargar productos');
       console.error(err);
     } finally {
@@ -48,7 +51,7 @@ export function useProducts() {
     if (sucursalId) {
       setLoading(true);
       const unsub = subscribeProductCatalog(sucursalId, (p) => {
-        setProducts(p);
+        setProducts(coerceProductList(p));
         setError(null);
         setLoading(false);
       });
@@ -61,11 +64,12 @@ export function useProducts() {
         setLoading(true);
         const data = await getProducts();
         if (!cancelled) {
-          setProducts(data);
+          setProducts(coerceProductList(data));
           setError(null);
         }
       } catch (err) {
         if (!cancelled) {
+          reportHookFailure('hook:useProducts', 'Cargar productos', err);
           setError('Error al cargar productos');
           console.error(err);
         }
@@ -111,6 +115,7 @@ export function useProducts() {
       await updateProduct(id, updates);
       await loadProductsLocal();
     } catch (err) {
+      reportHookFailure('hook:useProducts', 'Actualizar producto', err);
       setError('Error al actualizar producto');
       throw err;
     }
@@ -144,6 +149,7 @@ export function useProducts() {
         await loadProductsLocal();
       }
     } catch (err) {
+      reportHookFailure('hook:useProducts', 'Ajustar stock', err);
       setError('Error al ajustar stock');
       throw err;
     }
@@ -162,7 +168,7 @@ export function useProducts() {
 }
 
 export function useProductSearch() {
-  const sucursalId = useAuthStore((s) => s.user?.sucursalId);
+  const { effectiveSucursalId: sucursalId } = useEffectiveSucursalId();
   const [results, setResults] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -184,7 +190,7 @@ export function useProductSearch() {
         setLoading(true);
         if (sucursalId) {
           const lower = q.toLowerCase();
-          const data = getProductCatalogSnapshot().filter(
+          const data = coerceProductList(getProductCatalogSnapshot()).filter(
             (p) =>
               p.nombre.toLowerCase().includes(lower) ||
               p.sku.toLowerCase().includes(lower) ||
@@ -194,8 +200,9 @@ export function useProductSearch() {
           return;
         }
         const data = await searchProducts(q);
-        setResults(data);
+        setResults(coerceProductList(data));
       } catch (err) {
+        reportHookFailure('hook:useProductSearch', 'Búsqueda de productos', err);
         console.error('Error en búsqueda:', err);
       } finally {
         setLoading(false);
@@ -214,6 +221,7 @@ export function useProductSearch() {
         const product = await getProductByBarcode(barcode);
         return product || null;
       } catch (err) {
+        reportHookFailure('hook:useProductSearch', 'Búsqueda por código de barras', err);
         console.error('Error al buscar por código:', err);
         return null;
       } finally {
@@ -227,7 +235,7 @@ export function useProductSearch() {
 }
 
 export function useLowStockProducts() {
-  const sucursalId = useAuthStore((s) => s.user?.sucursalId);
+  const { effectiveSucursalId: sucursalId } = useEffectiveSucursalId();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -239,8 +247,9 @@ export function useLowStockProducts() {
     try {
       setLoading(true);
       const data = await getLowStockProducts();
-      setProducts(data);
+      setProducts(coerceProductList(data));
     } catch (err) {
+      reportHookFailure('hook:useLowStockProducts', 'Cargar stock bajo', err);
       console.error('Error al cargar productos con bajo stock:', err);
     } finally {
       setLoading(false);
@@ -251,7 +260,7 @@ export function useLowStockProducts() {
     if (sucursalId) {
       setLoading(true);
       const unsub = subscribeProductCatalog(sucursalId, (p) => {
-        setProducts(filterLow(p));
+        setProducts(filterLow(coerceProductList(p)));
         setLoading(false);
       });
       return unsub;

@@ -46,7 +46,7 @@ export function Layout() {
               )}
             >
               <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-                <RouteErrorBoundary routePath={location.pathname}>
+                <RouteErrorBoundary key={location.pathname} routePath={location.pathname}>
                   <Outlet />
                 </RouteErrorBoundary>
               </div>

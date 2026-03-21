@@ -22,6 +22,17 @@ export interface User {
   updatedAt: Date;
 }
 
+/** Catálogo de sucursales (Firestore `sucursales/{id}`). */
+export interface Sucursal {
+  id: string;
+  nombre: string;
+  /** Código corto opcional (ej. HMO-01). */
+  codigo?: string;
+  activo: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
@@ -46,7 +57,25 @@ export type Permission =
   | 'reportes:ver'
   | 'configuracion:ver'
   | 'configuracion:editar'
-  | 'usuarios:gestionar';
+  | 'usuarios:gestionar'
+  | 'sucursales:gestionar'
+  | 'checador:registrar'
+  | 'checador:reporte';
+
+/** Un día de asistencia en Firestore `checadorRegistros/{userId}_{YYYY-MM-DD}`. */
+export interface ChecadorDiaRegistro {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  dateKey: string;
+  quincenaId: string;
+  sucursalId?: string;
+  entrada: Date | null;
+  salidaComer: Date | null;
+  regresoComer: Date | null;
+  cierre: Date | null;
+}
 
 // ============================================
 // CONFIGURACIÓN FISCAL
@@ -153,6 +182,8 @@ export interface Client {
   telefono?: string;
   direccion?: Direccion;
   isMostrador: boolean; // Cliente genérico para ventas de mostrador
+  /** Aislamiento por tienda en datos locales (Dexie). */
+  sucursalId?: string;
   createdAt: Date;
   updatedAt: Date;
   syncStatus: SyncStatus;
@@ -234,6 +265,8 @@ export interface Quotation {
   estado: QuotationStatus;
   notas?: string;
   usuarioId: string;
+  /** Alcance por sucursal (Dexie / filtrado). */
+  sucursalId?: string;
   ventaId?: string; // Si se convirtió en venta
   createdAt: Date;
   updatedAt: Date;
@@ -285,6 +318,8 @@ export interface Invoice {
   pdfUrl?: string;
   motivoCancelacion?: string;
   fechaCancelacion?: Date;
+  /** Aislamiento por tienda en datos locales (Dexie). */
+  sucursalId?: string;
   createdAt: Date;
   updatedAt: Date;
   syncStatus: SyncStatus;
@@ -496,6 +531,25 @@ export interface Toast {
   type: 'success' | 'error' | 'warning' | 'info';
   message: string;
   duration?: number;
+}
+
+/** Eventos globales del sistema (panel de notificaciones / auditoría). */
+export type AppEventKind = 'info' | 'success' | 'warning' | 'error';
+
+export interface AppEventLogRecord {
+  id: string;
+  createdAt: Date;
+  kind: AppEventKind;
+  source: string;
+  title: string;
+  detail?: string;
+  actorUserId: string | null;
+  actorName: string;
+  actorEmail: string;
+  actorRole: string;
+  sucursalId?: string;
+  route?: string;
+  meta?: Record<string, unknown>;
 }
 
 export interface CartItem {

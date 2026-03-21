@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   TrendingUp,
   ShoppingCart,
@@ -9,17 +10,32 @@ import {
   ArrowDownRight,
   DollarSign,
   CalendarDays,
+  Printer,
+  ChevronRight,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { useSalesByDateRange, useLowStockProducts } from '@/hooks';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { useSalesByDateRange, useLowStockProducts, useTodaySales } from '@/hooks';
 import { cn, formatMoney } from '@/lib/utils';
+import { printThermalTicketFromSale } from '@/lib/printTicket';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import type { DateRange } from 'react-day-picker';
-import { format } from 'date-fns';
+import {
+  endOfMonth,
+  format,
+  startOfDay,
+  startOfMonth,
+} from 'date-fns';
 import { es } from 'date-fns/locale';
+import type { Sale } from '@/types';
+import { DashboardPeriodPopover, type PeriodGranularity } from '@/components/ui-custom/DashboardPeriodPopover';
 
 const salesData = [
   { name: 'Lun', ventas: 4500 },
@@ -119,7 +135,10 @@ function dateRangeToBounds(range: DateRange | undefined): { inicio: Date; fin: D
 }
 
 export function Dashboard() {
+  const navigate = useNavigate();
   const [dateOpen, setDateOpen] = useState(false);
+  const [periodGranularity, setPeriodGranularity] = useState<PeriodGranularity>('day');
+  const [todaySalesOpen, setTodaySalesOpen] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
     const t = new Date();
     t.setHours(0, 0, 0, 0);
@@ -129,6 +148,33 @@ export function Dashboard() {
   const { inicio, fin } = useMemo(() => dateRangeToBounds(dateRange), [dateRange]);
   const { sales, loading: salesLoading, totals } = useSalesByDateRange(inicio, fin);
   const { products: lowStockProducts, loading: stockLoading } = useLowStockProducts();
+  const { sales: salesToday, loading: todaySalesLoading } = useTodaySales();
+
+  const salesTodaySorted = useMemo(
+    () =>
+      [...salesToday].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      ),
+    [salesToday]
+  );
+
+  const goInventarioStock = () => navigate('/inventario?tab=stock');
+
+  const openTodaySalesDialog = () => setTodaySalesOpen(true);
+
+  const stockCardKeyHandler = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      goInventarioStock();
+    }
+  };
+
+  const recentSalesCardKeyHandler = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      openTodaySalesDialog();
+    }
+  };
 
   const rangeLabel = useMemo(() => {
     if (!dateRange?.from) return 'Hoy';
@@ -137,31 +183,38 @@ export function Dashboard() {
     if (a.getTime() === b.getTime()) {
       return format(a, "EEE d MMM yyyy", { locale: es });
     }
+    if (a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear()) {
+      return `${format(a, 'd', { locale: es })} – ${format(b, "d MMM yyyy", { locale: es })}`;
+    }
     return `${format(a, 'd MMM', { locale: es })} – ${format(b, 'd MMM yyyy', { locale: es })}`;
   }, [dateRange]);
 
   const setHoy = () => {
-    const t = new Date();
-    t.setHours(0, 0, 0, 0);
+    setPeriodGranularity('day');
+    const t = startOfDay(new Date());
     setDateRange({ from: t, to: t });
+    setDateOpen(true);
   };
 
   const setEsteMes = () => {
+    setPeriodGranularity('month');
     const now = new Date();
-    const from = new Date(now.getFullYear(), now.getMonth(), 1);
-    const to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    from.setHours(0, 0, 0, 0);
-    to.setHours(0, 0, 0, 0);
-    setDateRange({ from, to });
+    setDateRange({
+      from: startOfMonth(now),
+      to: endOfMonth(now),
+    });
+    setDateOpen(true);
   };
 
   const setMesAnterior = () => {
+    setPeriodGranularity('month');
     const now = new Date();
-    const first = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const last = new Date(now.getFullYear(), now.getMonth(), 0);
-    first.setHours(0, 0, 0, 0);
-    last.setHours(0, 0, 0, 0);
-    setDateRange({ from: first, to: last });
+    const first = startOfMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+    setDateRange({
+      from: first,
+      to: endOfMonth(first),
+    });
+    setDateOpen(true);
   };
 
   return (
@@ -172,74 +225,55 @@ export function Dashboard() {
           <p className="truncate text-xs text-slate-500 sm:text-sm">Resumen del periodo</p>
         </div>
 
-        <Popover open={dateOpen} onOpenChange={setDateOpen}>
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="border-slate-700 bg-slate-900/80 text-slate-200 hover:bg-slate-800"
-              onClick={setHoy}
-            >
-              Hoy
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="border-slate-700 bg-slate-900/80 text-slate-200 hover:bg-slate-800"
-              onClick={setEsteMes}
-            >
-              Este mes
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="border-slate-700 bg-slate-900/80 text-slate-200 hover:bg-slate-800"
-              onClick={setMesAnterior}
-            >
-              Mes anterior
-            </Button>
-            <PopoverTrigger asChild>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="border-slate-700 bg-slate-900/80 text-slate-200 hover:bg-slate-800"
+            onClick={setHoy}
+          >
+            Hoy
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="border-slate-700 bg-slate-900/80 text-slate-200 hover:bg-slate-800"
+            onClick={setEsteMes}
+          >
+            Este mes
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="border-slate-700 bg-slate-900/80 text-slate-200 hover:bg-slate-800"
+            onClick={setMesAnterior}
+          >
+            Mes anterior
+          </Button>
+          <DashboardPeriodPopover
+            dateRange={dateRange}
+            onDateRangeChange={setDateRange}
+            open={dateOpen}
+            onOpenChange={setDateOpen}
+            granularity={periodGranularity}
+            onGranularityChange={setPeriodGranularity}
+            rangeLabel={rangeLabel}
+            trigger={
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="border-cyan-500/40 bg-slate-900/80 text-cyan-200 hover:bg-slate-800"
+                className="border-[#1a73e8]/50 bg-slate-900/80 text-slate-100 hover:bg-slate-800"
               >
-                <CalendarDays className="mr-2 h-4 w-4 shrink-0" />
+                <CalendarDays className="mr-2 h-4 w-4 shrink-0 text-[#8ab4f8]" />
                 <span className="max-w-[10rem] truncate sm:max-w-none">{rangeLabel}</span>
               </Button>
-            </PopoverTrigger>
-          </div>
-          <PopoverContent
-            className="w-auto border-slate-800 bg-slate-900 p-0 text-slate-100"
-            align="end"
-            sideOffset={8}
-          >
-            <Calendar
-              mode="range"
-              numberOfMonths={1}
-              selected={dateRange}
-              onSelect={(r) => setDateRange(r)}
-              className="p-2"
-              classNames={{
-                day: 'text-slate-200',
-                outside: 'text-slate-600 opacity-50',
-                disabled: 'text-slate-600 opacity-30',
-                range_middle: 'bg-cyan-500/20',
-                range_start: 'bg-cyan-600 text-white rounded-l-md',
-                range_end: 'bg-cyan-600 text-white rounded-r-md',
-              }}
-            />
-            <div className="flex justify-end gap-2 border-t border-slate-800 p-2">
-              <Button type="button" size="sm" variant="ghost" className="text-slate-400" onClick={() => setDateOpen(false)}>
-                Listo
-              </Button>
-            </div>
-          </PopoverContent>
-        </Popover>
+            }
+          />
+        </div>
       </header>
 
       <div className="grid shrink-0 grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
@@ -263,7 +297,9 @@ export function Dashboard() {
         />
         <StatCard
           title="Unidades"
-          value={sales.reduce((sum, sale) => sum + sale.productos.length, 0).toString()}
+          value={sales
+            .reduce((sum, sale) => sum + (sale.productos?.length ?? 0), 0)
+            .toString()}
           description="Líneas vendidas"
           icon={Package}
           trend="neutral"
@@ -291,8 +327,8 @@ export function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent className="flex min-h-0 flex-1 flex-col p-2 pt-0 sm:p-3">
-              <div className="min-h-[140px] flex-1 sm:min-h-[160px] lg:min-h-0">
-                <ResponsiveContainer width="100%" height="100%">
+              <div className="min-h-[140px] flex-1 sm:min-h-[160px] lg:min-h-[11rem]">
+                <ResponsiveContainer width="100%" height="100%" minHeight={140}>
                   <BarChart data={salesData} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                     <XAxis dataKey="name" stroke="#64748b" fontSize={10} tickLine={false} />
@@ -333,11 +369,24 @@ export function Dashboard() {
           </Card>
 
           <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-hidden sm:grid-cols-2 lg:grid-cols-2 lg:gap-3">
-            <Card className="flex min-h-0 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50">
+            <Card
+              role="button"
+              tabIndex={0}
+              onClick={goInventarioStock}
+              onKeyDown={stockCardKeyHandler}
+              className={cn(
+                'flex min-h-0 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50',
+                'cursor-pointer transition-colors hover:border-amber-500/35 hover:bg-slate-900/70',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40'
+              )}
+            >
               <CardHeader className="shrink-0 py-2">
-                <CardTitle className="flex items-center gap-2 text-xs text-slate-100 sm:text-sm">
-                  <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400" />
-                  Stock bajo
+                <CardTitle className="flex items-center justify-between gap-2 text-xs text-slate-100 sm:text-sm">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400" />
+                    Stock bajo
+                  </span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
                 </CardTitle>
               </CardHeader>
               <CardContent className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-2 pt-0">
@@ -377,14 +426,30 @@ export function Dashboard() {
                     ))}
                   </div>
                 )}
+                <p className="mt-2 border-t border-slate-800/60 pt-2 text-center text-[10px] text-slate-500 md:hidden">
+                  Toca para abrir inventario · vista stock
+                </p>
               </CardContent>
             </Card>
 
-            <Card className="flex min-h-0 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50">
+            <Card
+              role="button"
+              tabIndex={0}
+              onClick={openTodaySalesDialog}
+              onKeyDown={recentSalesCardKeyHandler}
+              className={cn(
+                'flex min-h-0 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50',
+                'cursor-pointer transition-colors hover:border-cyan-500/35 hover:bg-slate-900/70',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40'
+              )}
+            >
               <CardHeader className="shrink-0 py-2">
-                <CardTitle className="flex items-center gap-2 text-xs text-slate-100 sm:text-sm">
-                  <ShoppingCart className="h-4 w-4 shrink-0 text-cyan-400" />
-                  Ventas recientes
+                <CardTitle className="flex items-center justify-between gap-2 text-xs text-slate-100 sm:text-sm">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <ShoppingCart className="h-4 w-4 shrink-0 text-cyan-400" />
+                    Ventas recientes
+                  </span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
                 </CardTitle>
               </CardHeader>
               <CardContent className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-2 pt-0">
@@ -422,11 +487,89 @@ export function Dashboard() {
                     ))}
                   </div>
                 )}
+                <p className="mt-2 border-t border-slate-800/60 pt-2 text-center text-[10px] text-slate-500 md:hidden">
+                  Toca para ver ventas de hoy y reimprimir
+                </p>
               </CardContent>
             </Card>
           </div>
         </div>
       </div>
+
+      <Dialog open={todaySalesOpen} onOpenChange={setTodaySalesOpen}>
+        <DialogContent className="flex max-h-[min(88dvh,36rem)] flex-col gap-0 overflow-hidden border-slate-800 bg-slate-900 p-0 text-slate-100 sm:max-w-md">
+          <DialogHeader className="shrink-0 border-b border-slate-800/80 px-4 pb-3 pt-4 pr-12 text-left">
+            <DialogTitle>Ventas de hoy</DialogTitle>
+            <p className="text-sm font-normal text-slate-500">
+              Lista del día para revisar o reimprimir el ticket.
+            </p>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3">
+            {todaySalesLoading ? (
+              <div className="space-y-2">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-800/50" />
+                ))}
+              </div>
+            ) : salesTodaySorted.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 text-slate-500">
+                <Receipt className="mb-2 h-10 w-10 text-slate-600" />
+                <p className="text-sm">No hay ventas registradas hoy</p>
+              </div>
+            ) : (
+              <ul className="space-y-2">
+                {salesTodaySorted.map((sale: Sale) => (
+                  <li
+                    key={sale.id}
+                    className="flex flex-col gap-2 rounded-lg border border-slate-800/60 bg-slate-800/25 p-3 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-slate-200">{sale.folio}</p>
+                      <p className="text-xs text-slate-500">
+                        {new Date(sale.createdAt).toLocaleString('es-MX', {
+                          day: '2-digit',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                        {sale.estado === 'cancelada' ? (
+                          <span className="ml-2 text-amber-400">· Cancelada</span>
+                        ) : null}
+                      </p>
+                      <p className="text-sm font-semibold tabular-nums text-cyan-400">
+                        {formatMoney(sale.total)}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="shrink-0 border-slate-700 bg-slate-800 text-slate-100 hover:bg-slate-700"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        printThermalTicketFromSale(sale);
+                      }}
+                    >
+                      <Printer className="mr-2 h-4 w-4" />
+                      Reimprimir
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <DialogFooter className="shrink-0 border-t border-slate-800/80 px-4 py-3">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full border-slate-700 text-slate-300 sm:w-auto"
+              onClick={() => setTodaySalesOpen(false)}
+            >
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

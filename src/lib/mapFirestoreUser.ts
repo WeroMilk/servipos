@@ -17,7 +17,11 @@ function parseRole(value: unknown): UserRole {
   return value === 'admin' ? 'admin' : 'cashier';
 }
 
-/** Perfil en Firestore: colección `users`, id = UID de Authentication. */
+/**
+ * Perfil en Firestore: `users/{uid}` (mismo uid que Authentication).
+ * Campos usados por la app: `role` ('admin' | 'cashier'), `sucursalId` (id de documento en `sucursales/{id}`),
+ * `name`, `email`, `username`, `isActive`, `createdAt`, `updatedAt`.
+ */
 export function mapFirestoreUserProfile(
   uid: string,
   data: Record<string, unknown>,

@@ -149,40 +149,50 @@ export const useCartStore = create<CartState>((set, get) => ({
     });
   },
 
-  // Cálculos
+  // Cálculos (Number() evita NaN → formatMoney muestra $0.00)
   getSubtotal: () => {
     return get().items.reduce((sum, item) => {
-      const itemSubtotal = item.product.precioVenta * item.quantity;
-      const itemDiscount = itemSubtotal * (item.discount / 100);
+      const price = Number(item.product.precioVenta) || 0;
+      const qty = Number(item.quantity) || 0;
+      const discPct = Number(item.discount) || 0;
+      const itemSubtotal = price * qty;
+      const itemDiscount = itemSubtotal * (discPct / 100);
       return sum + (itemSubtotal - itemDiscount);
     }, 0);
   },
 
   getImpuestos: () => {
     const subtotal = get().getSubtotal();
-    const globalDiscount = subtotal * (get().discount / 100);
+    const globalPct = Number(get().discount) || 0;
+    const globalDiscount = subtotal * (globalPct / 100);
     const base = subtotal - globalDiscount;
     return base * 0.16; // IVA 16%
   },
 
   getDescuento: () => {
     const itemDiscounts = get().items.reduce((sum, item) => {
-      const itemSubtotal = item.product.precioVenta * item.quantity;
-      return sum + (itemSubtotal * (item.discount / 100));
+      const price = Number(item.product.precioVenta) || 0;
+      const qty = Number(item.quantity) || 0;
+      const discPct = Number(item.discount) || 0;
+      const itemSubtotal = price * qty;
+      return sum + itemSubtotal * (discPct / 100);
     }, 0);
-    
+
     const subtotal = get().getSubtotal();
-    const globalDiscount = subtotal * (get().discount / 100);
-    
+    const globalPct = Number(get().discount) || 0;
+    const globalDiscount = subtotal * (globalPct / 100);
+
     return itemDiscounts + globalDiscount;
   },
 
   getTotal: () => {
     const subtotal = get().getSubtotal();
-    const globalDiscountAmt = subtotal * (get().discount / 100);
+    const globalPct = Number(get().discount) || 0;
+    const globalDiscountAmt = subtotal * (globalPct / 100);
     const base = subtotal - globalDiscountAmt;
     const impuestos = get().getImpuestos();
-    return base + impuestos;
+    const t = base + impuestos;
+    return Number.isFinite(t) ? t : 0;
   },
 
   getTotalPagado: () => {

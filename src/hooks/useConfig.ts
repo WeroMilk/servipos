@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { FiscalConfig } from '@/types';
 import { getFiscalConfig, saveFiscalConfig } from '@/db/database';
+import { reportHookFailure } from '@/lib/appEventLog';
 
 // ============================================
 // HOOK DE CONFIGURACIÓN FISCAL
@@ -37,6 +38,7 @@ export function useFiscalConfig() {
       await loadConfig();
       return id;
     } catch (err) {
+      reportHookFailure('hook:useFiscalConfig', 'Guardar configuración fiscal', err);
       setError('Error al guardar configuración fiscal');
       throw err;
     }
@@ -51,6 +53,7 @@ export function useFiscalConfig() {
       await loadConfig();
       return id;
     } catch (err) {
+      reportHookFailure('hook:useFiscalConfig', 'Actualizar configuración fiscal', err);
       setError('Error al actualizar configuración fiscal');
       throw err;
     }
