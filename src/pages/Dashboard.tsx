@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   TrendingUp,
@@ -46,6 +46,8 @@ import { DashboardPeriodPopover, type PeriodGranularity } from '@/components/ui-
 const barCursor = { fill: 'rgba(15, 23, 42, 0.92)' };
 
 const WEEKDAY_SHORT_ES = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'] as const;
+/** Una letra por columna (lun→dom); Martes y Miércoles comparten M como pidió el diseño móvil. */
+const WEEKDAY_INITIAL_ES = ['L', 'M', 'M', 'J', 'V', 'S', 'D'] as const;
 
 interface StatCardProps {
   title: string;
@@ -134,6 +136,9 @@ function dateRangeToBounds(range: DateRange | undefined): { inicio: Date; fin: D
 
 export function Dashboard() {
   const navigate = useNavigate();
+  const [compactChartAxis, setCompactChartAxis] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 639px)').matches : false
+  );
   const [dateOpen, setDateOpen] = useState(false);
   const [periodGranularity, setPeriodGranularity] = useState<PeriodGranularity>('day');
   const [todaySalesOpen, setTodaySalesOpen] = useState(false);
@@ -141,6 +146,14 @@ export function Dashboard() {
     const t = startOfDayFromDateKey(getMexicoDateKey());
     return { from: t, to: t };
   });
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const apply = () => setCompactChartAxis(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
 
   const { inicio, fin } = useMemo(() => dateRangeToBounds(dateRange), [dateRange]);
 
@@ -242,6 +255,7 @@ export function Dashboard() {
       const dowMon0 = (d.getDay() + 6) % 7;
       return {
         name: WEEKDAY_SHORT_ES[dowMon0]!,
+        dayInitial: WEEKDAY_INITIAL_ES[dowMon0]!,
         ventas,
         fullLabel: format(d, 'EEEE d MMM yyyy', { locale: es }),
       };
@@ -419,18 +433,27 @@ export function Dashboard() {
                   </div>
                 ) : (
                 <ResponsiveContainer width="100%" height="100%" minHeight={180}>
-                  <BarChart data={chartData} margin={{ top: 8, right: 4, left: 4, bottom: 36 }}>
+                  <BarChart
+                    data={chartData}
+                    margin={
+                      compactChartAxis
+                        ? { top: 8, right: 2, left: 2, bottom: 4 }
+                        : { top: 8, right: 4, left: 4, bottom: 36 }
+                    }
+                  >
                     <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                     <XAxis
-                      dataKey="name"
+                      dataKey={compactChartAxis ? 'dayInitial' : 'name'}
                       stroke="#64748b"
-                      fontSize={11}
+                      fontSize={compactChartAxis ? 12 : 11}
+                      fontWeight={compactChartAxis ? 600 : undefined}
                       tickLine={false}
+                      axisLine={{ stroke: '#334155' }}
                       interval={0}
-                      tickMargin={8}
-                      angle={-28}
-                      textAnchor="end"
-                      height={52}
+                      tickMargin={compactChartAxis ? 6 : 8}
+                      angle={compactChartAxis ? 0 : -28}
+                      textAnchor={compactChartAxis ? 'middle' : 'end'}
+                      height={compactChartAxis ? 28 : 52}
                     />
                     <YAxis
                       stroke="#64748b"

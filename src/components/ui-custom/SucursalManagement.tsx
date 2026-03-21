@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Ban, Pencil, Plus, Store } from 'lucide-react';
+import { Ban, Pencil, Plus, Store, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33,11 +33,12 @@ import {
 import type { Sucursal } from '@/types';
 import {
   createSucursalMeta,
+  hardDeleteSucursal,
   softDeleteSucursal,
   subscribeSucursalesCatalog,
   updateSucursalMeta,
 } from '@/lib/firestore/sucursalesMetaFirestore';
-import { useAppStore } from '@/stores';
+import { useAppStore, useSucursalContextStore } from '@/stores';
 import { cn } from '@/lib/utils';
 
 type FormMode = 'create' | 'edit';
@@ -50,6 +51,8 @@ type SucursalManagementProps = {
 
 export function SucursalManagement({ embedded = false }: SucursalManagementProps) {
   const { addToast } = useAppStore();
+  const setActiveSucursalId = useSucursalContextStore((s) => s.setActiveSucursalId);
+  const activeSucursalId = useSucursalContextStore((s) => s.activeSucursalId);
   const [list, setList] = useState<Sucursal[]>([]);
   const [showInactive, setShowInactive] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -57,7 +60,9 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
   const [editing, setEditing] = useState<Sucursal | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [deactivateTarget, setDeactivateTarget] = useState<Sucursal | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Sucursal | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     return subscribeSucursalesCatalog(setList);
@@ -128,6 +133,24 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
     }
   }, [addToast, deactivateTarget]);
 
+  const confirmHardDelete = useCallback(async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await hardDeleteSucursal(deleteTarget.id);
+      if (activeSucursalId === deleteTarget.id) setActiveSucursalId(null);
+      addToast({ type: 'success', message: 'Sucursal eliminada por completo' });
+      setDeleteTarget(null);
+    } catch (e) {
+      addToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'No se pudo eliminar',
+      });
+    } finally {
+      setDeleting(false);
+    }
+  }, [addToast, deleteTarget, activeSucursalId, setActiveSucursalId]);
+
   return (
     <>
       <div className="flex min-h-0 flex-1 flex-col">
@@ -183,7 +206,7 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
                     <TableHead className="hidden text-slate-400 sm:table-cell">Código</TableHead>
                     <TableHead className="text-slate-400">Id</TableHead>
                     <TableHead className="text-slate-400">Estado</TableHead>
-                    <TableHead className="w-[100px] text-right text-slate-400">Acciones</TableHead>
+                    <TableHead className="w-[132px] text-right text-slate-400">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -236,6 +259,22 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
                             >
                               <Ban className="h-4 w-4 opacity-70" />
                             </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-slate-400 hover:text-red-400"
+                              disabled={s.activo}
+                              title={
+                                s.activo
+                                  ? 'Desactive la sucursal antes de borrarla'
+                                  : 'Eliminar definitivamente'
+                              }
+                              onClick={() => setDeleteTarget(s)}
+                              aria-label="Eliminar definitivamente"
+                            >
+                              <Trash2 className="h-4 w-4 opacity-70" />
+                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -245,7 +284,8 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
               </Table>
             </div>
             <p className="mt-2 text-[11px] text-slate-500 sm:text-xs">
-              Desactivar no borra productos ni ventas; solo oculta la sucursal en listas habituales.
+              Desactivar solo oculta la tienda en listas habituales. Para borrar todo (productos, ventas,
+              contadores, checador y documento de la sucursal), desactívela y use el ícono de papelera.
             </p>
           </CardContent>
         </Card>
@@ -333,6 +373,48 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
               className="bg-amber-600 text-white hover:bg-amber-500"
             >
               Desactivar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && !deleting && setDeleteTarget(null)}>
+        <AlertDialogContent className="border-slate-800 bg-slate-900 text-slate-100">
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar sucursal por completo?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-slate-400">
+                <p>
+                  Se borrará <strong className="text-slate-200">{deleteTarget?.nombre}</strong>{' '}
+                  <span className="font-mono text-xs text-slate-500">({deleteTarget?.id})</span> y{' '}
+                  <strong className="text-red-300">todos</strong> los datos de esa tienda en Firestore:
+                  productos, ventas, movimientos de inventario, contadores y fichajes del checador
+                  asociados.
+                </p>
+                <p>
+                  Los usuarios que tenían esta sucursal asignada quedarán sin tienda hasta que les asigne
+                  otra.
+                </p>
+                <p className="text-slate-500">Esta acción no se puede deshacer.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              disabled={deleting}
+              className="border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700"
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleting}
+              onClick={(e) => {
+                e.preventDefault();
+                void confirmHardDelete();
+              }}
+              className="bg-red-600 text-white hover:bg-red-500"
+            >
+              {deleting ? 'Eliminando…' : 'Eliminar todo'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -67,6 +67,18 @@ export function Inventario() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [stockAdjustment, setStockAdjustment] = useState({ tipo: 'entrada', cantidad: 0, motivo: '' });
   const [stockQtyFocus, setStockQtyFocus] = useState(false);
+  /** Al enfocar, ocultar 0 para escribir sin borrar; al salir vacío queda 0 en estado. */
+  const [addNumFocus, setAddNumFocus] = useState({
+    precioVenta: false,
+    precioCompra: false,
+    existencia: false,
+    existenciaMinima: false,
+  });
+  const [editNumFocus, setEditNumFocus] = useState({
+    precioVenta: false,
+    precioCompra: false,
+    existenciaMinima: false,
+  });
   const [inventoryMode, setInventoryMode] = useState<InventoryMode>('productos');
   const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
 
@@ -80,7 +92,7 @@ export function Inventario() {
     precioCompra: 0,
     impuesto: 16,
     existencia: 0,
-    existenciaMinima: 5,
+    existenciaMinima: 0,
     categoria: '',
     proveedor: '',
     unidadMedida: 'H87',
@@ -99,6 +111,23 @@ export function Inventario() {
       setInventoryMode('stock');
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (showAddDialog) {
+      setAddNumFocus({
+        precioVenta: false,
+        precioCompra: false,
+        existencia: false,
+        existenciaMinima: false,
+      });
+    }
+  }, [showAddDialog]);
+
+  useEffect(() => {
+    if (showEditDialog) {
+      setEditNumFocus({ precioVenta: false, precioCompra: false, existenciaMinima: false });
+    }
+  }, [showEditDialog]);
 
   const handleAddProduct = async () => {
     try {
@@ -281,7 +310,7 @@ export function Inventario() {
       precioCompra: 0,
       impuesto: 16,
       existencia: 0,
-      existenciaMinima: 5,
+      existenciaMinima: 0,
       categoria: '',
       proveedor: '',
       unidadMedida: 'H87',
@@ -633,8 +662,17 @@ export function Inventario() {
               <Label>Precio de Venta *</Label>
               <Input
                 type="number"
-                value={formData.precioVenta}
-                onChange={(e) => setFormData({ ...formData, precioVenta: parseFloat(e.target.value) })}
+                inputMode="decimal"
+                min={0}
+                step="any"
+                value={addNumFocus.precioVenta && formData.precioVenta === 0 ? '' : formData.precioVenta}
+                onFocus={() => setAddNumFocus((f) => ({ ...f, precioVenta: true }))}
+                onBlur={() => setAddNumFocus((f) => ({ ...f, precioVenta: false }))}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === '') setFormData((d) => ({ ...d, precioVenta: 0 }));
+                  else setFormData((d) => ({ ...d, precioVenta: parseFloat(v) || 0 }));
+                }}
                 className="bg-slate-800 border-slate-700 text-slate-100"
               />
             </div>
@@ -642,8 +680,17 @@ export function Inventario() {
               <Label>Precio de Compra</Label>
               <Input
                 type="number"
-                value={formData.precioCompra}
-                onChange={(e) => setFormData({ ...formData, precioCompra: parseFloat(e.target.value) })}
+                inputMode="decimal"
+                min={0}
+                step="any"
+                value={addNumFocus.precioCompra && formData.precioCompra === 0 ? '' : formData.precioCompra}
+                onFocus={() => setAddNumFocus((f) => ({ ...f, precioCompra: true }))}
+                onBlur={() => setAddNumFocus((f) => ({ ...f, precioCompra: false }))}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === '') setFormData((d) => ({ ...d, precioCompra: 0 }));
+                  else setFormData((d) => ({ ...d, precioCompra: parseFloat(v) || 0 }));
+                }}
                 className="bg-slate-800 border-slate-700 text-slate-100"
               />
             </div>
@@ -651,8 +698,17 @@ export function Inventario() {
               <Label>Stock Inicial</Label>
               <Input
                 type="number"
-                value={formData.existencia}
-                onChange={(e) => setFormData({ ...formData, existencia: parseInt(e.target.value) })}
+                inputMode="numeric"
+                min={0}
+                step={1}
+                value={addNumFocus.existencia && formData.existencia === 0 ? '' : formData.existencia}
+                onFocus={() => setAddNumFocus((f) => ({ ...f, existencia: true }))}
+                onBlur={() => setAddNumFocus((f) => ({ ...f, existencia: false }))}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === '') setFormData((d) => ({ ...d, existencia: 0 }));
+                  else setFormData((d) => ({ ...d, existencia: parseInt(v, 10) || 0 }));
+                }}
                 className="bg-slate-800 border-slate-700 text-slate-100"
               />
             </div>
@@ -660,8 +716,17 @@ export function Inventario() {
               <Label>Stock Mínimo</Label>
               <Input
                 type="number"
-                value={formData.existenciaMinima}
-                onChange={(e) => setFormData({ ...formData, existenciaMinima: parseInt(e.target.value) })}
+                inputMode="numeric"
+                min={0}
+                step={1}
+                value={addNumFocus.existenciaMinima && formData.existenciaMinima === 0 ? '' : formData.existenciaMinima}
+                onFocus={() => setAddNumFocus((f) => ({ ...f, existenciaMinima: true }))}
+                onBlur={() => setAddNumFocus((f) => ({ ...f, existenciaMinima: false }))}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === '') setFormData((d) => ({ ...d, existenciaMinima: 0 }));
+                  else setFormData((d) => ({ ...d, existenciaMinima: parseInt(v, 10) || 0 }));
+                }}
                 className="bg-slate-800 border-slate-700 text-slate-100"
               />
             </div>
@@ -748,8 +813,17 @@ export function Inventario() {
               <Label>Precio de Venta *</Label>
               <Input
                 type="number"
-                value={formData.precioVenta}
-                onChange={(e) => setFormData({ ...formData, precioVenta: parseFloat(e.target.value) })}
+                inputMode="decimal"
+                min={0}
+                step="any"
+                value={editNumFocus.precioVenta && formData.precioVenta === 0 ? '' : formData.precioVenta}
+                onFocus={() => setEditNumFocus((f) => ({ ...f, precioVenta: true }))}
+                onBlur={() => setEditNumFocus((f) => ({ ...f, precioVenta: false }))}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === '') setFormData((d) => ({ ...d, precioVenta: 0 }));
+                  else setFormData((d) => ({ ...d, precioVenta: parseFloat(v) || 0 }));
+                }}
                 className="bg-slate-800 border-slate-700 text-slate-100"
               />
             </div>
@@ -757,8 +831,17 @@ export function Inventario() {
               <Label>Precio de Compra</Label>
               <Input
                 type="number"
-                value={formData.precioCompra}
-                onChange={(e) => setFormData({ ...formData, precioCompra: parseFloat(e.target.value) })}
+                inputMode="decimal"
+                min={0}
+                step="any"
+                value={editNumFocus.precioCompra && formData.precioCompra === 0 ? '' : formData.precioCompra}
+                onFocus={() => setEditNumFocus((f) => ({ ...f, precioCompra: true }))}
+                onBlur={() => setEditNumFocus((f) => ({ ...f, precioCompra: false }))}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === '') setFormData((d) => ({ ...d, precioCompra: 0 }));
+                  else setFormData((d) => ({ ...d, precioCompra: parseFloat(v) || 0 }));
+                }}
                 className="bg-slate-800 border-slate-700 text-slate-100"
               />
             </div>
@@ -766,8 +849,19 @@ export function Inventario() {
               <Label>Stock Mínimo</Label>
               <Input
                 type="number"
-                value={formData.existenciaMinima}
-                onChange={(e) => setFormData({ ...formData, existenciaMinima: parseInt(e.target.value) })}
+                inputMode="numeric"
+                min={0}
+                step={1}
+                value={
+                  editNumFocus.existenciaMinima && formData.existenciaMinima === 0 ? '' : formData.existenciaMinima
+                }
+                onFocus={() => setEditNumFocus((f) => ({ ...f, existenciaMinima: true }))}
+                onBlur={() => setEditNumFocus((f) => ({ ...f, existenciaMinima: false }))}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === '') setFormData((d) => ({ ...d, existenciaMinima: 0 }));
+                  else setFormData((d) => ({ ...d, existenciaMinima: parseInt(v, 10) || 0 }));
+                }}
                 className="bg-slate-800 border-slate-700 text-slate-100"
               />
             </div>

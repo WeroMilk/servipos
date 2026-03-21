@@ -37,6 +37,30 @@ export function checadorDocId(userId: string, dateKey: string): string {
   return `${userId}_${dateKey}`;
 }
 
+/** Tienda que debe quedar en el registro: contexto de trabajo (p. ej. selector admin) o perfil. */
+export function resolveRegistroSucursalId(user: User, effectiveSucursalId?: string): string | null {
+  const ctx = effectiveSucursalId?.trim();
+  if (ctx) return ctx;
+  const p = user.sucursalId?.trim();
+  return p || null;
+}
+
+/** Filtra fichajes de la quincena a la tienda indicada (campo en doc o perfil en `users` si es legado sin tienda). */
+export function filterChecadorRowsBySucursal(
+  rows: ChecadorDiaRegistro[],
+  sucursalId: string,
+  userSucursalByUid: ReadonlyMap<string, string | undefined>
+): ChecadorDiaRegistro[] {
+  const sid = sucursalId.trim();
+  if (!sid) return rows;
+  return rows.filter((row) => {
+    const onRecord = row.sucursalId?.trim();
+    if (onRecord) return onRecord === sid;
+    const fromProfile = userSucursalByUid.get(row.userId)?.trim();
+    return !!fromProfile && fromProfile === sid;
+  });
+}
+
 export function docToChecadorDia(id: string, d: Record<string, unknown>): ChecadorDiaRegistro {
   return {
     id,
@@ -82,7 +106,7 @@ export function subscribeChecadorDia(
   return unsubscribe;
 }
 
-export async function punchEntrada(user: User): Promise<void> {
+export async function punchEntrada(user: User, effectiveSucursalId?: string): Promise<void> {
   const dateKey = getMexicoDateKey();
   const quincenaId = quincenaIdFromDateKey(dateKey);
   const id = checadorDocId(user.id, dateKey);
@@ -99,7 +123,7 @@ export async function punchEntrada(user: User): Promise<void> {
       userEmail: user.email,
       dateKey,
       quincenaId,
-      sucursalId: user.sucursalId ?? null,
+      sucursalId: resolveRegistroSucursalId(user, effectiveSucursalId),
       entrada: serverTimestamp(),
       salidaComer: null,
       regresoComer: null,
@@ -153,7 +177,7 @@ export async function punchRegresoComer(user: User): Promise<void> {
 }
 
 /** Borra los registros del día para volver a fichar (misma fecha, tras haber cerrado). */
-export async function reiniciarJornadaMismoDia(user: User): Promise<void> {
+export async function reiniciarJornadaMismoDia(user: User, effectiveSucursalId?: string): Promise<void> {
   const dateKey = getMexicoDateKey();
   const quincenaId = quincenaIdFromDateKey(dateKey);
   const id = checadorDocId(user.id, dateKey);
@@ -170,7 +194,7 @@ export async function reiniciarJornadaMismoDia(user: User): Promise<void> {
       userEmail: user.email,
       dateKey,
       quincenaId,
-      sucursalId: user.sucursalId ?? null,
+      sucursalId: resolveRegistroSucursalId(user, effectiveSucursalId),
       entrada: null,
       salidaComer: null,
       regresoComer: null,

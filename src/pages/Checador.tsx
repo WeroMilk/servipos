@@ -20,8 +20,11 @@ import {
 } from '@/components/ui/table';
 import { PageShell } from '@/components/ui-custom/PageShell';
 import { useAuthStore, useAppStore } from '@/stores';
+import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
+import { subscribeFirestoreDirectoryUsers } from '@/lib/firestore/usersDirectoryFirestore';
 import {
   fetchChecadorByQuincena,
+  filterChecadorRowsBySucursal,
   punchCierre,
   punchEntrada,
   punchRegresoComer,
@@ -38,7 +41,7 @@ import {
   quincenaIdFromDateKey,
   recentQuincenaIds,
 } from '@/lib/quincenaMx';
-import type { ChecadorDiaRegistro, Sucursal } from '@/types';
+import type { ChecadorDiaRegistro, Sucursal, User } from '@/types';
 import { subscribeSucursales } from '@/lib/firestore/sucursalesMetaFirestore';
 
 type PunchKind = 'entrada' | 'salidaComer' | 'regresoComer' | 'cierre' | 'reinicio';
@@ -47,6 +50,7 @@ export function Checador() {
   const user = useAuthStore((s) => s.user);
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const { addToast } = useAppStore();
+  const { effectiveSucursalId } = useEffectiveSucursalId();
 
   const canRegistrar = hasPermission('checador:registrar');
   const canReporte = hasPermission('checador:reporte');
@@ -59,6 +63,7 @@ export function Checador() {
   const [reportRows, setReportRows] = useState<ChecadorDiaRegistro[]>([]);
   const [reportLoading, setReportLoading] = useState(false);
   const [sucursalesList, setSucursalesList] = useState<Sucursal[]>([]);
+  const [directoryUsers, setDirectoryUsers] = useState<User[]>([]);
 
   const [dateKey, setDateKey] = useState(() => getMexicoDateKey());
   const quincenaOptions = useMemo(() => recentQuincenaIds(12), []);
@@ -90,6 +95,11 @@ export function Checador() {
   useEffect(() => {
     if (!canReporte) return;
     return subscribeSucursales(setSucursalesList);
+  }, [canReporte]);
+
+  useEffect(() => {
+    if (!canReporte) return;
+    return subscribeFirestoreDirectoryUsers(setDirectoryUsers);
   }, [canReporte]);
 
   const sucursalNombre = useCallback(
@@ -129,6 +139,18 @@ export function Checador() {
     };
   }, [quincenaSel, canReporte, user?.id, addToast]);
 
+  const userSucursalByUid = useMemo(() => {
+    const m = new Map<string, string | undefined>();
+    for (const u of directoryUsers) m.set(u.id, u.sucursalId);
+    return m;
+  }, [directoryUsers]);
+
+  const filteredReportRows = useMemo(() => {
+    const sid = effectiveSucursalId?.trim();
+    if (!sid) return [];
+    return filterChecadorRowsBySucursal(reportRows, sid, userSucursalByUid);
+  }, [reportRows, effectiveSucursalId, userSucursalByUid]);
+
   const runPunch = useCallback(
     async (kind: PunchKind) => {
       if (!user) return;
@@ -136,7 +158,7 @@ export function Checador() {
       try {
         switch (kind) {
           case 'entrada':
-            await punchEntrada(user);
+            await punchEntrada(user, effectiveSucursalId);
             addToast({ type: 'success', message: 'Entrada registrada' });
             break;
           case 'salidaComer':
@@ -161,7 +183,7 @@ export function Checador() {
         setBusy(null);
       }
     },
-    [user, addToast]
+    [user, addToast, effectiveSucursalId]
   );
 
   const ui = useMemo(() => {
@@ -260,7 +282,7 @@ export function Checador() {
                         if (!user) return;
                         setBusy('reinicio');
                         try {
-                          await reiniciarJornadaMismoDia(user);
+                          await reiniciarJornadaMismoDia(user, effectiveSucursalId);
                           addToast({
                             type: 'success',
                             message: 'Puede registrar una nueva entrada hoy',
@@ -352,8 +374,9 @@ export function Checador() {
               <div>
                 <CardTitle className="text-base text-slate-100">Registros por quincena</CardTitle>
                 <p className="text-xs text-slate-500">
-                  Vista de administrador: colaborador, contacto, tienda asignada al fichaje y horarios del
-                  periodo.
+                  Solo se listan fichajes de la tienda seleccionada arriba (
+                  {sucursalNombre(effectiveSucursalId)}). Colaboradores de otras tiendas no aparecen. Los
+                  registros antiguos sin tienda se atribuyen por la sucursal del perfil del usuario.
                 </p>
               </div>
               <div className="w-full min-w-[14rem] sm:w-72">
@@ -394,14 +417,14 @@ export function Checador() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {reportRows.length === 0 ? (
+                    {filteredReportRows.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={9} className="text-center text-slate-500">
-                          Sin registros en esta quincena.
+                          Sin registros en esta quincena para esta tienda.
                         </TableCell>
                       </TableRow>
                     ) : (
-                      reportRows.map((row) => (
+                      filteredReportRows.map((row) => (
                         <TableRow key={row.id} className="border-slate-800/80">
                           <TableCell className="font-medium text-slate-200">{row.userName}</TableCell>
                           <TableCell

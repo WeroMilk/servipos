@@ -1,11 +1,17 @@
 import {
   collection,
+  deleteDoc,
   doc,
   getDoc,
+  getDocs,
+  limit,
   onSnapshot,
+  query,
   serverTimestamp,
   setDoc,
   updateDoc,
+  where,
+  writeBatch,
   type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -182,4 +188,97 @@ export async function updateSucursalMeta(
 /** Baja lógica: no borra subcolecciones (productos, ventas, etc.). */
 export async function softDeleteSucursal(id: string): Promise<void> {
   await updateSucursalMeta(id, { activo: false });
+}
+
+const CHECADOR_COL = 'checadorRegistros';
+const USERS_COL = 'users';
+const BRANCH_SUBCOLLECTIONS = ['sales', 'inventoryMovements', 'products', 'counters'] as const;
+
+async function wipeChecadorBySucursalId(sucursalId: string): Promise<void> {
+  const checadorCol = collection(db, CHECADOR_COL);
+  for (;;) {
+    const snap = await getDocs(
+      query(checadorCol, where('sucursalId', '==', sucursalId), limit(500))
+    );
+    if (snap.empty) break;
+    const batch = writeBatch(db);
+    snap.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+    if (snap.size < 500) break;
+  }
+}
+
+/** Vacía una subcolección directa bajo `sucursales/{id}/…`. */
+async function wipeSucursalSubcollection(sucursalId: string, name: string): Promise<void> {
+  const colRef = collection(db, COL, sucursalId, name);
+  for (;;) {
+    const snap = await getDocs(query(colRef, limit(500)));
+    if (snap.empty) break;
+    const batch = writeBatch(db);
+    snap.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+    if (snap.size < 500) break;
+  }
+}
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+/**
+ * Elimina la sucursal en Firestore: metadato, productos, ventas, movimientos, contadores,
+ * fichajes del checador ligados a esa tienda (y legado sin `sucursalId` para usuarios de la tienda),
+ * y quita `sucursalId` en perfiles de usuario.
+ * Irreversible. Requiere admin en reglas.
+ */
+export async function hardDeleteSucursal(sucursalId: string): Promise<void> {
+  const id = sucursalId.trim();
+  if (!id) throw new Error('Id de sucursal inválido');
+
+  const metaRef = doc(db, COL, id);
+  const metaSnap = await getDoc(metaRef);
+  if (metaSnap.exists()) {
+    const d = metaSnap.data() as Record<string, unknown>;
+    if (d.activo !== false && d.activa !== false) {
+      throw new Error('Desactive la sucursal antes de eliminarla por completo');
+    }
+  }
+
+  const usersSnap = await getDocs(query(collection(db, USERS_COL), where('sucursalId', '==', id)));
+  const userIdsForBranch = usersSnap.docs.map((d) => d.id);
+
+  for (const sub of BRANCH_SUBCOLLECTIONS) {
+    await wipeSucursalSubcollection(id, sub);
+  }
+
+  const checadorCol = collection(db, CHECADOR_COL);
+  await wipeChecadorBySucursalId(id);
+
+  for (const uidChunk of chunk(userIdsForBranch, 30)) {
+    if (uidChunk.length === 0) continue;
+    const legSnap = await getDocs(query(checadorCol, where('userId', 'in', uidChunk)));
+    const toDelete = legSnap.docs.filter((d) => {
+      const data = d.data() as Record<string, unknown>;
+      const sid = data.sucursalId;
+      return sid == null || sid === '';
+    });
+    for (let i = 0; i < toDelete.length; i += 500) {
+      const slice = toDelete.slice(i, i + 500);
+      const batch = writeBatch(db);
+      slice.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
+  }
+
+  for (let i = 0; i < usersSnap.docs.length; i += 400) {
+    const batch = writeBatch(db);
+    usersSnap.docs.slice(i, i + 400).forEach((u) => {
+      batch.update(doc(db, USERS_COL, u.id), { sucursalId: null, updatedAt: serverTimestamp() });
+    });
+    await batch.commit();
+  }
+
+  await deleteDoc(metaRef);
 }

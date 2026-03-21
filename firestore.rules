@@ -97,7 +97,7 @@ service cloud.firestore {
       allow update: if signedIn()
         && resource.data.userId == request.auth.uid
         && docId == request.auth.uid + '_' + resource.data.dateKey;
-      allow delete: if false;
+      allow delete: if isAdmin();
     }
 
     match /{document=**} {
