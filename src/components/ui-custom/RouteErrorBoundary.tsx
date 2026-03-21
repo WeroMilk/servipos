@@ -48,7 +48,7 @@ export class RouteErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     if (isTransientDomGlitch(error)) {
-      console.warn('RouteErrorBoundary (glitch DOM ignorado):', error.message);
+      // React ya registra el NotFoundError en consola; no duplicar (portales + Radix + React 19).
       return;
     }
     console.error('RouteErrorBoundary:', error, info.componentStack);

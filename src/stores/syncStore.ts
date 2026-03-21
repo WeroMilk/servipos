@@ -58,7 +58,6 @@ export const useSyncStore = create<SyncStore>()(
             pendingCount: 0 
           });
           
-          console.log('Sincronización completada');
           reportAppEvent({
             kind: 'success',
             source: 'sync',

@@ -50,10 +50,16 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  /** Si incluyes `<DialogDescription>`, pon `true` para no forzar `aria-describedby={undefined}`. */
+  useDialogDescription = false,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
+  useDialogDescription?: boolean
 }) {
+  const omitDescribedBy =
+    !useDialogDescription && !("aria-describedby" in props)
+
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
@@ -64,6 +70,7 @@ function DialogContent({
           className
         )}
         {...props}
+        {...(omitDescribedBy ? { "aria-describedby": undefined } : {})}
       >
         {children}
         {showCloseButton && (

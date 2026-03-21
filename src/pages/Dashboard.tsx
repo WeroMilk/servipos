@@ -28,6 +28,8 @@ import { printThermalTicketFromSale } from '@/lib/printTicket';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import type { DateRange } from 'react-day-picker';
 import {
+  addDays,
+  eachDayOfInterval,
   endOfMonth,
   endOfWeek,
   format,
@@ -38,16 +40,6 @@ import {
 import { es } from 'date-fns/locale';
 import type { Sale } from '@/types';
 import { DashboardPeriodPopover, type PeriodGranularity } from '@/components/ui-custom/DashboardPeriodPopover';
-
-const salesData = [
-  { name: 'Lun', ventas: 4500 },
-  { name: 'Mar', ventas: 6200 },
-  { name: 'Mié', ventas: 5100 },
-  { name: 'Jue', ventas: 7800 },
-  { name: 'Vie', ventas: 9200 },
-  { name: 'Sáb', ventas: 11500 },
-  { name: 'Dom', ventas: 8900 },
-];
 
 const barCursor = { fill: 'rgba(15, 23, 42, 0.92)' };
 
@@ -192,6 +184,42 @@ export function Dashboard() {
     const m = format(from, 'MMMM', { locale: es });
     return m.charAt(0).toUpperCase() + m.slice(1);
   }, [dateRange, periodGranularity]);
+
+  /** Una barra por día natural del periodo seleccionado (mismas ventas que el resumen superior). */
+  const chartData = useMemo(() => {
+    const rangeStart = startOfDay(inicio);
+    const rangeEndExclusive = fin;
+    const rangeEndInclusive = addDays(rangeEndExclusive, -1);
+    if (rangeStart.getTime() > rangeEndInclusive.getTime()) {
+      return [] as { name: string; ventas: number; fullLabel: string }[];
+    }
+    const days = eachDayOfInterval({ start: rangeStart, end: rangeEndInclusive });
+    return days.map((d) => {
+      const day0 = startOfDay(d);
+      const next = addDays(day0, 1);
+      const ventas = sales.reduce((sum, sale) => {
+        const t = sale.createdAt instanceof Date ? sale.createdAt : new Date(sale.createdAt);
+        const x = t.getTime();
+        if (x >= day0.getTime() && x < next.getTime()) {
+          return sum + (Number(sale.total) || 0);
+        }
+        return sum;
+      }, 0);
+      let name: string;
+      if (days.length === 1) {
+        name = format(d, 'EEE d', { locale: es });
+      } else if (days.length <= 7) {
+        name = format(d, 'EEE', { locale: es });
+      } else {
+        name = format(d, 'd', { locale: es });
+      }
+      return {
+        name,
+        ventas,
+        fullLabel: format(d, 'EEEE d MMM yyyy', { locale: es }),
+      };
+    });
+  }, [sales, inicio, fin]);
 
   const handleGranularityChange = (g: PeriodGranularity) => {
     setPeriodGranularity(g);
@@ -349,15 +377,33 @@ export function Dashboard() {
             <CardHeader className="shrink-0 space-y-0 py-2">
               <CardTitle className="flex items-center gap-2 text-sm text-slate-100 sm:text-base">
                 <TrendingUp className="h-4 w-4 shrink-0 text-cyan-400" />
-                Ventas de la semana (referencia)
+                Ventas por día
               </CardTitle>
             </CardHeader>
             <CardContent className="flex min-h-0 flex-1 flex-col p-2 pt-0 sm:p-3">
               <div className="min-h-[140px] flex-1 sm:min-h-[160px] lg:min-h-[11rem]">
+                {salesLoading ? (
+                  <div className="flex h-full min-h-[120px] items-center justify-center text-xs text-slate-500">
+                    Cargando ventas…
+                  </div>
+                ) : chartData.length === 0 ? (
+                  <div className="flex h-full min-h-[120px] items-center justify-center text-xs text-slate-500">
+                    Sin datos para graficar en este periodo
+                  </div>
+                ) : (
                 <ResponsiveContainer width="100%" height="100%" minHeight={140}>
-                  <BarChart data={salesData} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
+                  <BarChart data={chartData} margin={{ top: 4, right: 8, left: -18, bottom: chartData.length > 10 ? 28 : 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                    <XAxis dataKey="name" stroke="#64748b" fontSize={10} tickLine={false} />
+                    <XAxis
+                      dataKey="name"
+                      stroke="#64748b"
+                      fontSize={chartData.length > 14 ? 9 : 10}
+                      tickLine={false}
+                      interval={chartData.length > 14 ? Math.max(0, Math.floor(chartData.length / 12)) : 0}
+                      angle={chartData.length > 10 ? -32 : 0}
+                      textAnchor={chartData.length > 10 ? 'end' : 'middle'}
+                      height={chartData.length > 10 ? 48 : 24}
+                    />
                     <YAxis
                       stroke="#64748b"
                       fontSize={10}
@@ -372,6 +418,11 @@ export function Dashboard() {
                         color: '#f1f5f9',
                         fontSize: '12px',
                       }}
+                      labelFormatter={(_, payload) =>
+                        payload?.[0]?.payload?.fullLabel != null
+                          ? String(payload[0].payload.fullLabel)
+                          : ''
+                      }
                       formatter={(value: number) => [formatMoney(value), 'Ventas']}
                       cursor={barCursor}
                     />
@@ -390,6 +441,7 @@ export function Dashboard() {
                     </defs>
                   </BarChart>
                 </ResponsiveContainer>
+                )}
               </div>
             </CardContent>
           </Card>

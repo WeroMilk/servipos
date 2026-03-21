@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { flushSync } from 'react-dom';
 import {
   Search,
   Plus,
@@ -31,6 +32,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { useShallow } from 'zustand/react/shallow';
 import { useCartStore, useAppStore, useAuthStore } from '@/stores';
 import { useProductSearch, useSales, useClients } from '@/hooks';
 import type { Product, FormaPago } from '@/types';
@@ -64,6 +66,34 @@ export function POS() {
   const { addToast } = useAppStore();
   const { addSale } = useSales();
 
+  const cart = useCartStore(
+    useShallow((s) => ({
+      items: s.items,
+      client: s.client,
+      discount: s.discount,
+      formaPago: s.formaPago,
+      metodoPago: s.metodoPago,
+      pagos: s.pagos,
+      addItem: s.addItem,
+      removeItem: s.removeItem,
+      updateQuantity: s.updateQuantity,
+      updateDiscount: s.updateDiscount,
+      setGlobalDiscount: s.setGlobalDiscount,
+      setFormaPago: s.setFormaPago,
+      setMetodoPago: s.setMetodoPago,
+      addPago: s.addPago,
+      removePago: s.removePago,
+      setClient: s.setClient,
+      clearCart: s.clearCart,
+      getSubtotal: s.getSubtotal,
+      getImpuestos: s.getImpuestos,
+      getDescuento: s.getDescuento,
+      getTotal: s.getTotal,
+      getTotalPagado: s.getTotalPagado,
+      getCambio: s.getCambio,
+    }))
+  );
+
   const {
     items,
     client,
@@ -88,31 +118,15 @@ export function POS() {
     getTotal,
     getTotalPagado,
     getCambio,
-  } = useCartStore();
+  } = cart;
 
-  /**
-   * Totales derivados con useMemo desde items/discount/pagos: los selectores inline tipo `(s) => s.getTotal()`
-   * cambian de identidad cada render y en React 19 + useSyncExternalStore pueden dejar el snapshot desincronizado (ej. botón Cobrar en $0.00).
-   */
-  const { subtotalVenta, descuentoVenta, impuestosVenta, totalVenta } = useMemo(() => {
-    const st = useCartStore.getState();
-    return {
-      subtotalVenta: st.getSubtotal(),
-      descuentoVenta: st.getDescuento(),
-      impuestosVenta: st.getImpuestos(),
-      totalVenta: st.getTotal(),
-    };
-  }, [items, discount]);
-
-  const totalPagadoVenta = useMemo(
-    () => useCartStore.getState().getTotalPagado(),
-    [pagos]
-  );
-
-  const cambioVenta = useMemo(
-    () => useCartStore.getState().getCambio(),
-    [items, discount, pagos]
-  );
+  /** Sin useMemo: se recalcula cada vez que useShallow detecta cambio en items/pagos/discount (evita Cobrar $0.00). */
+  const subtotalVenta = cart.getSubtotal();
+  const descuentoVenta = cart.getDescuento();
+  const impuestosVenta = cart.getImpuestos();
+  const totalVenta = cart.getTotal();
+  const totalPagadoVenta = cart.getTotalPagado();
+  const cambioVenta = cart.getCambio();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showProductSearch, setShowProductSearch] = useState(false);
@@ -251,8 +265,11 @@ export function POS() {
         cambio: getCambio(),
       });
       clearCart();
-      setShowPaymentDialog(false);
-      setShowTicketDialog(true);
+      // Cerrar el de pago de forma síncrona y abrir el de ticket tras 2 frames: reduce choques de portales (insertBefore/removeChild).
+      flushSync(() => setShowPaymentDialog(false));
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => setShowTicketDialog(true));
+      });
 
       addToast({ type: 'success', message: 'Venta completada exitosamente' });
     } catch (error: unknown) {
@@ -684,7 +701,7 @@ export function POS() {
               className="h-11 w-full min-w-0 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-sm font-bold text-white shadow-lg shadow-cyan-500/25 sm:h-12 sm:text-base md:h-14 md:text-lg"
             >
               <Wallet className="mr-2 h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
-              <span className="min-w-0 tabular-nums">
+              <span className="shrink-0 tabular-nums">
                 Cobrar {formatMoney(totalVenta)}
               </span>
             </Button>
@@ -704,7 +721,7 @@ export function POS() {
       </div>
 
       <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
-        <DialogContent className="top-4 left-1/2 max-h-[calc(100dvh-1rem)] w-[min(calc(100vw-1rem),28rem)] max-w-none -translate-x-1/2 translate-y-0 overflow-x-hidden overflow-y-auto border-slate-800 bg-slate-900 p-4 text-slate-100 sm:top-6 sm:max-h-[calc(100dvh-1.5rem)] sm:w-[min(calc(100vw-2rem),32rem)] sm:p-6">
+        <DialogContent className="left-1/2 top-1/2 max-h-[calc(100dvh-2rem)] w-[min(calc(100vw-1rem),28rem)] max-w-none -translate-x-1/2 -translate-y-1/2 overflow-x-hidden overflow-y-auto border-slate-800 bg-slate-900 p-4 text-slate-100 sm:max-h-[calc(100dvh-2.5rem)] sm:w-[min(calc(100vw-2rem),32rem)] sm:p-6">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
               <Receipt className="h-5 w-5 text-cyan-400 sm:h-6 sm:w-6" />
@@ -825,7 +842,7 @@ export function POS() {
       </Dialog>
 
       <Dialog open={showTicketDialog} onOpenChange={handleTicketDialogOpenChange}>
-        <DialogContent className="border-slate-800 bg-slate-900 text-slate-100 sm:max-w-sm">
+        <DialogContent className="z-[130] border-slate-800 bg-slate-900 text-slate-100 sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-center text-lg sm:text-xl">¡Venta completada!</DialogTitle>
           </DialogHeader>
