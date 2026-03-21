@@ -140,7 +140,13 @@ export function AdminSucursalSwitcher() {
           >
             <SelectValue placeholder="Elegir tienda">{triggerLabel}</SelectValue>
           </SelectTrigger>
-          <SelectContent className="border-slate-800 bg-slate-900">
+          <SelectContent
+            position="popper"
+            side="bottom"
+            sideOffset={6}
+            align="start"
+            className="z-[140] max-h-[min(85dvh,22rem)] w-[var(--radix-select-trigger-width)] border-slate-800 bg-slate-900 data-[side=top]:max-h-[min(85dvh,22rem)]"
+          >
             {orphanOverride && activeSucursalId ? (
               <SelectItem value={activeSucursalId} className="text-slate-100">
                 Guardada: {activeSucursalId.slice(0, 10)}…
