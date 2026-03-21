@@ -462,7 +462,7 @@ export function Inventario() {
       </div>
 
       {effectiveSucursalId && pendingIncoming.length > 0 ? (
-        <div className="shrink-0 rounded-xl border border-amber-500/35 bg-amber-500/5 p-3 sm:p-4">
+        <div className="mt-3 shrink-0 rounded-xl border border-amber-500/35 bg-amber-500/5 p-3 sm:mt-4 sm:p-4">
           <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-200/95">
             <Truck className="h-4 w-4 shrink-0 text-amber-400" />
             Traspasos pendientes de recibir
@@ -470,49 +470,53 @@ export function Inventario() {
               {pendingIncoming.length}
             </Badge>
           </div>
-          <p className="mb-3 text-[11px] leading-snug text-slate-500 sm:text-xs">
+          <p className="mb-2 text-[11px] leading-snug text-slate-500 sm:text-xs">
             Otro almacén envió mercancía a esta tienda. Confirma cuando la hayas recibido físicamente para sumar el
             inventario aquí.
           </p>
-          <ul className="space-y-3">
-            {pendingIncoming.map((t) => (
-              <li
-                key={t.id}
-                className="rounded-lg border border-slate-800/80 bg-slate-950/50 p-3 text-xs text-slate-300 sm:text-sm"
-              >
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0 space-y-1">
-                    <p className="font-medium text-slate-100">
-                      Desde {nombreSucursal(t.origenSucursalId)} ·{' '}
-                      <span className="font-mono text-cyan-400/90">{t.origenFolio}</span>
-                    </p>
-                    <p className="text-[11px] text-slate-500">
-                      {t.items.length} partida(s) ·{' '}
-                      {t.items.reduce((s, it) => s + it.cantidad, 0)} pzas. total
-                      {t.usuarioNombre ? ` · Enviado por ${t.usuarioNombre}` : ''}
-                    </p>
-                    <ul className="mt-2 max-h-24 list-inside list-disc overflow-y-auto text-[11px] text-slate-500">
-                      {t.items.map((it, i) => (
-                        <li key={i}>
-                          {it.nombre} × {it.cantidad}
-                          {it.sku ? ` (SKU ${it.sku})` : ''}
-                        </li>
-                      ))}
-                    </ul>
+          <div
+            className="w-full snap-x snap-mandatory overflow-x-auto overflow-y-visible scroll-smooth [-webkit-overflow-scrolling:touch]"
+            style={{ scrollbarWidth: 'thin' }}
+          >
+            <div className="grid auto-cols-[100%] grid-flow-col gap-3">
+              {pendingIncoming.map((t) => (
+                <div key={t.id} className="min-w-0 snap-center snap-always px-0.5">
+                  <div className="rounded-lg border border-slate-800/80 bg-slate-950/50 p-3 text-xs text-slate-300 sm:text-sm">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0 space-y-1">
+                        <p className="font-medium text-slate-100">
+                          Desde {nombreSucursal(t.origenSucursalId)} ·{' '}
+                          <span className="font-mono text-cyan-400/90">{t.origenFolio}</span>
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          {t.items.length} partida(s) ·{' '}
+                          {t.items.reduce((s, it) => s + it.cantidad, 0)} pzas. total
+                          {t.usuarioNombre ? ` · Enviado por ${t.usuarioNombre}` : ''}
+                        </p>
+                        <ul className="mt-2 max-h-24 list-inside list-disc overflow-y-auto text-[11px] text-slate-500">
+                          {t.items.map((it, i) => (
+                            <li key={i}>
+                              {it.nombre} × {it.cantidad}
+                              {it.sku ? ` (SKU ${it.sku})` : ''}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={confirmingTransferId === t.id}
+                        className="w-full shrink-0 bg-emerald-600 text-white hover:bg-emerald-500 sm:w-auto"
+                        onClick={() => void handleConfirmIncomingTransfer(t.id)}
+                      >
+                        {confirmingTransferId === t.id ? 'Confirmando…' : 'Confirmar recepción'}
+                      </Button>
+                    </div>
                   </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={confirmingTransferId === t.id}
-                    className="shrink-0 bg-emerald-600 text-white hover:bg-emerald-500"
-                    onClick={() => void handleConfirmIncomingTransfer(t.id)}
-                  >
-                    {confirmingTransferId === t.id ? 'Confirmando…' : 'Confirmar recepción'}
-                  </Button>
                 </div>
-              </li>
-            ))}
-          </ul>
+              ))}
+            </div>
+          </div>
         </div>
       ) : null}
 

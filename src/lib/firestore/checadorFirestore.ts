@@ -243,6 +243,16 @@ export async function punchCierre(user: User): Promise<void> {
   });
 }
 
+function sortChecadorRows(list: ChecadorDiaRegistro[]): ChecadorDiaRegistro[] {
+  const next = [...list];
+  next.sort((a, b) => {
+    const dc = b.dateKey.localeCompare(a.dateKey);
+    if (dc !== 0) return dc;
+    return a.userName.localeCompare(b.userName, 'es', { sensitivity: 'base' });
+  });
+  return next;
+}
+
 export async function fetchChecadorByQuincena(quincenaId: string): Promise<ChecadorDiaRegistro[]> {
   const q = query(
     collection(db, COL),
@@ -252,10 +262,29 @@ export async function fetchChecadorByQuincena(quincenaId: string): Promise<Checa
   );
   const snap = await getDocs(q);
   const list = snap.docs.map((s) => docToChecadorDia(s.id, s.data() as Record<string, unknown>));
-  list.sort((a, b) => {
-    const dc = b.dateKey.localeCompare(a.dateKey);
-    if (dc !== 0) return dc;
-    return a.userName.localeCompare(b.userName, 'es', { sensitivity: 'base' });
-  });
-  return list;
+  return sortChecadorRows(list);
+}
+
+/** Actualización en vivo de la tabla por quincena (mismos filtros que fetch). */
+export function subscribeChecadorByQuincena(
+  quincenaId: string,
+  onData: (rows: ChecadorDiaRegistro[]) => void
+): Unsubscribe {
+  const q = query(
+    collection(db, COL),
+    where('quincenaId', '==', quincenaId),
+    orderBy('dateKey', 'desc'),
+    limit(500)
+  );
+  return onSnapshot(
+    q,
+    (snap) => {
+      const list = snap.docs.map((s) => docToChecadorDia(s.id, s.data() as Record<string, unknown>));
+      onData(sortChecadorRows(list));
+    },
+    (err) => {
+      console.error('subscribeChecadorByQuincena:', err);
+      onData([]);
+    }
+  );
 }

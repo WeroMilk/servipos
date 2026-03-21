@@ -23,13 +23,13 @@ import { useAuthStore, useAppStore } from '@/stores';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 import { subscribeFirestoreDirectoryUsers } from '@/lib/firestore/usersDirectoryFirestore';
 import {
-  fetchChecadorByQuincena,
   filterChecadorRowsBySucursal,
   punchCierre,
   punchEntrada,
   punchRegresoComer,
   punchSalidaComer,
   reiniciarJornadaMismoDia,
+  subscribeChecadorByQuincena,
   subscribeChecadorDia,
 } from '@/lib/firestore/checadorFirestore';
 import {
@@ -114,30 +114,16 @@ export function Checador() {
   useEffect(() => {
     if (!canReporte || !user?.id) {
       setReportRows([]);
+      setReportLoading(false);
       return;
     }
-    let cancelled = false;
     setReportLoading(true);
-    void fetchChecadorByQuincena(quincenaSel)
-      .then((rows) => {
-        if (!cancelled) setReportRows(rows);
-      })
-      .catch((e) => {
-        console.error(e);
-        if (!cancelled) {
-          addToast({
-            type: 'error',
-            message: e instanceof Error ? e.message : 'Error al cargar reporte',
-          });
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setReportLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [quincenaSel, canReporte, user?.id, addToast]);
+    const unsub = subscribeChecadorByQuincena(quincenaSel, (rows) => {
+      setReportRows(rows);
+      setReportLoading(false);
+    });
+    return () => unsub();
+  }, [quincenaSel, canReporte, user?.id]);
 
   const userSucursalByUid = useMemo(() => {
     const m = new Map<string, string | undefined>();

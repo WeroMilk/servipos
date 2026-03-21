@@ -11,7 +11,10 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { IncomingStoreTransfer, StoreTransferLine } from '@/types';
-import { resolveDestProductIdForTransfer } from '@/lib/firestore/productsFirestore';
+import {
+  ensureProductAtDestForTransfer,
+  resolveDestProductIdForTransfer,
+} from '@/lib/firestore/productsFirestore';
 
 function incomingTransfersCol(sucursalId: string) {
   return collection(db, 'sucursales', sucursalId, 'incomingTransfers');
@@ -130,16 +133,16 @@ export async function confirmIncomingStoreTransfer(
   const resolved: { destProductId: string; cantidad: number; nombre: string }[] = [];
   for (const line of items) {
     if (line.cantidad <= 0) continue;
-    const pid = await resolveDestProductIdForTransfer(
+    let pid = await resolveDestProductIdForTransfer(
       destSucursalId,
       line.productIdOrigen,
       line.sku
     );
     if (!pid) {
-      throw new Error(
-        `No hay producto en esta tienda para "${line.nombre}" (SKU: ${line.sku || '—'}). ` +
-          'Use el mismo id de producto que en origen o un SKU único coincidente.'
-      );
+      pid = await ensureProductAtDestForTransfer(destSucursalId, origenSucursalId, line.productIdOrigen, {
+        nombre: line.nombre,
+        sku: line.sku,
+      });
     }
     resolved.push({ destProductId: pid, cantidad: line.cantidad, nombre: line.nombre });
   }

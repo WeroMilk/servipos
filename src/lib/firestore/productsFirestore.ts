@@ -256,6 +256,79 @@ export async function adjustStockFirestore(
 /**
  * Para recibir traspaso: mismo id de documento en destino, o un único producto activo con el mismo SKU.
  */
+/**
+ * Crea en destino un producto con el mismo id que en origen (o mínimo desde la línea del traspaso si no hay copia posible).
+ * Existencia inicial 0; la confirmación del traspaso suma la cantidad recibida.
+ */
+export async function ensureProductAtDestForTransfer(
+  destSucursalId: string,
+  origenSucursalId: string,
+  productIdOrigen: string,
+  fallback: { nombre: string; sku: string }
+): Promise<string> {
+  const destRef = doc(db, 'sucursales', destSucursalId, 'products', productIdOrigen);
+  const destEx = await getDoc(destRef);
+  if (destEx.exists()) {
+    const act = destEx.data()?.activo;
+    if (act !== false) return productIdOrigen;
+  }
+
+  const origRef = doc(db, 'sucursales', origenSucursalId, 'products', productIdOrigen);
+  let originOd: Record<string, unknown> | null = null;
+  try {
+    const origSnap = await getDoc(origRef);
+    if (origSnap.exists()) originOd = origSnap.data() as Record<string, unknown>;
+  } catch {
+    originOd = null;
+  }
+
+  const ts = serverTimestamp();
+  if (originOd) {
+    const od = originOd;
+    await setDoc(destRef, {
+      sku: String(od.sku ?? fallback.sku ?? '').trim() || `T-${productIdOrigen.slice(0, 8)}`,
+      codigoBarras: od.codigoBarras != null ? String(od.codigoBarras) : null,
+      nombre: String(od.nombre ?? fallback.nombre).trim() || fallback.nombre,
+      descripcion: od.descripcion != null ? String(od.descripcion) : null,
+      precioVenta: typeof od.precioVenta === 'number' ? od.precioVenta : Number(od.precioVenta) || 0,
+      precioCompra: od.precioCompra != null ? Number(od.precioCompra) : null,
+      impuesto: typeof od.impuesto === 'number' ? od.impuesto : Number(od.impuesto) || 16,
+      existencia: 0,
+      existenciaMinima:
+        typeof od.existenciaMinima === 'number' ? od.existenciaMinima : Number(od.existenciaMinima) || 0,
+      categoria: od.categoria != null ? String(od.categoria) : null,
+      proveedor: od.proveedor != null ? String(od.proveedor) : null,
+      imagen: od.imagen != null ? String(od.imagen) : null,
+      unidadMedida: String(od.unidadMedida ?? 'H87'),
+      activo: true,
+      createdAt: ts,
+      updatedAt: ts,
+    });
+  } else {
+    const sku =
+      (fallback.sku ?? '').trim() || `T-${productIdOrigen.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 12) || 'SKU'}`;
+    await setDoc(destRef, {
+      sku,
+      codigoBarras: null,
+      nombre: (fallback.nombre ?? '').trim() || 'Producto (traspaso)',
+      descripcion: null,
+      precioVenta: 0,
+      precioCompra: null,
+      impuesto: 16,
+      existencia: 0,
+      existenciaMinima: 0,
+      categoria: null,
+      proveedor: null,
+      imagen: null,
+      unidadMedida: 'H87',
+      activo: true,
+      createdAt: ts,
+      updatedAt: ts,
+    });
+  }
+  return productIdOrigen;
+}
+
 export async function resolveDestProductIdForTransfer(
   destSucursalId: string,
   productIdOrigen: string,
