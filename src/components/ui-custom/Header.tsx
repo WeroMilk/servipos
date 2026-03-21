@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LogOut, User, Zap } from 'lucide-react';
 import { useAuthStore, useSyncStore } from '@/stores';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { reportAppEvent } from '@/lib/appEventLog';
 import { AdminSucursalSwitcher } from '@/components/ui-custom/AdminSucursalSwitcher';
 import { AppEventsNotificationPanel } from '@/components/ui-custom/AppEventsNotificationPanel';
+import { BRAND_LOGO_URL } from '@/lib/branding';
 
 export function Header() {
   const navigate = useNavigate();
@@ -49,7 +50,23 @@ export function Header() {
       )}
     >
       <div className="flex min-w-0 items-center px-0.5">
-        <p className="text-xs font-semibold tracking-[0.18em] text-slate-500 sm:text-sm">MENÚ</p>
+        <Link
+          to="/"
+          className="flex min-w-0 max-w-[min(72vw,16rem)] items-center gap-2 rounded-lg py-1 pr-1 outline-none ring-cyan-500/40 focus-visible:ring-2 sm:hidden"
+          aria-label="Ir a inicio"
+        >
+          <img
+            src={BRAND_LOGO_URL}
+            alt=""
+            className="h-8 w-8 shrink-0 rounded-md object-contain"
+            width={32}
+            height={32}
+          />
+          <span className="truncate text-sm font-semibold tracking-tight text-slate-100">SERVIPARTZ</span>
+        </Link>
+        <p className="hidden text-xs font-semibold tracking-[0.18em] text-slate-500 sm:block sm:text-sm">
+          MENÚ
+        </p>
       </div>
 
       <div className="flex shrink-0 items-center gap-2 sm:gap-3">
@@ -73,7 +90,7 @@ export function Header() {
           </span>
         </button>
 
-        <AppEventsNotificationPanel />
+        {user && user.role !== 'cashier' ? <AppEventsNotificationPanel /> : null}
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

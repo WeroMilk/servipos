@@ -88,6 +88,9 @@ export interface FiscalConfig {
   codigoUsoCfdi: string;
   serie: string;
   folioActual: number;
+  /** Serie y folio para CFDI de nómina (folios autorizados ante el SAT). */
+  serieNomina?: string;
+  folioNominaActual?: number;
   lugarExpedicion: string; // Código postal
   certificadoCsd?: string;
   llavePrivadaCsd?: string;
@@ -182,6 +185,8 @@ export interface Client {
   telefono?: string;
   direccion?: Direccion;
   isMostrador: boolean; // Cliente genérico para ventas de mostrador
+  /** Número de tickets de compra completados (ventas) asociados a este cliente. */
+  ticketsComprados?: number;
   /** Aislamiento por tienda en datos locales (Dexie). */
   sucursalId?: string;
   createdAt: Date;

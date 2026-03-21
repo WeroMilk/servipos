@@ -86,7 +86,9 @@ Guía paso a paso: **[docs/VERCEL.md](docs/VERCEL.md)** (incluye dominio autoriz
 | Usuario | Contraseña | Rol |
 |---------|------------|-----|
 | zavala | sombra123+ | Administrador |
-| gabriel | veneno123+ | Cajero |
+| gabriel | veneno123+ | Administrador |
+
+En **producción (Firebase)**, el rol y la tienda vienen del documento `users/{UID}` en Firestore. Para que un usuario coincida con otro admin en la misma sucursal, asigne el mismo `sucursalId` y `role: "admin"` (desde **Configuración → Usuarios** o desde la consola de Firebase).
 
 Al cargar la app se migran las cuentas antiguas (`admin` / `cajero`) a las anteriores.
 

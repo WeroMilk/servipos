@@ -89,6 +89,7 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
   const [form, setForm] = useState(emptyForm);
   const [deactivateTarget, setDeactivateTarget] = useState<User | null>(null);
   const [saving, setSaving] = useState(false);
+  const [sucursalSavingUid, setSucursalSavingUid] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -188,6 +189,22 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
     }
   };
 
+  const handleSucursalQuickAssign = async (uid: string, value: string) => {
+    const sucursalId = value === '__none__' ? null : value;
+    setSucursalSavingUid(uid);
+    try {
+      await updateFirestoreDirectoryUser(uid, { sucursalId });
+      addToast({ type: 'success', message: 'Tienda asignada al usuario' });
+    } catch (e) {
+      addToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'No se pudo actualizar la tienda',
+      });
+    } finally {
+      setSucursalSavingUid(null);
+    }
+  };
+
   const confirmDeactivate = async () => {
     if (!deactivateTarget || !currentUser) return;
     try {
@@ -242,6 +259,14 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
               contraseña de usuarios existentes se gestiona desde Firebase o recuperación de
               correo.
             </p>
+            <p className="mb-3 rounded-md border border-slate-800/80 bg-slate-800/30 px-2.5 py-2 text-[11px] leading-snug text-slate-400 sm:text-xs">
+              <span className="font-medium text-slate-300">Tienda asignada:</span> indica en qué
+              sucursal opera el usuario (mismo id que el documento en{' '}
+              <code className="text-cyan-500/90">sucursales</code> en Firestore). Los{' '}
+              <span className="text-slate-300">administradores</span> pueden además cambiar la tienda
+              activa en la barra superior; si no eligen una, se usa la del perfil o la predeterminada
+              del entorno.
+            </p>
             <div className="overflow-x-auto rounded-lg border border-slate-800/60">
               <Table className={embedded ? 'text-sm' : undefined}>
                 <TableHeader>
@@ -252,8 +277,8 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
                     <TableHead className={cn('text-slate-400', embedded && 'h-8 py-1.5')}>
                       Nombre
                     </TableHead>
-                    <TableHead className={cn('text-slate-400', embedded && 'h-8 py-1.5')}>
-                      Sucursal
+                    <TableHead className={cn('min-w-[11rem] text-slate-400', embedded && 'h-8 py-1.5')}>
+                      Tienda / sucursal
                     </TableHead>
                     <TableHead className={cn('text-slate-400', embedded && 'h-8 py-1.5')}>
                       Rol
@@ -300,8 +325,39 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
                         <TableCell className={cn('text-slate-300', embedded && 'py-1.5')}>
                           {u.name}
                         </TableCell>
-                        <TableCell className={cn('text-slate-400', embedded && 'py-1.5')}>
-                          {sucursalLabel(u.sucursalId)}
+                        <TableCell className={cn('py-1.5 align-middle', embedded && 'py-1.5')}>
+                          <Select
+                            value={u.sucursalId ?? '__none__'}
+                            disabled={!u.isActive || sucursalSavingUid === u.id}
+                            onValueChange={(v) => void handleSucursalQuickAssign(u.id, v)}
+                          >
+                            <SelectTrigger
+                              className={cn(
+                                'h-8 w-[min(100%,11rem)] border-slate-700 bg-slate-800/90 text-xs text-slate-100',
+                                embedded && 'h-7 text-[11px]'
+                              )}
+                              aria-label={`Tienda de ${u.name}`}
+                            >
+                              <SelectValue placeholder="Sin asignar" />
+                            </SelectTrigger>
+                            <SelectContent className="border-slate-800 bg-slate-900">
+                              <SelectItem value="__none__" className="text-slate-100">
+                                Sin asignar
+                              </SelectItem>
+                              {u.sucursalId &&
+                                !sucursalesActivas.some((s) => s.id === u.sucursalId) && (
+                                  <SelectItem value={u.sucursalId} className="text-slate-100">
+                                    {sucursalLabel(u.sucursalId)} (id actual)
+                                  </SelectItem>
+                                )}
+                              {sucursalesActivas.map((s) => (
+                                <SelectItem key={s.id} value={s.id} className="text-slate-100">
+                                  {s.nombre}
+                                  {s.codigo ? ` (${s.codigo})` : ''}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </TableCell>
                         <TableCell className={cn('text-slate-400', embedded && 'py-1.5')}>
                           {u.role === 'admin' ? 'Administrador' : 'Cajero'}
@@ -420,7 +476,11 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
               />
             </div>
             <div className="space-y-2">
-              <Label>Sucursal</Label>
+              <Label>Tienda / sucursal asignada</Label>
+              <p className="text-[11px] leading-snug text-slate-500">
+                Debe coincidir con el id del documento en Firestore{' '}
+                <code className="text-slate-400">sucursales</code> (ej. Olivares).
+              </p>
               <Select
                 value={form.sucursalId || '__none__'}
                 onValueChange={(v) =>

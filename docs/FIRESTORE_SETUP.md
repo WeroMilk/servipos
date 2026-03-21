@@ -105,7 +105,7 @@ Crea al menos un documento para enlazar usuarios.
 | `createdAt`   | timestamp   | “ahora”                          |
 | `updatedAt`   | timestamp   | “ahora”                          |
 
-6. Repite: **nuevo documento** en `users` con el **UID** del otro usuario (Gabriel) y sus datos; mismo `sucursalId` si ambos son de la misma tienda.
+6. Repite: **nuevo documento** en `users` con el **UID** del otro usuario (Gabriel) y sus datos. Para que vea **la misma app que un admin** en una tienda concreta (p. ej. Olivares), use el **mismo** `sucursalId` que el documento de esa tienda en `sucursales` y `role: "admin"`. Si es cajero (`cashier`), verá menos menús y no podrá usar el selector de tienda de la barra.
 
 ### Resumen visual de la estructura
 
@@ -128,7 +128,7 @@ Si **no** existe el documento en `users` para ese UID, la app **sí** puede inic
 - El rol vive en **Firestore**, en el documento `users/{UID}`, campo **`role`** (tipo string):
   - `admin` → permisos completos (inventario editar/eliminar, facturas, configuración, usuarios, etc.).
   - `cashier` (o cualquier otro texto, o si falta el campo) → se trata como **cajero** (ventas, ver inventario, cotizaciones).
-- Ejemplo: Zavala `role: "admin"`, Gabriel `role: "cashier"`.
+- Ejemplo: Zavala y Gabriel en Olivares: ambos `role: "admin"` y el mismo `sucursalId` (id del doc de Olivares en `sucursales`). Desde la app, en **Configuración → Usuarios**, un admin también puede cambiar rol y tienda sin abrir la consola de Firebase.
 
 ## 5. Índices
 

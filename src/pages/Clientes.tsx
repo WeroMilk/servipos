@@ -8,7 +8,8 @@ import {
   MapPin,
   Mail,
   Phone,
-  MoreHorizontal
+  MoreHorizontal,
+  Ticket,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,13 +46,20 @@ import { ClientAddressSonoraFields } from '@/components/ui-custom/ClientAddressS
 import { cn } from '@/lib/utils';
 import { ESTADO_SONORA, lookupCp } from '@/data/sonoraAddress';
 
-type ClientSortMode = 'nombre' | 'rfc' | 'email';
+type ClientSortMode = 'nombre' | 'rfc' | 'email' | 'tickets';
 
 function sortClients(list: Client[], mode: ClientSortMode): Client[] {
   const next = [...list];
   const cmp = (a: string, b: string) => a.localeCompare(b, 'es', { sensitivity: 'base' });
   if (mode === 'nombre') {
     next.sort((x, y) => cmp(x.nombre || '', y.nombre || ''));
+  } else if (mode === 'tickets') {
+    next.sort((x, y) => {
+      const a = x.ticketsComprados ?? 0;
+      const b = y.ticketsComprados ?? 0;
+      if (b !== a) return b - a;
+      return cmp(x.nombre || '', y.nombre || '');
+    });
   } else if (mode === 'rfc') {
     next.sort((x, y) => {
       const xr = (x.rfc || '').trim();
@@ -311,8 +319,21 @@ export function Clientes() {
       </div>
 
       <Card className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50">
-        <CardHeader className="shrink-0 space-y-0 py-2">
+        <CardHeader className="flex shrink-0 flex-row flex-wrap items-center justify-between gap-2 space-y-0 py-2">
           <CardTitle className="text-sm text-slate-100 sm:text-base">Lista</CardTitle>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className={cn(
+              'h-8 shrink-0 text-xs text-slate-400 hover:bg-slate-800 hover:text-cyan-400',
+              sortMode === 'tickets' && 'text-cyan-400'
+            )}
+            onClick={() => setSortMode((m) => (m === 'tickets' ? 'nombre' : 'tickets'))}
+          >
+            <Ticket className="mr-1.5 h-3.5 w-3.5" />
+            {sortMode === 'tickets' ? 'Más compras primero' : 'Mejores clientes'}
+          </Button>
         </CardHeader>
         <CardContent className="min-h-0 flex-1 overflow-auto p-0">
           <div className="space-y-2 p-2 md:hidden">
@@ -330,10 +351,17 @@ export function Clientes() {
                 >
                   <button
                     type="button"
-                    className="w-full text-left"
+                    className="flex w-full items-start justify-between gap-2 text-left"
                     onClick={() => setDetailClient(client)}
                   >
-                    <p className="truncate font-medium text-slate-100">{client.nombre}</p>
+                    <p className="min-w-0 flex-1 truncate font-medium text-slate-100">{client.nombre}</p>
+                    <span
+                      className="flex shrink-0 items-center gap-1 rounded-lg border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-amber-400"
+                      title="Tickets de compra (ventas completadas)"
+                    >
+                      <Ticket className="h-3 w-3" aria-hidden />
+                      {client.ticketsComprados ?? 0}
+                    </span>
                     {client.rfc ? (
                       <p className="mt-1 truncate text-xs text-emerald-400">{client.rfc}</p>
                     ) : null}
@@ -370,6 +398,7 @@ export function Clientes() {
               <TableHeader>
                 <TableRow className="border-slate-800">
                   <TableHead className="text-slate-400">Cliente</TableHead>
+                  <TableHead className="w-[5.5rem] text-center text-slate-400">Compras</TableHead>
                   <TableHead className="text-slate-400">RFC</TableHead>
                   <TableHead className="text-slate-400">Contacto</TableHead>
                   <TableHead className="text-slate-400">Dirección</TableHead>
@@ -379,13 +408,13 @@ export function Clientes() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="py-8 text-center">
+                    <TableCell colSpan={6} className="py-8 text-center">
                       <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-cyan-500/30 border-t-cyan-500" />
                     </TableCell>
                   </TableRow>
                 ) : displayClients.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="py-8 text-center text-slate-500">
+                    <TableCell colSpan={6} className="py-8 text-center text-slate-500">
                       No se encontraron clientes
                     </TableCell>
                   </TableRow>
@@ -403,6 +432,15 @@ export function Clientes() {
                             <p className="truncate text-xs text-slate-500">{client.razonSocial}</p>
                           ) : null}
                         </button>
+                      </TableCell>
+                      <TableCell className="align-top text-center">
+                        <span
+                          className="inline-flex items-center justify-center gap-1 rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold tabular-nums text-amber-400"
+                          title="Tickets de compra"
+                        >
+                          <Ticket className="h-3.5 w-3.5" aria-hidden />
+                          {client.ticketsComprados ?? 0}
+                        </span>
                       </TableCell>
                       <TableCell className="align-top">
                         {client.rfc ? (
@@ -710,6 +748,16 @@ export function Clientes() {
               <div>
                 <p className="text-slate-500">Nombre</p>
                 <p className="text-slate-100">{detailClient.nombre}</p>
+              </div>
+              <div>
+                <p className="text-slate-500">Tickets de compra</p>
+                <p className="inline-flex items-center gap-1.5 text-amber-400">
+                  <Ticket className="h-4 w-4 shrink-0" />
+                  <span className="text-lg font-semibold tabular-nums">
+                    {detailClient.ticketsComprados ?? 0}
+                  </span>
+                  <span className="text-xs font-normal text-slate-500">(ventas por ticket)</span>
+                </p>
               </div>
               {detailClient.rfc ? (
                 <div>

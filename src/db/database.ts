@@ -16,6 +16,7 @@ import {
   createSaleFirestore,
   cancelSaleFirestore,
   patchSaleInvoiceFirestore,
+  getSaleByIdFirestore,
 } from '@/lib/firestore/salesFirestore';
 import { getDefaultSucursalIdForNewData } from '@/lib/sucursales';
 
@@ -155,6 +156,7 @@ export async function initializeDemoData(): Promise<void> {
       name: 'Zavala',
       email: 'zavala@servipartz.local',
       role: 'admin',
+      sucursalId: getDefaultSucursalIdForNewData(),
       isActive: true,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -166,7 +168,8 @@ export async function initializeDemoData(): Promise<void> {
       password: 'veneno123+',
       name: 'Gabriel',
       email: 'gabriel@servipartz.local',
-      role: 'cashier',
+      role: 'admin',
+      sucursalId: getDefaultSucursalIdForNewData(),
       isActive: true,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -272,6 +275,7 @@ export async function syncServipartzSeedUsers(): Promise<void> {
       name: 'Zavala',
       email: 'zavala@servipartz.local',
       role: 'admin',
+      sucursalId: getDefaultSucursalIdForNewData(),
       isActive: true,
     },
     {
@@ -280,7 +284,8 @@ export async function syncServipartzSeedUsers(): Promise<void> {
       password: 'veneno123+',
       name: 'Gabriel',
       email: 'gabriel@servipartz.local',
-      role: 'cashier',
+      role: 'admin',
+      sucursalId: getDefaultSucursalIdForNewData(),
       isActive: true,
     },
   ];
@@ -294,6 +299,7 @@ export async function syncServipartzSeedUsers(): Promise<void> {
         email: u.email,
         role: u.role,
         isActive: u.isActive,
+        sucursalId: u.sucursalId,
         updatedAt: new Date(),
       });
     } else {
@@ -471,7 +477,9 @@ export async function createSale(
   options?: { sucursalId?: string }
 ): Promise<string> {
   if (options?.sucursalId) {
-    return createSaleFirestore(options.sucursalId, sale);
+    const id = await createSaleFirestore(options.sucursalId, sale);
+    await adjustClientTicketCount(sale.clienteId, 1);
+    return id;
   }
 
   const folio =
@@ -498,6 +506,7 @@ export async function createSale(
     );
   }
 
+  await adjustClientTicketCount(sale.clienteId, 1);
   return id as string;
 }
 
@@ -507,7 +516,16 @@ export async function cancelSale(
   options?: { sucursalId?: string }
 ): Promise<void> {
   if (options?.sucursalId) {
+    const prev = await getSaleByIdFirestore(options.sucursalId, id);
     await cancelSaleFirestore(options.sucursalId, id, motivo);
+    if (
+      prev &&
+      prev.estado !== 'cancelada' &&
+      prev.clienteId &&
+      prev.clienteId !== MOSTRADOR_CLIENT_ID
+    ) {
+      await adjustClientTicketCount(prev.clienteId, -1);
+    }
     return;
   }
 
@@ -534,6 +552,10 @@ export async function cancelSale(
     updatedAt: new Date(),
     syncStatus: 'pending',
   });
+
+  if (sale.clienteId && sale.clienteId !== MOSTRADOR_CLIENT_ID) {
+    await adjustClientTicketCount(sale.clienteId, -1);
+  }
 }
 
 // ============================================
@@ -702,6 +724,25 @@ export async function cancelInvoice(
 // ============================================
 // FUNCIONES DE CLIENTES
 // ============================================
+
+const MOSTRADOR_CLIENT_ID = 'mostrador';
+
+/** Ajusta el contador de tickets de compra del cliente (Dexie). No interrumpe ventas si falla. */
+export async function adjustClientTicketCount(clienteId: string | undefined, delta: number): Promise<void> {
+  if (!clienteId || clienteId === MOSTRADOR_CLIENT_ID || delta === 0) return;
+  try {
+    const row = await db.clients.get(clienteId);
+    if (!row || row.isMostrador) return;
+    const next = Math.max(0, (row.ticketsComprados ?? 0) + delta);
+    await db.clients.update(clienteId, {
+      ticketsComprados: next,
+      updatedAt: new Date(),
+      syncStatus: 'pending',
+    });
+  } catch (e) {
+    console.error('adjustClientTicketCount:', e);
+  }
+}
 
 export async function getClients(sucursalId?: string): Promise<Client[]> {
   if (sucursalId) {

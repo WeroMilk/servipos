@@ -10,6 +10,7 @@ import {
   Lock,
   Users,
   MapPin,
+  Wallet,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,12 +26,13 @@ import { REGIMENES_FISCALES, USOS_CFDI } from '@/types';
 import { cn } from '@/lib/utils';
 
 export function Configuracion() {
-  const { config, isConfigured, saveConfig } = useFiscalConfig();
+  const { config, isConfigured, saveConfig, updateConfig } = useFiscalConfig();
   const { addToast } = useAppStore();
   const { hasPermission } = useAuthStore();
   const canManageUsers = hasPermission('usuarios:gestionar');
   const canManageSucursales = hasPermission('sucursales:gestionar');
   const adminExtraTabs = (canManageUsers ? 1 : 0) + (canManageSucursales ? 1 : 0);
+  const totalTabs = 4 + adminExtraTabs;
   
   const [activeTab, setActiveTab] = useState('fiscal');
   
@@ -43,6 +45,8 @@ export function Configuracion() {
     codigoUsoCfdi: 'G03',
     serie: 'A',
     folioActual: 1,
+    serieNomina: 'N',
+    folioNominaActual: 1,
     lugarExpedicion: '',
     telefono: '',
     email: '',
@@ -67,6 +71,8 @@ export function Configuracion() {
         codigoUsoCfdi: config.codigoUsoCfdi || 'G03',
         serie: config.serie || 'A',
         folioActual: config.folioActual || 1,
+        serieNomina: config.serieNomina ?? 'N',
+        folioNominaActual: config.folioNominaActual ?? 1,
         lugarExpedicion: config.lugarExpedicion || '',
         telefono: config.telefono || '',
         email: config.email || '',
@@ -115,6 +121,28 @@ export function Configuracion() {
     );
   };
 
+  const handleSaveNominaFolios = async () => {
+    const serie = fiscalForm.serieNomina?.trim();
+    if (!serie || !fiscalForm.folioNominaActual) return;
+    try {
+      if (!config) {
+        addToast({
+          type: 'error',
+          message: 'Guarde primero los datos fiscales en la pestaña «Datos fiscales».',
+        });
+        return;
+      }
+      await updateConfig({
+        serieNomina: serie,
+        folioNominaActual: fiscalForm.folioNominaActual,
+      });
+      addToast({ type: 'success', message: 'Folios de nómina guardados' });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Error al guardar';
+      addToast({ type: 'error', message });
+    }
+  };
+
   const fieldClass =
     'h-8 border-slate-700 bg-slate-800/50 text-sm text-slate-100';
   const selectClass =
@@ -152,9 +180,9 @@ export function Configuracion() {
         <TabsList
           className={cn(
             'grid h-auto w-full shrink-0 gap-1 bg-slate-900/50 p-1',
-            adminExtraTabs === 0 && 'grid-cols-3',
-            adminExtraTabs === 1 && 'grid-cols-2 sm:grid-cols-4',
-            adminExtraTabs >= 2 && 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5'
+            totalTabs <= 4 && 'grid-cols-2 sm:grid-cols-4',
+            totalTabs === 5 && 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5',
+            totalTabs >= 6 && 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6'
           )}
         >
           <TabsTrigger
@@ -177,6 +205,13 @@ export function Configuracion() {
           >
             <FileKey className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
             Certificados
+          </TabsTrigger>
+          <TabsTrigger
+            value="nominas"
+            className="h-9 w-full text-xs data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400 sm:text-sm"
+          >
+            <Wallet className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
+            Nóminas
           </TabsTrigger>
           {canManageSucursales && (
             <TabsTrigger
@@ -584,6 +619,122 @@ export function Configuracion() {
                   <p className="mt-2 text-[11px] text-slate-500 sm:text-xs">
                     El XML CFDI 4.0 generado aquí puede enviarse a cualquiera de ellos.
                   </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent
+          value="nominas"
+          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
+        >
+          <div className="grid min-h-0 w-full min-w-0 flex-1 grid-cols-1 gap-3 overflow-y-auto overscroll-y-contain lg:grid-cols-2 lg:gap-3">
+            <Card className="flex min-h-0 min-w-0 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50">
+              <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
+                <CardTitle className="flex items-center gap-2 text-sm text-slate-100 sm:text-base">
+                  <Wallet className="h-4 w-4 shrink-0 text-cyan-400 sm:h-5 sm:w-5" />
+                  Nómina electrónica (CFDI)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex min-h-0 flex-1 flex-col gap-3 p-3 sm:p-4">
+                <div className="flex gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/10 p-2">
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                  <p className="text-[11px] leading-snug text-emerald-400/90 sm:text-xs">
+                    Con <span className="font-medium text-emerald-300">serie y folio autorizados por el SAT</span>, el
+                    mismo <span className="font-medium text-emerald-300">CSD</span> y un{' '}
+                    <span className="font-medium text-emerald-300">PAC</span> autorizado para timbrado de nómina, el
+                    CFDI cumple el esquema oficial y es válido ante el SAT.
+                  </p>
+                </div>
+                <p className="text-xs leading-relaxed text-slate-400 sm:text-sm">
+                  Solicita en el portal del SAT los folios para el tipo de comprobante de nómina que uses. Aquí defines
+                  la serie y el folio consecutivo que se aplicarán al generar cada recibo; deben coincidir con el
+                  rango autorizado.
+                </p>
+                <ul className="space-y-1.5 text-xs text-slate-300 sm:text-sm">
+                  <li className="flex gap-2">
+                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-400" />
+                    Datos fiscales del emisor completos (misma pestaña &quot;Datos fiscales&quot;).
+                  </li>
+                  <li className="flex gap-2">
+                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-400" />
+                    Certificado (.cer) y llave (.key) configurados en &quot;Certificados&quot;.
+                  </li>
+                  <li className="flex gap-2">
+                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-400" />
+                    PAC con servicio de timbrado de nómina (mismo criterio que facturas).
+                  </li>
+                </ul>
+              </CardContent>
+            </Card>
+
+            <Card className="flex min-h-0 min-w-0 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50">
+              <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
+                <CardTitle className="flex items-center gap-2 text-sm text-slate-100 sm:text-base">
+                  <Receipt className="h-4 w-4 shrink-0 text-cyan-400 sm:h-5 sm:w-5" />
+                  Folios de nómina
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex min-h-0 flex-1 flex-col gap-3 p-3 sm:p-4">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <Label htmlFor="serieNomina" className="text-xs text-slate-400">
+                      Serie nómina *
+                    </Label>
+                    <Input
+                      id="serieNomina"
+                      value={fiscalForm.serieNomina}
+                      onChange={(e) =>
+                        setFiscalForm({
+                          ...fiscalForm,
+                          serieNomina: e.target.value.toUpperCase(),
+                        })
+                      }
+                      placeholder="N"
+                      className={fieldClass}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="folioNominaActual" className="text-xs text-slate-400">
+                      Folio actual nómina *
+                    </Label>
+                    <Input
+                      id="folioNominaActual"
+                      type="number"
+                      value={fiscalForm.folioNominaActual}
+                      onChange={(e) =>
+                        setFiscalForm({
+                          ...fiscalForm,
+                          folioNominaActual: parseInt(e.target.value, 10) || 1,
+                        })
+                      }
+                      className={fieldClass}
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-2">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                  <p className="text-[11px] leading-snug text-amber-400/85 sm:text-xs">
+                    No reutilices folios ni saltes números dentro del rango autorizado; el SAT puede rechazar
+                    comprobantes duplicados o fuera de secuencia.
+                  </p>
+                </div>
+                <div className="mt-auto flex justify-end pt-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => void handleSaveNominaFolios()}
+                    disabled={!fiscalForm.serieNomina?.trim() || !fiscalForm.folioNominaActual}
+                    className={cn(
+                      'bg-gradient-to-r from-cyan-500 to-blue-600 text-white',
+                      (!fiscalForm.serieNomina?.trim() || !fiscalForm.folioNominaActual) &&
+                        'cursor-not-allowed opacity-50'
+                    )}
+                  >
+                    <Save className="mr-2 h-4 w-4" />
+                    Guardar folios nómina
+                  </Button>
                 </div>
               </CardContent>
             </Card>
