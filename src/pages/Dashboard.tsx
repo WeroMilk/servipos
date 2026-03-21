@@ -22,9 +22,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { useSalesByDateRange, useLowStockProducts, useTodaySales } from '@/hooks';
+import { useSalesByDateRange, useLowStockProducts, useTodaySales, useEffectiveSucursalId } from '@/hooks';
 import { cn, formatMoney } from '@/lib/utils';
-import { printThermalTicketFromSale } from '@/lib/printTicket';
+import { printThermalDailySalesReport, printThermalTicketFromSale } from '@/lib/printTicket';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import type { DateRange } from 'react-day-picker';
 import {
@@ -136,6 +136,7 @@ function dateRangeToBounds(range: DateRange | undefined): { inicio: Date; fin: D
 
 export function Dashboard() {
   const navigate = useNavigate();
+  const { effectiveSucursalId } = useEffectiveSucursalId();
   const [compactChartAxis, setCompactChartAxis] = useState(() =>
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 639px)').matches : false
   );
@@ -257,6 +258,7 @@ export function Dashboard() {
         name: WEEKDAY_SHORT_ES[dowMon0]!,
         dayInitial: WEEKDAY_INITIAL_ES[dowMon0]!,
         ventas,
+        dateKey: format(d, 'yyyy-MM-dd'),
         fullLabel: format(d, 'EEEE d MMM yyyy', { locale: es }),
       };
     });
@@ -426,24 +428,32 @@ export function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent className="flex min-h-0 flex-1 flex-col p-2 pt-0 sm:p-3">
-              <div className="min-h-[180px] flex-1 sm:min-h-[200px] lg:min-h-[11rem]">
+              <div
+                className={cn(
+                  'flex w-full min-w-0 flex-col',
+                  compactChartAxis ? 'min-h-[232px]' : 'min-h-[180px] flex-1 sm:min-h-[200px] lg:min-h-[11rem]'
+                )}
+              >
                 {salesLoading ? (
                   <div className="flex h-full min-h-[120px] items-center justify-center text-xs text-slate-500">
                     Cargando ventas…
                   </div>
                 ) : (
-                <ResponsiveContainer width="100%" height="100%" minHeight={180}>
+                <>
+                <div className={cn('w-full min-w-0', compactChartAxis ? 'h-[200px] shrink-0' : 'h-full min-h-[180px] flex-1')}>
+                <ResponsiveContainer width="100%" height="100%" minHeight={compactChartAxis ? 200 : 180}>
                   <BarChart
                     data={chartData}
                     margin={
                       compactChartAxis
-                        ? { top: 8, right: 2, left: 2, bottom: 4 }
+                        ? { top: 6, right: 4, left: -12, bottom: 2 }
                         : { top: 8, right: 4, left: 4, bottom: 36 }
                     }
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                     <XAxis
                       dataKey={compactChartAxis ? 'dayInitial' : 'name'}
+                      hide={compactChartAxis}
                       stroke="#64748b"
                       fontSize={compactChartAxis ? 12 : 11}
                       fontWeight={compactChartAxis ? 600 : undefined}
@@ -456,6 +466,7 @@ export function Dashboard() {
                       height={compactChartAxis ? 28 : 52}
                     />
                     <YAxis
+                      width={compactChartAxis ? 36 : 48}
                       stroke="#64748b"
                       fontSize={10}
                       tickLine={false}
@@ -492,6 +503,17 @@ export function Dashboard() {
                     </defs>
                   </BarChart>
                 </ResponsiveContainer>
+                </div>
+                {compactChartAxis ? (
+                  <div className="flex shrink-0 justify-between gap-0 border-t border-slate-800/70 px-1 pb-1 pt-1.5 text-[11px] font-semibold tabular-nums text-slate-400">
+                    {chartData.map((d) => (
+                      <span key={d.dateKey} className="min-w-0 flex-1 text-center">
+                        {d.dayInitial}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+                </>
                 )}
               </div>
             </CardContent>
@@ -627,11 +649,36 @@ export function Dashboard() {
 
       <Dialog open={todaySalesOpen} onOpenChange={setTodaySalesOpen}>
         <DialogContent className="flex max-h-[min(88dvh,36rem)] flex-col gap-0 overflow-hidden border-slate-800 bg-slate-900 p-0 text-slate-100 sm:max-w-md">
-          <DialogHeader className="shrink-0 border-b border-slate-800/80 px-4 pb-3 pt-4 pr-12 text-left">
-            <DialogTitle>Ventas de hoy</DialogTitle>
-            <p className="text-sm font-normal text-slate-500">
-              Lista del día para revisar o reimprimir el ticket.
-            </p>
+          <DialogHeader className="shrink-0 space-y-0 border-b border-slate-800/80 px-4 pb-3 pt-4 pr-14 text-left">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <DialogTitle>Ventas de hoy</DialogTitle>
+                <p className="mt-1 text-sm font-normal text-slate-500">
+                  Lista del día para revisar o reimprimir el ticket.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="shrink-0 text-slate-400 hover:bg-slate-800 hover:text-cyan-400"
+                title="Reporte de ventas diario (térmica)"
+                aria-label="Imprimir reporte de ventas del día"
+                disabled={salesTodaySorted.length === 0}
+                onClick={() => {
+                  printThermalDailySalesReport({
+                    fechaLabel: formatInAppTimezone(new Date(), {
+                      dateStyle: 'full',
+                      timeStyle: 'short',
+                    }),
+                    sucursalId: effectiveSucursalId,
+                    ventas: salesTodaySorted,
+                  });
+                }}
+              >
+                <Printer className="h-5 w-5" />
+              </Button>
+            </div>
           </DialogHeader>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3">
             {todaySalesLoading ? (

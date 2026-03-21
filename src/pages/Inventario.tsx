@@ -9,7 +9,8 @@ import {
   AlertTriangle,
   Barcode,
   TrendingUp,
-  MoreHorizontal
+  MoreHorizontal,
+  Printer,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,11 +38,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { useProducts, useProductSearch } from '@/hooks';
+import { useProducts, useProductSearch, useEffectiveSucursalId } from '@/hooks';
 import { useAppStore } from '@/stores';
 import type { Product } from '@/types';
 import { cn, formatMoney } from '@/lib/utils';
 import { PageShell } from '@/components/ui-custom/PageShell';
+import { printThermalLowStockReport } from '@/lib/printTicket';
+import { formatInAppTimezone } from '@/lib/appTimezone';
 
 type InventoryMode = 'productos' | 'stock' | 'valor' | 'codigos';
 
@@ -58,6 +61,7 @@ function isStockBajo(p: { existencia: number; existenciaMinima: number }): boole
 export function Inventario() {
   const [searchParams] = useSearchParams();
   const { products, loading, addProduct, editProduct, removeProduct, adjustStock } = useProducts();
+  const { effectiveSucursalId } = useEffectiveSucursalId();
   const { addToast } = useAppStore();
   
   const [searchQuery, setSearchQuery] = useState('');
@@ -420,6 +424,37 @@ export function Inventario() {
             </div>
           </CardContent>
         </button>
+      </div>
+
+      <div className="flex shrink-0 justify-end pb-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="border-amber-500/40 text-amber-200/90 hover:bg-amber-500/10"
+          onClick={() => {
+            const items = products.filter(isStockBajo).map((p) => ({
+              nombre: p.nombre,
+              sku: p.sku,
+              existencia: p.existencia,
+              existenciaMinima: p.existenciaMinima,
+            }));
+            printThermalLowStockReport({
+              fechaLabel: formatInAppTimezone(new Date(), {
+                dateStyle: 'full',
+                timeStyle: 'short',
+              }),
+              sucursalId: effectiveSucursalId,
+              items,
+            });
+            if (items.length === 0) {
+              addToast({ type: 'info', message: 'No hay artículos con stock bajo en esta tienda' });
+            }
+          }}
+        >
+          <Printer className="mr-2 h-4 w-4" />
+          Ticket stock bajo
+        </Button>
       </div>
 
       <div className="relative mt-3 mb-3 w-full min-w-0 shrink-0 sm:mt-4 sm:mb-4">

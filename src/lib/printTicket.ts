@@ -128,9 +128,9 @@ export function printThermalTicket(payload: TicketPayload): void {
   .tot strong { font-size: 14px; }
   .pie-sucursal { margin-top: 10px; padding-top: 8px; border-top: 1px dashed #999; text-align: center; font-size: 9px; line-height: 1.4; color: #222; }
   .pie-sucursal .titulo-suc { font-weight: 700; font-size: 10px; margin-bottom: 4px; }
-  .logo-ticket { display: block; margin: 0 auto 8px; max-width: 48mm; height: auto; }
+  .logo-ticket { display: block; margin: 0 auto 6px; max-width: 24mm; height: auto; }
 </style></head><body>
-  <img class="logo-ticket" src="${escapeHtml(getBrandLogoAbsoluteUrl())}" alt="" width="160" height="160" />
+  <img class="logo-ticket" src="${escapeHtml(getBrandLogoAbsoluteUrl())}" alt="" width="80" height="80" />
   <h1>${escapeHtml(negocio)}</h1>
   <div class="meta">
     ${payload.folio ? `<div>Folio: ${escapeHtml(payload.folio)}</div>` : ''}
@@ -155,6 +155,85 @@ export function printThermalTicket(payload: TicketPayload): void {
   <p style="margin-top:12px;text-align:center;font-size:10px;">¡Gracias por su compra!</p>
 </body></html>`;
 
+  openAndPrintHtml(html, 'width=360,height=720', 250);
+}
+
+const THERMAL_BASE_STYLES = `@page { size: 80mm auto; margin: 4mm; }
+  * { box-sizing: border-box; }
+  body { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 11px; color: #111; width: 72mm; margin: 0 auto; padding: 4px; }
+  h1 { font-size: 13px; text-align: center; margin: 0 0 6px; }
+  .meta { font-size: 10px; margin-bottom: 8px; border-bottom: 1px dashed #333; padding-bottom: 6px; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 2px 0; vertical-align: top; font-size: 10px; }
+  td.right { text-align: right; white-space: nowrap; }
+  .tot { margin-top: 8px; border-top: 1px dashed #333; padding-top: 6px; font-size: 11px; }
+  .pie-sucursal { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #999; text-align: center; font-size: 9px; line-height: 1.4; color: #222; }
+  .pie-sucursal .titulo-suc { font-weight: 700; font-size: 10px; margin-bottom: 4px; }`;
+
+/** Lista de productos con stock bajo para revisión en tienda (80 mm). */
+export function printThermalLowStockReport(input: {
+  fechaLabel: string;
+  sucursalId?: string;
+  items: { nombre: string; sku: string; existencia: number; existenciaMinima: number }[];
+}): void {
+  const rows = input.items
+    .map(
+      (it) => `<tr><td colspan="2" style="font-weight:600;padding-top:6px;">${escapeHtml(it.nombre.slice(0, 42))}</td></tr>
+      <tr><td>SKU ${escapeHtml(it.sku)}</td><td class="right">Ex. ${it.existencia} / mín ${it.existenciaMinima}</td></tr>`
+    )
+    .join('');
+  const lines = getThermalTicketSucursalFooterLines(input.sucursalId);
+  const pie =
+    lines?.length ?
+      `<div class="pie-sucursal"><div class="titulo-suc">${escapeHtml(lines[0]!)}</div>${lines
+        .slice(1)
+        .map((ln) => `<div>${escapeHtml(ln)}</div>`)
+        .join('')}</div>`
+    : '';
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Stock bajo</title>
+<style>${THERMAL_BASE_STYLES}</style></head><body>
+  <h1>STOCK BAJO</h1>
+  <div class="meta">${escapeHtml(input.fechaLabel)}<br/>${input.items.length} artículo(s)</div>
+  <table>${rows || '<tr><td>Sin artículos bajo mínimo.</td></tr>'}</table>
+  ${pie}
+</body></html>`;
+  openAndPrintHtml(html, 'width=360,height=720', 250);
+}
+
+/** Resumen del día para cierre de caja (80 mm). */
+export function printThermalDailySalesReport(input: {
+  fechaLabel: string;
+  sucursalId?: string;
+  ventas: Sale[];
+}): void {
+  const list = [...input.ventas].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
+  const rows = list
+    .map((v) => {
+      const st = v.estado === 'cancelada' ? ' (cancel.)' : '';
+      return `<tr><td>${escapeHtml(v.folio)}${st}</td><td class="right">${formatMoney(Number(v.total) || 0)}</td></tr>`;
+    })
+    .join('');
+  const bruto = list
+    .filter((v) => v.estado !== 'cancelada')
+    .reduce((s, v) => s + (Number(v.total) || 0), 0);
+  const lines = getThermalTicketSucursalFooterLines(input.sucursalId);
+  const pie =
+    lines?.length ?
+      `<div class="pie-sucursal"><div class="titulo-suc">${escapeHtml(lines[0]!)}</div>${lines
+        .slice(1)
+        .map((ln) => `<div>${escapeHtml(ln)}</div>`)
+        .join('')}</div>`
+    : '';
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Reporte ventas</title>
+<style>${THERMAL_BASE_STYLES}</style></head><body>
+  <h1>REPORTE VENTAS</h1>
+  <div class="meta">${escapeHtml(input.fechaLabel)}<br/>${list.length} ticket(s)</div>
+  <table>${rows || '<tr><td>Sin ventas.</td></tr>'}</table>
+  <div class="tot"><strong>Total día: ${formatMoney(bruto)}</strong><br/><span style="font-size:9px;">Sin canceladas</span></div>
+  ${pie}
+</body></html>`;
   openAndPrintHtml(html, 'width=360,height=720', 250);
 }
 

@@ -131,7 +131,7 @@ export function Clientes() {
           colonia: formData.colonia,
           codigoPostal: formData.codigoPostal,
           ciudad: formData.ciudad,
-          estado: ESTADO_SONORA,
+          estado: formData.estado || ESTADO_SONORA,
           pais: 'México',
         },
       } as any);
@@ -157,7 +157,7 @@ export function Clientes() {
           colonia: formData.colonia,
           codigoPostal: formData.codigoPostal,
           ciudad: formData.ciudad,
-          estado: ESTADO_SONORA,
+          estado: formData.estado || ESTADO_SONORA,
           pais: 'México',
         },
       });
@@ -174,7 +174,7 @@ export function Clientes() {
     setSelectedClient(client);
     const cp = client.codigoPostal || client.direccion?.codigoPostal || '';
     const hit = lookupCp(cp);
-    setMunicipioSonora(hit?.municipio || client.direccion?.ciudad || '');
+    const est = client.direccion?.estado?.trim() || ESTADO_SONORA;
     setFormData({
       rfc: client.rfc || '',
       nombre: client.nombre,
@@ -189,8 +189,13 @@ export function Clientes() {
       numeroInterior: client.direccion?.numeroInterior || '',
       colonia: client.direccion?.colonia || '',
       ciudad: client.direccion?.ciudad || '',
-      estado: ESTADO_SONORA,
+      estado: est,
     });
+    setMunicipioSonora(
+      est === ESTADO_SONORA
+        ? hit?.municipio || client.direccion?.ciudad || ''
+        : client.direccion?.ciudad || ''
+    );
     setShowEditDialog(true);
   };
 

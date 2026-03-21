@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Quotation } from '@/types';
-import { 
-  getQuotations, 
-  getQuotationById, 
+import {
+  getQuotations,
+  getQuotationById,
   createQuotation,
   updateQuotation,
   convertQuotationToSale,
-  generateQuotationFolio
+  generateQuotationFolio,
+  deleteQuotation,
 } from '@/db/database';
 import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
@@ -78,6 +79,17 @@ export function useQuotations() {
     }
   };
 
+  const removeQuotation = async (id: string) => {
+    try {
+      await deleteQuotation(id);
+      await loadQuotations();
+    } catch (err) {
+      reportHookFailure('hook:useQuotations', 'Eliminar cotización', err);
+      setError('Error al eliminar cotización');
+      throw err;
+    }
+  };
+
   return {
     quotations,
     loading,
@@ -86,6 +98,7 @@ export function useQuotations() {
     addQuotation,
     editQuotation,
     convertToSale,
+    removeQuotation,
   };
 }
 

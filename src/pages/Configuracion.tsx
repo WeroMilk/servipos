@@ -738,6 +738,41 @@ export function Configuracion() {
                 </div>
               </CardContent>
             </Card>
+
+            <Card className="flex min-h-0 min-w-0 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50 lg:col-span-2">
+              <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
+                <CardTitle className="flex items-center gap-2 text-sm text-slate-100 sm:text-base">
+                  <Wallet className="h-4 w-4 shrink-0 text-amber-400 sm:h-5 sm:w-5" />
+                  Recibos de nómina: alcance y cumplimiento SAT
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3 p-3 text-xs leading-relaxed text-slate-400 sm:p-4 sm:text-sm">
+                <p>
+                  Un <strong className="text-slate-200">CFDI de nómina</strong> con validez fiscal en México solo existe
+                  después del <strong className="text-slate-200">timbrado</strong> por un{' '}
+                  <strong className="text-slate-200">PAC</strong> autorizado por el SAT. Esta aplicación puede
+                  almacenar <strong className="text-slate-200">serie, folio y datos del emisor</strong> alineados a su
+                  autorización; el XML final, sellos y cadena original los genera y valida el PAC.
+                </p>
+                <p>
+                  El <strong className="text-slate-200">LugarExpedicion</strong> y datos del emisor deben coincidir con
+                  su constancia (p. ej. código postal en Hermosillo, Sonora). Revise siempre el formato y catálogos del
+                  SAT para el periodo que timbre.
+                </p>
+                <div className="rounded-lg border border-slate-700/80 bg-slate-950/50 p-3">
+                  <p className="mb-2 font-medium text-slate-300">Próximos pasos en el producto</p>
+                  <ul className="list-inside list-disc space-y-1 text-slate-400">
+                    <li>Captura de período, trabajador, percepciones y deducciones según esquema oficial.</li>
+                    <li>Generación de XML previo al timbre y envío a su PAC (mismo flujo que facturas).</li>
+                    <li>PDF para el trabajador y acuse/registro para archivo.</li>
+                  </ul>
+                </div>
+                <p className="text-[11px] text-slate-500 sm:text-xs">
+                  Ningún software puede garantizar por sí solo &quot;100% validez&quot; ante el SAT: depende de datos
+                  correctos, folios vigentes, CSD válido y timbrado exitoso. Consulte a su contador y a su PAC.
+                </p>
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
 

@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { 
-  Plus, 
-  Search, 
+import {
+  Plus,
+  Search,
   Download,
   Send,
   X,
@@ -12,6 +12,7 @@ import {
   FileCode,
   Eye,
   Printer,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,7 +67,7 @@ const statusLabels: Record<string, string> = {
 };
 
 export function Facturas() {
-  const { invoices, loading, addInvoice, cancelInvoice } = useInvoices();
+  const { invoices, loading, addInvoice, cancelInvoice, removeInvoice } = useInvoices();
   const { sales } = useSales(100);
   const { clients } = useClients();
   const { config: fiscalConfig } = useFiscalConfig();
@@ -83,6 +84,22 @@ export function Facturas() {
   const [emailOpen, setEmailOpen] = useState(false);
   const [emailSubject, setEmailSubject] = useState('');
   const [emailBody, setEmailBody] = useState('');
+
+  const handleDeleteInvoice = async (inv: Invoice) => {
+    const ok = window.confirm(
+      `¿Eliminar del historial la factura ${inv.serie}-${inv.folio}? Solo se permite si no está timbrada.`
+    );
+    if (!ok) return;
+    try {
+      await removeInvoice(inv.id);
+      addToast({ type: 'success', message: 'Factura eliminada del historial local' });
+    } catch (e) {
+      addToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'No se pudo eliminar',
+      });
+    }
+  };
 
   // Form state
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
@@ -378,34 +395,57 @@ export function Facturas() {
               <p className="py-8 text-center text-slate-500">No se encontraron facturas</p>
             ) : (
               filteredInvoices.map((invoice) => (
-                <button
+                <div
                   key={invoice.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedInvoice(invoice);
-                    setShowDetailDialog(true);
-                  }}
-                  className="w-full rounded-xl border border-slate-800/80 bg-slate-950/40 p-3 text-left"
+                  className="flex gap-1 rounded-xl border border-slate-800/80 bg-slate-950/40 p-1"
                 >
-                  <div className="flex justify-between gap-2">
-                    <span className="font-medium text-slate-100">
-                      {invoice.serie}-{invoice.folio}
-                    </span>
-                    <span className="shrink-0 text-cyan-400">{formatMoney(invoice.total)}</span>
-                  </div>
-                  <p className="mt-1 truncate text-sm text-slate-400">
-                    {invoice.cliente?.nombre || 'Mostrador'}
-                  </p>
-                  <div className="mt-2 flex items-center justify-between gap-2">
-                    <span className="text-xs text-slate-500">
-                      {new Date(invoice.fechaEmision).toLocaleDateString('es-MX')}
-                    </span>
-                    <Badge className={cn('border text-[10px]', statusColors[invoice.estado])}>
-                      {statusLabels[invoice.estado]}
-                    </Badge>
-                  </div>
-                  <p className="mt-2 text-center text-xs text-cyan-500/80">Ver detalle…</p>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedInvoice(invoice);
+                      setShowDetailDialog(true);
+                    }}
+                    className="min-w-0 flex-1 rounded-lg p-2 text-left transition-colors hover:bg-slate-900/60"
+                  >
+                    <div className="flex justify-between gap-2">
+                      <span className="font-medium text-slate-100">
+                        {invoice.serie}-{invoice.folio}
+                      </span>
+                      <span className="shrink-0 text-cyan-400">{formatMoney(invoice.total)}</span>
+                    </div>
+                    <p className="mt-1 truncate text-sm text-slate-400">
+                      {invoice.cliente?.nombre || 'Mostrador'}
+                    </p>
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <span className="text-xs text-slate-500">
+                        {new Date(invoice.fechaEmision).toLocaleDateString('es-MX')}
+                      </span>
+                      <Badge className={cn('border text-[10px]', statusColors[invoice.estado])}>
+                        {statusLabels[invoice.estado]}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-center text-xs text-cyan-500/80">Ver detalle…</p>
+                  </button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 shrink-0 self-start text-slate-500 hover:text-red-400 disabled:opacity-30"
+                    disabled={invoice.estado === 'timbrada'}
+                    title={
+                      invoice.estado === 'timbrada'
+                        ? 'No se puede eliminar una factura timbrada'
+                        : 'Eliminar del historial'
+                    }
+                    aria-label="Eliminar factura"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void handleDeleteInvoice(invoice);
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               ))
             )}
           </div>
@@ -512,6 +552,14 @@ export function Facturas() {
                                 Cancelar
                               </DropdownMenuItem>
                             )}
+                            <DropdownMenuItem
+                              disabled={invoice.estado === 'timbrada'}
+                              onClick={() => void handleDeleteInvoice(invoice)}
+                              className="text-red-400 hover:bg-red-500/10 hover:text-red-300 data-[disabled]:opacity-40"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Eliminar del historial
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>

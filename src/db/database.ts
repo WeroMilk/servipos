@@ -94,6 +94,25 @@ class POSDatabase extends Dexie {
       });
     });
 
+    this.version(3).stores({
+      users: '++id, username, email, role, isActive, createdAt',
+      fiscalConfig: '++id, rfc, serie, folioActual',
+      products:
+        '++id, sku, codigoBarras, nombre, categoria, existencia, existenciaMinima, activo, syncStatus, updatedAt',
+      inventoryMovements: '++id, productId, tipo, referencia, createdAt, syncStatus',
+      purchaseOrders: '++id, proveedor, estado, createdAt',
+      clients: '++id, rfc, nombre, isMostrador, sucursalId, syncStatus, createdAt',
+      sales: '++id, folio, clienteId, estado, facturaId, usuarioId, createdAt, syncStatus',
+      quotations: '++id, folio, clienteId, estado, ventaId, sucursalId, createdAt, syncStatus',
+      invoices: '++id, uuid, folio, serie, ventaId, clienteId, estado, sucursalId, createdAt, syncStatus',
+      syncLogs: '++id, entidad, entidadId, operacion, estado, createdAt',
+    }).upgrade(async (tx) => {
+      const def = getDefaultSucursalIdForNewData();
+      await tx.table('clients').toCollection().modify((c) => {
+        if ((c as Client).sucursalId == null) (c as Client).sucursalId = def;
+      });
+    });
+
     // Hooks para actualizar timestamps
     this.products.hook('creating', (_primKey, obj) => {
       obj.createdAt = obj.createdAt || new Date();
@@ -189,6 +208,7 @@ export async function initializeDemoData(): Promise<void> {
       id: 'mostrador',
       nombre: 'Mostrador',
       isMostrador: true,
+      sucursalId: getDefaultSucursalIdForNewData(),
       createdAt: new Date(),
       updatedAt: new Date(),
       syncStatus: 'synced',
@@ -769,14 +789,29 @@ export async function searchClients(query: string, sucursalId?: string): Promise
 }
 
 export async function createClient(client: Omit<Client, 'id' | 'createdAt' | 'updatedAt' | 'syncStatus'>): Promise<string> {
+  const sid = client.sucursalId ?? getDefaultSucursalIdForNewData();
   const id = await db.clients.add({
     ...client,
+    sucursalId: sid,
     id: crypto.randomUUID(),
     createdAt: new Date(),
     updatedAt: new Date(),
     syncStatus: 'pending',
   } as Client);
   return id as string;
+}
+
+export async function deleteQuotation(id: string): Promise<void> {
+  await db.quotations.delete(id);
+}
+
+export async function deleteInvoiceRecord(id: string): Promise<void> {
+  const inv = await db.invoices.get(id);
+  if (!inv) return;
+  if (inv.estado === 'timbrada') {
+    throw new Error('No se puede eliminar una factura ya timbrada ante el SAT.');
+  }
+  await db.invoices.delete(id);
 }
 
 export async function updateClient(id: string, updates: Partial<Client>): Promise<void> {

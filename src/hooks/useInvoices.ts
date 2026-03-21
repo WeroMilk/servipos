@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Invoice } from '@/types';
-import { 
-  getInvoices, 
-  getInvoiceById, 
+import {
+  getInvoices,
+  getInvoiceById,
   createInvoice,
   cancelInvoice,
   getNextInvoiceFolio,
   incrementInvoiceFolio,
-  getFiscalConfig
+  getFiscalConfig,
+  deleteInvoiceRecord,
 } from '@/db/database';
 import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
@@ -80,6 +81,17 @@ export function useInvoices() {
     }
   };
 
+  const removeInvoice = async (id: string) => {
+    try {
+      await deleteInvoiceRecord(id);
+      await loadInvoices();
+    } catch (err) {
+      reportHookFailure('hook:useInvoices', 'Eliminar factura', err);
+      setError('Error al eliminar factura');
+      throw err;
+    }
+  };
+
   return {
     invoices,
     loading,
@@ -87,6 +99,7 @@ export function useInvoices() {
     refresh: loadInvoices,
     addInvoice,
     cancelInvoice: cancel,
+    removeInvoice,
   };
 }
 

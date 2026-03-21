@@ -9,6 +9,7 @@ import {
 } from '@/db/database';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 import { reportHookFailure } from '@/lib/appEventLog';
+import { getDefaultSucursalIdForNewData } from '@/lib/sucursales';
 
 // ============================================
 // HOOK DE CLIENTES
@@ -41,7 +42,11 @@ export function useClients() {
 
   const addClient = async (client: Omit<Client, 'id' | 'createdAt' | 'updatedAt' | 'syncStatus'>) => {
     try {
-      const id = await createClient(client);
+      const sid = effectiveSucursalId ?? getDefaultSucursalIdForNewData();
+      const id = await createClient({
+        ...client,
+        sucursalId: client.sucursalId ?? sid,
+      });
       await loadClients();
       return id;
     } catch (err) {

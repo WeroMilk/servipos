@@ -23,11 +23,11 @@ export function ToastContainer() {
   return (
     <div
       className={cn(
-        'fixed z-50 flex flex-col gap-3',
+        'fixed z-[100] flex flex-col gap-3',
         'bottom-[max(1.25rem,env(safe-area-inset-bottom,0px))]',
-        'max-md:bottom-[calc(1rem+3.75rem+env(safe-area-inset-bottom,0px))]',
         'right-[max(1.25rem,env(safe-area-inset-right,0px))]',
         'max-w-[min(100vw-2rem,24rem)]',
+        'max-md:bottom-auto max-md:left-1/2 max-md:right-auto max-md:top-[calc(3.5rem+env(safe-area-inset-top,0px))] max-md:-translate-x-1/2 max-md:items-stretch max-md:px-3',
         toasts.length === 0 && 'pointer-events-none'
       )}
       aria-live="polite"

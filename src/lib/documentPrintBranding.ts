@@ -22,7 +22,7 @@ export function buildLetterHeaderHtml(): string {
   const src = escapeHtml(getBrandLogoAbsoluteUrl());
   return `
   <div class="doc-brand-head" style="text-align:center;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid #e2e8f0;">
-    <img src="${src}" alt="SERVIPARTZ" width="120" height="120" style="max-width:min(140px,38vw);height:auto;object-fit:contain;display:inline-block;" />
+    <img src="${src}" alt="SERVIPARTZ" width="60" height="60" style="max-width:min(70px,22vw);height:auto;object-fit:contain;display:inline-block;" />
     <div style="margin-top:8px;font-size:15pt;font-weight:700;letter-spacing:0.02em;">SERVIPARTZ</div>
   </div>`;
 }

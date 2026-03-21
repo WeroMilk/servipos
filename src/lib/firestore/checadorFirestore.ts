@@ -1,4 +1,5 @@
 import {
+  arrayUnion,
   collection,
   doc,
   getDoc,
@@ -112,8 +113,16 @@ export async function punchEntrada(user: User, effectiveSucursalId?: string): Pr
   const id = checadorDocId(user.id, dateKey);
   const ref = doc(db, COL, id);
   const snap = await getDoc(ref);
-  if (snap.exists() && snap.data().entrada) {
-    throw new Error('Ya registró su entrada hoy');
+  if (snap.exists()) {
+    const d = snap.data();
+    if (d?.entrada && !d?.cierre) {
+      throw new Error('Ya registró su entrada hoy');
+    }
+    if (d?.cierre) {
+      throw new Error(
+        'La jornada está cerrada. Use «Iniciar jornada de nuevo» para registrar otro turno el mismo día.'
+      );
+    }
   }
   await setDoc(
     ref,
@@ -186,6 +195,13 @@ export async function reiniciarJornadaMismoDia(user: User, effectiveSucursalId?:
   if (!snap.exists() || !snap.data()?.cierre) {
     throw new Error('Solo puede reiniciar después de cerrar la jornada');
   }
+  const prev = snap.data() as Record<string, unknown>;
+  const bloque = {
+    entrada: prev.entrada ?? null,
+    salidaComer: prev.salidaComer ?? null,
+    regresoComer: prev.regresoComer ?? null,
+    cierre: prev.cierre ?? null,
+  };
   await setDoc(
     ref,
     {
@@ -195,6 +211,7 @@ export async function reiniciarJornadaMismoDia(user: User, effectiveSucursalId?:
       dateKey,
       quincenaId,
       sucursalId: resolveRegistroSucursalId(user, effectiveSucursalId),
+      jornadasCompletadas: arrayUnion(bloque),
       entrada: null,
       salidaComer: null,
       regresoComer: null,

@@ -9,6 +9,7 @@ import {
   Send,
   FileText,
   Printer,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -115,7 +116,7 @@ function printQuotationLetter(q: Quotation, fallbackSucursalId?: string | null):
 }
 
 export function Cotizaciones() {
-  const { quotations, loading, addQuotation, convertToSale } = useQuotations();
+  const { quotations, loading, addQuotation, convertToSale, removeQuotation } = useQuotations();
   const { products } = useProducts();
   const { clients } = useClients();
   const { effectiveSucursalId } = useEffectiveSucursalId();
@@ -150,6 +151,22 @@ export function Cotizaciones() {
         (p.codigoBarras && p.codigoBarras.toLowerCase().includes(q))
     );
   }, [products, productSearchQuery]);
+
+  const handleDeleteQuotation = async (q: Quotation) => {
+    const ok = window.confirm(
+      `¿Eliminar la cotización ${q.folio}? Esta acción no se puede deshacer.`
+    );
+    if (!ok) return;
+    try {
+      await removeQuotation(q.id);
+      addToast({ type: 'success', message: 'Cotización eliminada' });
+    } catch (e) {
+      addToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'No se pudo eliminar',
+      });
+    }
+  };
 
   const openEmailForQuotation = (q: Quotation) => {
     setEmailSubject(`Cotización ${q.folio} — SERVIPARTZ POS`);
@@ -312,31 +329,48 @@ export function Cotizaciones() {
                   <p className="py-8 text-center text-slate-500">No se encontraron cotizaciones</p>
                 ) : (
                   filteredQuotations.map((q) => (
-                    <button
+                    <div
                       key={q.id}
-                      type="button"
-                      onClick={() => openDetail(q)}
-                      className="w-full rounded-xl border border-slate-800/80 bg-slate-950/40 p-3 text-left transition-colors hover:border-slate-700 hover:bg-slate-900/60"
+                      className="flex gap-1 rounded-xl border border-slate-800/80 bg-slate-950/40 p-1 transition-colors hover:border-slate-700"
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="min-w-0 truncate font-medium text-slate-100">{q.folio}</p>
-                        <span className="shrink-0 text-sm font-semibold text-cyan-400">
-                          {formatMoney(q.total)}
-                        </span>
-                      </div>
-                      <p className="mt-1 truncate text-sm text-slate-400">
-                        {q.cliente?.nombre ?? 'Mostrador'}
-                      </p>
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <span className="text-xs text-slate-500">
-                          {new Date(q.createdAt).toLocaleDateString('es-MX')}
-                        </span>
-                        <Badge className={cn('border text-[10px]', statusColors[q.estado])}>
-                          {statusLabels[q.estado]}
-                        </Badge>
-                      </div>
-                      <p className="mt-2 text-center text-xs text-cyan-500/80">Ver detalle…</p>
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => openDetail(q)}
+                        className="min-w-0 flex-1 rounded-lg p-2 text-left transition-colors hover:bg-slate-900/60"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="min-w-0 truncate font-medium text-slate-100">{q.folio}</p>
+                          <span className="shrink-0 text-sm font-semibold text-cyan-400">
+                            {formatMoney(q.total)}
+                          </span>
+                        </div>
+                        <p className="mt-1 truncate text-sm text-slate-400">
+                          {q.cliente?.nombre ?? 'Mostrador'}
+                        </p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <span className="text-xs text-slate-500">
+                            {new Date(q.createdAt).toLocaleDateString('es-MX')}
+                          </span>
+                          <Badge className={cn('border text-[10px]', statusColors[q.estado])}>
+                            {statusLabels[q.estado]}
+                          </Badge>
+                        </div>
+                        <p className="mt-2 text-center text-xs text-cyan-500/80">Ver detalle…</p>
+                      </button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 shrink-0 self-start text-slate-500 hover:text-red-400"
+                        aria-label="Eliminar cotización"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleDeleteQuotation(q);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   ))
                 )}
               </div>
@@ -419,6 +453,13 @@ export function Cotizaciones() {
                                 >
                                   <Send className="mr-2 h-4 w-4" />
                                   Enviar por Email
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => void handleDeleteQuotation(quotation)}
+                                  className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Eliminar
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
