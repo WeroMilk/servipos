@@ -86,8 +86,7 @@ export function formatQuincenaLabel(id: string): string {
   const [y, m, q] = id.split('-');
   const mi = parseInt(m, 10) - 1;
   const month = MONTHS_ES[mi] ?? m;
-  const rango = q === '1' ? '1 al 15' : '16 al fin de mes';
-  return `${month} ${y} · ${q === '1' ? '1ª' : '2ª'} quincena (${rango})`;
+  return `${month} ${y} · ${q === '1' ? '1ª' : '2ª'} quincena`;
 }
 
 export function formatTimeMx(d: Date): string {

@@ -1,35 +1,64 @@
 # Reiniciar datos de la sucursal Olivares
 
-Objetivo: dejar **solo Olivares** lista para operar desde cero (ventas, inventario de esa tienda, cotizaciones, facturas y clientes asociados a esa sucursal en el dispositivo). **No borra Matriz** ni el catálogo global de usuarios.
+Objetivo: dejar **Olivares** en cero operativo (ventas, inventario de esa tienda en Firestore, fichajes ligados a esa sucursal). **No borra Matriz** ni usuarios. El documento `sucursales/olivares` (nombre de la tienda) **no se elimina**.
 
-Sustituye `OLIVARES_ID` por el **id real** del documento en Firestore (`sucursales/{id}`), por ejemplo `olivares`.
+## Opción A — Script automático (Firestore)
 
-## 1. Firebase (Firestore)
+1. En [Firebase Console](https://console.firebase.google.com) → tu proyecto → **Project settings** → **Service accounts** → **Generate new private key**. Guarda el JSON en tu PC (no lo subas a git).
 
-En la consola de Firebase o con un script admin, en la ruta `sucursales/OLIVARES_ID/`:
+2. En PowerShell (ejemplo):
 
-| Colección / doc | Acción |
-|-----------------|--------|
-| `sales` | Eliminar **todos** los documentos. |
-| `inventoryMovements` | Eliminar **todos** los documentos. |
-| `products` | Para cada producto: poner `existencia` (y campos de stock que uses) en **0**, o borrar documentos si prefieres catálogo vacío. |
-| `counters/ventasDiario` | Borrar el doc o poner el contador diario en el valor inicial que use tu app (p. ej. `0` / reinicio por campo según implementación). |
+   ```powershell
+   $env:GOOGLE_APPLICATION_CREDENTIALS="C:\ruta\a\tu-service-account.json"
+   cd c:\Users\alfon\proyectos\app
+   npm run reset:olivares:dry
+   ```
 
-**No** elimines el documento `sucursales/OLIVARES_ID` en sí (metadatos de la tienda).
+   Revisa los conteos. Luego, **sin** `--dry-run`:
 
-Si usas otra colección por sucursal (eventos, checador, etc.) y quieres cero también ahí, repite el mismo criterio solo bajo `OLIVARES_ID`.
+   ```powershell
+   npm run reset:olivares
+   ```
 
-## 2. Navegador / PWA (IndexedDB — Dexie)
+3. Otra sucursal u otro proyecto:
 
-Los clientes, cotizaciones, facturas y ventas **locales** llevan `sucursalId`. Para limpiar solo Olivares en un equipo:
+   ```powershell
+   node scripts/reset-olivares-firestore.mjs --sucursal=olivares --project=servipartzpos-26417
+   ```
 
-1. Abre la app en Chrome → F12 → **Application** → **IndexedDB** → `POSMexicoDB`.
-2. En las tablas `clients`, `quotations`, `invoices`, `sales`, borra registros donde `sucursalId === OLIVARES_ID`.
-3. Para inventario local de esa tienda: tabla `products` (y movimientos) filtrados por la misma sucursal, según cómo estén guardados en tu build; si todo el stock va por sucursal en Dexie, ajusta o borra solo lo de Olivares.
+El script hace:
 
-Alternativa: **Clear site data** para el origen borra **todo** (incluida Matriz en ese dispositivo); úsalo solo si te conviene resetear el dispositivo completo.
+| Ruta | Acción |
+|------|--------|
+| `sucursales/{id}/sales` | `recursiveDelete` (todas las ventas) |
+| `sucursales/{id}/inventoryMovements` | idem |
+| `sucursales/{id}/products` | idem (catálogo/stock de **esa** tienda) |
+| `sucursales/{id}/counters/ventasDiario` | borra el documento del folio diario |
+| `checadorRegistros` | borra docs con `sucursalId == {id}` |
+
+**Cliente, cotizaciones y facturas** en esta app viven sobre todo en **IndexedDB** (Dexie). El script **no** limpia el navegador.
+
+## Opción B — Consola Firebase (manual)
+
+Misma tabla que arriba: borrar colecciones bajo `sucursales/OLIVARES_ID/` o usar la CLI:
+
+```bash
+firebase firestore:delete "sucursales/olivares/sales" --recursive --project servipartzpos-26417
+firebase firestore:delete "sucursales/olivares/inventoryMovements" --recursive --project servipartzpos-26417
+firebase firestore:delete "sucursales/olivares/products" --recursive --project servipartzpos-26417
+```
+
+(y eliminar `sucursales/olivares/counters/ventasDiario`).
+
+## 2. Navegador / PWA (IndexedDB — obligatorio en cada equipo)
+
+1. Abre la app → F12 → **Application** → **IndexedDB** → `POSMexicoDB`.
+2. Borra registros con `sucursalId === "olivares"` (o el id real) en: `clients`, `quotations`, `invoices`, `sales`.
+3. Los productos en Dexie suelen ser globales; al vaciar Firestore de Olivares, al sincronizar con tienda Olivares el catálogo volverá desde la nube. Si hace falta, borra también filas huérfanas en `products` / movimientos según tu flujo.
+
+**Clear site data** borra **todo** el origen (incluida Matriz en ese dispositivo).
 
 ## 3. Comprobación
 
-- Entrar con tienda **Olivares**: ventas en 0, sin movimientos recientes, clientes/cotiz/facturas de esa sucursal vacíos.
-- Cambiar a **Matriz**: los datos de Matriz deben seguir intactos si solo tocaste rutas bajo `OLIVARES_ID`.
+- Tienda **Olivares**: sin ventas, sin productos en Firestore hasta que vuelvas a cargar o copies desde Matriz.
+- Tienda **Matriz**: intacta si solo tocaste rutas de Olivares.

@@ -211,7 +211,7 @@ export function Configuracion() {
             className="h-9 w-full text-xs data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400 sm:text-sm"
           >
             <Wallet className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
-            Nóminas
+            Nominas
           </TabsTrigger>
           {canManageSucursales && (
             <TabsTrigger
