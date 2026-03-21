@@ -263,7 +263,7 @@ export function Checador() {
                       size="lg"
                       variant="outline"
                       disabled={busy !== null}
-                      className="h-12 w-full border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10"
+                      className="h-12 w-full border-cyan-500/40 text-cyan-900 hover:bg-cyan-500/10 dark:text-cyan-300"
                       onClick={async () => {
                         if (!user) return;
                         setBusy('reinicio');

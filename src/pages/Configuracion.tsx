@@ -187,28 +187,28 @@ export function Configuracion() {
         >
           <TabsTrigger
             value="fiscal"
-            className="h-9 w-full text-xs data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400 sm:text-sm"
+            className="h-9 w-full text-xs data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-900 dark:data-[state=active]:bg-cyan-500/20 dark:data-[state=active]:text-cyan-400 sm:text-sm"
           >
             <Receipt className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
             Datos fiscales
           </TabsTrigger>
           <TabsTrigger
             value="empresa"
-            className="h-9 w-full text-xs data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400 sm:text-sm"
+            className="h-9 w-full text-xs data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-900 dark:data-[state=active]:bg-cyan-500/20 dark:data-[state=active]:text-cyan-400 sm:text-sm"
           >
             <Building2 className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
             Empresa
           </TabsTrigger>
           <TabsTrigger
             value="certificados"
-            className="h-9 w-full text-xs data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400 sm:text-sm"
+            className="h-9 w-full text-xs data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-900 dark:data-[state=active]:bg-cyan-500/20 dark:data-[state=active]:text-cyan-400 sm:text-sm"
           >
             <FileKey className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
             Certificados
           </TabsTrigger>
           <TabsTrigger
             value="nominas"
-            className="h-9 w-full text-xs data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400 sm:text-sm"
+            className="h-9 w-full text-xs data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-900 dark:data-[state=active]:bg-cyan-500/20 dark:data-[state=active]:text-cyan-400 sm:text-sm"
           >
             <Wallet className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
             Nominas
@@ -216,7 +216,7 @@ export function Configuracion() {
           {canManageSucursales && (
             <TabsTrigger
               value="sucursales"
-              className="h-9 w-full text-xs data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400 sm:text-sm"
+              className="h-9 w-full text-xs data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-900 dark:data-[state=active]:bg-cyan-500/20 dark:data-[state=active]:text-cyan-400 sm:text-sm"
             >
               <MapPin className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
               Sucursales
@@ -225,7 +225,7 @@ export function Configuracion() {
           {canManageUsers && (
             <TabsTrigger
               value="usuarios"
-              className="h-9 w-full text-xs data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400 sm:text-sm"
+              className="h-9 w-full text-xs data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-900 dark:data-[state=active]:bg-cyan-500/20 dark:data-[state=active]:text-cyan-400 sm:text-sm"
             >
               <Users className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
               Usuarios

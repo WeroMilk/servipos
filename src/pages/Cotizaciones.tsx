@@ -50,7 +50,8 @@ const statusColors: Record<string, string> = {
   aceptada: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
   rechazada: 'bg-red-500/10 text-red-400 border-red-500/30',
   vencida: 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/30',
-  convertida: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30',
+  convertida:
+    'bg-cyan-500/10 text-cyan-800 border-cyan-500/30 dark:text-cyan-400',
 };
 
 const statusLabels: Record<string, string> = {

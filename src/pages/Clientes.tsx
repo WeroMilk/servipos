@@ -479,7 +479,7 @@ export function Clientes() {
                           className="w-full text-left"
                           onClick={() => setDetailClient(client)}
                         >
-                          <p className="truncate font-medium text-cyan-300/90 hover:underline">{client.nombre}</p>
+                          <p className="truncate font-medium text-cyan-800 hover:underline dark:text-cyan-300/90">{client.nombre}</p>
                           {client.razonSocial ? (
                             <p className="truncate text-xs text-slate-600 dark:text-slate-500">{client.razonSocial}</p>
                           ) : null}

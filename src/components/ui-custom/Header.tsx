@@ -38,7 +38,7 @@ export function Header() {
       <div className="flex min-w-0 items-center px-0.5">
         <Link
           to="/"
-          className="flex min-w-0 max-w-[min(72vw,16rem)] items-center gap-2 rounded-lg py-1 pr-1 outline-none ring-cyan-500/40 focus-visible:ring-2 sm:hidden"
+          className="flex shrink-0 items-center rounded-lg p-1 outline-none ring-cyan-500/40 focus-visible:ring-2 sm:hidden"
           aria-label="Ir a inicio"
         >
           <img
@@ -48,9 +48,6 @@ export function Header() {
             width={32}
             height={32}
           />
-          <span className="truncate text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-100">
-            SERVIPARTZ
-          </span>
         </Link>
         <p className="hidden text-xs font-semibold tracking-[0.18em] text-slate-500 sm:block sm:text-sm">
           MENÚ

@@ -486,7 +486,7 @@ export function POS() {
           className={cn(
             'flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-colors',
             mobileTab === 'cart'
-              ? 'bg-cyan-500/20 text-cyan-300'
+              ? 'bg-cyan-500/15 text-cyan-900 dark:bg-cyan-500/20 dark:text-cyan-300'
               : 'text-slate-600 dark:text-slate-500 hover:bg-slate-200/80 dark:bg-slate-800/50 hover:text-slate-700 dark:text-slate-300'
           )}
         >
@@ -504,7 +504,7 @@ export function POS() {
           className={cn(
             'flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-colors',
             mobileTab === 'checkout'
-              ? 'bg-cyan-500/20 text-cyan-300'
+              ? 'bg-cyan-500/15 text-cyan-900 dark:bg-cyan-500/20 dark:text-cyan-300'
               : 'text-slate-600 dark:text-slate-500 hover:bg-slate-200/80 dark:bg-slate-800/50 hover:text-slate-700 dark:text-slate-300'
           )}
         >
@@ -738,7 +738,7 @@ export function POS() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 shrink-0 px-2 text-xs text-cyan-400 hover:text-cyan-300 sm:h-9 sm:text-sm"
+                className="h-8 shrink-0 px-2 text-xs text-cyan-700 hover:text-cyan-900 sm:h-9 sm:text-sm dark:text-cyan-400 dark:hover:text-cyan-300"
                 onClick={() => {
                   void refreshClients();
                   setShowClientDialog(true);
