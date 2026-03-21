@@ -1,4 +1,5 @@
 import { formatMoney } from '@/lib/utils';
+import { getThermalTicketSucursalFooterLines } from '@/lib/ticketSucursalFooter';
 import type { Sale } from '@/types';
 
 export type TicketLine = { descripcion: string; cantidad: number; precioUnit: number; total: number };
@@ -14,6 +15,8 @@ export type TicketPayload = {
   total: number;
   cambio?: number;
   notas?: string;
+  /** Sucursal actual (Firestore `sucursales/{id}`); añade pie de contacto/horario si hay plantilla. */
+  sucursalId?: string;
 };
 
 function escapeHtml(s: string): string {
@@ -118,6 +121,8 @@ export function printThermalTicket(payload: TicketPayload): void {
   td.right { text-align: right; white-space: nowrap; }
   .tot { margin-top: 10px; border-top: 1px dashed #333; padding-top: 6px; font-size: 12px; }
   .tot strong { font-size: 14px; }
+  .pie-sucursal { margin-top: 10px; padding-top: 8px; border-top: 1px dashed #999; text-align: center; font-size: 9px; line-height: 1.4; color: #222; }
+  .pie-sucursal .titulo-suc { font-weight: 700; font-size: 10px; margin-bottom: 4px; }
 </style></head><body>
   <h1>${escapeHtml(negocio)}</h1>
   <div class="meta">
@@ -133,6 +138,13 @@ export function printThermalTicket(payload: TicketPayload): void {
     ${payload.cambio != null && payload.cambio > 0 ? `<div>Cambio: ${formatMoney(payload.cambio)}</div>` : ''}
   </div>
   ${payload.notas ? `<p style="margin-top:8px;font-size:10px;">${escapeHtml(payload.notas)}</p>` : ''}
+  ${(() => {
+    const lines = getThermalTicketSucursalFooterLines(payload.sucursalId);
+    if (!lines?.length) return '';
+    const [titulo, ...rest] = lines;
+    const body = rest.map((ln) => `<div>${escapeHtml(ln)}</div>`).join('');
+    return `<div class="pie-sucursal"><div class="titulo-suc">${escapeHtml(titulo)}</div>${body}</div>`;
+  })()}
   <p style="margin-top:12px;text-align:center;font-size:10px;">¡Gracias por su compra!</p>
 </body></html>`;
 
@@ -187,6 +199,7 @@ export function printThermalTicketFromSale(sale: Sale): void {
 
   printThermalTicket({
     negocio: 'SERVIPARTZ POS',
+    sucursalId: sale.sucursalId,
     folio: sale.folio,
     fecha: new Date(sale.createdAt).toLocaleString('es-MX'),
     cliente,

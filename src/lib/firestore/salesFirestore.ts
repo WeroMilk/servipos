@@ -103,6 +103,7 @@ export function saleDocToSale(snap: DocumentSnapshot): Sale | null {
   const d = snap.data() as Record<string, unknown>;
   const productosRaw = Array.isArray(d.productos) ? d.productos : [];
   const pagosRaw = Array.isArray(d.pagos) ? d.pagos : [];
+  const sucursalFromPath = snap.ref.parent.parent?.id;
 
   return {
     id: snap.id,
@@ -125,6 +126,7 @@ export function saleDocToSale(snap: DocumentSnapshot): Sale | null {
     facturaId: d.facturaId != null ? String(d.facturaId) : undefined,
     notas: d.notas != null ? String(d.notas) : undefined,
     usuarioId: String(d.usuarioId ?? ''),
+    sucursalId: typeof sucursalFromPath === 'string' && sucursalFromPath.length > 0 ? sucursalFromPath : undefined,
     createdAt: firestoreTimestampToDate(d.createdAt),
     updatedAt: firestoreTimestampToDate(d.updatedAt),
     syncStatus: 'synced',

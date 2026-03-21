@@ -210,6 +210,8 @@ export interface Sale {
   facturaId?: string;
   notas?: string;
   usuarioId: string;
+  /** Tienda (ruta Firestore `sucursales/{id}/sales/...`); para ticket / reimpresión. */
+  sucursalId?: string;
   createdAt: Date;
   updatedAt: Date;
   syncStatus: SyncStatus;

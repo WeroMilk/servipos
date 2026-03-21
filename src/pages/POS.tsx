@@ -34,7 +34,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { useShallow } from 'zustand/react/shallow';
 import { useCartStore, useAppStore, useAuthStore } from '@/stores';
-import { useProductSearch, useSales, useClients } from '@/hooks';
+import { useProductSearch, useSales, useClients, useEffectiveSucursalId } from '@/hooks';
 import type { Product, FormaPago } from '@/types';
 import { FORMAS_PAGO } from '@/types';
 import { cn, formatMoney } from '@/lib/utils';
@@ -59,12 +59,14 @@ type PosTicketSnapshot = {
   impuestos: number;
   total: number;
   cambio: number;
+  sucursalId?: string;
 };
 
 export function POS() {
   const { user } = useAuthStore();
   const { addToast } = useAppStore();
   const { addSale } = useSales();
+  const { effectiveSucursalId } = useEffectiveSucursalId();
 
   const cart = useCartStore(
     useShallow((s) => ({
@@ -263,6 +265,7 @@ export function POS() {
         impuestos: getImpuestos(),
         total: getTotal(),
         cambio: getCambio(),
+        sucursalId: effectiveSucursalId,
       });
       clearCart();
       // Cerrar el de pago de forma síncrona y abrir el de ticket tras 2 frames: reduce choques de portales (insertBefore/removeChild).
@@ -294,6 +297,7 @@ export function POS() {
     if (!snap) return;
     printThermalTicket({
       negocio: 'SERVIPARTZ POS',
+      sucursalId: snap.sucursalId,
       fecha: new Date().toLocaleString('es-MX'),
       cliente: snap.clienteNombre,
       lineas: snap.lineas,
@@ -700,10 +704,7 @@ export function POS() {
               disabled={items.length === 0}
               className="h-11 w-full min-w-0 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-sm font-bold text-white shadow-lg shadow-cyan-500/25 sm:h-12 sm:text-base md:h-14 md:text-lg"
             >
-              <Wallet className="mr-2 h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
-              <span className="shrink-0 tabular-nums">
-                Cobrar {formatMoney(totalVenta)}
-              </span>
+              Cobrar
             </Button>
 
             <Button

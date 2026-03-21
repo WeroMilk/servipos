@@ -84,8 +84,13 @@ service cloud.firestore {
       allow update: if false;
     }
 
+    // docId = {firebaseUid}_{YYYY-MM-DD}. La lectura NO puede depender de resource.data cuando el doc
+    // aún no existe (primer día sin fichar); si no, onSnapshot falla con permission-denied en bucle.
     match /checadorRegistros/{docId} {
-      allow read: if signedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow read: if signedIn() && (
+        isAdmin()
+        || docId.matches('^' + request.auth.uid + '_.+')
+      );
       allow create: if signedIn()
         && request.resource.data.userId == request.auth.uid
         && docId == request.auth.uid + '_' + request.resource.data.dateKey;

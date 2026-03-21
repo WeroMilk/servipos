@@ -140,7 +140,42 @@ export function Dashboard() {
   });
 
   const { inicio, fin } = useMemo(() => dateRangeToBounds(dateRange), [dateRange]);
-  const { sales, loading: salesLoading, totals } = useSalesByDateRange(inicio, fin);
+
+  /** Semana calendario (lun–dom) que contiene el día ancla del selector; el gráfico siempre muestra esos 7 días. */
+  const chartWeekBounds = useMemo(() => {
+    const anchor = startOfDay(dateRange?.from ?? new Date());
+    const weekStart = startOfWeek(anchor, { weekStartsOn: 1 });
+    const weekEndExclusive = addDays(endOfWeek(anchor, { weekStartsOn: 1 }), 1);
+    return { weekStart, weekEndExclusive };
+  }, [dateRange?.from]);
+
+  /** Una sola suscripción: cubre el periodo elegido y la semana del gráfico (p. ej. un solo día sigue trayendo lun–dom). */
+  const fetchBounds = useMemo(() => {
+    const { weekStart, weekEndExclusive } = chartWeekBounds;
+    const fetchStart = new Date(Math.min(inicio.getTime(), weekStart.getTime()));
+    const fetchEnd = new Date(Math.max(fin.getTime(), weekEndExclusive.getTime()));
+    return { fetchStart, fetchEnd };
+  }, [inicio, fin, chartWeekBounds]);
+
+  const { sales: salesFetched, loading: salesLoading } = useSalesByDateRange(
+    fetchBounds.fetchStart,
+    fetchBounds.fetchEnd
+  );
+
+  const kpiSales = useMemo(() => {
+    const i0 = inicio.getTime();
+    const f0 = fin.getTime();
+    return salesFetched.filter((s) => {
+      const t = s.createdAt instanceof Date ? s.createdAt : new Date(s.createdAt);
+      const x = t.getTime();
+      return x >= i0 && x < f0;
+    });
+  }, [salesFetched, inicio, fin]);
+
+  const totals = useMemo(() => {
+    const total = kpiSales.reduce((sum, sale) => sum + (Number(sale.total) || 0), 0);
+    return { total, count: kpiSales.length };
+  }, [kpiSales]);
   const { products: lowStockProducts, loading: stockLoading } = useLowStockProducts();
   const { sales: salesToday, loading: todaySalesLoading } = useTodaySales();
 
@@ -185,19 +220,15 @@ export function Dashboard() {
     return m.charAt(0).toUpperCase() + m.slice(1);
   }, [dateRange, periodGranularity]);
 
-  /** Una barra por día natural del periodo seleccionado (mismas ventas que el resumen superior). */
+  /** Siempre 7 barras: lunes → domingo de la semana del día ancla; días sin ventas = 0. */
   const chartData = useMemo(() => {
-    const rangeStart = startOfDay(inicio);
-    const rangeEndExclusive = fin;
-    const rangeEndInclusive = addDays(rangeEndExclusive, -1);
-    if (rangeStart.getTime() > rangeEndInclusive.getTime()) {
-      return [] as { name: string; ventas: number; fullLabel: string }[];
-    }
-    const days = eachDayOfInterval({ start: rangeStart, end: rangeEndInclusive });
+    const { weekStart, weekEndExclusive } = chartWeekBounds;
+    const weekEndInclusive = addDays(weekEndExclusive, -1);
+    const days = eachDayOfInterval({ start: weekStart, end: weekEndInclusive });
     return days.map((d) => {
       const day0 = startOfDay(d);
       const next = addDays(day0, 1);
-      const ventas = sales.reduce((sum, sale) => {
+      const ventas = salesFetched.reduce((sum, sale) => {
         const t = sale.createdAt instanceof Date ? sale.createdAt : new Date(sale.createdAt);
         const x = t.getTime();
         if (x >= day0.getTime() && x < next.getTime()) {
@@ -205,21 +236,13 @@ export function Dashboard() {
         }
         return sum;
       }, 0);
-      let name: string;
-      if (days.length === 1) {
-        name = format(d, 'EEE d', { locale: es });
-      } else if (days.length <= 7) {
-        name = format(d, 'EEE', { locale: es });
-      } else {
-        name = format(d, 'd', { locale: es });
-      }
       return {
-        name,
+        name: format(d, 'EEE', { locale: es }),
         ventas,
         fullLabel: format(d, 'EEEE d MMM yyyy', { locale: es }),
       };
     });
-  }, [sales, inicio, fin]);
+  }, [salesFetched, chartWeekBounds]);
 
   const handleGranularityChange = (g: PeriodGranularity) => {
     setPeriodGranularity(g);
@@ -346,7 +369,7 @@ export function Dashboard() {
         />
         <StatCard
           title="Unidades"
-          value={sales
+          value={kpiSales
             .reduce((sum, sale) => sum + (sale.productos?.length ?? 0), 0)
             .toString()}
           description="Líneas vendidas"
@@ -357,7 +380,7 @@ export function Dashboard() {
         />
         <StatCard
           title="Facturas"
-          value={sales.filter((s) => s.facturaId).length.toString()}
+          value={kpiSales.filter((s) => s.facturaId).length.toString()}
           description="Del total ventas"
           icon={Receipt}
           trend="up"
@@ -375,9 +398,14 @@ export function Dashboard() {
             )}
           >
             <CardHeader className="shrink-0 space-y-0 py-2">
-              <CardTitle className="flex items-center gap-2 text-sm text-slate-100 sm:text-base">
-                <TrendingUp className="h-4 w-4 shrink-0 text-cyan-400" />
-                Ventas por día
+              <CardTitle className="flex flex-col gap-0.5 text-sm text-slate-100 sm:text-base">
+                <span className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 shrink-0 text-cyan-400" />
+                  Ventas por día
+                </span>
+                <span className="text-[10px] font-normal text-slate-500 sm:text-xs">
+                  Semana lun–dom (según fecha del selector)
+                </span>
               </CardTitle>
             </CardHeader>
             <CardContent className="flex min-h-0 flex-1 flex-col p-2 pt-0 sm:p-3">
@@ -386,23 +414,18 @@ export function Dashboard() {
                   <div className="flex h-full min-h-[120px] items-center justify-center text-xs text-slate-500">
                     Cargando ventas…
                   </div>
-                ) : chartData.length === 0 ? (
-                  <div className="flex h-full min-h-[120px] items-center justify-center text-xs text-slate-500">
-                    Sin datos para graficar en este periodo
-                  </div>
                 ) : (
                 <ResponsiveContainer width="100%" height="100%" minHeight={140}>
-                  <BarChart data={chartData} margin={{ top: 4, right: 8, left: -18, bottom: chartData.length > 10 ? 28 : 0 }}>
+                  <BarChart data={chartData} margin={{ top: 4, right: 8, left: -18, bottom: 8 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                     <XAxis
                       dataKey="name"
                       stroke="#64748b"
-                      fontSize={chartData.length > 14 ? 9 : 10}
+                      fontSize={10}
                       tickLine={false}
-                      interval={chartData.length > 14 ? Math.max(0, Math.floor(chartData.length / 12)) : 0}
-                      angle={chartData.length > 10 ? -32 : 0}
-                      textAnchor={chartData.length > 10 ? 'end' : 'middle'}
-                      height={chartData.length > 10 ? 48 : 24}
+                      interval={0}
+                      tickMargin={6}
+                      height={28}
                     />
                     <YAxis
                       stroke="#64748b"
@@ -537,14 +560,14 @@ export function Dashboard() {
                       <div key={i} className="h-9 animate-pulse rounded-lg bg-slate-800/50" />
                     ))}
                   </div>
-                ) : sales.length === 0 ? (
+                ) : kpiSales.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-4 text-slate-500">
                     <Receipt className="mb-2 h-8 w-8 text-slate-600" />
                     <p className="text-xs">Sin ventas en el periodo</p>
                   </div>
                 ) : (
                   <div className="space-y-1.5">
-                    {sales.slice(0, 8).map((sale) => (
+                    {kpiSales.slice(0, 8).map((sale) => (
                       <div
                         key={sale.id}
                         className="flex items-center justify-between gap-2 rounded-lg bg-slate-800/30 px-2 py-1.5"

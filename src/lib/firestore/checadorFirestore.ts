@@ -60,7 +60,8 @@ export function subscribeChecadorDia(
 ): Unsubscribe {
   const id = checadorDocId(userId, dateKey);
   const ref = doc(db, COL, id);
-  return onSnapshot(
+  let unsubscribe: Unsubscribe = () => {};
+  unsubscribe = onSnapshot(
     ref,
     (snap) => {
       if (!snap.exists()) {
@@ -70,10 +71,15 @@ export function subscribeChecadorDia(
       onData(docToChecadorDia(snap.id, snap.data() as Record<string, unknown>));
     },
     (err) => {
-      console.error('checador día:', err);
+      const code = (err as { code?: string })?.code;
+      if (code !== 'permission-denied') {
+        console.error('checador día:', err);
+      }
       onData(null);
+      unsubscribe();
     }
   );
+  return unsubscribe;
 }
 
 export async function punchEntrada(user: User): Promise<void> {
