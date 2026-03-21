@@ -13,7 +13,9 @@ interface CartState {
   metodoPago: string;
   pagos: { formaPago: string; monto: number; referencia?: string }[];
   notas: string;
-  
+  /** Sucursal destino para forma de pago traspaso tienda–tienda (solo admin). */
+  transferenciaDestinoSucursalId: string;
+
   // Acciones
   addItem: (product: Product, quantity?: number) => void;
   removeItem: (productId: string) => void;
@@ -26,6 +28,7 @@ interface CartState {
   addPago: (pago: { formaPago: string; monto: number; referencia?: string }) => void;
   removePago: (index: number) => void;
   setNotas: (notas: string) => void;
+  setTransferenciaDestinoSucursalId: (id: string) => void;
   clearCart: () => void;
   
   // Cálculos
@@ -46,6 +49,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   metodoPago: 'PUE',
   pagos: [],
   notas: '',
+  transferenciaDestinoSucursalId: '',
 
   // Acciones
   addItem: (product: Product, quantity: number = 1) => {
@@ -137,6 +141,10 @@ export const useCartStore = create<CartState>((set, get) => ({
     set({ notas });
   },
 
+  setTransferenciaDestinoSucursalId: (id: string) => {
+    set({ transferenciaDestinoSucursalId: id });
+  },
+
   clearCart: () => {
     set({
       items: [],
@@ -146,6 +154,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       metodoPago: 'PUE',
       pagos: [],
       notas: '',
+      transferenciaDestinoSucursalId: '',
     });
   },
 

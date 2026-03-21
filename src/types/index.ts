@@ -214,6 +214,8 @@ export interface Sale {
   estado: SaleStatus;
   facturaId?: string;
   notas?: string;
+  /** Destino cuando forma de pago es traspaso entre sucursales (admin). */
+  transferenciaSucursalDestinoId?: string;
   usuarioId: string;
   /** Tienda (ruta Firestore `sucursales/{id}/sales/...`); para ticket / reimpresión. */
   sucursalId?: string;
@@ -250,7 +252,8 @@ export type FormaPago =
   | '03' // Transferencia electrónica de fondos
   | '04' // Tarjeta de crédito
   | '28' // Tarjeta de débito
-  | '99'; // Por definir
+  | '99' // Por definir
+  | 'TTS'; // Transferencia de tienda a tienda (interno; solo admin, total $0)
 
 export type MetodoPago = 'PUE' | 'PPD'; // Pago en una sola exhibición o Parcialidades
 

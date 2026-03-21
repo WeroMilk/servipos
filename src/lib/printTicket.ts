@@ -1,5 +1,10 @@
 import { formatMoney } from '@/lib/utils';
 import { getThermalTicketSucursalFooterLines } from '@/lib/ticketSucursalFooter';
+import {
+  buildLetterFooterHtml,
+  buildLetterHeaderHtml,
+  getBrandLogoAbsoluteUrl,
+} from '@/lib/documentPrintBranding';
 import type { Sale } from '@/types';
 
 export type TicketLine = { descripcion: string; cantidad: number; precioUnit: number; total: number };
@@ -123,7 +128,9 @@ export function printThermalTicket(payload: TicketPayload): void {
   .tot strong { font-size: 14px; }
   .pie-sucursal { margin-top: 10px; padding-top: 8px; border-top: 1px dashed #999; text-align: center; font-size: 9px; line-height: 1.4; color: #222; }
   .pie-sucursal .titulo-suc { font-weight: 700; font-size: 10px; margin-bottom: 4px; }
+  .logo-ticket { display: block; margin: 0 auto 8px; max-width: 48mm; height: auto; }
 </style></head><body>
+  <img class="logo-ticket" src="${escapeHtml(getBrandLogoAbsoluteUrl())}" alt="" width="160" height="160" />
   <h1>${escapeHtml(negocio)}</h1>
   <div class="meta">
     ${payload.folio ? `<div>Folio: ${escapeHtml(payload.folio)}</div>` : ''}
@@ -152,7 +159,13 @@ export function printThermalTicket(payload: TicketPayload): void {
 }
 
 /** Documento tamaño carta (facturas / cotizaciones) en ventana de impresión. */
-export function printLetterDocument(title: string, innerHtml: string): void {
+export function printLetterDocument(
+  title: string,
+  innerHtml: string,
+  options?: { sucursalId?: string | null }
+): void {
+  const head = buildLetterHeaderHtml();
+  const foot = buildLetterFooterHtml(options?.sucursalId);
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${escapeHtml(title)}</title>
 <style>
   @page { size: letter; margin: 12mm; }
@@ -164,8 +177,10 @@ export function printLetterDocument(title: string, innerHtml: string): void {
   .right { text-align: right; }
   .tot { margin-top: 16px; font-size: 12pt; }
 </style></head><body>
+${head}
 <h1>${escapeHtml(title)}</h1>
 ${innerHtml}
+${foot}
 </body></html>`;
 
   openAndPrintHtml(html, 'width=816,height=1056', 300);

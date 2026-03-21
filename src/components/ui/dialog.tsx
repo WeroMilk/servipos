@@ -52,17 +52,20 @@ function DialogContent({
   showCloseButton = true,
   /** Si incluyes `<DialogDescription>`, pon `true` para no forzar `aria-describedby={undefined}`. */
   useDialogDescription = false,
+  /** Capa del overlay (p. ej. z-[200]) cuando se encadenan varios diálogos. */
+  overlayClassName,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
   useDialogDescription?: boolean
+  overlayClassName?: string
 }) {
   const omitDescribedBy =
     !useDialogDescription && !("aria-describedby" in props)
 
   return (
     <DialogPortal data-slot="dialog-portal">
-      <DialogOverlay />
+      <DialogOverlay className={overlayClassName} />
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(

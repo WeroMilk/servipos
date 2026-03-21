@@ -26,6 +26,7 @@ import {
   punchEntrada,
   punchRegresoComer,
   punchSalidaComer,
+  reiniciarJornadaMismoDia,
   subscribeChecadorDia,
 } from '@/lib/firestore/checadorFirestore';
 import {
@@ -37,9 +38,10 @@ import {
   quincenaIdFromDateKey,
   recentQuincenaIds,
 } from '@/lib/quincenaMx';
-import type { ChecadorDiaRegistro } from '@/types';
+import type { ChecadorDiaRegistro, Sucursal } from '@/types';
+import { subscribeSucursales } from '@/lib/firestore/sucursalesMetaFirestore';
 
-type PunchKind = 'entrada' | 'salidaComer' | 'regresoComer' | 'cierre';
+type PunchKind = 'entrada' | 'salidaComer' | 'regresoComer' | 'cierre' | 'reinicio';
 
 export function Checador() {
   const user = useAuthStore((s) => s.user);
@@ -56,6 +58,7 @@ export function Checador() {
   const [quincenaSel, setQuincenaSel] = useState(() => getCurrentQuincenaId());
   const [reportRows, setReportRows] = useState<ChecadorDiaRegistro[]>([]);
   const [reportLoading, setReportLoading] = useState(false);
+  const [sucursalesList, setSucursalesList] = useState<Sucursal[]>([]);
 
   const [dateKey, setDateKey] = useState(() => getMexicoDateKey());
   const quincenaOptions = useMemo(() => recentQuincenaIds(12), []);
@@ -83,6 +86,20 @@ export function Checador() {
     });
     return unsub;
   }, [user?.id, dateKey, canRegistrar]);
+
+  useEffect(() => {
+    if (!canReporte) return;
+    return subscribeSucursales(setSucursalesList);
+  }, [canReporte]);
+
+  const sucursalNombre = useCallback(
+    (id?: string | null) => {
+      if (!id?.trim()) return '—';
+      const hit = sucursalesList.find((s) => s.id === id);
+      return hit?.nombre ? `${hit.nombre} (${id})` : id;
+    },
+    [sucursalesList]
+  );
 
   useEffect(() => {
     if (!canReporte || !user?.id) {
@@ -186,18 +203,18 @@ export function Checador() {
   return (
     <PageShell
       title="Checador"
-      subtitle={`Fecha de trabajo (CDMX): ${formatDateKeyMx(dateKey)} · ${formatQuincenaLabel(quincenaIdFromDateKey(dateKey))}`}
+      subtitle={`Fecha de trabajo (Hermosillo, Son.): ${formatDateKeyMx(dateKey)} · ${formatQuincenaLabel(quincenaIdFromDateKey(dateKey))}`}
       className="min-w-0 max-w-none"
     >
-      <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start">
-        <Card className="w-full min-w-0 flex-1 border-slate-800/50 bg-slate-900/50 lg:max-w-xl">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden lg:flex-row lg:gap-4">
+        <Card className="w-full shrink-0 border-slate-800/50 bg-slate-900/50 lg:max-w-xl lg:self-start">
           <CardHeader className="space-y-1 pb-2">
             <CardTitle className="flex items-center gap-2 text-base text-slate-100">
               <Clock className="h-5 w-5 text-cyan-400" />
               Mi jornada hoy
             </CardTitle>
             <p className="text-xs text-slate-500">
-              Horarios en hora de Ciudad de México. Toque cada acción en orden; puede cerrar el día
+              Horarios en hora de Hermosillo, Sonora. Toque cada acción en orden; puede cerrar el día
               sin comida (sin usar salida/regreso).
             </p>
           </CardHeader>
@@ -229,9 +246,38 @@ export function Checador() {
                 </div>
 
                 {ui.cerrado ? (
-                  <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">
-                    Jornada cerrada. ¡Buen descanso!
-                  </p>
+                  <div className="space-y-3">
+                    <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">
+                      Jornada cerrada. ¡Buen descanso!
+                    </p>
+                    <Button
+                      type="button"
+                      size="lg"
+                      variant="outline"
+                      disabled={busy !== null}
+                      className="h-12 w-full border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10"
+                      onClick={async () => {
+                        if (!user) return;
+                        setBusy('reinicio');
+                        try {
+                          await reiniciarJornadaMismoDia(user);
+                          addToast({
+                            type: 'success',
+                            message: 'Puede registrar una nueva entrada hoy',
+                          });
+                        } catch (e) {
+                          addToast({
+                            type: 'error',
+                            message: e instanceof Error ? e.message : 'No se pudo reiniciar',
+                          });
+                        } finally {
+                          setBusy(null);
+                        }
+                      }}
+                    >
+                      Iniciar jornada de nuevo (mismo día)
+                    </Button>
+                  </div>
                 ) : (
                   <div className="flex flex-col gap-3">
                     {ui.showEntrada ? (
@@ -301,12 +347,13 @@ export function Checador() {
         </Card>
 
         {canReporte ? (
-          <Card className="w-full min-w-0 flex-[2] border-slate-800/50 bg-slate-900/50">
-            <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-end sm:justify-between">
+          <Card className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50">
+            <CardHeader className="flex shrink-0 flex-col gap-3 space-y-0 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <CardTitle className="text-base text-slate-100">Registros por quincena</CardTitle>
                 <p className="text-xs text-slate-500">
-                  Horarios de apertura, comida y cierre de todo el equipo.
+                  Vista de administrador: colaborador, contacto, tienda asignada al fichaje y horarios del
+                  periodo.
                 </p>
               </div>
               <div className="w-full min-w-[14rem] sm:w-72">
@@ -325,7 +372,7 @@ export function Checador() {
                 </Select>
               </div>
             </CardHeader>
-            <CardContent className="overflow-x-auto p-2 sm:p-4 sm:pt-0">
+            <CardContent className="min-h-0 flex-1 overflow-auto overscroll-contain p-2 sm:p-4 sm:pt-0">
               {reportLoading ? (
                 <p className="flex items-center gap-2 py-8 text-sm text-slate-500">
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -333,9 +380,12 @@ export function Checador() {
                 </p>
               ) : (
                 <Table>
-                  <TableHeader>
+                  <TableHeader className="[&_th]:sticky [&_th]:top-0 [&_th]:z-[1] [&_th]:bg-slate-950 [&_th]:shadow-[0_1px_0_0_rgb(30_41_59)]">
                     <TableRow className="border-slate-800 hover:bg-transparent">
                       <TableHead className="text-slate-400">Colaborador</TableHead>
+                      <TableHead className="min-w-[10rem] text-slate-400">Correo</TableHead>
+                      <TableHead className="whitespace-nowrap text-slate-400">ID usuario</TableHead>
+                      <TableHead className="text-slate-400">Tienda (fichaje)</TableHead>
                       <TableHead className="text-slate-400">Fecha</TableHead>
                       <TableHead className="text-slate-400">Entrada</TableHead>
                       <TableHead className="text-slate-400">Salida a comer</TableHead>
@@ -346,7 +396,7 @@ export function Checador() {
                   <TableBody>
                     {reportRows.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center text-slate-500">
+                        <TableCell colSpan={9} className="text-center text-slate-500">
                           Sin registros en esta quincena.
                         </TableCell>
                       </TableRow>
@@ -354,6 +404,20 @@ export function Checador() {
                       reportRows.map((row) => (
                         <TableRow key={row.id} className="border-slate-800/80">
                           <TableCell className="font-medium text-slate-200">{row.userName}</TableCell>
+                          <TableCell
+                            className="max-w-[14rem] truncate text-xs text-slate-400"
+                            title={row.userEmail || undefined}
+                          >
+                            {row.userEmail?.trim() ? row.userEmail : '—'}
+                          </TableCell>
+                          <TableCell className="font-mono text-[11px] text-slate-500" title={row.userId}>
+                            {row.userId && row.userId.length > 12
+                              ? `${row.userId.slice(0, 10)}…`
+                              : row.userId || '—'}
+                          </TableCell>
+                          <TableCell className="max-w-[12rem] truncate text-xs text-slate-400" title={sucursalNombre(row.sucursalId)}>
+                            {sucursalNombre(row.sucursalId)}
+                          </TableCell>
                           <TableCell className="text-slate-400">{formatDateKeyMx(row.dateKey)}</TableCell>
                           <TableCell>{timeCell(row.entrada)}</TableCell>
                           <TableCell>{timeCell(row.salidaComer)}</TableCell>

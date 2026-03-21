@@ -27,8 +27,6 @@ import { cn } from '@/lib/utils';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 import { useAppStore } from '@/stores';
 
-const PROFILE_VALUE = '__perfil__';
-
 function labelForSucursal(s: Sucursal): string {
   return s.codigo ? `${s.nombre} (${s.codigo})` : s.nombre;
 }
@@ -66,24 +64,33 @@ export function AdminSucursalSwitcher() {
     return active;
   }, [sucursales, activeSucursalId]);
 
+  /** Sin opción "automático": al cargar, fijar tienda explícita desde perfil o primera del catálogo. */
+  useEffect(() => {
+    if (!canSwitch || options.length === 0) return;
+    if (activeSucursalId) return;
+    const pick = effectiveSucursalId && options.some((s) => s.id === effectiveSucursalId)
+      ? effectiveSucursalId
+      : options[0]!.id;
+    setActiveSucursalId(pick);
+  }, [canSwitch, options, activeSucursalId, effectiveSucursalId, setActiveSucursalId]);
+
   const orphanOverride =
     activeSucursalId && !sucursales.some((s) => s.id === activeSucursalId);
 
-  const selectValue = activeSucursalId ?? PROFILE_VALUE;
+  const resolvedSucursalId = useMemo(() => {
+    if (activeSucursalId) return activeSucursalId;
+    if (effectiveSucursalId) return effectiveSucursalId;
+    const first = options[0]?.id;
+    return first ?? '';
+  }, [activeSucursalId, effectiveSucursalId, options]);
 
   const triggerLabel = useMemo(() => {
-    if (activeSucursalId) {
-      const s = sucursales.find((x) => x.id === activeSucursalId);
-      if (s) return labelForSucursal(s);
-      return activeSucursalId.length > 18
-        ? `${activeSucursalId.slice(0, 12)}…`
-        : activeSucursalId;
-    }
-    const eid = effectiveSucursalId;
-    const s = eid ? sucursales.find((x) => x.id === eid) : undefined;
-    if (s) return `${labelForSucursal(s)} · automático`;
-    return 'Tienda (automático)';
-  }, [activeSucursalId, effectiveSucursalId, sucursales]);
+    const id = resolvedSucursalId;
+    if (!id) return 'Elija tienda';
+    const s = sucursales.find((x) => x.id === id);
+    if (s) return labelForSucursal(s);
+    return id.length > 18 ? `${id.slice(0, 12)}…` : id;
+  }, [resolvedSucursalId, sucursales]);
 
   const openCreateDialog = useCallback(() => {
     setForm({ docId: '', nombre: '', codigo: '' });
@@ -122,10 +129,8 @@ export function AdminSucursalSwitcher() {
       <div className="flex min-w-0 max-w-[min(100vw-8rem,16rem)] items-center gap-1 sm:max-w-[20rem]">
         <MapPin className="hidden h-4 w-4 shrink-0 text-cyan-500/90 sm:block" aria-hidden />
         <Select
-          value={selectValue}
-          onValueChange={(v) => {
-            setActiveSucursalId(v === PROFILE_VALUE ? null : v);
-          }}
+          value={resolvedSucursalId || (options[0]?.id ?? '')}
+          onValueChange={(v) => setActiveSucursalId(v)}
         >
           <SelectTrigger
             className={cn(
@@ -136,9 +141,6 @@ export function AdminSucursalSwitcher() {
             <SelectValue placeholder="Elegir tienda">{triggerLabel}</SelectValue>
           </SelectTrigger>
           <SelectContent className="border-slate-800 bg-slate-900">
-            <SelectItem value={PROFILE_VALUE} className="text-slate-100">
-              Automático (perfil o predeterminada)
-            </SelectItem>
             {orphanOverride && activeSucursalId ? (
               <SelectItem value={activeSucursalId} className="text-slate-100">
                 Guardada: {activeSucursalId.slice(0, 10)}…

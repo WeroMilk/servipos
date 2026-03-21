@@ -152,6 +152,35 @@ export async function punchRegresoComer(user: User): Promise<void> {
   });
 }
 
+/** Borra los registros del día para volver a fichar (misma fecha, tras haber cerrado). */
+export async function reiniciarJornadaMismoDia(user: User): Promise<void> {
+  const dateKey = getMexicoDateKey();
+  const quincenaId = quincenaIdFromDateKey(dateKey);
+  const id = checadorDocId(user.id, dateKey);
+  const ref = doc(db, COL, id);
+  const snap = await getDoc(ref);
+  if (!snap.exists() || !snap.data()?.cierre) {
+    throw new Error('Solo puede reiniciar después de cerrar la jornada');
+  }
+  await setDoc(
+    ref,
+    {
+      userId: user.id,
+      userName: user.name,
+      userEmail: user.email,
+      dateKey,
+      quincenaId,
+      sucursalId: user.sucursalId ?? null,
+      entrada: null,
+      salidaComer: null,
+      regresoComer: null,
+      cierre: null,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+}
+
 export async function punchCierre(user: User): Promise<void> {
   const dateKey = getMexicoDateKey();
   const id = checadorDocId(user.id, dateKey);

@@ -15,6 +15,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Client, FormaPago, MetodoPago, Payment, Sale, SaleItem, SaleStatus } from '@/types';
+import { getMexicoDateKey } from '@/lib/quincenaMx';
 
 // ============================================
 // VENTAS EN FIRESTORE (tiempo real + folio atómico)
@@ -49,6 +50,7 @@ function firestoreTimestampToDate(value: unknown): Date {
 
 function parseFormaPago(v: unknown): FormaPago {
   const s = String(v ?? '01');
+  if (s === 'TTS') return 'TTS';
   if (['01', '02', '03', '04', '28', '99'].includes(s)) return s as FormaPago;
   return '01';
 }
@@ -125,6 +127,10 @@ export function saleDocToSale(snap: DocumentSnapshot): Sale | null {
     estado: parseEstado(d.estado),
     facturaId: d.facturaId != null ? String(d.facturaId) : undefined,
     notas: d.notas != null ? String(d.notas) : undefined,
+    transferenciaSucursalDestinoId:
+      typeof d.transferenciaSucursalDestinoId === 'string' && d.transferenciaSucursalDestinoId
+        ? String(d.transferenciaSucursalDestinoId)
+        : undefined,
     usuarioId: String(d.usuarioId ?? ''),
     sucursalId: typeof sucursalFromPath === 'string' && sucursalFromPath.length > 0 ? sucursalFromPath : undefined,
     createdAt: firestoreTimestampToDate(d.createdAt),
@@ -133,8 +139,9 @@ export function saleDocToSale(snap: DocumentSnapshot): Sale | null {
   };
 }
 
-function yyyymmddLocal(d: Date): string {
-  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+/** Fecha del folio diario en zona Hermosillo (consistente con checador / panel). */
+function yyyymmddFolioZone(d: Date): string {
+  return getMexicoDateKey(d).replace(/-/g, '');
 }
 
 function saleInputToPayload(
@@ -182,6 +189,10 @@ function saleInputToPayload(
     facturaId: sale.facturaId ?? null,
     notas: sale.notas ?? null,
     usuarioId: sale.usuarioId,
+    transferenciaSucursalDestinoId:
+      sale.transferenciaSucursalDestinoId && sale.transferenciaSucursalDestinoId.length > 0
+        ? sale.transferenciaSucursalDestinoId
+        : null,
   };
 }
 
@@ -195,7 +206,7 @@ export async function createSaleFirestore(
   const saleRef = doc(salesCol(sucursalId));
   const counterRef = ventasDiarioCounterRef(sucursalId);
   const now = new Date();
-  const dateStr = yyyymmddLocal(now);
+  const dateStr = yyyymmddFolioZone(now);
 
   await runTransaction(db, async (transaction) => {
     const counterSnap = await transaction.get(counterRef);

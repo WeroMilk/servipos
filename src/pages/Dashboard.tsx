@@ -38,10 +38,14 @@ import {
   startOfWeek,
 } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { getMexicoDateKey, startOfDayFromDateKey } from '@/lib/quincenaMx';
+import { formatInAppTimezone } from '@/lib/appTimezone';
 import type { Sale } from '@/types';
 import { DashboardPeriodPopover, type PeriodGranularity } from '@/components/ui-custom/DashboardPeriodPopover';
 
 const barCursor = { fill: 'rgba(15, 23, 42, 0.92)' };
+
+const WEEKDAY_SHORT_ES = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'] as const;
 
 interface StatCardProps {
   title: string;
@@ -134,8 +138,7 @@ export function Dashboard() {
   const [periodGranularity, setPeriodGranularity] = useState<PeriodGranularity>('day');
   const [todaySalesOpen, setTodaySalesOpen] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
-    const t = new Date();
-    t.setHours(0, 0, 0, 0);
+    const t = startOfDayFromDateKey(getMexicoDateKey());
     return { from: t, to: t };
   });
 
@@ -143,7 +146,7 @@ export function Dashboard() {
 
   /** Semana calendario (lun–dom) que contiene el día ancla del selector; el gráfico siempre muestra esos 7 días. */
   const chartWeekBounds = useMemo(() => {
-    const anchor = startOfDay(dateRange?.from ?? new Date());
+    const anchor = startOfDay(dateRange?.from ?? startOfDayFromDateKey(getMexicoDateKey()));
     const weekStart = startOfWeek(anchor, { weekStartsOn: 1 });
     const weekEndExclusive = addDays(endOfWeek(anchor, { weekStartsOn: 1 }), 1);
     return { weekStart, weekEndExclusive };
@@ -236,8 +239,9 @@ export function Dashboard() {
         }
         return sum;
       }, 0);
+      const dowMon0 = (d.getDay() + 6) % 7;
       return {
-        name: format(d, 'EEE', { locale: es }),
+        name: WEEKDAY_SHORT_ES[dowMon0]!,
         ventas,
         fullLabel: format(d, 'EEEE d MMM yyyy', { locale: es }),
       };
@@ -247,7 +251,7 @@ export function Dashboard() {
   const handleGranularityChange = (g: PeriodGranularity) => {
     setPeriodGranularity(g);
     setDateRange((prev) => {
-      const anchor = startOfDay(prev?.from ?? new Date());
+      const anchor = startOfDay(prev?.from ?? startOfDayFromDateKey(getMexicoDateKey()));
       if (g === 'day') return { from: anchor, to: anchor };
       if (g === 'week') {
         return {
@@ -264,14 +268,14 @@ export function Dashboard() {
 
   const setQuickDia = () => {
     setPeriodGranularity('day');
-    const t = startOfDay(new Date());
+    const t = startOfDayFromDateKey(getMexicoDateKey());
     setDateRange({ from: t, to: t });
     setDateOpen(true);
   };
 
   const setQuickSemana = () => {
     setPeriodGranularity('week');
-    const now = new Date();
+    const now = startOfDayFromDateKey(getMexicoDateKey());
     setDateRange({
       from: startOfWeek(now, { weekStartsOn: 1 }),
       to: endOfWeek(now, { weekStartsOn: 1 }),
@@ -281,7 +285,7 @@ export function Dashboard() {
 
   const setQuickMes = () => {
     setPeriodGranularity('month');
-    const now = new Date();
+    const now = startOfDayFromDateKey(getMexicoDateKey());
     setDateRange({
       from: startOfMonth(now),
       to: endOfMonth(now),
@@ -393,8 +397,7 @@ export function Dashboard() {
         <div className="flex min-h-0 min-w-0 flex-[1.4] flex-col gap-2 overflow-hidden lg:min-h-0">
           <Card
             className={cn(
-              'hidden overflow-hidden border-slate-800/50 bg-slate-900/50',
-              'md:flex md:min-h-0 md:flex-1 md:flex-col'
+              'flex min-h-0 flex-1 flex-col overflow-hidden border-slate-800/50 bg-slate-900/50'
             )}
           >
             <CardHeader className="shrink-0 space-y-0 py-2">
@@ -409,23 +412,25 @@ export function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent className="flex min-h-0 flex-1 flex-col p-2 pt-0 sm:p-3">
-              <div className="min-h-[140px] flex-1 sm:min-h-[160px] lg:min-h-[11rem]">
+              <div className="min-h-[180px] flex-1 sm:min-h-[200px] lg:min-h-[11rem]">
                 {salesLoading ? (
                   <div className="flex h-full min-h-[120px] items-center justify-center text-xs text-slate-500">
                     Cargando ventas…
                   </div>
                 ) : (
-                <ResponsiveContainer width="100%" height="100%" minHeight={140}>
-                  <BarChart data={chartData} margin={{ top: 4, right: 8, left: -18, bottom: 8 }}>
+                <ResponsiveContainer width="100%" height="100%" minHeight={180}>
+                  <BarChart data={chartData} margin={{ top: 8, right: 4, left: 4, bottom: 36 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                     <XAxis
                       dataKey="name"
                       stroke="#64748b"
-                      fontSize={10}
+                      fontSize={11}
                       tickLine={false}
                       interval={0}
-                      tickMargin={6}
-                      height={28}
+                      tickMargin={8}
+                      angle={-28}
+                      textAnchor="end"
+                      height={52}
                     />
                     <YAxis
                       stroke="#64748b"
@@ -575,10 +580,10 @@ export function Dashboard() {
                         <div className="min-w-0">
                           <p className="truncate text-xs font-medium text-slate-200">{sale.folio}</p>
                           <p className="text-[10px] text-slate-500">
-                            {new Date(sale.createdAt).toLocaleTimeString('es-MX', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
+                            {formatInAppTimezone(
+                              sale.createdAt instanceof Date ? sale.createdAt : new Date(sale.createdAt),
+                              { hour: '2-digit', minute: '2-digit' }
+                            )}
                           </p>
                         </div>
                         <p className="shrink-0 text-xs font-bold tabular-nums text-cyan-400">
@@ -627,12 +632,10 @@ export function Dashboard() {
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-slate-200">{sale.folio}</p>
                       <p className="text-xs text-slate-500">
-                        {new Date(sale.createdAt).toLocaleString('es-MX', {
-                          day: '2-digit',
-                          month: 'short',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
+                        {formatInAppTimezone(
+                          sale.createdAt instanceof Date ? sale.createdAt : new Date(sale.createdAt),
+                          { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }
+                        )}
                         {sale.estado === 'cancelada' ? (
                           <span className="ml-2 text-amber-400">· Cancelada</span>
                         ) : null}

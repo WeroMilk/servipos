@@ -35,13 +35,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-import { useQuotations, useProducts, useClients } from '@/hooks';
+import { useQuotations, useProducts, useClients, useEffectiveSucursalId } from '@/hooks';
 import { useAppStore, useAuthStore } from '@/stores';
 import type { Quotation, Product } from '@/types';
 import { cn, formatMoney } from '@/lib/utils';
 import { PageShell } from '@/components/ui-custom/PageShell';
 import { SendEmailDialog } from '@/components/ui-custom/SendEmailDialog';
 import { printLetterDocument } from '@/lib/printTicket';
+import { formatInAppTimezone } from '@/lib/appTimezone';
 
 const statusColors: Record<string, string> = {
   pendiente: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
@@ -69,8 +70,8 @@ function buildQuotationEmailBody(q: Quotation): string {
     '',
     `Folio: ${q.folio}`,
     `Cliente: ${q.cliente?.nombre ?? 'Mostrador'}`,
-    `Fecha: ${new Date(q.createdAt).toLocaleString('es-MX')}`,
-    `Vigencia: ${new Date(q.fechaVigencia).toLocaleDateString('es-MX')}`,
+    `Fecha: ${formatInAppTimezone(q.createdAt, { dateStyle: 'medium', timeStyle: 'short' })}`,
+    `Vigencia: ${formatInAppTimezone(q.fechaVigencia, { dateStyle: 'medium' })}`,
     `Estado: ${statusLabels[q.estado] ?? q.estado}`,
     '',
     'Detalle:',
@@ -87,7 +88,7 @@ function buildQuotationEmailBody(q: Quotation): string {
   return lines.filter(Boolean).join('\n');
 }
 
-function printQuotationLetter(q: Quotation): void {
+function printQuotationLetter(q: Quotation, fallbackSucursalId?: string | null): void {
   const rows = q.productos
     .map(
       (it) =>
@@ -96,8 +97,8 @@ function printQuotationLetter(q: Quotation): void {
     .join('');
   const html = `
     <p><strong>Cliente:</strong> ${esc(q.cliente?.nombre ?? 'Mostrador')}</p>
-    <p><strong>Fecha:</strong> ${esc(new Date(q.createdAt).toLocaleString('es-MX'))}</p>
-    <p><strong>Vigencia:</strong> ${esc(new Date(q.fechaVigencia).toLocaleDateString('es-MX'))}</p>
+    <p><strong>Fecha:</strong> ${esc(formatInAppTimezone(q.createdAt, { dateStyle: 'medium', timeStyle: 'short' }))}</p>
+    <p><strong>Vigencia:</strong> ${esc(formatInAppTimezone(q.fechaVigencia, { dateStyle: 'medium' }))}</p>
     <table>
       <thead><tr><th>Producto</th><th class="right">Cant.</th><th class="right">P. unit.</th><th class="right">Total</th></tr></thead>
       <tbody>${rows}</tbody>
@@ -108,13 +109,16 @@ function printQuotationLetter(q: Quotation): void {
       <p><strong>Total: ${formatMoney(q.total)}</strong></p>
     </div>
   `;
-  printLetterDocument(`Cotización ${q.folio}`, html);
+  printLetterDocument(`Cotización ${q.folio}`, html, {
+    sucursalId: q.sucursalId ?? fallbackSucursalId ?? null,
+  });
 }
 
 export function Cotizaciones() {
   const { quotations, loading, addQuotation, convertToSale } = useQuotations();
   const { products } = useProducts();
   const { clients } = useClients();
+  const { effectiveSucursalId } = useEffectiveSucursalId();
   const { user } = useAuthStore();
   const { addToast } = useAppStore();
 
@@ -664,7 +668,7 @@ export function Cotizaciones() {
                   type="button"
                   variant="outline"
                   className="border-slate-700 text-slate-300"
-                  onClick={() => printQuotationLetter(selectedQuotation)}
+                  onClick={() => printQuotationLetter(selectedQuotation, effectiveSucursalId)}
                 >
                   <Printer className="mr-2 h-4 w-4" />
                   Imprimir (carta)

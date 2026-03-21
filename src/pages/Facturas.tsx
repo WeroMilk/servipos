@@ -39,7 +39,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { useInvoices, useCFDIGenerator, useSales, useFiscalConfig, useClients } from '@/hooks';
+import { useInvoices, useCFDIGenerator, useSales, useFiscalConfig, useClients, useEffectiveSucursalId } from '@/hooks';
 import { useAppStore } from '@/stores';
 import type { Invoice, Sale, Client } from '@/types';
 import { FORMAS_PAGO, USOS_CFDI } from '@/types';
@@ -47,6 +47,8 @@ import { cn, formatMoney } from '@/lib/utils';
 import { PageShell } from '@/components/ui-custom/PageShell';
 import { SendEmailDialog } from '@/components/ui-custom/SendEmailDialog';
 import { printLetterDocument } from '@/lib/printTicket';
+import { formatInAppTimezone } from '@/lib/appTimezone';
+import { getDocumentFooterLinesForSucursal } from '@/lib/ticketSucursalFooter';
 import jsPDF from 'jspdf';
 
 const statusColors: Record<string, string> = {
@@ -70,6 +72,7 @@ export function Facturas() {
   const { config: fiscalConfig } = useFiscalConfig();
   const { generateXML } = useCFDIGenerator();
   const { addToast } = useAppStore();
+  const { effectiveSucursalId } = useEffectiveSucursalId();
 
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
@@ -177,7 +180,8 @@ export function Facturas() {
 
   const handleGeneratePDF = (invoice: Invoice) => {
     const doc = new jsPDF();
-    
+    const sucForFooter = invoice.sucursalId ?? effectiveSucursalId ?? null;
+
     // Encabezado
     doc.setFontSize(20);
     doc.text('FACTURA', 105, 20, { align: 'center' });
@@ -185,7 +189,11 @@ export function Facturas() {
     doc.setFontSize(12);
     doc.text(`Serie: ${invoice.serie}`, 20, 40);
     doc.text(`Folio: ${invoice.folio}`, 20, 50);
-    doc.text(`Fecha: ${new Date(invoice.fechaEmision).toLocaleDateString('es-MX')}`, 20, 60);
+    doc.text(
+      `Fecha: ${formatInAppTimezone(invoice.fechaEmision, { dateStyle: 'medium' })}`,
+      20,
+      60
+    );
     
     // Emisor
     doc.setFontSize(14);
@@ -215,10 +223,25 @@ export function Facturas() {
     
     // Totales
     doc.setFontSize(12);
-    doc.text(`Subtotal: ${formatMoney(invoice.subtotal)}`, 140, y + 10);
-    doc.text(`IVA: ${formatMoney(invoice.impuestosTrasladados)}`, 140, y + 20);
-    doc.text(`Total: ${formatMoney(invoice.total)}`, 140, y + 30);
-    
+    let yTot = y + 10;
+    doc.text(`Subtotal: ${formatMoney(invoice.subtotal)}`, 140, yTot);
+    yTot += 10;
+    doc.text(`IVA: ${formatMoney(invoice.impuestosTrasladados)}`, 140, yTot);
+    yTot += 10;
+    doc.text(`Total: ${formatMoney(invoice.total)}`, 140, yTot);
+    yTot += 14;
+
+    doc.setFontSize(8);
+    doc.setTextColor(60, 60, 60);
+    getDocumentFooterLinesForSucursal(sucForFooter).forEach((line) => {
+      if (yTot > 275) {
+        doc.addPage();
+        yTot = 20;
+      }
+      doc.text(line, 20, yTot);
+      yTot += 5;
+    });
+
     doc.save(`Factura_${invoice.serie}_${invoice.folio}.pdf`);
   };
 
@@ -241,7 +264,7 @@ export function Facturas() {
       'SERVIPARTZ POS — Factura',
       '',
       `${inv.serie}-${inv.folio}`,
-      `Fecha: ${new Date(inv.fechaEmision).toLocaleString('es-MX')}`,
+      `Fecha: ${formatInAppTimezone(inv.fechaEmision, { dateStyle: 'medium', timeStyle: 'short' })}`,
       `Cliente: ${inv.cliente?.nombre ?? 'Público en General'}`,
       `Total: ${formatMoney(inv.total)}`,
       inv.uuid ? `UUID: ${inv.uuid}` : '',
@@ -266,7 +289,7 @@ export function Facturas() {
     const html = `
       <p><strong>Receptor:</strong> ${escHtml(inv.cliente?.nombre || 'Público en General')}</p>
       <p><strong>RFC:</strong> ${escHtml(inv.cliente?.rfc || 'XAXX010101000')}</p>
-      <p><strong>Fecha:</strong> ${escHtml(new Date(inv.fechaEmision).toLocaleString('es-MX'))}</p>
+      <p><strong>Fecha:</strong> ${escHtml(formatInAppTimezone(inv.fechaEmision, { dateStyle: 'medium', timeStyle: 'short' }))}</p>
       <table><thead><tr><th>Descripción</th><th class="right">Cant.</th><th class="right">P. unit.</th><th class="right">Total</th></tr></thead>
       <tbody>${rows}</tbody></table>
       <div class="tot">
@@ -275,7 +298,9 @@ export function Facturas() {
         <p><strong>Total: ${formatMoney(inv.total)}</strong></p>
       </div>
     `;
-    printLetterDocument(`Factura ${inv.serie}-${inv.folio}`, html);
+    printLetterDocument(`Factura ${inv.serie}-${inv.folio}`, html, {
+      sucursalId: inv.sucursalId ?? effectiveSucursalId ?? null,
+    });
   };
 
   const filteredInvoices = invoices.filter(i =>

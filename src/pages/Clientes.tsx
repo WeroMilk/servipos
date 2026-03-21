@@ -349,12 +349,23 @@ export function Clientes() {
                   key={client.id}
                   className="rounded-xl border border-slate-800/80 bg-slate-950/40 p-3"
                 >
-                  <button
-                    type="button"
-                    className="flex w-full items-start justify-between gap-2 text-left"
-                    onClick={() => setDetailClient(client)}
-                  >
-                    <p className="min-w-0 flex-1 truncate font-medium text-slate-100">{client.nombre}</p>
+                  <div className="min-w-0 space-y-1">
+                    <p className="text-sm font-medium leading-snug text-slate-100">{client.nombre}</p>
+                    {client.rfc ? (
+                      <p className="truncate text-xs text-emerald-400">{client.rfc}</p>
+                    ) : null}
+                    <p className="line-clamp-2 text-xs text-slate-500">
+                      {client.email || client.telefono || 'Sin contacto'}
+                    </p>
+                  </div>
+                  <div className="mt-3 flex items-center gap-2 border-t border-slate-800/60 pt-2">
+                    <button
+                      type="button"
+                      className="min-w-0 flex-1 truncate text-left text-xs font-medium text-cyan-500/90 hover:text-cyan-400"
+                      onClick={() => setDetailClient(client)}
+                    >
+                      Ver ficha completa…
+                    </button>
                     <span
                       className="flex shrink-0 items-center gap-1 rounded-lg border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-amber-400"
                       title="Tickets de compra (ventas completadas)"
@@ -362,18 +373,9 @@ export function Clientes() {
                       <Ticket className="h-3 w-3" aria-hidden />
                       {client.ticketsComprados ?? 0}
                     </span>
-                    {client.rfc ? (
-                      <p className="mt-1 truncate text-xs text-emerald-400">{client.rfc}</p>
-                    ) : null}
-                    <p className="mt-2 line-clamp-2 text-xs text-slate-500">
-                      {client.email || client.telefono || 'Sin contacto'}
-                    </p>
-                    <p className="mt-1 text-center text-xs text-cyan-500/80">Ver ficha completa…</p>
-                  </button>
-                  <div className="mt-2 flex justify-end border-t border-slate-800/60 pt-2">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="text-slate-400">
+                        <Button variant="ghost" size="icon" className="shrink-0 text-slate-400">
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>

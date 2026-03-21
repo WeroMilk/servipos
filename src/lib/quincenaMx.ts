@@ -1,5 +1,7 @@
+import { APP_TIMEZONE } from '@/lib/appTimezone';
+
 // ============================================
-// Fecha y quincena (zona America/Mexico_City)
+// Fecha y quincena (zona Hermosillo, Sonora)
 // ============================================
 
 const MONTHS_ES = [
@@ -17,10 +19,10 @@ const MONTHS_ES = [
   'Diciembre',
 ];
 
-/** YYYY-MM-DD en Ciudad de México. */
+/** YYYY-MM-DD en zona Hermosillo (Sonora). */
 export function getMexicoDateKey(d: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Mexico_City',
+    timeZone: APP_TIMEZONE,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -29,7 +31,7 @@ export function getMexicoDateKey(d: Date = new Date()): string {
 
 export function getMexicoNowParts(d: Date = new Date()): { y: string; m: string; day: number } {
   const fmt = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Mexico_City',
+    timeZone: APP_TIMEZONE,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -90,7 +92,7 @@ export function formatQuincenaLabel(id: string): string {
 
 export function formatTimeMx(d: Date): string {
   return new Intl.DateTimeFormat('es-MX', {
-    timeZone: 'America/Mexico_City',
+    timeZone: APP_TIMEZONE,
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
@@ -98,8 +100,19 @@ export function formatTimeMx(d: Date): string {
   }).format(d);
 }
 
-/** dd/mm/yyyy para tabla (CDMX). */
+/** dd/mm/yyyy para tabla (Hermosillo). */
 export function formatDateKeyMx(dateKey: string): string {
   const [y, m, d] = dateKey.split('-');
   return `${d}/${m}/${y}`;
+}
+
+/** Ancla de calendario en medianoche local a partir de YYYY-MM-DD (Hermosillo). */
+export function startOfDayFromDateKey(dateKey: string): Date {
+  const [ys, ms, ds] = dateKey.split('-');
+  const y = parseInt(ys!, 10);
+  const m = parseInt(ms!, 10);
+  const d = parseInt(ds!, 10);
+  const x = new Date(y, m - 1, d);
+  x.setHours(0, 0, 0, 0);
+  return x;
 }

@@ -1,5 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
-import { flushSync } from 'react-dom';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Search,
   Plus,
@@ -35,9 +34,11 @@ import { Label } from '@/components/ui/label';
 import { useShallow } from 'zustand/react/shallow';
 import { useCartStore, useAppStore, useAuthStore } from '@/stores';
 import { useProductSearch, useSales, useClients, useEffectiveSucursalId } from '@/hooks';
-import type { Product, FormaPago } from '@/types';
+import type { Product, FormaPago, Sucursal } from '@/types';
 import { FORMAS_PAGO } from '@/types';
+import { subscribeSucursales } from '@/lib/firestore/sucursalesMetaFirestore';
 import { cn, formatMoney } from '@/lib/utils';
+import { formatInAppTimezone } from '@/lib/appTimezone';
 import { printThermalTicket } from '@/lib/printTicket';
 
 // ============================================
@@ -45,6 +46,8 @@ import { printThermalTicket } from '@/lib/printTicket';
 // ============================================
 
 type MobileTab = 'cart' | 'checkout';
+
+type CheckoutPhase = 'payment' | 'success';
 
 /** Datos de la venta recién cobrada: el carrito se vacía al completar; el ticket y el modal usan esto. */
 type PosTicketSnapshot = {
@@ -60,13 +63,31 @@ type PosTicketSnapshot = {
   total: number;
   cambio: number;
   sucursalId?: string;
+  notas?: string;
 };
 
 export function POS() {
   const { user } = useAuthStore();
+  const isAdmin = user?.role === 'admin';
   const { addToast } = useAppStore();
   const { addSale } = useSales();
   const { effectiveSucursalId } = useEffectiveSucursalId();
+
+  const [sucursalesCat, setSucursalesCat] = useState<Sucursal[]>([]);
+  useEffect(() => subscribeSucursales(setSucursalesCat), []);
+
+  const formasPagoPos = useMemo(() => {
+    const base = [...FORMAS_PAGO];
+    if (isAdmin) {
+      base.push({ clave: 'TTS', descripcion: 'Transferencia de tienda a tienda' });
+    }
+    return base;
+  }, [isAdmin]);
+
+  const otrasSucursales = useMemo(() => {
+    const cur = effectiveSucursalId ?? '';
+    return sucursalesCat.filter((s) => s.activo !== false && s.id !== cur);
+  }, [sucursalesCat, effectiveSucursalId]);
 
   const cart = useCartStore(
     useShallow((s) => ({
@@ -83,6 +104,8 @@ export function POS() {
       setGlobalDiscount: s.setGlobalDiscount,
       setFormaPago: s.setFormaPago,
       setMetodoPago: s.setMetodoPago,
+      transferenciaDestinoSucursalId: s.transferenciaDestinoSucursalId,
+      setTransferenciaDestinoSucursalId: s.setTransferenciaDestinoSucursalId,
       addPago: s.addPago,
       removePago: s.removePago,
       setClient: s.setClient,
@@ -110,14 +133,12 @@ export function POS() {
     setGlobalDiscount,
     setFormaPago,
     setMetodoPago,
+    transferenciaDestinoSucursalId,
+    setTransferenciaDestinoSucursalId,
     addPago,
     removePago,
     setClient,
     clearCart,
-    getSubtotal,
-    getImpuestos,
-    getDescuento,
-    getTotal,
     getTotalPagado,
     getCambio,
   } = cart;
@@ -130,10 +151,21 @@ export function POS() {
   const totalPagadoVenta = cart.getTotalPagado();
   const cambioVenta = cart.getCambio();
 
+  const esTraspasoTienda =
+    isAdmin && formaPago === 'TTS' && Boolean(transferenciaDestinoSucursalId?.trim());
+
+  const totalCobro = esTraspasoTienda ? 0 : totalVenta;
+  const subtotalCobro = esTraspasoTienda ? 0 : subtotalVenta;
+  const impuestosCobro = esTraspasoTienda ? 0 : impuestosVenta;
+  const descuentoCobro = esTraspasoTienda ? 0 : descuentoVenta;
+
+  const labelFormaPago = (clave: string) =>
+    formasPagoPos.find((fp) => fp.clave === clave)?.descripcion ?? clave;
+
   const [searchQuery, setSearchQuery] = useState('');
   const [showProductSearch, setShowProductSearch] = useState(false);
-  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
-  const [showTicketDialog, setShowTicketDialog] = useState(false);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [checkoutPhase, setCheckoutPhase] = useState<CheckoutPhase>('payment');
   const [ticketSnapshot, setTicketSnapshot] = useState<PosTicketSnapshot | null>(null);
   const [showClientDialog, setShowClientDialog] = useState(false);
   const [montoRecibidoInput, setMontoRecibidoInput] = useState('');
@@ -165,11 +197,32 @@ export function POS() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  const handleCheckoutOpenChange = (open: boolean) => {
+    setCheckoutOpen(open);
+    if (!open) {
+      setCheckoutPhase('payment');
+      setTicketSnapshot(null);
+      setMobileTab('cart');
+    }
+  };
+
+  const openCheckoutDialog = () => {
+    setCheckoutPhase('payment');
+    setCheckoutOpen(true);
+  };
+
   useEffect(() => {
-    if (showPaymentDialog) {
+    if (checkoutOpen && checkoutPhase === 'payment') {
       setMontoRecibidoInput('');
     }
-  }, [showPaymentDialog]);
+  }, [checkoutOpen, checkoutPhase]);
+
+  useEffect(() => {
+    if (!checkoutOpen || checkoutPhase !== 'payment' || !esTraspasoTienda) return;
+    if (pagos.length === 0) {
+      addPago({ formaPago: 'TTS', monto: 0 });
+    }
+  }, [checkoutOpen, checkoutPhase, esTraspasoTienda, pagos.length, addPago]);
 
   const commitMontoRecibido = () => {
     const normalized = montoRecibidoInput.replace(',', '.').trim();
@@ -202,14 +255,28 @@ export function POS() {
       return;
     }
 
-    if (getTotalPagado() < getTotal()) {
+    if (getTotalPagado() < totalCobro) {
       addToast({ type: 'error', message: 'El pago es insuficiente' });
       return;
+    }
+
+    if (formaPago === 'TTS') {
+      if (!isAdmin) {
+        addToast({ type: 'error', message: 'Solo un administrador puede usar traspaso entre tiendas' });
+        return;
+      }
+      if (!transferenciaDestinoSucursalId?.trim()) {
+        addToast({ type: 'error', message: 'Seleccione la tienda destino del traspaso' });
+        return;
+      }
     }
 
     setProcessingSale(true);
 
     try {
+      const destNombre =
+        sucursalesCat.find((s) => s.id === transferenciaDestinoSucursalId)?.nombre ??
+        transferenciaDestinoSucursalId;
       const saleData = {
         clienteId: client?.id || 'mostrador',
         productos: items.map((item) => ({
@@ -227,21 +294,26 @@ export function POS() {
             (1 - item.discount / 100) *
             (1 + item.product.impuesto / 100),
         })),
-        subtotal: getSubtotal(),
-        descuento: getDescuento(),
-        impuestos: getImpuestos(),
-        total: getTotal(),
+        subtotal: subtotalCobro,
+        descuento: descuentoCobro,
+        impuestos: impuestosCobro,
+        total: totalCobro,
         formaPago: formaPago as FormaPago,
         metodoPago: metodoPago as 'PUE' | 'PPD',
-        pagos: pagos.map((p) => ({
-          id: crypto.randomUUID(),
-          formaPago: p.formaPago as FormaPago,
-          monto: p.monto,
-          referencia: p.referencia,
-        })),
-        cambio: getCambio(),
+        pagos: esTraspasoTienda
+          ? [{ id: crypto.randomUUID(), formaPago: 'TTS' as FormaPago, monto: 0 }]
+          : pagos.map((p) => ({
+              id: crypto.randomUUID(),
+              formaPago: p.formaPago as FormaPago,
+              monto: p.monto,
+              referencia: p.referencia,
+            })),
+        cambio: esTraspasoTienda ? 0 : getCambio(),
         estado: 'completada' as const,
-        notas: '',
+        notas: esTraspasoTienda ? `Traspaso tienda a tienda → ${destNombre}` : '',
+        transferenciaSucursalDestinoId: esTraspasoTienda
+          ? transferenciaDestinoSucursalId.trim()
+          : undefined,
         usuarioId: user?.id || 'system',
       };
 
@@ -261,18 +333,16 @@ export function POS() {
       setTicketSnapshot({
         clienteNombre,
         lineas,
-        subtotal: getSubtotal(),
-        impuestos: getImpuestos(),
-        total: getTotal(),
-        cambio: getCambio(),
+        subtotal: subtotalCobro,
+        impuestos: impuestosCobro,
+        total: totalCobro,
+        cambio: esTraspasoTienda ? 0 : getCambio(),
         sucursalId: effectiveSucursalId,
+        notas: esTraspasoTienda ? saleData.notas : undefined,
       });
       clearCart();
-      // Cerrar el de pago de forma síncrona y abrir el de ticket tras 2 frames: reduce choques de portales (insertBefore/removeChild).
-      flushSync(() => setShowPaymentDialog(false));
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => setShowTicketDialog(true));
-      });
+      // Mismo portal de diálogo: pasar a "success" evita dos Dialog de Radix a la vez (insertBefore/removeChild).
+      setCheckoutPhase('success');
 
       addToast({ type: 'success', message: 'Venta completada exitosamente' });
     } catch (error: unknown) {
@@ -286,10 +356,7 @@ export function POS() {
   };
 
   const handleFinishSale = () => {
-    setTicketSnapshot(null);
-    setShowTicketDialog(false);
-    setMobileTab('cart');
-    clearCart();
+    handleCheckoutOpenChange(false);
   };
 
   const handlePrintTicket = () => {
@@ -298,22 +365,18 @@ export function POS() {
     printThermalTicket({
       negocio: 'SERVIPARTZ POS',
       sucursalId: snap.sucursalId,
-      fecha: new Date().toLocaleString('es-MX'),
+      fecha: formatInAppTimezone(new Date(), {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      }),
       cliente: snap.clienteNombre,
       lineas: snap.lineas,
       subtotal: snap.subtotal,
       impuestos: snap.impuestos,
       total: snap.total,
       cambio: snap.cambio,
+      notas: snap.notas,
     });
-  };
-
-  const handleTicketDialogOpenChange = (open: boolean) => {
-    setShowTicketDialog(open);
-    if (!open) {
-      setTicketSnapshot(null);
-      setMobileTab('cart');
-    }
   };
 
   const panelClass =
@@ -546,7 +609,7 @@ export function POS() {
           <div className="flex shrink-0 items-center gap-2 rounded-xl border border-slate-800/60 bg-slate-950/90 p-2 md:hidden">
             <div className="min-w-0 flex-1">
               <p className="text-[10px] uppercase tracking-wide text-slate-500">Total</p>
-              <p className="truncate text-lg font-bold text-cyan-400">{formatMoney(totalVenta)}</p>
+              <p className="truncate text-lg font-bold text-cyan-400">{formatMoney(totalCobro)}</p>
             </div>
             <Button
               type="button"
@@ -601,21 +664,27 @@ export function POS() {
               <div className="shrink-0 space-y-2">
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs sm:text-sm">
                   <span className="text-slate-400">Subtotal</span>
-                  <span className="text-right text-slate-300">{formatMoney(subtotalVenta)}</span>
+                  <span className="text-right text-slate-300">{formatMoney(subtotalCobro)}</span>
                   <span className="text-slate-400">Descuento</span>
-                  <span className="text-right text-amber-400">-{formatMoney(descuentoVenta)}</span>
+                  <span className="text-right text-amber-400">-{formatMoney(descuentoCobro)}</span>
                   <span className="text-slate-400">IVA 16%</span>
-                  <span className="text-right text-slate-300">{formatMoney(impuestosVenta)}</span>
+                  <span className="text-right text-slate-300">{formatMoney(impuestosCobro)}</span>
                 </div>
 
                 <div className="border-t border-slate-800 pt-2">
                   <div className="flex items-end justify-between gap-2">
                     <span className="text-sm font-medium text-slate-200 sm:text-base">Total</span>
                     <span className="text-xl font-bold tabular-nums text-cyan-400 sm:text-2xl lg:text-3xl">
-                      {formatMoney(totalVenta)}
+                      {formatMoney(totalCobro)}
                     </span>
                   </div>
                 </div>
+                {esTraspasoTienda ? (
+                  <p className="text-[10px] text-cyan-500/90 sm:text-xs">
+                    Traspaso entre tiendas: cobro $0 (solo administrador). El stock se descuenta en esta
+                    sucursal.
+                  </p>
+                ) : null}
               </div>
 
               {/*
@@ -625,7 +694,16 @@ export function POS() {
               <div className="shrink-0 space-y-3 border-t border-slate-800/80 pt-3">
                 <div className="space-y-1">
                   <Label className="text-[10px] text-slate-400 sm:text-xs">Forma de pago</Label>
-                  <Select value={formaPago} onValueChange={setFormaPago}>
+                  <Select
+                    value={formaPago}
+                    onValueChange={(v) => {
+                      setFormaPago(v);
+                      if (v === 'TTS' && isAdmin) {
+                        useCartStore.setState({ pagos: [] });
+                      }
+                      if (v !== 'TTS') setTransferenciaDestinoSucursalId('');
+                    }}
+                  >
                     <SelectTrigger className="h-9 w-full min-w-0 border-slate-700 bg-slate-800 text-xs text-slate-100 sm:h-10 sm:text-sm">
                       <SelectValue />
                     </SelectTrigger>
@@ -635,7 +713,7 @@ export function POS() {
                       align="start"
                       className="z-[300] max-h-[min(50dvh,18rem)] w-[var(--radix-select-trigger-width)] border-slate-800 bg-slate-900"
                     >
-                      {FORMAS_PAGO.map((fp) => (
+                      {formasPagoPos.map((fp) => (
                         <SelectItem
                           key={fp.clave}
                           value={fp.clave}
@@ -647,6 +725,36 @@ export function POS() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {formaPago === 'TTS' && isAdmin ? (
+                  <div className="space-y-1">
+                    <Label className="text-[10px] text-slate-400 sm:text-xs">Tienda destino</Label>
+                    <Select
+                      value={transferenciaDestinoSucursalId || '__none__'}
+                      onValueChange={(v) =>
+                        setTransferenciaDestinoSucursalId(v === '__none__' ? '' : v)
+                      }
+                    >
+                      <SelectTrigger className="h-9 w-full min-w-0 border-slate-700 bg-slate-800 text-xs text-slate-100 sm:h-10 sm:text-sm">
+                        <SelectValue placeholder="Seleccione tienda" />
+                      </SelectTrigger>
+                      <SelectContent
+                        position="popper"
+                        sideOffset={6}
+                        className="z-[300] border-slate-800 bg-slate-900"
+                      >
+                        <SelectItem value="__none__" className="text-slate-100">
+                          Seleccione…
+                        </SelectItem>
+                        {otrasSucursales.map((s) => (
+                          <SelectItem key={s.id} value={s.id} className="text-slate-100">
+                            {s.codigo ? `${s.nombre} (${s.codigo})` : s.nombre}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null}
 
                 <div className="space-y-1">
                   <Label className="text-[10px] text-slate-400 sm:text-xs">Método</Label>
@@ -700,8 +808,11 @@ export function POS() {
           <div className="shrink-0 space-y-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
             <Button
               type="button"
-              onClick={() => setShowPaymentDialog(true)}
-              disabled={items.length === 0}
+              onClick={() => openCheckoutDialog()}
+              disabled={
+                items.length === 0 ||
+                (formaPago === 'TTS' && isAdmin && !transferenciaDestinoSucursalId?.trim())
+              }
               className="h-11 w-full min-w-0 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-sm font-bold text-white shadow-lg shadow-cyan-500/25 sm:h-12 sm:text-base md:h-14 md:text-lg"
             >
               Cobrar
@@ -721,163 +832,172 @@ export function POS() {
         </aside>
       </div>
 
-      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
-        <DialogContent className="left-1/2 top-1/2 max-h-[calc(100dvh-2rem)] w-[min(calc(100vw-1rem),28rem)] max-w-none -translate-x-1/2 -translate-y-1/2 overflow-x-hidden overflow-y-auto border-slate-800 bg-slate-900 p-4 text-slate-100 sm:max-h-[calc(100dvh-2.5rem)] sm:w-[min(calc(100vw-2rem),32rem)] sm:p-6">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
-              <Receipt className="h-5 w-5 text-cyan-400 sm:h-6 sm:w-6" />
-              Procesar pago
-            </DialogTitle>
-          </DialogHeader>
+      <Dialog open={checkoutOpen} onOpenChange={handleCheckoutOpenChange}>
+        <DialogContent
+          className={cn(
+            'left-1/2 top-1/2 max-w-none -translate-x-1/2 -translate-y-1/2 border-slate-800 bg-slate-900 text-slate-100',
+            checkoutPhase === 'payment'
+              ? 'max-h-[calc(100dvh-2rem)] w-[min(calc(100vw-1rem),28rem)] overflow-x-hidden overflow-y-auto p-4 sm:max-h-[calc(100dvh-2.5rem)] sm:w-[min(calc(100vw-2rem),32rem)] sm:p-6'
+              : 'w-[min(calc(100vw-1rem),24rem)] p-4 sm:max-w-sm sm:p-6'
+          )}
+        >
+          {checkoutPhase === 'payment' ? (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
+                  <Receipt className="h-5 w-5 text-cyan-400 sm:h-6 sm:w-6" />
+                  Procesar pago
+                </DialogTitle>
+              </DialogHeader>
 
-          <div className="space-y-3 py-1 sm:space-y-4 sm:py-2">
-            <div className="rounded-xl bg-slate-800/50 p-3 text-center sm:p-4">
-              <p className="mb-1 text-xs text-slate-400 sm:text-sm">Total a pagar</p>
-              <p className="text-2xl font-bold text-cyan-400 sm:text-4xl">{formatMoney(totalVenta)}</p>
-            </div>
+              <div className="space-y-3 py-1 sm:space-y-4 sm:py-2">
+                <div className="rounded-xl bg-slate-800/50 p-3 text-center sm:p-4">
+                  <p className="mb-1 text-xs text-slate-400 sm:text-sm">Total a pagar</p>
+                  <p className="text-2xl font-bold text-cyan-400 sm:text-4xl">{formatMoney(totalCobro)}</p>
+                </div>
 
-            <div className="space-y-2">
-              <Label>Monto recibido</Label>
-              <div className="flex gap-2">
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  placeholder="0.00"
-                  value={montoRecibidoInput}
-                  onChange={(e) => setMontoRecibidoInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      commitMontoRecibido();
-                    }
-                  }}
-                  className="h-12 border-slate-700 bg-slate-800 text-center text-xl text-slate-100 sm:h-14 sm:text-2xl"
-                />
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="h-12 shrink-0 bg-slate-800 text-slate-100 hover:bg-slate-700 sm:h-14"
-                  onClick={commitMontoRecibido}
-                >
-                  Agregar
-                </Button>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              {[50, 100, 200, 500, 1000].map((amount) => (
-                <button
-                  key={amount}
-                  type="button"
-                  onClick={() => addPago({ formaPago, monto: amount })}
-                  className="rounded-lg bg-slate-800 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-700"
-                >
-                  {formatMoney(amount)}
-                </button>
-              ))}
-            </div>
-
-            {pagos.length > 0 && (
-              <div className="space-y-2">
-                <Label>Pagos recibidos</Label>
                 <div className="space-y-2">
-                  {pagos.map((pago, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between rounded-lg bg-slate-800/50 p-2.5 sm:p-3"
+                  <Label>Monto recibido</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="0.00"
+                      value={montoRecibidoInput}
+                      onChange={(e) => setMontoRecibidoInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          commitMontoRecibido();
+                        }
+                      }}
+                      className="h-12 border-slate-700 bg-slate-800 text-center text-xl text-slate-100 sm:h-14 sm:text-2xl"
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="h-12 shrink-0 bg-slate-800 text-slate-100 hover:bg-slate-700 sm:h-14"
+                      onClick={commitMontoRecibido}
                     >
-                      <span className="truncate pr-2 text-sm text-slate-300">
-                        {FORMAS_PAGO.find((fp) => fp.clave === pago.formaPago)?.descripcion}
-                      </span>
-                      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-                        <span className="font-bold text-slate-200">{formatMoney(pago.monto)}</span>
-                        <button
-                          type="button"
-                          onClick={() => removePago(index)}
-                          className="text-red-400 hover:text-red-300"
-                          aria-label="Quitar pago"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
+                      Agregar
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {[50, 100, 200, 500, 1000].map((amount) => (
+                    <button
+                      key={amount}
+                      type="button"
+                      onClick={() => addPago({ formaPago, monto: amount })}
+                      className="rounded-lg bg-slate-800 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-700"
+                    >
+                      {formatMoney(amount)}
+                    </button>
                   ))}
                 </div>
-              </div>
-            )}
 
-            {cambioVenta > 0 && (
-              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 sm:p-4">
-                <p className="text-center text-emerald-400">
-                  Cambio:{' '}
-                  <span className="text-xl font-bold sm:text-2xl">{formatMoney(cambioVenta)}</span>
+                {pagos.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Pagos recibidos</Label>
+                    <div className="space-y-2">
+                      {pagos.map((pago, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between rounded-lg bg-slate-800/50 p-2.5 sm:p-3"
+                        >
+                          <span className="truncate pr-2 text-sm text-slate-300">
+                            {labelFormaPago(pago.formaPago)}
+                          </span>
+                          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+                            <span className="font-bold text-slate-200">{formatMoney(pago.monto)}</span>
+                            <button
+                              type="button"
+                              onClick={() => removePago(index)}
+                              className="text-red-400 hover:text-red-300"
+                              aria-label="Quitar pago"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {!esTraspasoTienda && cambioVenta > 0 && (
+                  <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 sm:p-4">
+                    <p className="text-center text-emerald-400">
+                      Cambio:{' '}
+                      <span className="text-xl font-bold sm:text-2xl">{formatMoney(cambioVenta)}</span>
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter className="flex-col gap-2 sm:flex-row">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleCheckoutOpenChange(false)}
+                  className="w-full border-slate-700 text-slate-400 sm:w-auto"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => void handleProcessSale()}
+                  disabled={totalPagadoVenta < totalCobro || processingSale}
+                  className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white sm:w-auto"
+                >
+                  {processingSale ? (
+                    <div className="mr-2 h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  ) : (
+                    <Check className="mr-2 h-5 w-5" />
+                  )}
+                  Completar venta
+                </Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-center text-lg sm:text-xl">¡Venta completada!</DialogTitle>
+              </DialogHeader>
+
+              <div className="py-4 text-center sm:py-6">
+                <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/20 sm:mb-4 sm:h-20 sm:w-20">
+                  <Check className="h-8 w-8 text-emerald-400 sm:h-10 sm:w-10" />
+                </div>
+                <p className="mb-1 text-sm text-slate-400 sm:mb-2">Total</p>
+                <p className="mb-3 text-3xl font-bold text-cyan-400 sm:mb-4 sm:text-4xl">
+                  {formatMoney(ticketSnapshot?.total ?? 0)}
+                </p>
+                <p className="text-xs text-slate-500 sm:text-sm">
+                  Cambio: {formatMoney(ticketSnapshot?.cambio ?? 0)}
                 </p>
               </div>
-            )}
-          </div>
 
-          <DialogFooter className="flex-col gap-2 sm:flex-row">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setShowPaymentDialog(false)}
-              className="w-full border-slate-700 text-slate-400 sm:w-auto"
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              onClick={() => void handleProcessSale()}
-              disabled={totalPagadoVenta < totalVenta || processingSale}
-              className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white sm:w-auto"
-            >
-              {processingSale ? (
-                <div className="mr-2 h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-              ) : (
-                <Check className="mr-2 h-5 w-5" />
-              )}
-              Completar venta
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={showTicketDialog} onOpenChange={handleTicketDialogOpenChange}>
-        <DialogContent className="z-[130] border-slate-800 bg-slate-900 text-slate-100 sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="text-center text-lg sm:text-xl">¡Venta completada!</DialogTitle>
-          </DialogHeader>
-
-          <div className="py-4 text-center sm:py-6">
-            <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/20 sm:mb-4 sm:h-20 sm:w-20">
-              <Check className="h-8 w-8 text-emerald-400 sm:h-10 sm:w-10" />
-            </div>
-            <p className="mb-1 text-sm text-slate-400 sm:mb-2">Total</p>
-            <p className="mb-3 text-3xl font-bold text-cyan-400 sm:mb-4 sm:text-4xl">
-              {formatMoney(ticketSnapshot?.total ?? 0)}
-            </p>
-            <p className="text-xs text-slate-500 sm:text-sm">
-              Cambio: {formatMoney(ticketSnapshot?.cambio ?? 0)}
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Button
-              onClick={handlePrintTicket}
-              variant="outline"
-              className="flex-1 border-slate-700 text-slate-400"
-            >
-              <Printer className="mr-2 h-4 w-4" />
-              Imprimir
-            </Button>
-            <Button
-              onClick={handleFinishSale}
-              className="flex-1 bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
-            >
-              <Check className="mr-2 h-4 w-4" />
-              Nueva venta
-            </Button>
-          </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button
+                  onClick={handlePrintTicket}
+                  variant="outline"
+                  className="flex-1 border-slate-700 text-slate-400"
+                >
+                  <Printer className="mr-2 h-4 w-4" />
+                  Imprimir
+                </Button>
+                <Button
+                  onClick={handleFinishSale}
+                  className="flex-1 bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+                >
+                  <Check className="mr-2 h-4 w-4" />
+                  Nueva venta
+                </Button>
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 
