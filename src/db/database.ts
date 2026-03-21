@@ -495,11 +495,11 @@ export async function getSaleById(id: string): Promise<Sale | undefined> {
 export async function createSale(
   sale: Omit<Sale, 'id' | 'createdAt' | 'updatedAt' | 'syncStatus'>,
   options?: { sucursalId?: string }
-): Promise<string> {
+): Promise<{ id: string; folio: string }> {
   if (options?.sucursalId) {
-    const id = await createSaleFirestore(options.sucursalId, sale);
+    const { id, folio } = await createSaleFirestore(options.sucursalId, sale);
     await adjustClientTicketCount(sale.clienteId, 1);
-    return id;
+    return { id, folio };
   }
 
   const folio =
@@ -527,7 +527,7 @@ export async function createSale(
   }
 
   await adjustClientTicketCount(sale.clienteId, 1);
-  return id as string;
+  return { id: id as string, folio };
 }
 
 export async function cancelSale(
@@ -648,7 +648,7 @@ export async function convertQuotationToSale(
     usuarioNombre: usuarioNombre?.trim() || quotation.usuarioNombre?.trim() || undefined,
   };
 
-  const saleId = await createSale(sale, { sucursalId });
+  const { id: saleId } = await createSale(sale, { sucursalId });
 
   // Actualizar cotización
   await db.quotations.update(quotationId, {

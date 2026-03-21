@@ -243,7 +243,8 @@ export interface Payment {
   id: string;
   formaPago: FormaPago;
   monto: number;
-  referencia?: string; // Para tarjeta/transferencia
+  /** Referencia bancaria / folio; en tarjeta (04/28) = últimos 4 dígitos para voucher/auditoría. */
+  referencia?: string;
 }
 
 export type SaleStatus = 'pendiente' | 'completada' | 'cancelada' | 'facturada';

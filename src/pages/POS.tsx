@@ -64,7 +64,10 @@ type PosTicketSnapshot = {
   total: number;
   cambio: number;
   sucursalId?: string;
+  /** Folio de venta (ej. V-YYYYMMDD-0001) para ticket y referencia al facturar. */
+  folio?: string;
   notas?: string;
+  resumenPagos?: { label: string; monto: number; ultimos4?: string }[];
 };
 
 export function POS() {
@@ -170,6 +173,8 @@ export function POS() {
   const [ticketSnapshot, setTicketSnapshot] = useState<PosTicketSnapshot | null>(null);
   const [showClientDialog, setShowClientDialog] = useState(false);
   const [montoRecibidoInput, setMontoRecibidoInput] = useState('');
+  /** Últimos 4 dígitos del voucher para el siguiente abono con tarjeta (04/28). */
+  const [tarjetaUltimos4, setTarjetaUltimos4] = useState('');
   const [processingSale, setProcessingSale] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>('cart');
   const [globalDiscFocus, setGlobalDiscFocus] = useState(false);
@@ -215,8 +220,19 @@ export function POS() {
   useEffect(() => {
     if (checkoutOpen && checkoutPhase === 'payment') {
       setMontoRecibidoInput('');
+      setTarjetaUltimos4('');
     }
   }, [checkoutOpen, checkoutPhase]);
+
+  const esFormaTarjeta = (fp: string) => fp === '04' || fp === '28';
+
+  const digitos4TarjetaPendiente = () => tarjetaUltimos4.replace(/\D/g, '').slice(0, 4);
+
+  const toastTarjeta4Requeridos = () =>
+    addToast({
+      type: 'warning',
+      message: 'Ingrese los últimos 4 dígitos de la tarjeta (aparecen en el voucher del terminal)',
+    });
 
   useEffect(() => {
     if (!checkoutOpen || checkoutPhase !== 'payment' || !esTraspasoTienda) return;
@@ -232,7 +248,17 @@ export function POS() {
       addToast({ type: 'warning', message: 'Ingrese un monto mayor a cero' });
       return;
     }
-    addPago({ formaPago, monto });
+    if (esFormaTarjeta(formaPago)) {
+      const d4 = digitos4TarjetaPendiente();
+      if (d4.length !== 4) {
+        toastTarjeta4Requeridos();
+        return;
+      }
+      addPago({ formaPago, monto, referencia: d4 });
+      setTarjetaUltimos4('');
+    } else {
+      addPago({ formaPago, monto });
+    }
     setMontoRecibidoInput('');
   };
 
@@ -259,6 +285,22 @@ export function POS() {
     if (getTotalPagado() < totalCobro) {
       addToast({ type: 'error', message: 'El pago es insuficiente' });
       return;
+    }
+
+    if (!esTraspasoTienda) {
+      for (const p of pagos) {
+        if (esFormaTarjeta(p.formaPago)) {
+          const ref = p.referencia?.trim() ?? '';
+          if (!/^\d{4}$/.test(ref)) {
+            addToast({
+              type: 'error',
+              message:
+                'Cada pago con tarjeta debe incluir los 4 dígitos del voucher. Quite el abono y vuelva a agregarlo.',
+            });
+            return;
+          }
+        }
+      }
     }
 
     if (formaPago === 'TTS') {
@@ -321,7 +363,7 @@ export function POS() {
         usuarioNombre: cajeroNombre,
       };
 
-      await addSale(saleData);
+      const { folio: folioVenta } = await addSale(saleData);
 
       const clienteNombre = client?.nombre || 'Mostrador';
       const lineas = items.map((item) => {
@@ -334,6 +376,18 @@ export function POS() {
           total: lineTot,
         };
       });
+      const resumenPagos =
+        !esTraspasoTienda && pagos.length > 0
+          ? pagos.map((p) => ({
+              label: labelFormaPago(p.formaPago),
+              monto: p.monto,
+              ultimos4:
+                esFormaTarjeta(p.formaPago) && /^\d{4}$/.test(p.referencia?.trim() ?? '')
+                  ? p.referencia!.trim()
+                  : undefined,
+            }))
+          : undefined;
+
       setTicketSnapshot({
         clienteNombre,
         cajeroNombre,
@@ -343,7 +397,9 @@ export function POS() {
         total: totalCobro,
         cambio: esTraspasoTienda ? 0 : getCambio(),
         sucursalId: effectiveSucursalId,
+        folio: folioVenta?.trim() || undefined,
         notas: esTraspasoTienda ? saleData.notas : undefined,
+        resumenPagos,
       });
       clearCart();
       // Mismo portal de diálogo: pasar a "success" evita dos Dialog de Radix a la vez (insertBefore/removeChild).
@@ -370,6 +426,7 @@ export function POS() {
     printThermalTicket({
       negocio: 'SERVIPARTZ POS',
       sucursalId: snap.sucursalId,
+      folio: snap.folio,
       fecha: formatInAppTimezone(new Date(), {
         dateStyle: 'medium',
         timeStyle: 'short',
@@ -382,6 +439,7 @@ export function POS() {
       total: snap.total,
       cambio: snap.cambio,
       notas: snap.notas,
+      resumenPagos: snap.resumenPagos,
     });
   };
 
@@ -890,12 +948,46 @@ export function POS() {
                   </div>
                 </div>
 
+                {esFormaTarjeta(formaPago) && !esTraspasoTienda ? (
+                  <div className="space-y-2">
+                    <Label>Últimos 4 dígitos (voucher)</Label>
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      placeholder="••••"
+                      maxLength={4}
+                      value={tarjetaUltimos4}
+                      onChange={(e) =>
+                        setTarjetaUltimos4(e.target.value.replace(/\D/g, '').slice(0, 4))
+                      }
+                      className="h-11 border-slate-700 bg-slate-800 text-center font-mono text-lg tracking-widest text-slate-100"
+                    />
+                    <p className="text-[11px] leading-snug text-slate-500 sm:text-xs">
+                      Los mismos que en el comprobante del terminal, para cruzar ticket y voucher en
+                      auditoría.
+                    </p>
+                  </div>
+                ) : null}
+
                 <div className="flex flex-wrap gap-2">
                   {[50, 100, 200, 500, 1000].map((amount) => (
                     <button
                       key={amount}
                       type="button"
-                      onClick={() => addPago({ formaPago, monto: amount })}
+                      onClick={() => {
+                        if (esFormaTarjeta(formaPago)) {
+                          const d4 = digitos4TarjetaPendiente();
+                          if (d4.length !== 4) {
+                            toastTarjeta4Requeridos();
+                            return;
+                          }
+                          addPago({ formaPago, monto: amount, referencia: d4 });
+                          setTarjetaUltimos4('');
+                        } else {
+                          addPago({ formaPago, monto: amount });
+                        }
+                      }}
                       className="rounded-lg bg-slate-800 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-700"
                     >
                       {formatMoney(amount)}
@@ -914,6 +1006,10 @@ export function POS() {
                         >
                           <span className="truncate pr-2 text-sm text-slate-300">
                             {labelFormaPago(pago.formaPago)}
+                            {esFormaTarjeta(pago.formaPago) &&
+                            /^\d{4}$/.test(pago.referencia?.trim() ?? '') ?
+                              <span className="text-slate-500"> · ****{pago.referencia!.trim()}</span>
+                            : null}
                           </span>
                           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
                             <span className="font-bold text-slate-200">{formatMoney(pago.monto)}</span>
@@ -976,6 +1072,11 @@ export function POS() {
                 <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/20 sm:mb-4 sm:h-20 sm:w-20">
                   <Check className="h-8 w-8 text-emerald-400 sm:h-10 sm:w-10" />
                 </div>
+                {ticketSnapshot?.folio ? (
+                  <p className="mb-2 font-mono text-sm font-medium text-slate-300 sm:text-base">
+                    Folio {ticketSnapshot.folio}
+                  </p>
+                ) : null}
                 <p className="mb-1 text-sm text-slate-400 sm:mb-2">Total</p>
                 <p className="mb-3 text-3xl font-bold text-cyan-400 sm:mb-4 sm:text-4xl">
                   {formatMoney(ticketSnapshot?.total ?? 0)}

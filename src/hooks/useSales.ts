@@ -84,14 +84,14 @@ export function useSales(limit: number = 100) {
   const addSale = async (sale: Omit<Sale, 'id' | 'folio' | 'createdAt' | 'updatedAt' | 'syncStatus'>) => {
     try {
       const sid = getEffectiveSucursalId();
-      const id = await createSale(
+      const { id, folio } = await createSale(
         { ...sale, folio: '' } as Omit<Sale, 'id' | 'createdAt' | 'updatedAt' | 'syncStatus'>,
         { sucursalId: sid }
       );
       if (!sid) {
         await loadSalesLocal();
       }
-      return id;
+      return { id, folio };
     } catch (err) {
       reportHookFailure('hook:useSales', 'Crear venta', err);
       setError('Error al crear venta');

@@ -207,11 +207,12 @@ function saleInputToPayload(
 export async function createSaleFirestore(
   sucursalId: string,
   sale: Omit<Sale, 'id' | 'createdAt' | 'updatedAt' | 'syncStatus' | 'lastSyncAt'>
-): Promise<string> {
+): Promise<{ id: string; folio: string }> {
   const saleRef = doc(salesCol(sucursalId));
   const counterRef = ventasDiarioCounterRef(sucursalId);
   const now = new Date();
   const dateStr = yyyymmddFolioZone(now);
+  let folioAsignado = '';
 
   await runTransaction(db, async (transaction) => {
     const counterSnap = await transaction.get(counterRef);
@@ -223,6 +224,7 @@ export async function createSaleFirestore(
       }
     }
     const folio = `V-${dateStr}-${String(seq).padStart(4, '0')}`;
+    folioAsignado = folio;
 
     const productRefs = sale.productos.map((item) =>
       doc(db, 'sucursales', sucursalId, 'products', item.productId)
@@ -319,7 +321,7 @@ export async function createSaleFirestore(
     });
   });
 
-  return saleRef.id;
+  return { id: saleRef.id, folio: folioAsignado };
 }
 
 export async function cancelSaleFirestore(

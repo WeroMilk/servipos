@@ -5,7 +5,7 @@ import {
   buildLetterHeaderHtml,
   getBrandLogoAbsoluteUrl,
 } from '@/lib/documentPrintBranding';
-import type { Sale } from '@/types';
+import { FORMAS_PAGO, type Sale } from '@/types';
 
 export type TicketLine = { descripcion: string; cantidad: number; precioUnit: number; total: number };
 
@@ -24,6 +24,8 @@ export type TicketPayload = {
   sucursalId?: string;
   /** Cajero que registró la venta. */
   cajeroNombre?: string;
+  /** Desglose de pagos en el ticket (p. ej. tarjeta con últimos 4 del voucher). */
+  resumenPagos?: { label: string; monto: number; ultimos4?: string }[];
 };
 
 function escapeHtml(s: string): string {
@@ -138,6 +140,7 @@ export function printThermalTicket(payload: TicketPayload): void {
     ${payload.folio ? `<div>Folio: ${escapeHtml(payload.folio)}</div>` : ''}
     <div>${escapeHtml(payload.fecha)}</div>
     ${payload.cliente ? `<div>Cliente: ${escapeHtml(payload.cliente)}</div>` : ''}
+    ${payload.cajeroNombre ? `<div>Cajero: ${escapeHtml(payload.cajeroNombre)}</div>` : ''}
   </div>
   <table>${rows}</table>
   <div class="tot">
@@ -146,6 +149,17 @@ export function printThermalTicket(payload: TicketPayload): void {
     <div><strong>TOTAL ${formatMoney(payload.total)}</strong></div>
     ${payload.cambio != null && payload.cambio > 0 ? `<div>Cambio: ${formatMoney(payload.cambio)}</div>` : ''}
   </div>
+  ${payload.resumenPagos?.length
+    ? `<div style="margin-top:8px;padding-top:6px;border-top:1px dashed #333;font-size:10px;line-height:1.45;"><div style="font-weight:600;margin-bottom:3px;">Pagos</div>${payload.resumenPagos
+        .map((p) => {
+          const tc =
+            p.ultimos4 && /^\d{4}$/.test(p.ultimos4)
+              ? ` · Tarj. ****${escapeHtml(p.ultimos4)}`
+              : '';
+          return `<div>${escapeHtml(p.label)}: ${formatMoney(p.monto)}${tc}</div>`;
+        })
+        .join('')}</div>`
+    : ''}
   ${payload.notas ? `<p style="margin-top:8px;font-size:10px;">${escapeHtml(payload.notas)}</p>` : ''}
   ${(() => {
     const lines = getThermalTicketSucursalFooterLines(payload.sucursalId);
@@ -293,6 +307,17 @@ export function printThermalTicketFromSale(sale: Sale): void {
     sale.cliente?.nombre?.trim() ||
     (sale.clienteId === 'mostrador' || !sale.clienteId ? 'Mostrador' : sale.clienteId);
 
+  const labelFp = (c: string) => FORMAS_PAGO.find((f) => f.clave === c)?.descripcion ?? c;
+  const resumenPagos =
+    sale.pagos?.map((p) => ({
+      label: labelFp(p.formaPago),
+      monto: Number(p.monto) || 0,
+      ultimos4:
+        (p.formaPago === '04' || p.formaPago === '28') && p.referencia?.trim().match(/^\d{4}$/)
+          ? p.referencia.trim()
+          : undefined,
+    })) ?? [];
+
   printThermalTicket({
     negocio: 'SERVIPARTZ POS',
     sucursalId: sale.sucursalId,
@@ -305,6 +330,7 @@ export function printThermalTicketFromSale(sale: Sale): void {
     impuestos: Number(sale.impuestos) || 0,
     total: Number(sale.total) || 0,
     cambio: sale.cambio,
+    resumenPagos: resumenPagos.length > 0 ? resumenPagos : undefined,
     notas:
       sale.estado === 'cancelada'
         ? 'VENTA CANCELADA'
