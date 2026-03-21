@@ -426,7 +426,7 @@ export function Inventario() {
         </button>
       </div>
 
-      <div className="flex shrink-0 justify-end pb-2">
+      <div className="mt-2 flex shrink-0 justify-end pb-2 sm:mt-3">
         <Button
           type="button"
           variant="outline"
