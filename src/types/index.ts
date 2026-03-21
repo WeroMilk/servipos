@@ -217,6 +217,8 @@ export interface Sale {
   /** Destino cuando forma de pago es traspaso entre sucursales (admin). */
   transferenciaSucursalDestinoId?: string;
   usuarioId: string;
+  /** Nombre del cajero al momento de la venta (ticket / historial). */
+  usuarioNombre?: string;
   /** Tienda (ruta Firestore `sucursales/{id}/sales/...`); para ticket / reimpresión. */
   sucursalId?: string;
   createdAt: Date;
@@ -275,6 +277,8 @@ export interface Quotation {
   estado: QuotationStatus;
   notas?: string;
   usuarioId: string;
+  /** Nombre del cajero que creó la cotización (impresión / correo). */
+  usuarioNombre?: string;
   /** Alcance por sucursal (Dexie / filtrado). */
   sucursalId?: string;
   ventaId?: string; // Si se convirtió en venta

@@ -132,6 +132,10 @@ export function saleDocToSale(snap: DocumentSnapshot): Sale | null {
         ? String(d.transferenciaSucursalDestinoId)
         : undefined,
     usuarioId: String(d.usuarioId ?? ''),
+    usuarioNombre:
+      typeof d.usuarioNombre === 'string' && d.usuarioNombre.trim().length > 0
+        ? String(d.usuarioNombre).trim()
+        : undefined,
     sucursalId: typeof sucursalFromPath === 'string' && sucursalFromPath.length > 0 ? sucursalFromPath : undefined,
     createdAt: firestoreTimestampToDate(d.createdAt),
     updatedAt: firestoreTimestampToDate(d.updatedAt),
@@ -189,6 +193,7 @@ function saleInputToPayload(
     facturaId: sale.facturaId ?? null,
     notas: sale.notas ?? null,
     usuarioId: sale.usuarioId,
+    usuarioNombre: sale.usuarioNombre?.trim() ? sale.usuarioNombre.trim() : null,
     transferenciaSucursalDestinoId:
       sale.transferenciaSucursalDestinoId && sale.transferenciaSucursalDestinoId.length > 0
         ? sale.transferenciaSucursalDestinoId

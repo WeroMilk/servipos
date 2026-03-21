@@ -27,7 +27,7 @@ export function ToastContainer() {
         'bottom-[max(1.25rem,env(safe-area-inset-bottom,0px))]',
         'right-[max(1.25rem,env(safe-area-inset-right,0px))]',
         'max-w-[min(100vw-2rem,24rem)]',
-        'max-md:bottom-auto max-md:left-1/2 max-md:right-auto max-md:top-[calc(3.5rem+env(safe-area-inset-top,0px))] max-md:-translate-x-1/2 max-md:items-stretch max-md:px-3',
+        'max-md:bottom-auto max-md:left-auto max-md:right-[max(0.75rem,env(safe-area-inset-right,0px))] max-md:top-[calc(3.5rem+env(safe-area-inset-top,0px))] max-md:items-end',
         toasts.length === 0 && 'pointer-events-none'
       )}
       aria-live="polite"
@@ -39,7 +39,7 @@ export function ToastContainer() {
           <div
             key={toast.id}
             className={cn(
-              'flex items-center gap-3 px-4 py-3 rounded-xl border backdrop-blur-xl',
+              'ml-6 flex items-center gap-3 px-4 py-3 rounded-xl border backdrop-blur-xl',
               'shadow-lg transform transition-all duration-300',
               'animate-slideInRight',
               colorMap[toast.type]

@@ -52,6 +52,7 @@ type CheckoutPhase = 'payment' | 'success';
 /** Datos de la venta recién cobrada: el carrito se vacía al completar; el ticket y el modal usan esto. */
 type PosTicketSnapshot = {
   clienteNombre: string;
+  cajeroNombre?: string;
   lineas: {
     descripcion: string;
     cantidad: number;
@@ -274,6 +275,8 @@ export function POS() {
     setProcessingSale(true);
 
     try {
+      const cajeroNombre =
+        user?.name?.trim() || user?.username?.trim() || user?.email?.trim() || undefined;
       const destNombre =
         sucursalesCat.find((s) => s.id === transferenciaDestinoSucursalId)?.nombre ??
         transferenciaDestinoSucursalId;
@@ -315,6 +318,7 @@ export function POS() {
           ? transferenciaDestinoSucursalId.trim()
           : undefined,
         usuarioId: user?.id || 'system',
+        usuarioNombre: cajeroNombre,
       };
 
       await addSale(saleData);
@@ -332,6 +336,7 @@ export function POS() {
       });
       setTicketSnapshot({
         clienteNombre,
+        cajeroNombre,
         lineas,
         subtotal: subtotalCobro,
         impuestos: impuestosCobro,
@@ -370,6 +375,7 @@ export function POS() {
         timeStyle: 'short',
       }),
       cliente: snap.clienteNombre,
+      cajeroNombre: snap.cajeroNombre,
       lineas: snap.lineas,
       subtotal: snap.subtotal,
       impuestos: snap.impuestos,

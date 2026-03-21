@@ -10,6 +10,7 @@ import {
   Phone,
   MoreHorizontal,
   Ticket,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,10 +36,20 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useClients, useClientSearch } from '@/hooks';
-import { useAppStore } from '@/stores';
+import { useAppStore, useAuthStore } from '@/stores';
 import type { Client } from '@/types';
 import { REGIMENES_FISCALES, USOS_CFDI } from '@/types';
 import { PageShell } from '@/components/ui-custom/PageShell';
@@ -83,8 +94,10 @@ function sortClients(list: Client[], mode: ClientSortMode): Client[] {
 }
 
 export function Clientes() {
-  const { clients, loading, addClient, editClient } = useClients();
+  const { clients, loading, addClient, editClient, removeClient } = useClients();
   const { addToast } = useAppStore();
+  const user = useAuthStore((s) => s.user);
+  const isAdmin = user?.role === 'admin';
   
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -93,6 +106,8 @@ export function Clientes() {
   const [sortMode, setSortMode] = useState<ClientSortMode>('nombre');
   const [municipioSonora, setMunicipioSonora] = useState('');
   const [detailClient, setDetailClient] = useState<Client | null>(null);
+  const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
+  const [deletingClient, setDeletingClient] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -141,6 +156,24 @@ export function Clientes() {
       addToast({ type: 'success', message: 'Cliente agregado exitosamente' });
     } catch (error: any) {
       addToast({ type: 'error', message: error.message });
+    }
+  };
+
+  const confirmDeleteClient = async () => {
+    if (!clientToDelete) return;
+    setDeletingClient(true);
+    try {
+      await removeClient(clientToDelete.id);
+      if (detailClient?.id === clientToDelete.id) setDetailClient(null);
+      addToast({ type: 'success', message: 'Cliente eliminado' });
+      setClientToDelete(null);
+    } catch (error: unknown) {
+      addToast({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'No se pudo eliminar el cliente',
+      });
+    } finally {
+      setDeletingClient(false);
     }
   };
 
@@ -378,6 +411,18 @@ export function Clientes() {
                       <Ticket className="h-3 w-3" aria-hidden />
                       {client.ticketsComprados ?? 0}
                     </span>
+                    {isAdmin ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="shrink-0 text-red-500 hover:bg-red-500/10 hover:text-red-400"
+                        aria-label={`Eliminar cliente ${client.nombre}`}
+                        onClick={() => setClientToDelete(client)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    ) : null}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" className="shrink-0 text-slate-400">
@@ -488,22 +533,36 @@ export function Clientes() {
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="text-slate-400">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent className="border-slate-800 bg-slate-900">
-                            <DropdownMenuItem
-                              onClick={() => openEditDialog(client)}
-                              className="text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+                        <div className="flex items-center justify-end gap-0.5">
+                          {isAdmin ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="text-red-500 hover:bg-red-500/10 hover:text-red-400"
+                              aria-label={`Eliminar cliente ${client.nombre}`}
+                              onClick={() => setClientToDelete(client)}
                             >
-                              <Edit2 className="mr-2 h-4 w-4" />
-                              Editar
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          ) : null}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="text-slate-400">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent className="border-slate-800 bg-slate-900">
+                              <DropdownMenuItem
+                                onClick={() => openEditDialog(client)}
+                                className="text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+                              >
+                                <Edit2 className="mr-2 h-4 w-4" />
+                                Editar
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -819,6 +878,33 @@ export function Clientes() {
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!clientToDelete} onOpenChange={(o) => !o && setClientToDelete(null)}>
+        <AlertDialogContent className="border-slate-800 bg-slate-900 text-slate-100">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar cliente</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-400">
+              ¿Eliminar a <strong className="text-slate-200">{clientToDelete?.nombre}</strong>? Esta acción no se
+              puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700">
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deletingClient}
+              onClick={(e) => {
+                e.preventDefault();
+                void confirmDeleteClient();
+              }}
+              className="bg-red-600 text-white hover:bg-red-500"
+            >
+              {deletingClient ? 'Eliminando…' : 'Eliminar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

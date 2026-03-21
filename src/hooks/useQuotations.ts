@@ -66,10 +66,14 @@ export function useQuotations() {
     }
   };
 
-  const convertToSale = async (quotationId: string, usuarioId: string) => {
+  const convertToSale = async (
+    quotationId: string,
+    usuarioId: string,
+    usuarioNombre?: string
+  ) => {
     try {
       const sucursalId = getEffectiveSucursalId();
-      const saleId = await convertQuotationToSale(quotationId, usuarioId, sucursalId);
+      const saleId = await convertQuotationToSale(quotationId, usuarioId, sucursalId, usuarioNombre);
       await loadQuotations();
       return saleId;
     } catch (err) {

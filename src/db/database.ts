@@ -612,7 +612,8 @@ export async function updateQuotation(id: string, updates: Partial<Quotation>): 
 export async function convertQuotationToSale(
   quotationId: string,
   usuarioId: string,
-  sucursalId?: string
+  sucursalId?: string,
+  usuarioNombre?: string
 ): Promise<string> {
   const quotation = await db.quotations.get(quotationId);
   if (!quotation) throw new Error('Cotización no encontrada');
@@ -644,6 +645,7 @@ export async function convertQuotationToSale(
     estado: 'pendiente',
     notas: `Convertido de cotización ${quotation.folio}`,
     usuarioId,
+    usuarioNombre: usuarioNombre?.trim() || quotation.usuarioNombre?.trim() || undefined,
   };
 
   const saleId = await createSale(sale, { sucursalId });
@@ -816,6 +818,10 @@ export async function deleteInvoiceRecord(id: string): Promise<void> {
 
 export async function updateClient(id: string, updates: Partial<Client>): Promise<void> {
   await db.clients.update(id, { ...updates, updatedAt: new Date(), syncStatus: 'pending' });
+}
+
+export async function deleteClient(id: string): Promise<void> {
+  await db.clients.delete(id);
 }
 
 // ============================================

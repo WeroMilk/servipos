@@ -65,6 +65,11 @@ function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+function cajeroNombreFromUser(u: { name?: string; username?: string; email?: string } | null | undefined): string {
+  if (!u) return '';
+  return (u.name?.trim() || u.username?.trim() || u.email?.trim() || '').trim();
+}
+
 function buildQuotationEmailBody(q: Quotation): string {
   const lines = [
     'SERVIPARTZ POS — Cotización',
@@ -72,6 +77,7 @@ function buildQuotationEmailBody(q: Quotation): string {
     `Folio: ${q.folio}`,
     `Cliente: ${q.cliente?.nombre ?? 'Mostrador'}`,
     `Fecha: ${formatInAppTimezone(q.createdAt, { dateStyle: 'medium', timeStyle: 'short' })}`,
+    q.usuarioNombre?.trim() ? `Cajero: ${q.usuarioNombre.trim()}` : '',
     `Vigencia: ${formatInAppTimezone(q.fechaVigencia, { dateStyle: 'medium' })}`,
     `Estado: ${statusLabels[q.estado] ?? q.estado}`,
     '',
@@ -99,6 +105,7 @@ function printQuotationLetter(q: Quotation, fallbackSucursalId?: string | null):
   const html = `
     <p><strong>Cliente:</strong> ${esc(q.cliente?.nombre ?? 'Mostrador')}</p>
     <p><strong>Fecha:</strong> ${esc(formatInAppTimezone(q.createdAt, { dateStyle: 'medium', timeStyle: 'short' }))}</p>
+    <p><strong>Cajero:</strong> ${esc(q.usuarioNombre?.trim() || '—')}</p>
     <p><strong>Vigencia:</strong> ${esc(formatInAppTimezone(q.fechaVigencia, { dateStyle: 'medium' }))}</p>
     <table>
       <thead><tr><th>Producto</th><th class="right">Cant.</th><th class="right">P. unit.</th><th class="right">Total</th></tr></thead>
@@ -248,6 +255,7 @@ export function Cotizaciones() {
         estado: 'pendiente',
         notas,
         usuarioId: user?.id || 'system',
+        usuarioNombre: cajeroNombreFromUser(user) || undefined,
       } as any);
 
       setShowAddDialog(false);
@@ -260,7 +268,7 @@ export function Cotizaciones() {
 
   const handleConvertToSale = async (quotation: Quotation) => {
     try {
-      await convertToSale(quotation.id, user?.id || 'system');
+      await convertToSale(quotation.id, user?.id || 'system', cajeroNombreFromUser(user) || undefined);
       addToast({ type: 'success', message: 'Cotización convertida a venta' });
     } catch (error: unknown) {
       addToast({ type: 'error', message: error instanceof Error ? error.message : 'Error' });

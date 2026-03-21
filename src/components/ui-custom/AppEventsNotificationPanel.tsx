@@ -68,7 +68,12 @@ export function AppEventsNotificationPanel() {
     return subscribeAppEvents(EVENTS_LIMIT, setEvents);
   }, [user?.id]);
 
-  const latestMs = events[0]?.createdAt.getTime() ?? 0;
+  const visibleEvents = useMemo(
+    () => events.filter((ev) => ev.source !== 'sync'),
+    [events]
+  );
+
+  const latestMs = visibleEvents[0]?.createdAt.getTime() ?? 0;
   const hasUnread = latestMs > eventsLastSeenAtMs;
 
   const handleOpenChange = useCallback(
@@ -157,13 +162,13 @@ export function AppEventsNotificationPanel() {
             aria-label="Lista de eventos"
           >
             <ul className="m-0 list-none p-0">
-              {events.length === 0 ? (
+              {visibleEvents.length === 0 ? (
                 <li className="px-3 py-6 text-center text-xs text-slate-500">
                   Aún no hay eventos registrados o no hay permisos de lectura en Firestore (
                   <code className="text-slate-400">appEvents</code>).
                 </li>
               ) : (
-                events.map((ev) => (
+                visibleEvents.map((ev) => (
                   <li
                     key={ev.id}
                     className="border-b border-slate-800/60 px-3 py-2.5 last:border-0"

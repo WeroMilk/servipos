@@ -5,7 +5,8 @@ import {
   getClientById, 
   searchClients,
   createClient,
-  updateClient
+  updateClient,
+  deleteClient,
 } from '@/db/database';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 import { reportHookFailure } from '@/lib/appEventLog';
@@ -66,6 +67,17 @@ export function useClients() {
     }
   };
 
+  const removeClient = async (id: string) => {
+    try {
+      await deleteClient(id);
+      await loadClients();
+    } catch (err) {
+      reportHookFailure('hook:useClients', 'Eliminar cliente', err);
+      setError('Error al eliminar cliente');
+      throw err;
+    }
+  };
+
   return {
     clients,
     loading,
@@ -73,6 +85,7 @@ export function useClients() {
     refresh: loadClients,
     addClient,
     editClient,
+    removeClient,
   };
 }
 

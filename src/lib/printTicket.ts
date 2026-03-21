@@ -22,6 +22,8 @@ export type TicketPayload = {
   notas?: string;
   /** Sucursal actual (Firestore `sucursales/{id}`); añade pie de contacto/horario si hay plantilla. */
   sucursalId?: string;
+  /** Cajero que registró la venta. */
+  cajeroNombre?: string;
 };
 
 function escapeHtml(s: string): string {
@@ -297,6 +299,7 @@ export function printThermalTicketFromSale(sale: Sale): void {
     folio: sale.folio,
     fecha: new Date(sale.createdAt).toLocaleString('es-MX'),
     cliente,
+    cajeroNombre: sale.usuarioNombre?.trim() || undefined,
     lineas,
     subtotal: Number(sale.subtotal) || 0,
     impuestos: Number(sale.impuestos) || 0,
