@@ -41,13 +41,15 @@ export function useQuotations() {
     loadQuotations();
   }, [loadQuotations]);
 
-  const addQuotation = async (quotation: Omit<Quotation, 'id' | 'folio' | 'createdAt' | 'updatedAt' | 'syncStatus'>) => {
+  const addQuotation = async (
+    quotation: Omit<Quotation, 'id' | 'folio' | 'createdAt' | 'updatedAt' | 'syncStatus'>
+  ): Promise<Quotation | undefined> => {
     try {
       const sid = getEffectiveSucursalId();
       const folio = await generateQuotationFolio(sid);
       const id = await createQuotation({ ...quotation, folio, sucursalId: sid });
       await loadQuotations();
-      return id;
+      return (await getQuotationById(id)) ?? undefined;
     } catch (err) {
       reportHookFailure('hook:useQuotations', 'Crear cotización', err);
       setError('Error al crear cotización');

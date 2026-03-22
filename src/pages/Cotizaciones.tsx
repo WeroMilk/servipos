@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -51,7 +52,7 @@ const statusColors: Record<string, string> = {
   rechazada: 'bg-red-500/10 text-red-400 border-red-500/30',
   vencida: 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/30',
   convertida:
-    'bg-cyan-500/10 text-cyan-800 border-cyan-500/30 dark:text-cyan-400',
+    'bg-emerald-500/15 text-emerald-800 border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/35',
 };
 
 const statusLabels: Record<string, string> = {
@@ -59,7 +60,7 @@ const statusLabels: Record<string, string> = {
   aceptada: 'Aceptada',
   rechazada: 'Rechazada',
   vencida: 'Vencida',
-  convertida: 'Convertida',
+  convertida: 'Ya Cobrada',
 };
 
 function esc(s: string): string {
@@ -85,7 +86,7 @@ function buildQuotationEmailBody(q: Quotation): string {
     'Detalle:',
     ...q.productos.map(
       (it, i) =>
-        `${i + 1}. ${it.producto?.nombre ?? 'Producto'}  x${it.cantidad}  ${formatMoney(it.total)}`
+        `${i + 1}. ${it.producto?.nombre?.trim() || 'Producto'}  x${it.cantidad}  ${formatMoney(it.total)}`
     ),
     '',
     `Subtotal: ${formatMoney(q.subtotal)}`,
@@ -100,7 +101,7 @@ function printQuotationLetter(q: Quotation, fallbackSucursalId?: string | null):
   const rows = q.productos
     .map(
       (it) =>
-        `<tr><td>${esc(it.producto?.nombre ?? '')}</td><td class="right">${it.cantidad}</td><td class="right">${formatMoney(it.precioUnitario)}</td><td class="right">${formatMoney(it.total)}</td></tr>`
+        `<tr><td>${esc(it.producto?.nombre?.trim() || 'Producto')}</td><td class="right">${it.cantidad}</td><td class="right">${formatMoney(it.precioUnitario)}</td><td class="right">${formatMoney(it.total)}</td></tr>`
     )
     .join('');
   const html = `
@@ -132,6 +133,8 @@ export function Cotizaciones() {
   const { addToast } = useAppStore();
 
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showPostSaveDialog, setShowPostSaveDialog] = useState(false);
+  const [postSaveQuotation, setPostSaveQuotation] = useState<Quotation | null>(null);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -230,12 +233,17 @@ export function Cotizaciones() {
 
     try {
       const { subtotal, impuestos, total } = calculateTotals();
+      const clienteId = selectedClient.trim() || 'mostrador';
+      const clienteRow =
+        clienteId !== 'mostrador' ? clients.find((c) => c.id === clienteId) : undefined;
 
-      await addQuotation({
-        clienteId: selectedClient || 'mostrador',
+      const created = await addQuotation({
+        clienteId,
+        ...(clienteRow ? { cliente: clienteRow } : {}),
         productos: quotationItems.map((item) => ({
           id: crypto.randomUUID(),
           productId: item.product.id,
+          producto: item.product,
           cantidad: item.quantity,
           precioUnitario: item.product.precioVenta,
           descuento: item.discount,
@@ -262,6 +270,10 @@ export function Cotizaciones() {
       setShowAddDialog(false);
       resetForm();
       addToast({ type: 'success', message: 'Cotización creada exitosamente' });
+      if (created) {
+        setPostSaveQuotation(created);
+        setShowPostSaveDialog(true);
+      }
     } catch (error: unknown) {
       addToast({ type: 'error', message: error instanceof Error ? error.message : 'Error' });
     }
@@ -284,11 +296,13 @@ export function Cotizaciones() {
     setProductSearchQuery('');
   };
 
-  const filteredQuotations = quotations.filter(
-    (q) =>
-      q.folio.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      q.cliente?.nombre.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredQuotations = quotations.filter((q) => {
+    const sq = searchQuery.toLowerCase();
+    return (
+      q.folio.toLowerCase().includes(sq) ||
+      (q.cliente?.nombre?.toLowerCase() ?? '').includes(sq)
+    );
+  });
 
   const openDetail = (q: Quotation) => {
     setSelectedQuotation(q);
@@ -494,7 +508,7 @@ export function Cotizaciones() {
       />
 
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="max-h-[92dvh] overflow-y-auto border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 md:max-w-[min(92vw,72rem)] lg:max-w-[min(92vw,80rem)]">
+        <DialogContent className="w-full min-w-0 max-h-[92dvh] overflow-y-auto border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 md:max-w-[min(92vw,72rem)] lg:max-w-[min(92vw,80rem)]">
           <DialogHeader>
             <DialogTitle>Nueva Cotización</DialogTitle>
           </DialogHeader>
@@ -656,14 +670,74 @@ export function Cotizaciones() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
-        <DialogContent className="max-h-[92dvh] overflow-y-auto border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 md:max-w-[min(92vw,56rem)] lg:max-w-[min(92vw,64rem)]">
+      <Dialog
+        open={showPostSaveDialog}
+        onOpenChange={(open) => {
+          setShowPostSaveDialog(open);
+          if (!open) setPostSaveQuotation(null);
+        }}
+      >
+        <DialogContent
+          useDialogDescription
+          className="border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 sm:max-w-md"
+        >
           <DialogHeader>
-            <DialogTitle>Cotización {selectedQuotation?.folio}</DialogTitle>
+            <DialogTitle>
+              {postSaveQuotation ? `Cotización ${postSaveQuotation.folio} guardada` : 'Cotización guardada'}
+            </DialogTitle>
+            <DialogDescription className="text-slate-600 dark:text-slate-400">
+              Imprime en tamaño carta o crea otra cotización.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            <Button
+              type="button"
+              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+              onClick={() => {
+                if (postSaveQuotation) {
+                  printQuotationLetter(postSaveQuotation, effectiveSucursalId);
+                }
+              }}
+            >
+              <Printer className="mr-2 h-4 w-4" />
+              Imprimir (carta)
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="border-slate-300 dark:border-slate-700"
+              onClick={() => {
+                setShowPostSaveDialog(false);
+                setPostSaveQuotation(null);
+                setShowAddDialog(true);
+              }}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Nueva cotización
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="text-slate-600 dark:text-slate-400"
+              onClick={() => {
+                setShowPostSaveDialog(false);
+                setPostSaveQuotation(null);
+              }}
+            >
+              Cerrar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
+        <DialogContent className="w-full min-w-0 max-h-[92dvh] overflow-y-auto border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 md:max-w-[min(92vw,56rem)] lg:max-w-[min(92vw,64rem)]">
+          <DialogHeader>
+            <DialogTitle className="break-words">Cotización {selectedQuotation?.folio}</DialogTitle>
           </DialogHeader>
 
           {selectedQuotation && (
-            <div className="space-y-4">
+            <div className="min-w-0 space-y-4">
               <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
                 <div>
                   <p className="text-slate-600 dark:text-slate-500">Cliente</p>
@@ -699,7 +773,9 @@ export function Cotizaciones() {
                   <tbody className="divide-y divide-slate-200 dark:divide-slate-800/50">
                     {selectedQuotation.productos.map((item, idx) => (
                       <tr key={idx}>
-                        <td className="p-3 text-slate-800 dark:text-slate-200">{item.producto?.nombre}</td>
+                        <td className="p-3 text-slate-800 dark:text-slate-200">
+                          {item.producto?.nombre?.trim() || 'Producto'}
+                        </td>
                         <td className="p-3 text-center text-slate-600 dark:text-slate-400">{item.cantidad}</td>
                         <td className="p-3 text-right text-slate-600 dark:text-slate-400">
                           {formatMoney(item.precioUnitario)}
@@ -711,13 +787,13 @@ export function Cotizaciones() {
                 </table>
               </div>
 
-              <div className="flex flex-col gap-3 border-t border-slate-200 dark:border-slate-800 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                <Badge className={cn('w-fit border', statusColors[selectedQuotation.estado])}>
+              <div className="flex w-full min-w-0 flex-col gap-3 border-t border-slate-200 dark:border-slate-800 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                <Badge className={cn('w-fit shrink-0 border', statusColors[selectedQuotation.estado])}>
                   {statusLabels[selectedQuotation.estado]}
                 </Badge>
-                <div className="text-right">
+                <div className="w-full min-w-0 text-left sm:w-auto sm:text-right">
                   <p className="text-slate-600 dark:text-slate-500">Total</p>
-                  <p className="text-2xl font-bold text-cyan-400">
+                  <p className="text-2xl font-bold tabular-nums text-cyan-400 break-all sm:break-normal">
                     {formatMoney(selectedQuotation.total)}
                   </p>
                 </div>

@@ -51,22 +51,12 @@ function escapeHtml(s: string): string {
 }
 
 /**
- * Abre HTML para imprimir. No usar `noopener` en window.open: en Chrome móvil/desktop
- * devuelve `null` pero igual abre una pestaña vacía (about:blank) y no se puede hacer document.write.
- * Si el popup está bloqueado, se usa un iframe oculto + print().
+ * Abre HTML para imprimir con `about:blank` + `document.write` (no `blob:` URL).
+ * Así el pie del diálogo de impresión no muestra una URL `blob:https://…` larga.
+ * Sin `noopener` en window.open: en Chrome móvil a veces devuelve `null` pero abre pestaña;
+ * si el popup está bloqueado, se usa iframe `about:blank` + write + print().
  */
 function openAndPrintHtml(html: string, windowFeatures: string, printDelayMs: number): void {
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-
-  const revoke = () => {
-    try {
-      URL.revokeObjectURL(url);
-    } catch {
-      /* noop */
-    }
-  };
-
   const runPrint = (target: Window) => {
     target.focus();
     setTimeout(() => {
@@ -78,41 +68,62 @@ function openAndPrintHtml(html: string, windowFeatures: string, printDelayMs: nu
     }, printDelayMs);
   };
 
-  // Sin noopener/noreferrer: necesitamos la referencia a la ventana (es contenido propio, mismo origen vía blob).
-  const w = window.open(url, '_blank', windowFeatures);
+  const printFromHiddenIframe = () => {
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('title', 'Impresión');
+    iframe.style.cssText =
+      'position:absolute;width:1px;height:1px;left:-9999px;top:0;border:0;opacity:0;pointer-events:none';
+
+    const tearDown = () => {
+      if (iframe.parentNode) document.body.removeChild(iframe);
+    };
+
+    iframe.onload = () => {
+      const cw = iframe.contentWindow;
+      if (!cw) {
+        tearDown();
+        return;
+      }
+      try {
+        cw.document.open();
+        cw.document.write(html);
+        cw.document.close();
+      } catch {
+        tearDown();
+        return;
+      }
+      cw.addEventListener('afterprint', tearDown, { once: true });
+      setTimeout(tearDown, 120_000);
+      runPrint(cw);
+    };
+
+    iframe.src = 'about:blank';
+    document.body.appendChild(iframe);
+  };
+
+  const w = window.open('about:blank', '_blank', windowFeatures);
   if (w) {
-    const done = () => revoke();
-    w.addEventListener('afterprint', done, { once: true });
-    w.addEventListener('pagehide', done, { once: true });
+    try {
+      w.document.open();
+      w.document.write(html);
+      w.document.close();
+    } catch {
+      try {
+        w.close();
+      } catch {
+        /* noop */
+      }
+      printFromHiddenIframe();
+      return;
+    }
+
     const start = () => runPrint(w);
     if (w.document.readyState === 'complete') start();
     else w.addEventListener('load', start, { once: true });
-    setTimeout(revoke, 120_000);
     return;
   }
 
-  const iframe = document.createElement('iframe');
-  iframe.setAttribute('title', 'Impresión');
-  iframe.style.cssText =
-    'position:absolute;width:1px;height:1px;left:-9999px;top:0;border:0;opacity:0;pointer-events:none';
-  iframe.src = url;
-  document.body.appendChild(iframe);
-
-  iframe.onload = () => {
-    const cw = iframe.contentWindow;
-    if (!cw) {
-      document.body.removeChild(iframe);
-      revoke();
-      return;
-    }
-    const tearDown = () => {
-      if (iframe.parentNode) document.body.removeChild(iframe);
-      revoke();
-    };
-    cw.addEventListener('afterprint', tearDown, { once: true });
-    setTimeout(tearDown, 120_000);
-    runPrint(cw);
-  };
+  printFromHiddenIframe();
 }
 
 /** Ticket 80mm para impresora térmica (contenido en ventana dedicada). */

@@ -9,7 +9,7 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
-/** URL absoluta del logo para ventanas de impresión (blob / nueva pestaña). */
+/** URL absoluta del logo para ventanas de impresión (about:blank + write / iframe). */
 export function getBrandLogoAbsoluteUrl(): string {
   try {
     return new URL(BRAND_LOGO_URL, window.location.href).href;

@@ -20,6 +20,8 @@ import {
 } from '@/lib/firestore/salesFirestore';
 import { getDefaultSucursalIdForNewData } from '@/lib/sucursales';
 
+const MOSTRADOR_CLIENT_ID = 'mostrador';
+
 // ============================================
 // BASE DE DATOS LOCAL (IndexedDB / Dexie) — SERVIPARTZ POS
 // ============================================
@@ -582,16 +584,83 @@ export async function cancelSale(
 // FUNCIONES DE COTIZACIONES
 // ============================================
 
+/** Rellena `producto` en cada línea desde el catálogo local (Dexie a veces no conserva el embed). */
+function attachProductsToQuotation(q: Quotation, productMap: Map<string, Product>): Quotation {
+  const productos = q.productos.map((it) => {
+    if (it.producto?.nombre?.trim()) return it;
+    const p = productMap.get(it.productId);
+    return p ? { ...it, producto: p } : it;
+  });
+  return { ...q, productos };
+}
+
 export async function getQuotations(sucursalId?: string): Promise<Quotation[]> {
+  let rows: Quotation[];
   if (sucursalId) {
-    const rows = await db.quotations.where('sucursalId').equals(sucursalId).toArray();
-    return rows.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    rows = await db.quotations.where('sucursalId').equals(sucursalId).toArray();
+    rows.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  } else {
+    rows = await db.quotations.orderBy('createdAt').reverse().toArray();
   }
-  return await db.quotations.orderBy('createdAt').reverse().toArray();
+
+  const ids = [
+    ...new Set(
+      rows
+        .map((r) => r.clienteId)
+        .filter((id): id is string => Boolean(id) && id !== MOSTRADOR_CLIENT_ID)
+    ),
+  ];
+  const clientMap = new Map<string, Client>();
+  await Promise.all(
+    ids.map(async (id) => {
+      const c = await db.clients.get(id);
+      if (c) clientMap.set(id, c);
+    })
+  );
+
+  const productIds = [
+    ...new Set(rows.flatMap((q) => q.productos.map((p) => p.productId)).filter(Boolean)),
+  ];
+  const productMap = new Map<string, Product>();
+  await Promise.all(
+    productIds.map(async (pid) => {
+      const p = await db.products.get(pid);
+      if (p) productMap.set(pid, p);
+    })
+  );
+
+  return rows.map((q) => {
+    let next = q;
+    if (!q.cliente?.nombre?.trim()) {
+      const c =
+        q.clienteId && q.clienteId !== MOSTRADOR_CLIENT_ID ? clientMap.get(q.clienteId) : undefined;
+      if (c) next = { ...next, cliente: c };
+    }
+    return attachProductsToQuotation(next, productMap);
+  });
 }
 
 export async function getQuotationById(id: string): Promise<Quotation | undefined> {
-  return await db.quotations.get(id);
+  const q = await db.quotations.get(id);
+  if (!q) return undefined;
+
+  let next: Quotation = q;
+  if (!q.cliente?.nombre?.trim() && q.clienteId && q.clienteId !== MOSTRADOR_CLIENT_ID) {
+    const c = await db.clients.get(q.clienteId);
+    if (c) next = { ...next, cliente: c };
+  }
+
+  const productIds = [...new Set(q.productos.map((p) => p.productId).filter(Boolean))];
+  if (productIds.length === 0) return next;
+
+  const productMap = new Map<string, Product>();
+  await Promise.all(
+    productIds.map(async (pid) => {
+      const p = await db.products.get(pid);
+      if (p) productMap.set(pid, p);
+    })
+  );
+  return attachProductsToQuotation(next, productMap);
 }
 
 export async function createQuotation(quotation: Omit<Quotation, 'id' | 'createdAt' | 'updatedAt' | 'syncStatus'>): Promise<string> {
@@ -746,8 +815,6 @@ export async function cancelInvoice(
 // ============================================
 // FUNCIONES DE CLIENTES
 // ============================================
-
-const MOSTRADOR_CLIENT_ID = 'mostrador';
 
 /** Ajusta el contador de tickets de compra del cliente (Dexie). No interrumpe ventas si falla. */
 export async function adjustClientTicketCount(clienteId: string | undefined, delta: number): Promise<void> {

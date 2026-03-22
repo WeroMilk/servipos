@@ -589,35 +589,36 @@ export function Configuracion() {
               <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
                 <CardTitle className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100 sm:text-base">
                   <Key className="h-4 w-4 text-cyan-400 sm:h-5 sm:w-5" />
-                  PAC (timbrado)
+                  Soporte (timbrado)
                 </CardTitle>
               </CardHeader>
               <CardContent className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-3 sm:p-4">
                 <div className="rounded-lg bg-slate-200/60 dark:bg-slate-800/30 p-2 sm:p-3">
                   <p className="text-xs text-slate-600 dark:text-slate-400 sm:text-sm">
-                    Para timbrar ante el SAT contrate un PAC autorizado:
+                    Para timbrar ante el SAT contacte a Soporte:
                   </p>
-                  <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-700 dark:text-slate-300 sm:text-sm">
-                    <li className="flex items-center gap-1.5">
-                      <Check className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
-                      Facturama
-                    </li>
-                    <li className="flex items-center gap-1.5">
-                      <Check className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
-                      Finkok
-                    </li>
-                    <li className="flex items-center gap-1.5">
-                      <Check className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
-                      SW Sapien
-                    </li>
-                    <li className="flex items-center gap-1.5">
-                      <Check className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
-                      Edicom
-                    </li>
-                  </ul>
-                  <p className="mt-2 text-[11px] text-slate-600 dark:text-slate-500 sm:text-xs">
-                    El XML CFDI 4.0 generado aquí puede enviarse a cualquiera de ellos.
-                  </p>
+                  <div className="mt-2 flex gap-1.5 text-xs text-slate-700 dark:text-slate-300 sm:text-sm">
+                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" />
+                    <div className="min-w-0 space-y-1.5">
+                      <p>Luis Alfonso Silvas Madrid</p>
+                      <p>
+                        <a
+                          href="mailto:asilvasm97@gmail.com"
+                          className="text-cyan-700 underline-offset-2 hover:underline dark:text-cyan-400"
+                        >
+                          asilvasm97@gmail.com
+                        </a>
+                      </p>
+                      <p>
+                        <a
+                          href="tel:+526623501632"
+                          className="text-cyan-700 underline-offset-2 hover:underline dark:text-cyan-400"
+                        >
+                          6623501632
+                        </a>
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -647,9 +648,8 @@ export function Configuracion() {
                   </p>
                 </div>
                 <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-400 sm:text-sm">
-                  Solicita en el portal del SAT los folios para el tipo de comprobante de nómina que uses. Aquí defines
-                  la serie y el folio consecutivo que se aplicarán al generar cada recibo; deben coincidir con el
-                  rango autorizado.
+                  Solicita con Soporte los folios para el tipo de comprobante de nómina que uses. Aquí defines la serie y
+                  el folio consecutivo que se aplicarán al generar cada recibo; deben coincidir con el rango autorizado.
                 </p>
                 <ul className="space-y-1.5 text-xs text-slate-700 dark:text-slate-300 sm:text-sm">
                   <li className="flex gap-2">
@@ -662,7 +662,7 @@ export function Configuracion() {
                   </li>
                   <li className="flex gap-2">
                     <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-400" />
-                    PAC con servicio de timbrado de nómina (mismo criterio que facturas).
+                    PAC otorgado por Soporte con servicio de timbrado de nómina (mismo criterio que facturas).
                   </li>
                 </ul>
               </CardContent>

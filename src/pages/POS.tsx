@@ -184,6 +184,8 @@ export function POS() {
   const [processingSale, setProcessingSale] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>('cart');
   const [globalDiscFocus, setGlobalDiscFocus] = useState(false);
+  /** Fila del carrito cuyo % descuento está enfocado (vacío visual si es 0, como desc. global). */
+  const [lineDiscountFocusProductId, setLineDiscountFocusProductId] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const productSearchWrapRef = useRef<HTMLDivElement>(null);
 
@@ -676,13 +678,21 @@ export function POS() {
                             <Input
                               type="number"
                               inputMode="decimal"
-                              value={item.discount}
-                              onFocus={(e) => {
-                                if (item.discount === 0) e.target.select();
-                              }}
-                              onChange={(e) =>
-                                updateDiscount(item.product.id, parseFloat(e.target.value) || 0)
+                              value={
+                                lineDiscountFocusProductId === item.product.id && item.discount === 0
+                                  ? ''
+                                  : item.discount
                               }
+                              onFocus={() => setLineDiscountFocusProductId(item.product.id)}
+                              onBlur={() => setLineDiscountFocusProductId(null)}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                if (v === '') {
+                                  updateDiscount(item.product.id, 0);
+                                  return;
+                                }
+                                updateDiscount(item.product.id, parseFloat(v) || 0);
+                              }}
                               className="h-8 w-14 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 px-1 text-center text-xs text-slate-900 dark:text-slate-100 sm:w-16"
                               min={0}
                               max={100}
@@ -953,8 +963,8 @@ export function POS() {
           className={cn(
             'left-1/2 top-1/2 max-w-none -translate-x-1/2 -translate-y-1/2 border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100',
             checkoutPhase === 'payment'
-              ? 'max-h-[calc(100vh-2rem)] max-h-[calc(100dvh-2rem)] w-[min(calc(100vw-1rem),28rem)] overflow-x-hidden overflow-y-auto p-4 sm:max-h-[calc(100vh-2.5rem)] sm:max-h-[calc(100dvh-2.5rem)] sm:w-[min(calc(100vw-2rem),32rem)] sm:p-6 md:w-[min(calc(100vw-2rem),40rem)] lg:w-[min(calc(100vw-2rem),48rem)]'
-              : 'w-[min(calc(100vw-1rem),24rem)] p-4 sm:max-w-sm sm:p-6 md:w-[min(calc(100vw-2rem),28rem)]'
+              ? 'max-h-[min(88dvh,calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-4.5rem))] w-[min(calc(100vw-1rem),28rem)] min-w-0 overflow-y-auto overflow-x-auto overscroll-y-contain px-4 py-4 pl-4 pr-12 sm:top-[50%] sm:max-h-[calc(100dvh-2.5rem)] sm:w-[min(calc(100vw-2rem),32rem)] sm:p-6 sm:pr-14 md:w-[min(calc(100vw-2rem),40rem)] lg:w-[min(calc(100vw-2rem),48rem)] md:overflow-x-hidden'
+              : 'w-[min(calc(100vw-1rem),24rem)] min-w-0 px-4 py-4 pl-4 pr-12 sm:max-w-sm sm:p-6 sm:pr-14 md:w-[min(calc(100vw-2rem),28rem)]'
           )}
         >
           {checkoutPhase === 'payment' ? (
@@ -1161,7 +1171,7 @@ export function POS() {
       </Dialog>
 
       <Dialog open={showClientDialog} onOpenChange={setShowClientDialog}>
-        <DialogContent className="flex max-h-[92dvh] flex-col overflow-hidden border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 md:max-w-[min(92vw,40rem)] lg:max-w-[min(92vw,48rem)]">
+        <DialogContent className="flex min-h-0 w-full min-w-0 max-h-[92dvh] flex-col overflow-hidden border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 md:max-w-[min(92vw,40rem)] lg:max-w-[min(92vw,48rem)]">
           <DialogHeader>
             <DialogTitle>Cliente de la venta</DialogTitle>
           </DialogHeader>
