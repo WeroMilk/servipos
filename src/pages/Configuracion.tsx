@@ -148,6 +148,14 @@ export function Configuracion() {
   const selectClass =
     'h-10 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 px-2 text-base text-slate-900 dark:text-slate-100 sm:h-8 sm:text-sm';
 
+  /** Pestañas tipo subrayado (activa = borde inferior cyan), sin bloque de fondo. */
+  const configuracionTabTriggerClass = cn(
+    'h-10 shrink-0 flex-none justify-center rounded-none border-0 border-b-2 border-transparent bg-transparent px-3 text-xs text-slate-600 shadow-none ring-offset-0',
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/35 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-100 dark:focus-visible:ring-offset-slate-950',
+    'data-[state=active]:border-cyan-500 data-[state=active]:bg-transparent data-[state=active]:text-cyan-700 data-[state=active]:shadow-none',
+    'dark:text-slate-400 dark:data-[state=active]:text-cyan-400 sm:h-11 sm:text-sm xl:w-full xl:flex-1'
+  );
+
   return (
     <PageShell
       title="Configuración"
@@ -180,55 +188,37 @@ export function Configuracion() {
         <TabsList
           data-wheel-scroll-x="strip"
           className={cn(
-            'flex h-auto w-full min-w-0 shrink-0 flex-nowrap gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-xl bg-slate-50/90 p-1 dark:bg-slate-900/50 [-webkit-overflow-scrolling:touch]',
-            'xl:grid xl:w-full xl:overflow-x-visible xl:p-1',
+            'flex h-auto w-full min-w-0 shrink-0 flex-nowrap gap-0 overflow-x-auto overflow-y-hidden overscroll-x-contain border-b border-slate-200/80 bg-transparent p-0 dark:border-slate-800/60 dark:bg-transparent [-webkit-overflow-scrolling:touch]',
+            'xl:grid xl:w-full xl:overflow-x-visible',
             totalTabs <= 4 && 'xl:grid-cols-4',
             totalTabs === 5 && 'xl:grid-cols-5',
             totalTabs >= 6 && 'xl:grid-cols-6'
           )}
         >
-          <TabsTrigger
-            value="fiscal"
-            className="h-9 shrink-0 flex-none justify-center px-3 text-xs data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-900 dark:data-[state=active]:bg-cyan-500/20 dark:data-[state=active]:text-cyan-400 sm:text-sm xl:w-full xl:flex-1"
-          >
+          <TabsTrigger value="fiscal" className={configuracionTabTriggerClass}>
             <Receipt className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
             Datos fiscales
           </TabsTrigger>
-          <TabsTrigger
-            value="empresa"
-            className="h-9 shrink-0 flex-none justify-center px-3 text-xs data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-900 dark:data-[state=active]:bg-cyan-500/20 dark:data-[state=active]:text-cyan-400 sm:text-sm xl:w-full xl:flex-1"
-          >
+          <TabsTrigger value="empresa" className={configuracionTabTriggerClass}>
             <Building2 className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
             Empresa
           </TabsTrigger>
-          <TabsTrigger
-            value="certificados"
-            className="h-9 shrink-0 flex-none justify-center px-3 text-xs data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-900 dark:data-[state=active]:bg-cyan-500/20 dark:data-[state=active]:text-cyan-400 sm:text-sm xl:w-full xl:flex-1"
-          >
+          <TabsTrigger value="certificados" className={configuracionTabTriggerClass}>
             <FileKey className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
             Certificados
           </TabsTrigger>
-          <TabsTrigger
-            value="nominas"
-            className="h-9 shrink-0 flex-none justify-center px-3 text-xs data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-900 dark:data-[state=active]:bg-cyan-500/20 dark:data-[state=active]:text-cyan-400 sm:text-sm xl:w-full xl:flex-1"
-          >
+          <TabsTrigger value="nominas" className={configuracionTabTriggerClass}>
             <Wallet className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
             Nominas
           </TabsTrigger>
           {canManageSucursales && (
-            <TabsTrigger
-              value="sucursales"
-              className="h-9 shrink-0 flex-none justify-center px-3 text-xs data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-900 dark:data-[state=active]:bg-cyan-500/20 dark:data-[state=active]:text-cyan-400 sm:text-sm xl:w-full xl:flex-1"
-            >
+            <TabsTrigger value="sucursales" className={configuracionTabTriggerClass}>
               <MapPin className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
               Sucursales
             </TabsTrigger>
           )}
           {canManageUsers && (
-            <TabsTrigger
-              value="usuarios"
-              className="h-9 shrink-0 flex-none justify-center px-3 text-xs data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-900 dark:data-[state=active]:bg-cyan-500/20 dark:data-[state=active]:text-cyan-400 sm:text-sm xl:w-full xl:flex-1"
-            >
+            <TabsTrigger value="usuarios" className={configuracionTabTriggerClass}>
               <Users className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
               Usuarios
             </TabsTrigger>
@@ -479,20 +469,23 @@ export function Configuracion() {
 
         <TabsContent
           value="empresa"
-          className="mt-0 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
+          className="mt-0 flex min-h-0 min-w-0 flex-1 flex-col justify-start overflow-auto outline-none data-[state=inactive]:hidden"
         >
-          <Card className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
-            <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
+          <Card className="w-full shrink-0 border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
+            <CardHeader className="shrink-0 space-y-0 border-b border-slate-200/70 px-3 py-2.5 dark:border-slate-800/50 sm:px-4">
               <CardTitle className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100 sm:text-base">
-                <Building2 className="h-4 w-4 text-cyan-400 sm:h-5 sm:w-5" />
+                <Building2 className="h-4 w-4 shrink-0 text-cyan-400 sm:h-5 sm:w-5" />
                 Información de la empresa
               </CardTitle>
             </CardHeader>
-            <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain p-3 pt-0 sm:flex-row sm:items-end sm:gap-4 sm:p-4 sm:pt-0">
-              <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:gap-4">
+            <CardContent className="flex flex-col gap-4 p-3 sm:p-4">
+              <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
                 <div className="space-y-1">
-                  <Label className="text-xs text-slate-600 dark:text-slate-400">Teléfono</Label>
+                  <Label htmlFor="empresa-telefono" className="text-xs text-slate-600 dark:text-slate-400">
+                    Teléfono
+                  </Label>
                   <Input
+                    id="empresa-telefono"
                     value={fiscalForm.telefono}
                     onChange={(e) => setFiscalForm({ ...fiscalForm, telefono: e.target.value })}
                     placeholder="(55) 1234-5678"
@@ -500,8 +493,11 @@ export function Configuracion() {
                   />
                 </div>
                 <div className="space-y-1 sm:col-span-2 lg:col-span-2">
-                  <Label className="text-xs text-slate-600 dark:text-slate-400">Email de contacto</Label>
+                  <Label htmlFor="empresa-email" className="text-xs text-slate-600 dark:text-slate-400">
+                    Email de contacto
+                  </Label>
                   <Input
+                    id="empresa-email"
                     type="email"
                     value={fiscalForm.email}
                     onChange={(e) => setFiscalForm({ ...fiscalForm, email: e.target.value })}
@@ -510,7 +506,7 @@ export function Configuracion() {
                   />
                 </div>
               </div>
-              <div className="flex shrink-0 justify-end sm:pl-4">
+              <div className="flex justify-end border-t border-slate-200/80 pt-3 dark:border-slate-800/60">
                 <Button
                   type="button"
                   size="sm"
