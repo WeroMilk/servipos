@@ -1,4 +1,4 @@
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { MobileBottomNav } from './MobileBottomNav';
 import { Header } from './Header';
@@ -8,7 +8,6 @@ import { useDesktopWheelScrollEnhancer } from '@/hooks/useDesktopWheelScrollEnha
 import { cn } from '@/lib/utils';
 
 export function Layout() {
-  const location = useLocation();
   useDesktopWheelScrollEnhancer();
 
   return (
@@ -46,7 +45,7 @@ export function Layout() {
                 className={cn(
                   'flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden px-2 pt-0.5 sm:px-3 md:px-4 lg:px-5',
                   /* +0.75rem extra en móvil: iPhone (home indicator + nav) suele recortar el último botón */
-                  'pb-[calc(3.75rem+1.25rem+env(safe-area-inset-bottom,0px))] md:pb-3.5'
+                  'pb-[calc(3.5rem+1.25rem+env(safe-area-inset-bottom,0px))] md:pb-3.5'
                 )}
               >
                 <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">

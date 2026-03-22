@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout, LoginForm, LoadingIndicator } from '@/components/ui-custom';
 import {
@@ -6,11 +6,14 @@ import {
   POS,
   Inventario,
   Cotizaciones,
-  Facturas,
   Clientes,
   Configuracion,
   Checador,
 } from '@/pages';
+
+const Facturas = lazy(() =>
+  import('@/pages/Facturas').then((m) => ({ default: m.Facturas }))
+);
 import { useAuthStore, useSyncStore, subscribeFirebaseAuth } from '@/stores';
 import { initializeDemoData, syncServipartzSeedUsers } from '@/db/database';
 import { setAppEventActorResolver } from '@/lib/appEventContext';
@@ -100,7 +103,16 @@ function App() {
           <Route path="inventario" element={<Inventario />} />
           <Route path="cotizaciones" element={<Cotizaciones />} />
           <Route path="checador" element={<Checador />} />
-          <Route path="facturas" element={<Facturas />} />
+          <Route
+            path="facturas"
+            element={
+              <Suspense
+                fallback={<LoadingIndicator inline message="Cargando facturas" tone="onBrand" />}
+              >
+                <Facturas />
+              </Suspense>
+            }
+          />
           <Route path="clientes" element={<Clientes />} />
           <Route path="configuracion" element={<Configuracion />} />
         </Route>

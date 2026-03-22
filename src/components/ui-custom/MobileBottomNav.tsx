@@ -20,7 +20,7 @@ export function MobileBottomNav() {
       )}
       aria-label="Navegación principal"
     >
-      <div className="no-scrollbar flex h-[3.75rem] w-full items-stretch justify-between gap-0.5 overflow-x-auto pt-0.5 pl-[max(0.25rem,env(safe-area-inset-left,0px))] pr-[max(0.25rem,env(safe-area-inset-right,0px))]">
+      <div className="flex h-[3.5rem] w-full min-w-0 items-stretch justify-between gap-px overflow-x-hidden pt-0.5 pl-[max(0.125rem,env(safe-area-inset-left,0px))] pr-[max(0.125rem,env(safe-area-inset-right,0px))]">
         {MAIN_NAV_ITEMS.map((item) => {
           if (!hasPermission(item.permission)) return null;
           const Icon = item.icon;
@@ -33,8 +33,9 @@ export function MobileBottomNav() {
             <NavLink
               key={item.to}
               to={item.to}
+              title={item.label}
               className={cn(
-                'flex min-w-[3.25rem] max-w-[4.5rem] flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-0.5 py-1 transition-colors',
+                'flex min-w-0 flex-1 flex-col items-center justify-center gap-px rounded-lg px-px py-0.5 transition-colors',
                 'active:scale-[0.98]',
                 isActive
                   ? 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300'
@@ -44,7 +45,7 @@ export function MobileBottomNav() {
             >
               <Icon
                 className={cn(
-                  'h-5 w-5 shrink-0',
+                  'h-[1.05rem] w-[1.05rem] shrink-0 sm:h-4 sm:w-4',
                   isActive ? 'text-cyan-600 dark:text-cyan-400' : 'text-slate-400 dark:text-slate-400'
                 )}
                 strokeWidth={isActive ? 2.25 : 2}
@@ -52,7 +53,7 @@ export function MobileBottomNav() {
               />
               <span
                 className={cn(
-                  'w-full truncate text-center text-[9px] font-medium leading-tight tracking-tight',
+                  'w-full max-w-full truncate px-px text-center text-[7px] font-medium leading-none tracking-tight sm:text-[8px]',
                   isActive ? 'text-cyan-800/95 dark:text-cyan-200/95' : 'text-slate-500'
                 )}
               >

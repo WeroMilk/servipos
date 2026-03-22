@@ -154,7 +154,7 @@ export function Configuracion() {
       subtitle="Sistema y datos fiscales"
       className="min-w-0 max-w-none"
     >
-      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-1.5 overflow-y-auto overscroll-y-contain sm:gap-2 lg:overflow-hidden">
+      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-1.5 overflow-hidden sm:gap-2">
         {!isConfigured ? (
           <div className="flex shrink-0 items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 sm:px-3">
             <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400 sm:h-5 sm:w-5" />
@@ -175,7 +175,7 @@ export function Configuracion() {
         <Tabs
           value={activeTab}
           onValueChange={setActiveTab}
-          className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-1.5 overflow-y-auto overscroll-y-contain sm:gap-2 lg:overflow-hidden"
+          className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-1.5 overflow-hidden sm:gap-2"
         >
         <TabsList
           data-wheel-scroll-x="strip"
@@ -238,17 +238,17 @@ export function Configuracion() {
         {/* Fiscal: rejilla densa; scroll solo si el viewport es bajo */}
         <TabsContent
           value="fiscal"
-          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
+          className="mt-0 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
         >
-          <Card className="flex w-full min-w-0 flex-col border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 max-lg:flex-none lg:min-h-0 lg:flex-1 lg:overflow-hidden">
+          <Card className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
             <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
               <CardTitle className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100 sm:text-base">
                 <Receipt className="h-4 w-4 shrink-0 text-cyan-400 sm:h-5 sm:w-5" />
                 Datos fiscales CFDI 4.0
               </CardTitle>
             </CardHeader>
-            <CardContent className="flex flex-col gap-2 p-3 pt-0 sm:p-4 sm:pt-0 max-lg:overflow-visible lg:min-h-0 lg:flex-1 lg:overflow-hidden">
-              <div className="pr-0.5 max-lg:overflow-visible lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-y-contain">
+            <CardContent className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-3 pt-0 sm:p-4 sm:pt-0">
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain pr-0.5 [-webkit-overflow-scrolling:touch] [touch-action:pan-y]">
                 <div className="grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   <div className="space-y-1">
                     <Label htmlFor="rfc" className="text-xs text-slate-600 dark:text-slate-400">
@@ -479,16 +479,16 @@ export function Configuracion() {
 
         <TabsContent
           value="empresa"
-          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
+          className="mt-0 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
         >
-          <Card className="flex w-full min-w-0 flex-col border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 max-lg:flex-none lg:min-h-0 lg:flex-1 lg:overflow-hidden">
+          <Card className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
             <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
               <CardTitle className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100 sm:text-base">
                 <Building2 className="h-4 w-4 text-cyan-400 sm:h-5 sm:w-5" />
                 Información de la empresa
               </CardTitle>
             </CardHeader>
-            <CardContent className="flex flex-col gap-3 p-3 pt-0 sm:flex-row sm:items-end sm:gap-4 sm:p-4 sm:pt-0">
+            <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain p-3 pt-0 sm:flex-row sm:items-end sm:gap-4 sm:p-4 sm:pt-0">
               <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:gap-4">
                 <div className="space-y-1">
                   <Label className="text-xs text-slate-600 dark:text-slate-400">Teléfono</Label>
@@ -527,9 +527,9 @@ export function Configuracion() {
 
         <TabsContent
           value="certificados"
-          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
+          className="mt-0 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
         >
-          <div className="grid min-h-0 w-full min-w-0 flex-1 grid-cols-1 gap-3 max-lg:overflow-visible lg:overflow-hidden xl:grid-cols-2 xl:gap-3">
+          <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain xl:grid xl:grid-cols-2 xl:gap-3 xl:overflow-hidden">
             <Card className="flex min-h-0 min-w-0 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
               <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
                 <CardTitle className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100 sm:text-base">
@@ -629,9 +629,9 @@ export function Configuracion() {
 
         <TabsContent
           value="nominas"
-          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
+          className="mt-0 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
         >
-          <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-3 max-lg:overflow-visible lg:overflow-hidden xl:grid xl:grid-cols-2 xl:gap-3">
+          <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain xl:grid xl:grid-cols-2 xl:gap-3 xl:overflow-hidden">
             <Card className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 lg:min-h-0 lg:flex-none">
               <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
                 <CardTitle className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100 sm:text-base">

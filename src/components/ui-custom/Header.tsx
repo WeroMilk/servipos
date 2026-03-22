@@ -86,11 +86,7 @@ export function Header() {
           {resolvedDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
         </Button>
 
-        {user && user.role !== 'cashier' ? (
-          <div className="md:hidden">
-            <AppEventsNotificationPanel dock="header" />
-          </div>
-        ) : null}
+        {user && user.role !== 'cashier' ? <AppEventsNotificationPanel dock="header" /> : null}
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

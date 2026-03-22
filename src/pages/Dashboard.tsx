@@ -43,6 +43,7 @@ import {
 import type { DateRange } from 'react-day-picker';
 import {
   addDays,
+  addMonths,
   eachDayOfInterval,
   endOfMonth,
   endOfWeek,
@@ -62,6 +63,15 @@ const LINE_DOT_FILL = '#06b6d4';
 const LINE_DOT_STROKE = '#164e63';
 
 const WEEKDAY_SHORT_ES = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'] as const;
+
+function shortMonthLabelEs(d: Date): string {
+  const raw = format(d, 'MMM', { locale: es }).replace(/\.$/, '');
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
+}
+
+type ChartTimeRange =
+  | { mode: 'week'; weekStart: Date; weekEndExclusive: Date }
+  | { mode: 'months'; months: Date[] };
 
 interface StatCardProps {
   title: string;
@@ -85,32 +95,37 @@ function StatCard({
   return (
     <Card
       className={cn(
-        'flex h-full min-h-[10.5rem] flex-col border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 backdrop-blur-sm',
-        'transition-colors duration-200 hover:border-slate-300/80 dark:border-slate-700/50 sm:min-h-[11rem]'
+        'flex h-full min-h-0 flex-col border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 backdrop-blur-sm',
+        'transition-colors duration-200 hover:border-slate-300/80 dark:border-slate-700/50',
+        'max-md:min-h-0 md:min-h-[10.5rem] lg:min-h-[11rem]'
       )}
     >
-      <CardContent className="flex flex-1 flex-col p-3 sm:p-4">
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="line-clamp-2 min-h-[2.5rem] max-w-[calc(100%-2.75rem)] text-left text-xs font-medium leading-tight text-slate-600 dark:text-slate-400 sm:text-sm">
+      <CardContent className="flex flex-1 flex-col p-2.5 sm:p-4 md:p-3">
+        <div className="flex items-start justify-between gap-1.5 sm:gap-2">
+          <h3 className="line-clamp-2 max-w-[calc(100%-2.5rem)] text-left text-[11px] font-medium leading-tight text-slate-600 dark:text-slate-400 max-md:min-h-0 sm:text-xs md:min-h-[2.5rem] md:text-sm">
             {title}
           </h3>
           <div
             className={cn(
-              'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg shadow-sm sm:h-10 sm:w-10',
+              'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg shadow-sm md:h-9 md:w-9 lg:h-10 lg:w-10',
               iconGradient
             )}
           >
-            <Icon className="h-4 w-4 text-white sm:h-5 sm:w-5" />
+            <Icon className="h-3.5 w-3.5 text-white md:h-4 md:w-4 lg:h-5 lg:w-5" />
           </div>
         </div>
 
-        <p className="mt-3 text-xl font-bold tabular-nums text-slate-900 dark:text-slate-100 sm:text-2xl">{value}</p>
-        <p className="mt-1 min-h-[1.125rem] text-[10px] text-slate-600 dark:text-slate-500 sm:text-xs">{description}</p>
+        <p className="mt-1.5 text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100 max-md:leading-tight sm:mt-3 sm:text-2xl">
+          {value}
+        </p>
+        <p className="mt-0.5 text-[9px] text-slate-600 dark:text-slate-500 max-md:leading-tight sm:mt-1 sm:min-h-[1.125rem] sm:text-xs">
+          {description}
+        </p>
 
-        <div className="mt-auto min-h-[1.35rem] pt-2">
+        <div className="mt-auto min-h-0 pt-1 sm:min-h-[1.35rem] sm:pt-2">
           <div
             className={cn(
-              'flex items-center gap-1 text-[10px] sm:text-xs',
+              'flex items-center gap-1 text-[9px] sm:text-xs',
               trend === 'up'
                 ? 'text-emerald-400'
                 : trend === 'down'
@@ -161,21 +176,36 @@ export function Dashboard() {
 
   const { inicio, fin } = useMemo(() => dateRangeToBounds(dateRange), [dateRange]);
 
-  /** Semana calendario (lun–dom) que contiene el día ancla del selector; el gráfico siempre muestra esos 7 días. */
-  const chartWeekBounds = useMemo(() => {
+  /** Rango que pinta el gráfico: 7 días (lun–dom) en día/semana, o 7 meses (±3) en modo mes. */
+  const chartTimeRange = useMemo((): ChartTimeRange => {
     const anchor = startOfDay(dateRange?.from ?? startOfDayFromDateKey(getMexicoDateKey()));
+    if (periodGranularity === 'month') {
+      const centerMonth = startOfMonth(anchor);
+      const months = Array.from({ length: 7 }, (_, i) => addMonths(centerMonth, i - 3));
+      return { mode: 'months', months };
+    }
     const weekStart = startOfWeek(anchor, { weekStartsOn: 1 });
-    const weekEndExclusive = addDays(endOfWeek(anchor, { weekStartsOn: 1 }), 1);
-    return { weekStart, weekEndExclusive };
-  }, [dateRange?.from]);
+    const weekEndExclusive = addDays(endOfWeek(weekStart, { weekStartsOn: 1 }), 1);
+    return { mode: 'week', weekStart, weekEndExclusive };
+  }, [periodGranularity, dateRange?.from]);
 
-  /** Una sola suscripción: cubre el periodo elegido y la semana del gráfico (p. ej. un solo día sigue trayendo lun–dom). */
+  /** Cubre el periodo KPI y el rango completo del gráfico (semana o 7 meses). */
   const fetchBounds = useMemo(() => {
-    const { weekStart, weekEndExclusive } = chartWeekBounds;
-    const fetchStart = new Date(Math.min(inicio.getTime(), weekStart.getTime()));
-    const fetchEnd = new Date(Math.max(fin.getTime(), weekEndExclusive.getTime()));
+    let chartStart: Date;
+    let chartEndExclusive: Date;
+    if (chartTimeRange.mode === 'months') {
+      const first = chartTimeRange.months[0]!;
+      const last = chartTimeRange.months[6]!;
+      chartStart = startOfMonth(first);
+      chartEndExclusive = addDays(endOfMonth(last), 1);
+    } else {
+      chartStart = chartTimeRange.weekStart;
+      chartEndExclusive = chartTimeRange.weekEndExclusive;
+    }
+    const fetchStart = new Date(Math.min(inicio.getTime(), chartStart.getTime()));
+    const fetchEnd = new Date(Math.max(fin.getTime(), chartEndExclusive.getTime()));
     return { fetchStart, fetchEnd };
-  }, [inicio, fin, chartWeekBounds]);
+  }, [inicio, fin, chartTimeRange]);
 
   const { sales: salesFetched, loading: salesLoading } = useSalesByDateRange(
     fetchBounds.fetchStart,
@@ -241,9 +271,28 @@ export function Dashboard() {
     return m.charAt(0).toUpperCase() + m.slice(1);
   }, [dateRange, periodGranularity]);
 
-  /** Siempre 7 puntos: lunes → domingo de la semana del día ancla; días sin ventas = 0. */
+  /** 7 puntos: lun–dom (día/semana) o 7 meses consecutivos (modo mes). */
   const chartData = useMemo(() => {
-    const { weekStart, weekEndExclusive } = chartWeekBounds;
+    if (chartTimeRange.mode === 'months') {
+      return chartTimeRange.months.map((m) => {
+        const ms = startOfMonth(m);
+        const me = addDays(endOfMonth(m), 1);
+        const ventas = salesFetched.reduce((sum, sale) => {
+          const t = sale.createdAt instanceof Date ? sale.createdAt : new Date(sale.createdAt);
+          const x = t.getTime();
+          if (x >= ms.getTime() && x < me.getTime()) {
+            return sum + (Number(sale.total) || 0);
+          }
+          return sum;
+        }, 0);
+        return {
+          name: shortMonthLabelEs(m),
+          ventas,
+          fullLabel: format(m, 'MMMM yyyy', { locale: es }),
+        };
+      });
+    }
+    const { weekStart, weekEndExclusive } = chartTimeRange;
     const weekEndInclusive = addDays(weekEndExclusive, -1);
     const days = eachDayOfInterval({ start: weekStart, end: weekEndInclusive });
     return days.map((d) => {
@@ -264,7 +313,15 @@ export function Dashboard() {
         fullLabel: format(d, 'EEEE d MMM yyyy', { locale: es }),
       };
     });
-  }, [salesFetched, chartWeekBounds]);
+  }, [salesFetched, chartTimeRange]);
+
+  const chartCardTitle = periodGranularity === 'month' ? 'Ventas por mes' : 'Ventas por día';
+  const chartCardSubtitle =
+    periodGranularity === 'month'
+      ? '7 meses: 3 anteriores, mes seleccionado y 3 posteriores'
+      : periodGranularity === 'week'
+        ? 'Semana seleccionada (lun–dom)'
+        : 'Semana lun–dom que incluye el día seleccionado';
 
   const handleGranularityChange = (g: PeriodGranularity) => {
     setPeriodGranularity(g);
@@ -312,14 +369,14 @@ export function Dashboard() {
   };
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col gap-2 overflow-hidden sm:gap-3">
-      <header className="flex shrink-0 flex-col gap-2 border-b border-slate-200/80 dark:border-slate-800/40 pb-2 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex min-h-0 w-full flex-1 flex-col gap-1 overflow-hidden sm:gap-2 md:gap-3">
+      <header className="flex shrink-0 flex-col gap-1.5 border-b border-slate-200/80 dark:border-slate-800/40 pb-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2 sm:pb-2">
         <div className="min-w-0">
-          <h1 className="truncate text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl lg:text-2xl">Panel</h1>
-          <p className="truncate text-xs text-slate-600 dark:text-slate-500 sm:text-sm">Resumen del periodo</p>
+          <h1 className="truncate text-base font-bold text-slate-900 dark:text-slate-100 sm:text-xl lg:text-2xl">Panel</h1>
+          <p className="truncate text-[11px] text-slate-600 dark:text-slate-500 sm:text-sm">Resumen del periodo</p>
         </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-1.5 sm:gap-2">
           <Button
             type="button"
             variant="outline"
@@ -369,7 +426,7 @@ export function Dashboard() {
         </div>
       </header>
 
-      <div className="grid shrink-0 grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
+      <div className="grid min-h-0 shrink-0 grid-cols-2 gap-1.5 sm:gap-2 lg:grid-cols-4 lg:gap-3">
         <StatCard
           title="Ventas periodo"
           value={formatMoney(totals.total)}
@@ -410,6 +467,130 @@ export function Dashboard() {
         />
       </div>
 
+      {/* Móvil: mismas tarjetas que en escritorio, reparten el alto restante (sin scroll de página) */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 md:hidden">
+        <div className="grid min-h-0 min-w-0 flex-1 grid-cols-2 gap-2">
+          <Card
+            role="button"
+            tabIndex={0}
+            onClick={goInventarioStock}
+            onKeyDown={stockCardKeyHandler}
+            className={cn(
+              'flex min-h-0 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50',
+              'cursor-pointer transition-colors active:scale-[0.99] hover:border-amber-500/35 hover:bg-slate-100 dark:bg-slate-900/70',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40'
+            )}
+          >
+            <CardHeader className="shrink-0 space-y-0 px-2 py-1.5">
+              <CardTitle className="flex items-center justify-between gap-1 text-[11px] leading-tight text-slate-900 dark:text-slate-100">
+                <span className="flex min-w-0 items-center gap-1">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+                  <span className="truncate">Stock bajo</span>
+                </span>
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-600 dark:text-slate-500" aria-hidden />
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain px-2 pb-2 pt-0">
+              {stockLoading ? (
+                <div className="space-y-1.5">
+                  {[1, 2].map((i) => (
+                    <div key={i} className="h-7 animate-pulse rounded-md bg-slate-200/80 dark:bg-slate-800/50" />
+                  ))}
+                </div>
+              ) : lowStockProducts.length === 0 ? (
+                <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-1 py-1 text-center text-slate-600 dark:text-slate-500">
+                  <Package className="h-6 w-6 shrink-0 text-slate-600 opacity-80" />
+                  <p className="text-[11px] leading-snug">Sin alertas</p>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {lowStockProducts.slice(0, 8).map((product) => (
+                    <div
+                      key={product.id}
+                      className="flex items-center justify-between gap-1 rounded-md bg-slate-200/60 dark:bg-slate-800/30 px-1.5 py-1"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-[10px] font-medium text-slate-800 dark:text-slate-200">{product.nombre}</p>
+                        <p className="text-[9px] text-slate-600 dark:text-slate-500">{product.sku}</p>
+                      </div>
+                      <p
+                        className={cn(
+                          'shrink-0 text-[10px] font-bold tabular-nums',
+                          product.existencia === 0 ? 'text-red-400' : 'text-amber-400'
+                        )}
+                      >
+                        {product.existencia}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card
+            role="button"
+            tabIndex={0}
+            onClick={openTodaySalesDialog}
+            onKeyDown={recentSalesCardKeyHandler}
+            className={cn(
+              'flex min-h-0 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50',
+              'cursor-pointer transition-colors active:scale-[0.99] hover:border-cyan-500/35 hover:bg-slate-100 dark:bg-slate-900/70',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40'
+            )}
+          >
+            <CardHeader className="shrink-0 space-y-0 px-2 py-1.5">
+              <CardTitle className="flex items-center justify-between gap-1 text-[11px] leading-tight text-slate-900 dark:text-slate-100">
+                <span className="flex min-w-0 items-center gap-1">
+                  <ShoppingCart className="h-3.5 w-3.5 shrink-0 text-cyan-400" />
+                  <span className="truncate">Ventas recientes</span>
+                </span>
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-600 dark:text-slate-500" aria-hidden />
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain px-2 pb-2 pt-0">
+              {salesLoading ? (
+                <div className="space-y-1.5">
+                  {[1, 2].map((i) => (
+                    <div key={i} className="h-7 animate-pulse rounded-md bg-slate-200/80 dark:bg-slate-800/50" />
+                  ))}
+                </div>
+              ) : kpiSales.length === 0 ? (
+                <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-1 py-1 text-center text-slate-600 dark:text-slate-500">
+                  <Receipt className="h-6 w-6 shrink-0 text-slate-600 opacity-80" />
+                  <p className="text-[11px] leading-snug">Sin ventas en el periodo</p>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {kpiSales.slice(0, 8).map((sale) => (
+                    <div
+                      key={sale.id}
+                      className="flex items-center justify-between gap-1 rounded-md bg-slate-200/60 dark:bg-slate-800/30 px-1.5 py-1"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-[10px] font-medium text-slate-800 dark:text-slate-200">{sale.folio}</p>
+                        <p className="text-[9px] text-slate-600 dark:text-slate-500">
+                          {formatInAppTimezone(
+                            sale.createdAt instanceof Date ? sale.createdAt : new Date(sale.createdAt),
+                            { hour: '2-digit', minute: '2-digit' }
+                          )}
+                          {sale.formaPago === 'TTS' && outgoingTransferPendingIds.has(sale.id) ? (
+                            <span className="text-amber-400"> · Trasp.</span>
+                          ) : null}
+                        </p>
+                      </div>
+                      <p className="shrink-0 text-[10px] font-bold tabular-nums text-cyan-400">
+                        {formatMoney(sale.total)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
       <div className="hidden min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden md:flex md:flex-col lg:flex-row lg:gap-3">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden lg:min-h-0 lg:flex-[1.4]">
           <Card
@@ -421,10 +602,10 @@ export function Dashboard() {
               <CardTitle className="flex flex-col gap-0.5 text-sm text-slate-900 dark:text-slate-100 sm:text-base">
                 <span className="flex items-center gap-2">
                   <TrendingUp className="h-4 w-4 shrink-0 text-cyan-400" />
-                  Ventas por día
+                  {chartCardTitle}
                 </span>
                 <span className="text-[10px] font-normal text-slate-600 dark:text-slate-500 sm:text-xs">
-                  Semana lun–dom (según fecha del selector)
+                  {chartCardSubtitle}
                 </span>
               </CardTitle>
             </CardHeader>
@@ -449,9 +630,9 @@ export function Dashboard() {
                         axisLine={{ stroke: '#334155' }}
                         interval={0}
                         tickMargin={8}
-                        angle={-28}
+                        angle={periodGranularity === 'month' ? -16 : -28}
                         textAnchor="end"
-                        height={52}
+                        height={periodGranularity === 'month' ? 44 : 52}
                       />
                       <YAxis
                         width={48}

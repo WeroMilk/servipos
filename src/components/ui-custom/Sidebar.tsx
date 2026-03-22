@@ -6,8 +6,6 @@ import { useAuthStore, useSyncStore } from '@/stores';
 import { cn } from '@/lib/utils';
 import { MAIN_NAV_ITEMS } from '@/lib/mainNavItems';
 import { BRAND_LOGO_URL } from '@/lib/branding';
-import { AppEventsNotificationPanel } from '@/components/ui-custom/AppEventsNotificationPanel';
-
 interface NavItemProps {
   to: string;
   icon: LucideIcon;
@@ -96,12 +94,6 @@ export function Sidebar() {
       </nav>
 
       <div className="shrink-0 border-t border-slate-200/80 p-2 dark:border-slate-800/50 xl:p-4">
-        {user && user.role !== 'cashier' ? (
-          <div className="mb-2 flex justify-center xl:mb-3 xl:justify-start">
-            <AppEventsNotificationPanel dock="sidebar" />
-          </div>
-        ) : null}
-
         <div
           className={cn(
             'hidden items-center gap-2 rounded-lg px-3 py-2 text-xs xl:flex',
