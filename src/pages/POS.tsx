@@ -185,6 +185,7 @@ export function POS() {
   const [mobileTab, setMobileTab] = useState<MobileTab>('cart');
   const [globalDiscFocus, setGlobalDiscFocus] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const productSearchWrapRef = useRef<HTMLDivElement>(null);
 
   const { results: searchResults, search: searchProducts } = useProductSearch();
   const { clients, refresh: refreshClients } = useClients();
@@ -208,6 +209,19 @@ export function POS() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  useEffect(() => {
+    if (!showProductSearch) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const root = productSearchWrapRef.current;
+      if (!root?.contains(e.target as Node)) {
+        setShowProductSearch(false);
+        searchInputRef.current?.blur();
+      }
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
+    return () => document.removeEventListener('pointerdown', onPointerDown, true);
+  }, [showProductSearch]);
 
   const handleCheckoutOpenChange = (open: boolean) => {
     setCheckoutOpen(open);
@@ -528,7 +542,7 @@ export function POS() {
           )}
         >
           <div className={cn('shrink-0 p-2 sm:p-3', panelClass)}>
-            <div className="relative">
+            <div className="relative" ref={productSearchWrapRef}>
               <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-600 dark:text-slate-500 sm:left-3 sm:h-5 sm:w-5" />
               <Input
                 ref={searchInputRef}

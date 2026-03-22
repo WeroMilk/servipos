@@ -48,7 +48,12 @@ function kindStyles(k: AppEventLogRecord['kind']): string {
   }
 }
 
-export function AppEventsNotificationPanel() {
+type AppEventsNotificationPanelProps = {
+  /** `sidebar`: popover hacia la derecha (barra lateral). `header`: alineado al header (móvil). */
+  dock?: 'header' | 'sidebar';
+};
+
+export function AppEventsNotificationPanel({ dock = 'header' }: AppEventsNotificationPanelProps) {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const { eventsLastSeenAtMs, markEventsPanelSeen } = useNotificationStore();
@@ -119,7 +124,11 @@ export function AppEventsNotificationPanel() {
             type="button"
             variant="ghost"
             size="icon"
-            className="relative h-10 w-10 shrink-0 rounded-xl bg-slate-200/80 text-slate-600 hover:bg-slate-300/80 hover:text-slate-900 dark:bg-slate-800/50 dark:text-slate-400 dark:hover:bg-slate-700/50 dark:hover:text-slate-100"
+            className={cn(
+              'relative h-10 w-10 shrink-0 rounded-xl bg-slate-200/80 text-slate-600 hover:bg-slate-300/80 hover:text-slate-900 dark:bg-slate-800/50 dark:text-slate-400 dark:hover:bg-slate-700/50 dark:hover:text-slate-100',
+              dock === 'sidebar' &&
+                'bg-slate-200/90 dark:bg-slate-800/70 xl:bg-slate-200/80 xl:dark:bg-slate-800/50'
+            )}
             aria-label="Notificaciones y eventos"
           >
             <Bell className="h-5 w-5" />
@@ -129,8 +138,10 @@ export function AppEventsNotificationPanel() {
           </Button>
         </PopoverTrigger>
         <PopoverContent
-          align="end"
-          sideOffset={8}
+          side={dock === 'sidebar' ? 'right' : 'bottom'}
+          align={dock === 'sidebar' ? 'end' : 'end'}
+          sideOffset={dock === 'sidebar' ? 10 : 8}
+          collisionPadding={16}
           className={cn(
             'flex h-[min(70dvh,28rem)] max-h-[min(70dvh,28rem)] w-[min(100vw-2rem,26rem)] flex-col overflow-hidden border-slate-200 bg-white p-0 text-slate-900 shadow-xl dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100',
             'data-[state=open]:animate-in data-[state=closed]:animate-out'
@@ -207,9 +218,7 @@ export function AppEventsNotificationPanel() {
           <AlertDialogHeader>
             <AlertDialogTitle>Vaciar historial de eventos</AlertDialogTitle>
             <AlertDialogDescription className="text-slate-600 dark:text-slate-400">
-              Se eliminarán <strong className="text-slate-900 dark:text-slate-200">todos</strong> los registros de
-              la colección <code className="text-slate-800 dark:text-slate-300">appEvents</code> en Firestore. Solo los
-              administradores pueden hacerlo. Esta acción no se puede deshacer.
+              ¿Estás seguro? Esta acción no se puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

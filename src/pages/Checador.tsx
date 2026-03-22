@@ -393,7 +393,6 @@ export function Checador() {
                   <TableHeader className="[&_th]:sticky [&_th]:top-0 [&_th]:z-[1] [&_th]:bg-slate-50 [&_th]:backdrop-blur-sm dark:[&_th]:bg-slate-950/95 dark:[&_th]:backdrop-blur-sm [&_th]:shadow-[0_1px_0_0_rgb(226_232_240)] dark:[&_th]:shadow-[0_1px_0_0_rgb(30_41_59)]">
                     <TableRow className="border-slate-200 dark:border-slate-800 hover:bg-transparent">
                       <TableHead className="text-slate-600 dark:text-slate-300">Colaborador</TableHead>
-                      <TableHead className="min-w-[10rem] text-slate-600 dark:text-slate-300">Correo</TableHead>
                       <TableHead className="text-slate-600 dark:text-slate-300">Fecha</TableHead>
                       <TableHead className="text-slate-600 dark:text-slate-300">Entrada</TableHead>
                       <TableHead className="text-slate-600 dark:text-slate-300">Salida a comer</TableHead>
@@ -404,7 +403,7 @@ export function Checador() {
                   <TableBody>
                     {filteredReportRows.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center text-slate-600 dark:text-slate-500">
+                        <TableCell colSpan={6} className="text-center text-slate-600 dark:text-slate-500">
                           Sin registros en esta quincena para esta tienda.
                         </TableCell>
                       </TableRow>
@@ -412,12 +411,6 @@ export function Checador() {
                       filteredReportRows.map((row) => (
                         <TableRow key={row.id} className="border-slate-200 dark:border-slate-800/80">
                           <TableCell className="font-medium text-slate-800 dark:text-slate-200">{row.userName}</TableCell>
-                          <TableCell
-                            className="max-w-[14rem] truncate text-xs text-slate-600 dark:text-slate-400"
-                            title={row.userEmail || undefined}
-                          >
-                            {row.userEmail?.trim() ? row.userEmail : '—'}
-                          </TableCell>
                           <TableCell className="text-slate-600 dark:text-slate-400">{formatDateKeyMx(row.dateKey)}</TableCell>
                           <TableCell>{timeCell(row.entrada)}</TableCell>
                           <TableCell>{timeCell(row.salidaComer)}</TableCell>
