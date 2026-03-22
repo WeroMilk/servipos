@@ -188,8 +188,9 @@ export function Configuracion() {
         <TabsList
           data-wheel-scroll-x="strip"
           className={cn(
-            'flex h-auto w-full min-w-0 shrink-0 flex-nowrap gap-0 overflow-x-auto overflow-y-hidden overscroll-x-contain border-b border-slate-200/80 bg-transparent p-0 dark:border-slate-800/60 dark:bg-transparent [-webkit-overflow-scrolling:touch]',
-            'xl:grid xl:w-full xl:overflow-x-visible',
+            /* justify-start: evita justify-center del TabsList base, que en móvil centra la fila y oculta «Datos fiscales» a la izquierda del scroll. */
+            'flex h-auto w-full min-w-0 shrink-0 flex-nowrap items-center justify-start gap-0 overflow-x-auto overflow-y-hidden overscroll-x-contain border-b border-slate-200/80 bg-transparent p-0 dark:border-slate-800/60 dark:bg-transparent [-webkit-overflow-scrolling:touch]',
+            'xl:grid xl:w-full xl:justify-normal xl:overflow-x-visible',
             totalTabs <= 4 && 'xl:grid-cols-4',
             totalTabs === 5 && 'xl:grid-cols-5',
             totalTabs >= 6 && 'xl:grid-cols-6'

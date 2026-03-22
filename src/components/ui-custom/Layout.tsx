@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { MobileBottomNav } from './MobileBottomNav';
 import { Header } from './Header';
@@ -8,6 +8,7 @@ import { useDesktopWheelScrollEnhancer } from '@/hooks/useDesktopWheelScrollEnha
 import { cn } from '@/lib/utils';
 
 export function Layout() {
+  const location = useLocation();
   useDesktopWheelScrollEnhancer();
 
   return (
