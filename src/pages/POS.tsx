@@ -35,7 +35,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useCartStore, useAppStore, useAuthStore } from '@/stores';
 import { useProductSearch, useSales, useClients, useEffectiveSucursalId } from '@/hooks';
 import type { Product, FormaPago, Sucursal } from '@/types';
-import { FORMAS_PAGO } from '@/types';
+import { FORMAS_PAGO_UI } from '@/types';
 import { subscribeSucursales } from '@/lib/firestore/sucursalesMetaFirestore';
 import { cn, formatMoney } from '@/lib/utils';
 import { formatInAppTimezone } from '@/lib/appTimezone';
@@ -81,7 +81,7 @@ export function POS() {
   useEffect(() => subscribeSucursales(setSucursalesCat), []);
 
   const formasPagoPos = useMemo(() => {
-    const base = [...FORMAS_PAGO];
+    const base = [...FORMAS_PAGO_UI];
     if (isAdmin) {
       base.push({ clave: 'TTS', descripcion: 'Transferencia de tienda a tienda' });
     }
@@ -146,6 +146,12 @@ export function POS() {
     getTotalPagado,
     getCambio,
   } = cart;
+
+  useEffect(() => {
+    if (!formasPagoPos.some((fp) => fp.clave === formaPago)) {
+      setFormaPago('01');
+    }
+  }, [formasPagoPos, formaPago, setFormaPago]);
 
   /** Sin useMemo: se recalcula cada vez que useShallow detecta cambio en items/pagos/discount (evita Cobrar $0.00). */
   const subtotalVenta = cart.getSubtotal();
@@ -933,8 +939,8 @@ export function POS() {
           className={cn(
             'left-1/2 top-1/2 max-w-none -translate-x-1/2 -translate-y-1/2 border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100',
             checkoutPhase === 'payment'
-              ? 'max-h-[calc(100vh-2rem)] max-h-[calc(100dvh-2rem)] w-[min(calc(100vw-1rem),28rem)] overflow-x-hidden overflow-y-auto p-4 sm:max-h-[calc(100vh-2.5rem)] sm:max-h-[calc(100dvh-2.5rem)] sm:w-[min(calc(100vw-2rem),32rem)] sm:p-6'
-              : 'w-[min(calc(100vw-1rem),24rem)] p-4 sm:max-w-sm sm:p-6'
+              ? 'max-h-[calc(100vh-2rem)] max-h-[calc(100dvh-2rem)] w-[min(calc(100vw-1rem),28rem)] overflow-x-hidden overflow-y-auto p-4 sm:max-h-[calc(100vh-2.5rem)] sm:max-h-[calc(100dvh-2.5rem)] sm:w-[min(calc(100vw-2rem),32rem)] sm:p-6 md:w-[min(calc(100vw-2rem),40rem)] lg:w-[min(calc(100vw-2rem),48rem)]'
+              : 'w-[min(calc(100vw-1rem),24rem)] p-4 sm:max-w-sm sm:p-6 md:w-[min(calc(100vw-2rem),28rem)]'
           )}
         >
           {checkoutPhase === 'payment' ? (
@@ -1141,11 +1147,11 @@ export function POS() {
       </Dialog>
 
       <Dialog open={showClientDialog} onOpenChange={setShowClientDialog}>
-        <DialogContent className="max-h-[min(85dvh,28rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 sm:max-w-md">
+        <DialogContent className="flex max-h-[92dvh] flex-col overflow-hidden border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 md:max-w-[min(92vw,40rem)] lg:max-w-[min(92vw,48rem)]">
           <DialogHeader>
             <DialogTitle>Cliente de la venta</DialogTitle>
           </DialogHeader>
-          <div className="max-h-[min(55dvh,18rem)] space-y-2 overflow-y-auto py-2">
+          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain py-2">
             <button
               type="button"
               onClick={() => {

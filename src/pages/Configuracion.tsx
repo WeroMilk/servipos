@@ -488,8 +488,8 @@ export function Configuracion() {
                 Información de la empresa
               </CardTitle>
             </CardHeader>
-            <CardContent className="flex min-h-0 flex-1 flex-col justify-between gap-3 p-3 sm:flex-row sm:items-end sm:p-4">
-              <div className="grid w-full min-w-0 flex-1 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:gap-4">
+            <CardContent className="flex flex-col gap-3 p-3 pt-0 sm:flex-row sm:items-end sm:gap-4 sm:p-4 sm:pt-0">
+              <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:gap-4">
                 <div className="space-y-1">
                   <Label className="text-xs text-slate-600 dark:text-slate-400">Teléfono</Label>
                   <Input

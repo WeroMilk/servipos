@@ -394,8 +394,6 @@ export function Checador() {
                     <TableRow className="border-slate-200 dark:border-slate-800 hover:bg-transparent">
                       <TableHead className="text-slate-600 dark:text-slate-300">Colaborador</TableHead>
                       <TableHead className="min-w-[10rem] text-slate-600 dark:text-slate-300">Correo</TableHead>
-                      <TableHead className="whitespace-nowrap text-slate-600 dark:text-slate-300">ID usuario</TableHead>
-                      <TableHead className="text-slate-600 dark:text-slate-300">Tienda (fichaje)</TableHead>
                       <TableHead className="text-slate-600 dark:text-slate-300">Fecha</TableHead>
                       <TableHead className="text-slate-600 dark:text-slate-300">Entrada</TableHead>
                       <TableHead className="text-slate-600 dark:text-slate-300">Salida a comer</TableHead>
@@ -406,7 +404,7 @@ export function Checador() {
                   <TableBody>
                     {filteredReportRows.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center text-slate-600 dark:text-slate-500">
+                        <TableCell colSpan={7} className="text-center text-slate-600 dark:text-slate-500">
                           Sin registros en esta quincena para esta tienda.
                         </TableCell>
                       </TableRow>
@@ -419,14 +417,6 @@ export function Checador() {
                             title={row.userEmail || undefined}
                           >
                             {row.userEmail?.trim() ? row.userEmail : '—'}
-                          </TableCell>
-                          <TableCell className="font-mono text-[11px] text-slate-600 dark:text-slate-500" title={row.userId}>
-                            {row.userId && row.userId.length > 12
-                              ? `${row.userId.slice(0, 10)}…`
-                              : row.userId || '—'}
-                          </TableCell>
-                          <TableCell className="max-w-[12rem] truncate text-xs text-slate-600 dark:text-slate-400" title={sucursalNombre(row.sucursalId)}>
-                            {sucursalNombre(row.sucursalId)}
                           </TableCell>
                           <TableCell className="text-slate-600 dark:text-slate-400">{formatDateKeyMx(row.dateKey)}</TableCell>
                           <TableCell>{timeCell(row.entrada)}</TableCell>

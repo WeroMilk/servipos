@@ -43,7 +43,7 @@ import { Label } from '@/components/ui/label';
 import { useInvoices, useCFDIGenerator, useSales, useFiscalConfig, useClients, useEffectiveSucursalId } from '@/hooks';
 import { useAppStore } from '@/stores';
 import type { Invoice, Sale, Client } from '@/types';
-import { FORMAS_PAGO, USOS_CFDI } from '@/types';
+import { FORMAS_PAGO_UI, USOS_CFDI } from '@/types';
 import { cn, formatMoney } from '@/lib/utils';
 import { PageShell } from '@/components/ui-custom/PageShell';
 import { SendEmailDialog } from '@/components/ui-custom/SendEmailDialog';
@@ -335,6 +335,7 @@ export function Facturas() {
       title="Facturación CFDI 4.0"
       subtitle="Facturas electrónicas"
       className="min-w-0 max-w-none"
+      actionsClassName="md:mt-2"
       actions={
         <Button
           onClick={() => setShowAddDialog(true)}
@@ -578,7 +579,7 @@ export function Facturas() {
 
       {/* Add Invoice Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-w-2xl">
+        <DialogContent className="bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-h-[92dvh] overflow-y-auto md:max-w-[min(92vw,56rem)] lg:max-w-[min(92vw,64rem)]">
           <DialogHeader>
             <DialogTitle>Generar Nueva Factura</DialogTitle>
           </DialogHeader>
@@ -641,7 +642,7 @@ export function Facturas() {
                           onChange={(e) => setFormData({ ...formData, formaPago: e.target.value })}
                           className="w-full h-10 px-3 rounded-md bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
                         >
-                          {FORMAS_PAGO.map(fp => (
+                          {FORMAS_PAGO_UI.map(fp => (
                             <option key={fp.clave} value={fp.clave}>{fp.descripcion}</option>
                           ))}
                         </select>
@@ -713,7 +714,7 @@ export function Facturas() {
 
       {/* XML Viewer Dialog */}
       <Dialog open={showXMLDialog} onOpenChange={setShowXMLDialog}>
-        <DialogContent className="bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-w-3xl max-h-[80vh]">
+        <DialogContent className="bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-h-[92dvh] overflow-y-auto md:max-w-[min(92vw,72rem)] lg:max-w-[min(92vw,80rem)]">
           <DialogHeader>
             <DialogTitle>XML CFDI 4.0</DialogTitle>
           </DialogHeader>
@@ -741,7 +742,7 @@ export function Facturas() {
 
       {/* Detail Dialog */}
       <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
-        <DialogContent className="bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-w-2xl">
+        <DialogContent className="bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-h-[92dvh] overflow-y-auto md:max-w-[min(92vw,56rem)] lg:max-w-[min(92vw,64rem)]">
           <DialogHeader>
             <DialogTitle>Factura {selectedInvoice?.serie}-{selectedInvoice?.folio}</DialogTitle>
           </DialogHeader>

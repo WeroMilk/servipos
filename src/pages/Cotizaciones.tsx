@@ -301,6 +301,7 @@ export function Cotizaciones() {
         title="Cotizaciones"
         subtitle="Presupuestos"
         className="min-w-0 max-w-none"
+        actionsClassName="md:mt-2"
         actions={
           <Button
             onClick={() => setShowAddDialog(true)}
@@ -493,7 +494,7 @@ export function Cotizaciones() {
       />
 
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="max-h-[min(92dvh,40rem)] overflow-y-auto border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 sm:max-w-2xl lg:max-w-4xl">
+        <DialogContent className="max-h-[92dvh] overflow-y-auto border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 md:max-w-[min(92vw,72rem)] lg:max-w-[min(92vw,80rem)]">
           <DialogHeader>
             <DialogTitle>Nueva Cotización</DialogTitle>
           </DialogHeader>
@@ -656,7 +657,7 @@ export function Cotizaciones() {
       </Dialog>
 
       <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
-        <DialogContent className="max-h-[min(90dvh,36rem)] overflow-y-auto border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 sm:max-w-2xl">
+        <DialogContent className="max-h-[92dvh] overflow-y-auto border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 md:max-w-[min(92vw,56rem)] lg:max-w-[min(92vw,64rem)]">
           <DialogHeader>
             <DialogTitle>Cotización {selectedQuotation?.folio}</DialogTitle>
           </DialogHeader>

@@ -267,6 +267,7 @@ export function Clientes() {
       title="Clientes"
       subtitle="Datos para facturación"
       className="min-w-0 max-w-none"
+      actionsClassName="md:mt-2"
       actions={
         <Button
           type="button"
@@ -577,16 +578,16 @@ export function Clientes() {
 
       {/* Add Client Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="flex max-h-[min(92dvh,40rem)] w-[calc(100%-1.5rem)] max-w-2xl flex-col gap-0 overflow-hidden border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 p-0 text-slate-900 dark:text-slate-100 sm:w-full">
+        <DialogContent className="flex max-h-[92dvh] w-[calc(100%-1.5rem)] max-w-none flex-col gap-0 overflow-hidden border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 p-0 text-slate-900 dark:text-slate-100 sm:w-full md:max-w-[min(92vw,72rem)] lg:max-w-[min(92vw,80rem)]">
           <div className="shrink-0 border-b border-slate-200 dark:border-slate-800/80 px-4 pb-3 pt-4 pr-14">
             <DialogHeader className="space-y-0 p-0 text-left">
               <DialogTitle>Nuevo Cliente</DialogTitle>
             </DialogHeader>
           </div>
 
-          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
-          <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="min-w-0 space-y-2 sm:col-span-2">
+          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 md:px-5">
+          <div className="grid min-w-0 grid-cols-1 gap-3 gap-y-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-x-4">
+            <div className="min-w-0 space-y-2 sm:col-span-2 lg:col-span-3">
               <Label>Nombre *</Label>
               <Input
                 value={formData.nombre}
@@ -652,7 +653,7 @@ export function Clientes() {
               </select>
             </div>
 
-            <div className="min-w-0 space-y-2 sm:col-span-2">
+            <div className="min-w-0 space-y-2 sm:col-span-2 lg:col-span-3">
               <Label>Uso CFDI Predeterminado</Label>
               <select
                 value={formData.usoCfdi}
@@ -693,16 +694,16 @@ export function Clientes() {
 
       {/* Edit Dialog - Similar structure */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="flex max-h-[min(92dvh,40rem)] w-[calc(100%-1.5rem)] max-w-2xl flex-col gap-0 overflow-hidden border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 p-0 text-slate-900 dark:text-slate-100 sm:w-full">
+        <DialogContent className="flex max-h-[92dvh] w-[calc(100%-1.5rem)] max-w-none flex-col gap-0 overflow-hidden border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 p-0 text-slate-900 dark:text-slate-100 sm:w-full md:max-w-[min(92vw,72rem)] lg:max-w-[min(92vw,80rem)]">
           <div className="shrink-0 border-b border-slate-200 dark:border-slate-800/80 px-4 pb-3 pt-4 pr-14">
             <DialogHeader className="space-y-0 p-0 text-left">
               <DialogTitle>Editar Cliente</DialogTitle>
             </DialogHeader>
           </div>
 
-          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
-          <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="min-w-0 space-y-2 sm:col-span-2">
+          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 md:px-5">
+          <div className="grid min-w-0 grid-cols-1 gap-3 gap-y-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-x-4">
+            <div className="min-w-0 space-y-2 sm:col-span-2 lg:col-span-3">
               <Label>Nombre *</Label>
               <Input
                 value={formData.nombre}
@@ -766,7 +767,7 @@ export function Clientes() {
               </select>
             </div>
 
-            <div className="min-w-0 space-y-2 sm:col-span-2">
+            <div className="min-w-0 space-y-2 sm:col-span-2 lg:col-span-3">
               <Label>Uso CFDI Predeterminado</Label>
               <select
                 value={formData.usoCfdi}
@@ -805,7 +806,7 @@ export function Clientes() {
       </Dialog>
 
       <Dialog open={!!detailClient} onOpenChange={(o) => !o && setDetailClient(null)}>
-        <DialogContent className="max-h-[min(88dvh,32rem)] overflow-y-auto border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 sm:max-w-md">
+        <DialogContent className="max-h-[92dvh] overflow-y-auto border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 md:max-w-[min(92vw,44rem)] lg:max-w-[min(92vw,52rem)]">
           <DialogHeader>
             <DialogTitle>Ficha de cliente</DialogTitle>
           </DialogHeader>

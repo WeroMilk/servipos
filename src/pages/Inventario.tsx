@@ -362,6 +362,7 @@ export function Inventario() {
       title="Inventario"
       subtitle="Productos y stock"
       className="min-w-0 max-w-none"
+      actionsClassName="md:mt-2"
       actions={
         <Button
           type="button"
@@ -750,7 +751,7 @@ export function Inventario() {
 
       {/* Add Product Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-w-2xl max-h-[90vh] overflow-auto">
+        <DialogContent className="bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-h-[92dvh] overflow-auto md:max-w-[min(92vw,64rem)] lg:max-w-[min(92vw,80rem)]">
           <DialogHeader>
             <DialogTitle>Nuevo Producto</DialogTitle>
           </DialogHeader>
@@ -900,7 +901,7 @@ export function Inventario() {
 
       {/* Edit Dialog - Similar al Add */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-w-2xl max-h-[90vh] overflow-auto">
+        <DialogContent className="bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-h-[92dvh] overflow-auto md:max-w-[min(92vw,64rem)] lg:max-w-[min(92vw,80rem)]">
           <DialogHeader>
             <DialogTitle>Editar Producto</DialogTitle>
           </DialogHeader>
@@ -1027,7 +1028,7 @@ export function Inventario() {
 
       {/* Stock Adjustment Dialog */}
       <Dialog open={showStockDialog} onOpenChange={setShowStockDialog}>
-        <DialogContent className="bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100">
+        <DialogContent className="max-h-[92dvh] overflow-y-auto border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 md:max-w-[min(92vw,44rem)]">
           <DialogHeader>
             <DialogTitle>Ajustar Stock - {selectedProduct?.nombre}</DialogTitle>
           </DialogHeader>

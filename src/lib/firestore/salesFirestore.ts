@@ -51,7 +51,7 @@ function firestoreTimestampToDate(value: unknown): Date {
 function parseFormaPago(v: unknown): FormaPago {
   const s = String(v ?? '01');
   if (s === 'TTS') return 'TTS';
-  if (['01', '02', '03', '04', '28', '99'].includes(s)) return s as FormaPago;
+  if (['01', '02', '03', '04', '08', '28', '99'].includes(s)) return s as FormaPago;
   return '01';
 }
 

@@ -279,6 +279,7 @@ export type FormaPago =
   | '02' // Cheque nominativo
   | '03' // Transferencia electrónica de fondos
   | '04' // Tarjeta de crédito
+  | '08' // Vales de despensa
   | '28' // Tarjeta de débito
   | '99' // Por definir
   | 'TTS'; // Transferencia de tienda a tienda (interno; solo admin, total $0)
@@ -526,7 +527,7 @@ export const USOS_CFDI: CatalogoSAT[] = [
 export const FORMAS_PAGO: CatalogoSAT[] = [
   { clave: '01', descripcion: 'Efectivo' },
   { clave: '02', descripcion: 'Cheque nominativo' },
-  { clave: '03', descripcion: 'Transferencia electrónica de fondos' },
+  { clave: '03', descripcion: 'Transferencia Bancaria' },
   { clave: '04', descripcion: 'Tarjeta de crédito' },
   { clave: '05', descripcion: 'Monedero electrónico' },
   { clave: '06', descripcion: 'Dinero electrónico' },
@@ -546,6 +547,15 @@ export const FORMAS_PAGO: CatalogoSAT[] = [
   { clave: '30', descripcion: 'Aplicación de anticipos' },
   { clave: '31', descripcion: 'Intermediario pagos' },
   { clave: '99', descripcion: 'Por definir' },
+];
+
+/** Opciones mostradas en POS y facturación (el catálogo completo sigue en FORMAS_PAGO para tickets e históricos). */
+export const FORMAS_PAGO_UI: CatalogoSAT[] = [
+  { clave: '01', descripcion: 'Efectivo' },
+  { clave: '03', descripcion: 'Transferencia Bancaria' },
+  { clave: '04', descripcion: 'Tarjeta de crédito' },
+  { clave: '08', descripcion: 'Vales de despensa' },
+  { clave: '28', descripcion: 'Tarjeta de débito' },
 ];
 
 export const CLAVES_UNIDAD: CatalogoSAT[] = [

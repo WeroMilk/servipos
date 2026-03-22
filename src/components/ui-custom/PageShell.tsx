@@ -4,6 +4,8 @@ type PageShellProps = {
   title: string;
   subtitle?: string;
   actions?: React.ReactNode;
+  /** Clases extra en el contenedor de `actions` (p. ej. `md:mt-2` para bajar el botón en escritorio). */
+  actionsClassName?: string;
   /** Contenido bajo el encabezado: debe usar flex-1 min-h-0 para repartir altura */
   children: React.ReactNode;
   className?: string;
@@ -13,7 +15,14 @@ type PageShellProps = {
  * Contenedor de página: ocupa todo el alto del main sin provocar scroll del documento.
  * Aprovecha el ancho (w-full) con paddings controlados desde Layout.
  */
-export function PageShell({ title, subtitle, actions, children, className }: PageShellProps) {
+export function PageShell({
+  title,
+  subtitle,
+  actions,
+  actionsClassName,
+  children,
+  className,
+}: PageShellProps) {
   return (
     <div
       className={cn(
@@ -33,7 +42,11 @@ export function PageShell({ title, subtitle, actions, children, className }: Pag
           ) : null}
         </div>
         {actions ? (
-          <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>
+          <div
+            className={cn('flex shrink-0 flex-wrap items-center gap-2', actionsClassName)}
+          >
+            {actions}
+          </div>
         ) : null}
       </header>
       <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">{children}</div>

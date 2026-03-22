@@ -31,7 +31,15 @@ import {
 } from '@/hooks';
 import { cn, formatMoney } from '@/lib/utils';
 import { printThermalDailySalesReport, printThermalTicketFromSale } from '@/lib/printTicket';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import type { DateRange } from 'react-day-picker';
 import {
   addDays,
@@ -49,7 +57,9 @@ import { formatInAppTimezone } from '@/lib/appTimezone';
 import type { Sale } from '@/types';
 import { DashboardPeriodPopover, type PeriodGranularity } from '@/components/ui-custom/DashboardPeriodPopover';
 
-const barCursor = { fill: 'rgba(15, 23, 42, 0.92)' };
+const LINE_STROKE = '#0891b2';
+const LINE_DOT_FILL = '#06b6d4';
+const LINE_DOT_STROKE = '#164e63';
 
 const WEEKDAY_SHORT_ES = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'] as const;
 
@@ -231,7 +241,7 @@ export function Dashboard() {
     return m.charAt(0).toUpperCase() + m.slice(1);
   }, [dateRange, periodGranularity]);
 
-  /** Siempre 7 barras: lunes → domingo de la semana del día ancla; días sin ventas = 0. */
+  /** Siempre 7 puntos: lunes → domingo de la semana del día ancla; días sin ventas = 0. */
   const chartData = useMemo(() => {
     const { weekStart, weekEndExclusive } = chartWeekBounds;
     const weekEndInclusive = addDays(weekEndExclusive, -1);
@@ -426,9 +436,9 @@ export function Dashboard() {
                   </div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%" minHeight={180}>
-                    <BarChart
+                    <LineChart
                       data={chartData}
-                      margin={{ top: 8, right: 4, left: 4, bottom: 36 }}
+                      margin={{ top: 12, right: 8, left: 4, bottom: 36 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                       <XAxis
@@ -464,22 +474,50 @@ export function Dashboard() {
                             : ''
                         }
                         formatter={(value: number) => [formatMoney(value), 'Ventas']}
-                        cursor={barCursor}
+                        cursor={{ stroke: '#475569', strokeWidth: 1, strokeDasharray: '4 4' }}
                       />
-                      <Bar
+                      <Line
+                        type="linear"
                         dataKey="ventas"
-                        fill="url(#colorGradient)"
-                        radius={[3, 3, 0, 0]}
+                        stroke={LINE_STROKE}
+                        strokeWidth={2.5}
                         isAnimationActive={false}
-                        activeBar={{ fill: 'url(#colorGradient)', fillOpacity: 0.95 }}
+                        dot={(props: { cx?: number; cy?: number }) => {
+                          const { cx, cy } = props;
+                          if (cx == null || cy == null) return <g />;
+                          const s = 7;
+                          return (
+                            <rect
+                              x={cx - s / 2}
+                              y={cy - s / 2}
+                              width={s}
+                              height={s}
+                              rx={1}
+                              fill={LINE_DOT_FILL}
+                              stroke={LINE_DOT_STROKE}
+                              strokeWidth={1.5}
+                            />
+                          );
+                        }}
+                        activeDot={(props: { cx?: number; cy?: number }) => {
+                          const { cx, cy } = props;
+                          if (cx == null || cy == null) return <g />;
+                          const s = 9;
+                          return (
+                            <rect
+                              x={cx - s / 2}
+                              y={cy - s / 2}
+                              width={s}
+                              height={s}
+                              rx={1}
+                              fill="#22d3ee"
+                              stroke="#cffafe"
+                              strokeWidth={1.5}
+                            />
+                          );
+                        }}
                       />
-                      <defs>
-                        <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.85} />
-                          <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.25} />
-                        </linearGradient>
-                      </defs>
-                    </BarChart>
+                    </LineChart>
                   </ResponsiveContainer>
                 )}
               </div>
@@ -618,7 +656,7 @@ export function Dashboard() {
       </div>
 
       <Dialog open={todaySalesOpen} onOpenChange={setTodaySalesOpen}>
-        <DialogContent className="flex max-h-[min(88dvh,36rem)] flex-col gap-0 overflow-hidden border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 p-0 text-slate-900 dark:text-slate-100 sm:max-w-md">
+        <DialogContent className="flex max-h-[92dvh] flex-col gap-0 overflow-hidden border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 p-0 text-slate-900 dark:text-slate-100 md:max-w-[min(92vw,48rem)] lg:max-w-[min(92vw,56rem)]">
           <DialogHeader className="shrink-0 space-y-0 border-b border-slate-200 dark:border-slate-800/80 px-4 pb-3 pt-4 pr-14 text-left">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">

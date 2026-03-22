@@ -62,11 +62,11 @@ export function ClientAddressSonoraFields<T extends AddressFormSlice>({
   };
 
   return (
-    <div className="col-span-full border-t border-slate-200 dark:border-slate-800 pt-4 sm:col-span-2">
+    <div className="col-span-full border-t border-slate-200 dark:border-slate-800 pt-4 sm:col-span-2 lg:col-span-3">
       <p className="mb-3 text-sm text-slate-600 dark:text-slate-500">Dirección (México)</p>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="space-y-2 sm:col-span-2">
+      <div className="grid grid-cols-1 gap-3 gap-y-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-x-4">
+        <div className="space-y-2 sm:col-span-2 lg:col-span-3">
           <Label>Estado</Label>
           <select
             value={formData.estado || ESTADO_SONORA}
@@ -109,7 +109,7 @@ export function ClientAddressSonoraFields<T extends AddressFormSlice>({
           </select>
         </div>
         ) : (
-        <div className="space-y-2 sm:col-span-2">
+        <div className="space-y-2 sm:col-span-2 lg:col-span-3">
           <Label>Municipio o alcaldía</Label>
           <Input
             value={municipio}
@@ -151,7 +151,7 @@ export function ClientAddressSonoraFields<T extends AddressFormSlice>({
         </div>
 
         {colonias.length > 0 ? (
-          <div className="space-y-2 sm:col-span-2">
+          <div className="space-y-2 sm:col-span-2 lg:col-span-3">
             <Label>Colonia</Label>
             <select
               value={formData.colonia}
@@ -167,7 +167,7 @@ export function ClientAddressSonoraFields<T extends AddressFormSlice>({
             </select>
           </div>
         ) : (
-          <div className="space-y-2 sm:col-span-2">
+          <div className="space-y-2 sm:col-span-2 lg:col-span-3">
             <Label>Colonia</Label>
             <Input
               value={formData.colonia}
@@ -178,7 +178,7 @@ export function ClientAddressSonoraFields<T extends AddressFormSlice>({
         )}
 
         {calles.length > 0 ? (
-          <div className="space-y-2 sm:col-span-2">
+          <div className="space-y-2 sm:col-span-2 lg:col-span-3">
             <Label>Calle (catálogo por CP)</Label>
             <select
               value={calles.includes(formData.calle) ? formData.calle : ''}
@@ -200,7 +200,7 @@ export function ClientAddressSonoraFields<T extends AddressFormSlice>({
             />
           </div>
         ) : (
-          <div className="space-y-2 sm:col-span-2">
+          <div className="space-y-2 sm:col-span-2 lg:col-span-3">
             <Label>Calle</Label>
             <Input
               value={formData.calle}
