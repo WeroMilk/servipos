@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   Search,
   Plus,
@@ -253,6 +253,24 @@ export function POS() {
       setMobileTab('cart');
     }
   };
+
+  /** Reinicia carrito, cobro, búsqueda y devolución como al entrar al POS. */
+  const resetPuntoVenta = useCallback(() => {
+    handleCheckoutOpenChange(false);
+    clearCart();
+    setSearchQuery('');
+    setShowProductSearch(false);
+    setShowClientDialog(false);
+    setMontoRecibidoInput('');
+    setTarjetaUltimos4('');
+    setProcessingSale(false);
+    setGlobalDiscFocus(false);
+    setLineDiscountFocusProductId(null);
+    setDevolucionFolioInput('');
+    setDevolucionSaleResuelta(null);
+    setDevolucionBusy(false);
+    searchInputRef.current?.blur();
+  }, [clearCart]);
 
   const openCheckoutDialog = () => {
     setCheckoutPhase('payment');
@@ -1153,29 +1171,31 @@ export function POS() {
                   </Select>
                 </div>
 
-                <div className="space-y-1">
-                  <Label className="text-[10px] text-slate-600 dark:text-slate-400 sm:text-xs">Desc. global %</Label>
-                  <Input
-                    type="number"
-                    inputMode="decimal"
-                    value={globalDiscFocus && discount === 0 ? '' : discount}
-                    onFocus={() => setGlobalDiscFocus(true)}
-                    onBlur={() => {
-                      setGlobalDiscFocus(false);
-                    }}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      if (v === '') setGlobalDiscount(0);
-                      else setGlobalDiscount(parseFloat(v) || 0);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') e.preventDefault();
-                    }}
-                    className="h-10 w-full border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100 md:h-10 md:text-sm"
-                    min={0}
-                    max={100}
-                  />
-                </div>
+                {!esFormaDevolucion ? (
+                  <div className="space-y-1">
+                    <Label className="text-[10px] text-slate-600 dark:text-slate-400 sm:text-xs">Desc. global %</Label>
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      value={globalDiscFocus && discount === 0 ? '' : discount}
+                      onFocus={() => setGlobalDiscFocus(true)}
+                      onBlur={() => {
+                        setGlobalDiscFocus(false);
+                      }}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v === '') setGlobalDiscount(0);
+                        else setGlobalDiscount(parseFloat(v) || 0);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') e.preventDefault();
+                      }}
+                      className="h-10 w-full border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100 md:h-10 md:text-sm"
+                      min={0}
+                      max={100}
+                    />
+                  </div>
+                ) : null}
               </div>
             </CardContent>
           </Card>
@@ -1199,9 +1219,8 @@ export function POS() {
 
             <Button
               type="button"
-              onClick={clearCart}
+              onClick={resetPuntoVenta}
               variant="outline"
-              disabled={items.length === 0}
               className="h-10 w-full rounded-xl border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:bg-slate-800 hover:text-slate-800 dark:text-slate-200 sm:h-11"
             >
               <X className="mr-2 h-4 w-4" />
