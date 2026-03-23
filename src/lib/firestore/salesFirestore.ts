@@ -2,10 +2,12 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
   query,
   orderBy,
   limit,
+  where,
   runTransaction,
   serverTimestamp,
   updateDoc,
@@ -51,8 +53,14 @@ function firestoreTimestampToDate(value: unknown): Date {
 function parseFormaPago(v: unknown): FormaPago {
   const s = String(v ?? '01');
   if (s === 'TTS') return 'TTS';
+  if (s === 'DEV') return 'DEV';
   if (['01', '02', '03', '04', '08', '28', '99'].includes(s)) return s as FormaPago;
   return '01';
+}
+
+function parseCancelacionMotivo(v: unknown): 'devolucion' | 'panel' | undefined {
+  if (v === 'devolucion' || v === 'panel') return v;
+  return undefined;
 }
 
 function parseMetodoPago(v: unknown): MetodoPago {
@@ -125,6 +133,7 @@ export function saleDocToSale(snap: DocumentSnapshot): Sale | null {
     pagos: pagosRaw.map((p) => mapPayment(p as Record<string, unknown>)),
     cambio: d.cambio != null ? Number(d.cambio) : undefined,
     estado: parseEstado(d.estado),
+    cancelacionMotivo: parseCancelacionMotivo(d.cancelacionMotivo),
     facturaId: d.facturaId != null ? String(d.facturaId) : undefined,
     notas: d.notas != null ? String(d.notas) : undefined,
     transferenciaSucursalDestinoId:
@@ -327,7 +336,8 @@ export async function createSaleFirestore(
 export async function cancelSaleFirestore(
   sucursalId: string,
   saleId: string,
-  motivo?: string
+  motivo?: string,
+  cancelacionMotivo?: 'devolucion' | 'panel'
 ): Promise<void> {
   const saleRef = doc(db, 'sucursales', sucursalId, 'sales', saleId);
 
@@ -372,12 +382,15 @@ export async function cancelSaleFirestore(
       });
     }
 
+    const tipoEtiqueta =
+      cancelacionMotivo === 'devolucion' ? 'devolución' : cancelacionMotivo === 'panel' ? 'panel' : 'venta';
     const notas = motivo
-      ? `${sale.notas || ''} | Cancelada: ${motivo}`.trim()
+      ? `${sale.notas || ''} | Cancelada (${tipoEtiqueta}): ${motivo}`.trim()
       : sale.notas;
 
     transaction.update(saleRef, {
       estado: 'cancelada',
+      cancelacionMotivo: cancelacionMotivo ?? null,
       notas: notas || null,
       updatedAt: serverTimestamp(),
     });
@@ -392,6 +405,23 @@ export async function getSaleByIdFirestore(
   const snap = await getDoc(ref);
   const s = saleDocToSale(snap);
   return s ?? undefined;
+}
+
+/** Busca venta por folio diario (ej. V-20260322-0001) en la sucursal actual. */
+export async function getSaleByFolioFirestore(
+  sucursalId: string,
+  folioRaw: string
+): Promise<Sale | null> {
+  const folio = folioRaw.trim();
+  if (!folio) return null;
+  const q = query(salesCol(sucursalId), where('folio', '==', folio), limit(10));
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  const list = snap.docs
+    .map((d) => saleDocToSale(d))
+    .filter((s): s is Sale => s != null)
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  return list[0] ?? null;
 }
 
 export async function patchSaleInvoiceFirestore(

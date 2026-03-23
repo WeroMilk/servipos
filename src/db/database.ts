@@ -17,6 +17,7 @@ import {
   cancelSaleFirestore,
   patchSaleInvoiceFirestore,
   getSaleByIdFirestore,
+  getSaleByFolioFirestore,
 } from '@/lib/firestore/salesFirestore';
 import { getDefaultSucursalIdForNewData } from '@/lib/sucursales';
 
@@ -502,6 +503,19 @@ export async function getSaleById(id: string): Promise<Sale | undefined> {
   return await db.sales.get(id);
 }
 
+export async function getSaleByFolio(
+  folio: string,
+  options?: { sucursalId?: string }
+): Promise<Sale | undefined> {
+  const f = folio.trim();
+  if (!f) return undefined;
+  if (options?.sucursalId) {
+    const s = await getSaleByFolioFirestore(options.sucursalId, f);
+    return s ?? undefined;
+  }
+  return await db.sales.where('folio').equals(f).first();
+}
+
 export async function createSale(
   sale: Omit<Sale, 'id' | 'createdAt' | 'updatedAt' | 'syncStatus'>,
   options?: { sucursalId?: string }
@@ -542,12 +556,19 @@ export async function createSale(
 
 export async function cancelSale(
   id: string,
-  motivo?: string,
-  options?: { sucursalId?: string }
+  options?: {
+    motivo?: string;
+    sucursalId?: string;
+    cancelacionMotivo?: 'devolucion' | 'panel';
+  }
 ): Promise<void> {
-  if (options?.sucursalId) {
-    const prev = await getSaleByIdFirestore(options.sucursalId, id);
-    await cancelSaleFirestore(options.sucursalId, id, motivo);
+  const motivo = options?.motivo;
+  const cancelacionMotivo = options?.cancelacionMotivo;
+  const sucursalId = options?.sucursalId;
+
+  if (sucursalId) {
+    const prev = await getSaleByIdFirestore(sucursalId, id);
+    await cancelSaleFirestore(sucursalId, id, motivo, cancelacionMotivo);
     if (
       prev &&
       prev.estado !== 'cancelada' &&
@@ -576,9 +597,16 @@ export async function cancelSale(
     );
   }
 
+  const tipoEtiqueta =
+    cancelacionMotivo === 'devolucion' ? 'devolución' : cancelacionMotivo === 'panel' ? 'panel' : 'venta';
+  const notas = motivo
+    ? `${sale.notas || ''} | Cancelada (${tipoEtiqueta}): ${motivo}`.trim()
+    : sale.notas;
+
   await db.sales.update(id, {
     estado: 'cancelada',
-    notas: motivo ? `${sale.notas || ''} | Cancelada: ${motivo}` : sale.notas,
+    cancelacionMotivo,
+    notas,
     updatedAt: new Date(),
     syncStatus: 'pending',
   });

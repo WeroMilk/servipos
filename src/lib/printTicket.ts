@@ -7,6 +7,7 @@ import {
 } from '@/lib/documentPrintBranding';
 import { getClientById } from '@/db/database';
 import { FORMAS_PAGO, type Sale } from '@/types';
+import { thermalTicketCancelacionNotas } from '@/lib/saleCancelacion';
 
 async function resolveClienteTicketLabel(sale: Sale): Promise<string> {
   const embedded = sale.cliente?.nombre?.trim();
@@ -252,7 +253,11 @@ export function printThermalDailySalesReport(input: {
   );
   const rows = list
     .map((v) => {
-      const st = v.estado === 'cancelada' ? ' (cancel.)' : '';
+      const st =
+        v.estado === 'cancelada' ?
+          v.cancelacionMotivo === 'devolucion' ? ' (dev.)'
+          : ' (cancel.)'
+        : '';
       return `<tr><td>${escapeHtml(v.folio)}${st}</td><td class="right">${formatMoney(Number(v.total) || 0)}</td></tr>`;
     })
     .join('');
@@ -356,9 +361,14 @@ export async function printThermalTicketFromSale(sale: Sale): Promise<void> {
     resumenPagos: resumenPagos.length > 0 ? resumenPagos : undefined,
     notas:
       sale.estado === 'cancelada'
-        ? 'VENTA CANCELADA'
+        ? thermalTicketCancelacionNotas(sale)
         : sale.notas
           ? String(sale.notas)
           : undefined,
   });
 }
+</think>
+
+
+<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>
+Read

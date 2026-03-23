@@ -212,6 +212,8 @@ export interface Sale {
   pagos: Payment[];
   cambio?: number;
   estado: SaleStatus;
+  /** Si la venta fue cancelada: devolución en POS o cancelación manual desde panel (admin). */
+  cancelacionMotivo?: 'devolucion' | 'panel';
   facturaId?: string;
   notas?: string;
   /** Destino cuando forma de pago es traspaso entre sucursales (admin). */
@@ -282,7 +284,8 @@ export type FormaPago =
   | '08' // Vales de despensa
   | '28' // Tarjeta de débito
   | '99' // Por definir
-  | 'TTS'; // Transferencia de tienda a tienda (interno; solo admin, total $0)
+  | 'TTS' // Transferencia de tienda a tienda (interno; solo admin, total $0)
+  | 'DEV'; // Devolución: cancela ticket previo y reembolso en mostrador (no es forma SAT)
 
 export type MetodoPago = 'PUE' | 'PPD'; // Pago en una sola exhibición o Parcialidades
 
@@ -547,6 +550,7 @@ export const FORMAS_PAGO: CatalogoSAT[] = [
   { clave: '30', descripcion: 'Aplicación de anticipos' },
   { clave: '31', descripcion: 'Intermediario pagos' },
   { clave: '99', descripcion: 'Por definir' },
+  { clave: 'DEV', descripcion: 'Devolución' },
 ];
 
 /** Opciones mostradas en POS y facturación (el catálogo completo sigue en FORMAS_PAGO para tickets e históricos). */

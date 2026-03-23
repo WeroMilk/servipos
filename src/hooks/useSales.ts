@@ -99,10 +99,13 @@ export function useSales(limit: number = 100) {
     }
   };
 
-  const cancel = async (id: string, motivo?: string) => {
+  const cancel = async (
+    id: string,
+    opts?: { motivo?: string; cancelacionMotivo?: 'devolucion' | 'panel' }
+  ) => {
     try {
       const sid = getEffectiveSucursalId();
-      await cancelSale(id, motivo, { sucursalId: sid });
+      await cancelSale(id, { ...opts, sucursalId: sid });
       if (!sid) {
         await loadSalesLocal();
       }

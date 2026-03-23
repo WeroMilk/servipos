@@ -34,8 +34,9 @@ import { Label } from '@/components/ui/label';
 import { useShallow } from 'zustand/react/shallow';
 import { useCartStore, useAppStore, useAuthStore } from '@/stores';
 import { useProductSearch, useSales, useClients, useEffectiveSucursalId } from '@/hooks';
-import type { Product, FormaPago, Sucursal } from '@/types';
+import type { Product, FormaPago, Sale, Sucursal } from '@/types';
 import { FORMAS_PAGO_UI } from '@/types';
+import { getSaleByFolio } from '@/db/database';
 import { subscribeSucursales } from '@/lib/firestore/sucursalesMetaFirestore';
 import { cn, formatMoney } from '@/lib/utils';
 import { formatInAppTimezone } from '@/lib/appTimezone';
@@ -68,20 +69,26 @@ type PosTicketSnapshot = {
   folio?: string;
   notas?: string;
   resumenPagos?: { label: string; monto: number; ultimos4?: string }[];
+  /** Comprobante de devolución (reembolso); no genera folio de venta nuevo. */
+  modoDevolucion?: boolean;
+  folioVentaOrigen?: string;
 };
 
 export function POS() {
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'admin';
   const { addToast } = useAppStore();
-  const { addSale } = useSales();
+  const { addSale, cancelSale: ejecutarCancelacionVenta } = useSales();
   const { effectiveSucursalId } = useEffectiveSucursalId();
 
   const [sucursalesCat, setSucursalesCat] = useState<Sucursal[]>([]);
   useEffect(() => subscribeSucursales(setSucursalesCat), []);
 
   const formasPagoPos = useMemo(() => {
-    const base = [...FORMAS_PAGO_UI];
+    const base = [
+      ...FORMAS_PAGO_UI,
+      { clave: 'DEV' as const, descripcion: 'Devolución' },
+    ];
     if (isAdmin) {
       base.push({ clave: 'TTS', descripcion: 'Transferencia de tienda a tienda' });
     }
@@ -147,11 +154,24 @@ export function POS() {
     getCambio,
   } = cart;
 
+  const [devolucionFolioInput, setDevolucionFolioInput] = useState('');
+  const [devolucionSaleResuelta, setDevolucionSaleResuelta] = useState<Sale | null>(null);
+  const [devolucionBusy, setDevolucionBusy] = useState(false);
+
+  const esFormaDevolucion = formaPago === 'DEV';
+
   useEffect(() => {
     if (!formasPagoPos.some((fp) => fp.clave === formaPago)) {
       setFormaPago('01');
     }
   }, [formasPagoPos, formaPago, setFormaPago]);
+
+  useEffect(() => {
+    if (!esFormaDevolucion) {
+      setDevolucionFolioInput('');
+      setDevolucionSaleResuelta(null);
+    }
+  }, [esFormaDevolucion]);
 
   /** Sin useMemo: se recalcula cada vez que useShallow detecta cambio en items/pagos/discount (evita Cobrar $0.00). */
   const subtotalVenta = cart.getSubtotal();
@@ -303,7 +323,140 @@ export function POS() {
     }
   };
 
+  const handleBuscarTicketDevolucion = async () => {
+    const raw = devolucionFolioInput.trim();
+    if (!raw) {
+      addToast({ type: 'warning', message: 'Ingrese el folio del ticket (ej. V-20260322-0001)' });
+      return;
+    }
+    setDevolucionBusy(true);
+    try {
+      const s = await getSaleByFolio(raw, { sucursalId: effectiveSucursalId ?? undefined });
+      if (!s) {
+        setDevolucionSaleResuelta(null);
+        addToast({
+          type: 'error',
+          message: 'No se encontró una venta con ese folio en esta tienda.',
+        });
+        return;
+      }
+      if (s.estado === 'cancelada') {
+        setDevolucionSaleResuelta(s);
+        addToast({
+          type: 'warning',
+          message:
+            s.cancelacionMotivo === 'devolucion' ?
+              'Este ticket ya está cancelado por devolución.'
+            : 'Este ticket ya está cancelado.',
+        });
+        return;
+      }
+      if (s.estado !== 'completada') {
+        setDevolucionSaleResuelta(s);
+        addToast({ type: 'warning', message: 'Solo se pueden devolver ventas completadas.' });
+        return;
+      }
+      if (s.facturaId) {
+        setDevolucionSaleResuelta(null);
+        addToast({
+          type: 'error',
+          message: 'No se puede devolver una venta facturada. Gestione la devolución en facturación.',
+        });
+        return;
+      }
+      if (s.formaPago === 'TTS') {
+        setDevolucionSaleResuelta(null);
+        addToast({
+          type: 'error',
+          message: 'No se puede devolver un traspaso entre tiendas desde el POS.',
+        });
+        return;
+      }
+      setDevolucionSaleResuelta(s);
+      addToast({
+        type: 'success',
+        message: 'Ticket localizado. Pulse Cobrar y confirme la devolución.',
+      });
+    } catch (e: unknown) {
+      addToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'Error al buscar el ticket',
+      });
+    } finally {
+      setDevolucionBusy(false);
+    }
+  };
+
   const handleProcessSale = async () => {
+    if (formaPago === 'DEV') {
+      if (!devolucionSaleResuelta || devolucionSaleResuelta.estado !== 'completada') {
+        addToast({ type: 'error', message: 'Busque y valide un ticket completado antes de devolver.' });
+        return;
+      }
+      if (items.length > 0) {
+        addToast({
+          type: 'warning',
+          message: 'Vacíe el carrito: la devolución usa solo el folio del ticket, no líneas nuevas.',
+        });
+        return;
+      }
+      setProcessingSale(true);
+      try {
+        await ejecutarCancelacionVenta(devolucionSaleResuelta.id, {
+          motivo: 'Devolución en punto de venta',
+          cancelacionMotivo: 'devolucion',
+        });
+        const monto = Number(devolucionSaleResuelta.total) || 0;
+        const lineas = (devolucionSaleResuelta.productos ?? []).map((it) => {
+          const desc =
+            it.producto?.nombre?.trim() ||
+            `Artículo (${String(it.productId).slice(0, 8)}…)`;
+          const disc = Number(it.descuento) || 0;
+          const pu = Number(it.precioUnitario) || 0;
+          const unit = pu * (1 - disc / 100);
+          const qty = Number(it.cantidad) || 0;
+          const lineTot =
+            it.subtotal != null && Number.isFinite(Number(it.subtotal)) ? Number(it.subtotal) : qty * pu;
+          return { descripcion: desc, cantidad: qty, precioUnit: unit, total: lineTot };
+        });
+        const cajeroNombre =
+          user?.name?.trim() || user?.username?.trim() || user?.email?.trim() || undefined;
+        setTicketSnapshot({
+          clienteNombre: devolucionSaleResuelta.cliente?.nombre?.trim() || 'Mostrador',
+          cajeroNombre,
+          lineas,
+          subtotal: Number(devolucionSaleResuelta.subtotal) || 0,
+          impuestos: Number(devolucionSaleResuelta.impuestos) || 0,
+          total: monto,
+          cambio: 0,
+          sucursalId: effectiveSucursalId,
+          folio: undefined,
+          modoDevolucion: true,
+          folioVentaOrigen: devolucionSaleResuelta.folio,
+          notas:
+            'DEVOLUCIÓN: Entregue al cliente el importe indicado. El ticket original quedó cancelado por devolución.',
+          resumenPagos: [{ label: 'Reembolso (devolución)', monto }],
+        });
+        setDevolucionFolioInput('');
+        setDevolucionSaleResuelta(null);
+        setFormaPago('01');
+        clearCart();
+        setCheckoutPhase('success');
+        addToast({
+          type: 'success',
+          message: `Devolución registrada. Reembolso al cliente: ${formatMoney(monto)}`,
+        });
+      } catch (error: unknown) {
+        addToast({
+          type: 'error',
+          message: error instanceof Error ? error.message : 'Error al procesar la devolución',
+        });
+      } finally {
+        setProcessingSale(false);
+      }
+      return;
+    }
+
     if (items.length === 0) {
       addToast({ type: 'error', message: 'Agregue productos al carrito' });
       return;
@@ -471,6 +624,29 @@ export function POS() {
   const handlePrintTicket = () => {
     const snap = ticketSnapshot;
     if (!snap) return;
+    if (snap.modoDevolucion) {
+      printThermalTicket({
+        negocio: 'SERVIPARTZ POS',
+        sucursalId: snap.sucursalId,
+        folio: snap.folioVentaOrigen,
+        fecha: formatInAppTimezone(new Date(), {
+          dateStyle: 'medium',
+          timeStyle: 'short',
+        }),
+        cliente: snap.clienteNombre,
+        cajeroNombre: snap.cajeroNombre,
+        lineas: snap.lineas,
+        subtotal: snap.subtotal,
+        impuestos: snap.impuestos,
+        total: snap.total,
+        cambio: 0,
+        notas:
+          snap.notas ??
+          'COMPROBANTE DE DEVOLUCIÓN — El ticket original quedó cancelado por devolución.',
+        resumenPagos: snap.resumenPagos,
+      });
+      return;
+    }
     printThermalTicket({
       negocio: 'SERVIPARTZ POS',
       sucursalId: snap.sucursalId,
@@ -490,6 +666,16 @@ export function POS() {
       resumenPagos: snap.resumenPagos,
     });
   };
+
+  const checkoutDevolucionListo =
+    checkoutOpen &&
+    checkoutPhase === 'payment' &&
+    formaPago === 'DEV' &&
+    devolucionSaleResuelta?.estado === 'completada';
+
+  const montoDialogoPrincipal = checkoutDevolucionListo
+    ? Number(devolucionSaleResuelta?.total) || 0
+    : totalCobro;
 
   const panelClass =
     'rounded-xl border border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 shadow-sm';
@@ -810,6 +996,11 @@ export function POS() {
                     sucursal.
                   </p>
                 ) : null}
+                {esFormaDevolucion ? (
+                  <p className="text-[10px] text-amber-600 dark:text-amber-400/90 sm:text-xs">
+                    Devolución: ingrese el folio del ticket, pulse Buscar, deje el carrito vacío y use Cobrar.
+                  </p>
+                ) : null}
               </div>
 
               {/*
@@ -824,6 +1015,9 @@ export function POS() {
                     onValueChange={(v) => {
                       setFormaPago(v);
                       if (v === 'TTS' && isAdmin) {
+                        useCartStore.setState({ pagos: [] });
+                      }
+                      if (v === 'DEV') {
                         useCartStore.setState({ pagos: [] });
                       }
                       if (v !== 'TTS') setTransferenciaDestinoSucursalId('');
@@ -850,6 +1044,61 @@ export function POS() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {esFormaDevolucion ? (
+                  <div className="space-y-2 rounded-lg border border-amber-500/25 bg-amber-500/5 p-2.5 sm:p-3">
+                    <Label className="text-[10px] text-slate-600 dark:text-slate-400 sm:text-xs">
+                      Folio del ticket de compra
+                    </Label>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <Input
+                        value={devolucionFolioInput}
+                        onChange={(e) => setDevolucionFolioInput(e.target.value)}
+                        placeholder="V-20260322-0001"
+                        className="h-10 border-slate-300 font-mono text-sm dark:border-slate-700 dark:bg-slate-800"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            void handleBuscarTicketDevolucion();
+                          }
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="h-10 shrink-0 bg-slate-200 text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                        disabled={devolucionBusy}
+                        onClick={() => void handleBuscarTicketDevolucion()}
+                      >
+                        {devolucionBusy ? 'Buscando…' : 'Buscar'}
+                      </Button>
+                    </div>
+                    {devolucionSaleResuelta ? (
+                      <div className="text-[11px] leading-snug text-slate-600 dark:text-slate-400 sm:text-xs">
+                        <p className="font-mono font-medium text-slate-800 dark:text-slate-200">
+                          {devolucionSaleResuelta.folio}
+                        </p>
+                        <p>
+                          Total original:{' '}
+                          <span className="font-semibold text-cyan-600 dark:text-cyan-400">
+                            {formatMoney(Number(devolucionSaleResuelta.total) || 0)}
+                          </span>
+                        </p>
+                        {devolucionSaleResuelta.estado === 'completada' ? (
+                          <p className="text-emerald-600 dark:text-emerald-400">Listo para devolver al cliente.</p>
+                        ) : devolucionSaleResuelta.estado === 'cancelada' ? (
+                          <p className="text-amber-600 dark:text-amber-400">
+                            {devolucionSaleResuelta.cancelacionMotivo === 'devolucion' ?
+                              'Ya cancelado por devolución.'
+                            : 'Venta cancelada.'}
+                          </p>
+                        ) : (
+                          <p className="text-amber-600 dark:text-amber-400">No aplica para devolución en POS.</p>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 {formaPago === 'TTS' && isAdmin ? (
                   <div className="space-y-1">
@@ -936,8 +1185,12 @@ export function POS() {
               type="button"
               onClick={() => openCheckoutDialog()}
               disabled={
-                items.length === 0 ||
-                (formaPago === 'TTS' && isAdmin && !transferenciaDestinoSucursalId?.trim())
+                esFormaDevolucion ?
+                  !devolucionSaleResuelta ||
+                  devolucionSaleResuelta.estado !== 'completada' ||
+                  items.length > 0
+                : items.length === 0 ||
+                  (formaPago === 'TTS' && isAdmin && !transferenciaDestinoSucursalId?.trim())
               }
               className="h-11 w-full min-w-0 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-base font-bold text-white shadow-lg shadow-cyan-500/25 sm:h-12 md:h-14 md:text-lg"
             >
@@ -972,17 +1225,29 @@ export function POS() {
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
                   <Receipt className="h-5 w-5 text-cyan-400 sm:h-6 sm:w-6" />
-                  Procesar pago
+                  {checkoutDevolucionListo ? 'Confirmar devolución' : 'Procesar pago'}
                 </DialogTitle>
               </DialogHeader>
 
               <div className="space-y-3 py-1 sm:space-y-4 sm:py-2">
                 <div className="rounded-xl bg-slate-200/80 dark:bg-slate-800/50 p-3 text-center sm:p-4">
-                  <p className="mb-1 text-xs text-slate-600 dark:text-slate-400 sm:text-sm">Total a pagar</p>
-                  <p className="text-2xl font-bold text-cyan-400 sm:text-4xl">{formatMoney(totalCobro)}</p>
+                  <p className="mb-1 text-xs text-slate-600 dark:text-slate-400 sm:text-sm">
+                    {checkoutDevolucionListo ? 'Total a devolver al cliente' : 'Total a pagar'}
+                  </p>
+                  <p className="text-2xl font-bold text-cyan-400 sm:text-4xl">
+                    {formatMoney(montoDialogoPrincipal)}
+                  </p>
                 </div>
 
-                {!cobroTarjetaPue && !esTraspasoTienda ? (
+                {checkoutDevolucionListo ? (
+                  <p className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-3 text-center text-xs leading-relaxed text-slate-600 dark:text-slate-400 sm:text-sm">
+                    Al confirmar, el ticket original quedará como cancelado por devolución, el inventario se
+                    restaurará y el importe dejará de contar en totales del día. Entregue al cliente el dinero
+                    (o aplique su política de reembolso).
+                  </p>
+                ) : null}
+
+                {!cobroTarjetaPue && !esTraspasoTienda && !checkoutDevolucionListo ? (
                   <div className="space-y-2">
                     <Label>Monto recibido</Label>
                     <div className="flex gap-2">
@@ -1012,7 +1277,7 @@ export function POS() {
                   </div>
                 ) : null}
 
-                {esFormaTarjeta(formaPago) && !esTraspasoTienda ? (
+                {esFormaTarjeta(formaPago) && !esTraspasoTienda && !checkoutDevolucionListo ? (
                   <div className="space-y-2">
                     <Label>Últimos 4 dígitos (voucher)</Label>
                     <Input
@@ -1037,7 +1302,7 @@ export function POS() {
                   </div>
                 ) : null}
 
-                {esFormaEfectivo(formaPago) && !esTraspasoTienda ? (
+                {esFormaEfectivo(formaPago) && !esTraspasoTienda && !checkoutDevolucionListo ? (
                   <div className="flex flex-wrap gap-2">
                     {[50, 100, 200, 500, 1000].map((amount) => (
                       <button
@@ -1052,7 +1317,7 @@ export function POS() {
                   </div>
                 ) : null}
 
-                {pagos.length > 0 && !cobroTarjetaPue && (
+                {pagos.length > 0 && !cobroTarjetaPue && !checkoutDevolucionListo && (
                   <div className="space-y-2">
                     <Label>Pagos recibidos</Label>
                     <div className="space-y-2">
@@ -1085,7 +1350,7 @@ export function POS() {
                   </div>
                 )}
 
-                {!esTraspasoTienda && cambioVenta > 0 && (
+                {!esTraspasoTienda && !checkoutDevolucionListo && cambioVenta > 0 && (
                   <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 sm:p-4">
                     <p className="text-center text-emerald-400">
                       Cambio:{' '}
@@ -1109,9 +1374,11 @@ export function POS() {
                   onClick={() => void handleProcessSale()}
                   disabled={
                     processingSale ||
-                    (cobroTarjetaPue
-                      ? digitos4TarjetaPendiente().length !== 4
-                      : totalPagadoVenta < totalCobro)
+                    (checkoutDevolucionListo
+                      ? false
+                      : cobroTarjetaPue
+                        ? digitos4TarjetaPendiente().length !== 4
+                        : totalPagadoVenta < totalCobro)
                   }
                   className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white sm:w-auto"
                 >
@@ -1120,32 +1387,42 @@ export function POS() {
                   ) : (
                     <Check className="mr-2 h-5 w-5" />
                   )}
-                  Completar venta
+                  {checkoutDevolucionListo ? 'Confirmar devolución' : 'Completar venta'}
                 </Button>
               </DialogFooter>
             </>
           ) : (
             <>
               <DialogHeader>
-                <DialogTitle className="text-center text-lg sm:text-xl">¡Venta completada!</DialogTitle>
+                <DialogTitle className="text-center text-lg sm:text-xl">
+                  {ticketSnapshot?.modoDevolucion ? 'Devolución registrada' : '¡Venta completada!'}
+                </DialogTitle>
               </DialogHeader>
 
               <div className="py-4 text-center sm:py-6">
                 <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/20 sm:mb-4 sm:h-20 sm:w-20">
                   <Check className="h-8 w-8 text-emerald-400 sm:h-10 sm:w-10" />
                 </div>
-                {ticketSnapshot?.folio ? (
+                {ticketSnapshot?.modoDevolucion && ticketSnapshot.folioVentaOrigen ? (
+                  <p className="mb-2 font-mono text-sm font-medium text-slate-700 dark:text-slate-300 sm:text-base">
+                    Ticket anulado {ticketSnapshot.folioVentaOrigen}
+                  </p>
+                ) : ticketSnapshot?.folio ? (
                   <p className="mb-2 font-mono text-sm font-medium text-slate-700 dark:text-slate-300 sm:text-base">
                     Folio {ticketSnapshot.folio}
                   </p>
                 ) : null}
-                <p className="mb-1 text-sm text-slate-600 dark:text-slate-400 sm:mb-2">Total</p>
+                <p className="mb-1 text-sm text-slate-600 dark:text-slate-400 sm:mb-2">
+                  {ticketSnapshot?.modoDevolucion ? 'Monto devuelto al cliente' : 'Total'}
+                </p>
                 <p className="mb-3 text-3xl font-bold text-cyan-400 sm:mb-4 sm:text-4xl">
                   {formatMoney(ticketSnapshot?.total ?? 0)}
                 </p>
-                <p className="text-xs text-slate-600 dark:text-slate-500 sm:text-sm">
-                  Cambio: {formatMoney(ticketSnapshot?.cambio ?? 0)}
-                </p>
+                {ticketSnapshot?.modoDevolucion ? null : (
+                  <p className="text-xs text-slate-600 dark:text-slate-500 sm:text-sm">
+                    Cambio: {formatMoney(ticketSnapshot?.cambio ?? 0)}
+                  </p>
+                )}
               </div>
 
               <div className="flex flex-col gap-2 sm:flex-row">

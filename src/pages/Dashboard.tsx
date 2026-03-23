@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   TrendingUp,
@@ -59,6 +59,18 @@ import { getMexicoDateKey, startOfDayFromDateKey } from '@/lib/quincenaMx';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import type { Sale } from '@/types';
 import { DashboardPeriodPopover, type PeriodGranularity } from '@/components/ui-custom/DashboardPeriodPopover';
+import { useAuthStore, useAppStore } from '@/stores';
+import { cancelSale } from '@/db/database';
+import { saleListaCancelacionEtiqueta } from '@/lib/saleCancelacion';
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const LINE_STROKE = '#0891b2';
 const LINE_DOT_FILL = '#06b6d4';
@@ -172,11 +184,17 @@ function shiftMexicoDateKey(dateKey: string, deltaDays: number): string {
 
 export function Dashboard() {
   const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'admin';
+  const { addToast } = useAppStore();
   const { effectiveSucursalId } = useEffectiveSucursalId();
   const [dateOpen, setDateOpen] = useState(false);
   const [periodGranularity, setPeriodGranularity] = useState<PeriodGranularity>('day');
   const [todaySalesOpen, setTodaySalesOpen] = useState(false);
   const [reprintDayKey, setReprintDayKey] = useState(() => getMexicoDateKey());
+  const [saleCancelOpen, setSaleCancelOpen] = useState(false);
+  const [saleToCancel, setSaleToCancel] = useState<Sale | null>(null);
+  const [saleCancelBusy, setSaleCancelBusy] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
     const t = startOfDayFromDateKey(getMexicoDateKey());
     return { from: t, to: t };
@@ -230,10 +248,15 @@ export function Dashboard() {
     });
   }, [salesFetched, inicio, fin]);
 
+  const kpiVentasParaTotales = useMemo(
+    () => kpiSales.filter((s) => s.estado !== 'cancelada'),
+    [kpiSales]
+  );
+
   const totals = useMemo(() => {
-    const total = kpiSales.reduce((sum, sale) => sum + (Number(sale.total) || 0), 0);
-    return { total, count: kpiSales.length };
-  }, [kpiSales]);
+    const total = kpiVentasParaTotales.reduce((sum, sale) => sum + (Number(sale.total) || 0), 0);
+    return { total, count: kpiVentasParaTotales.length };
+  }, [kpiVentasParaTotales]);
   const { products: lowStockProducts, loading: stockLoading } = useLowStockProducts();
   const outgoingTransferPendingIds = useOutgoingPendingTransferIds();
 
@@ -256,6 +279,31 @@ export function Dashboard() {
   const goInventarioStock = () => navigate('/inventario?tab=stock');
 
   const openTodaySalesDialog = () => setTodaySalesOpen(true);
+
+  const confirmCancelSaleFromPanel = useCallback(async () => {
+    if (!saleToCancel) return;
+    setSaleCancelBusy(true);
+    try {
+      await cancelSale(saleToCancel.id, {
+        motivo: 'Cancelación desde panel (administrador)',
+        ...(effectiveSucursalId ? { sucursalId: effectiveSucursalId } : {}),
+        cancelacionMotivo: 'panel',
+      });
+      addToast({
+        type: 'success',
+        message: 'Venta cancelada. Inventario restaurado; el importe ya no cuenta en totales.',
+      });
+      setSaleCancelOpen(false);
+      setSaleToCancel(null);
+    } catch (err) {
+      addToast({
+        type: 'error',
+        message: err instanceof Error ? err.message : 'No se pudo cancelar la venta',
+      });
+    } finally {
+      setSaleCancelBusy(false);
+    }
+  }, [saleToCancel, effectiveSucursalId, addToast]);
 
   const stockCardKeyHandler = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -293,6 +341,7 @@ export function Dashboard() {
         const ms = startOfMonth(m);
         const me = addDays(endOfMonth(m), 1);
         const ventas = salesFetched.reduce((sum, sale) => {
+          if (sale.estado === 'cancelada') return sum;
           const t = sale.createdAt instanceof Date ? sale.createdAt : new Date(sale.createdAt);
           const x = t.getTime();
           if (x >= ms.getTime() && x < me.getTime()) {
@@ -314,6 +363,7 @@ export function Dashboard() {
       const day0 = startOfDay(d);
       const next = addDays(day0, 1);
       const ventas = salesFetched.reduce((sum, sale) => {
+        if (sale.estado === 'cancelada') return sum;
         const t = sale.createdAt instanceof Date ? sale.createdAt : new Date(sale.createdAt);
         const x = t.getTime();
         if (x >= day0.getTime() && x < next.getTime()) {
@@ -955,30 +1005,57 @@ export function Dashboard() {
                           sale.createdAt instanceof Date ? sale.createdAt : new Date(sale.createdAt),
                           { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }
                         )}
-                        {sale.estado === 'cancelada' ? (
-                          <span className="ml-2 text-amber-400">· Cancelada</span>
+                        {saleListaCancelacionEtiqueta(sale) ? (
+                          <span className="ml-2 text-amber-400">
+                            · {saleListaCancelacionEtiqueta(sale)}
+                          </span>
                         ) : null}
                         {sale.formaPago === 'TTS' && outgoingTransferPendingIds.has(sale.id) ? (
                           <span className="ml-2 text-amber-400">· Traspaso pendiente recepción</span>
                         ) : null}
                       </p>
-                      <p className="text-sm font-semibold tabular-nums text-cyan-400">
+                      <p
+                        className={cn(
+                          'text-sm font-semibold tabular-nums text-cyan-400',
+                          sale.estado === 'cancelada' && 'text-slate-500 line-through decoration-slate-500/60'
+                        )}
+                      >
                         {formatMoney(sale.total)}
                       </p>
                     </div>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      className="shrink-0 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:bg-slate-700 hover:text-white focus-visible:bg-slate-700 focus-visible:text-white active:bg-slate-800 active:text-white dark:hover:text-slate-50 dark:focus-visible:text-slate-50 dark:active:text-slate-50"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void printThermalTicketFromSale(sale);
-                      }}
-                    >
-                      <Printer className="mr-2 h-4 w-4" />
-                      Reimprimir
-                    </Button>
+                    <div className="flex shrink-0 flex-wrap items-stretch gap-2">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:bg-slate-700 hover:text-white focus-visible:bg-slate-700 focus-visible:text-white active:bg-slate-800 active:text-white dark:hover:text-slate-50 dark:focus-visible:text-slate-50 dark:active:text-slate-50"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void printThermalTicketFromSale(sale);
+                        }}
+                      >
+                        <Printer className="mr-2 h-4 w-4" />
+                        Reimprimir
+                      </Button>
+                      {isAdmin &&
+                      sale.estado !== 'cancelada' &&
+                      !sale.facturaId &&
+                      !(sale.formaPago === 'TTS' && outgoingTransferPendingIds.has(sale.id)) ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="border-red-500/35 text-red-600 hover:bg-red-500/10 dark:border-red-500/40 dark:text-red-400 dark:hover:bg-red-500/15"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSaleToCancel(sale);
+                            setSaleCancelOpen(true);
+                          }}
+                        >
+                          Cancelar
+                        </Button>
+                      ) : null}
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -996,6 +1073,45 @@ export function Dashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={saleCancelOpen}
+        onOpenChange={(open) => {
+          setSaleCancelOpen(open);
+          if (!open) setSaleToCancel(null);
+        }}
+      >
+        <AlertDialogContent className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Cancelar esta venta?</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-600 dark:text-slate-400">
+              El ticket{' '}
+              <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
+                {saleToCancel?.folio ?? '—'}
+              </span>{' '}
+              quedará como venta cancelada, se reintegrará el inventario y el importe no se contará en totales del
+              día. El registro no se elimina.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              disabled={saleCancelBusy}
+              className="border-slate-300 dark:border-slate-600"
+            >
+              Volver
+            </AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={saleCancelBusy}
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => void confirmCancelSaleFromPanel()}
+            >
+              {saleCancelBusy ? 'Cancelando…' : 'Confirmar cancelación'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
