@@ -11,10 +11,13 @@ import {
   DollarSign,
   CalendarDays,
   Printer,
+  ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
@@ -25,7 +28,6 @@ import {
 import {
   useSalesByDateRange,
   useLowStockProducts,
-  useTodaySales,
   useEffectiveSucursalId,
   useOutgoingPendingTransferIds,
 } from '@/hooks';
@@ -163,12 +165,18 @@ function dateRangeToBounds(range: DateRange | undefined): { inicio: Date; fin: D
   return { inicio, fin };
 }
 
+/** Mueve una fecha YYYY-MM-DD (calendario app / México) ±N días. */
+function shiftMexicoDateKey(dateKey: string, deltaDays: number): string {
+  return getMexicoDateKey(addDays(startOfDayFromDateKey(dateKey), deltaDays));
+}
+
 export function Dashboard() {
   const navigate = useNavigate();
   const { effectiveSucursalId } = useEffectiveSucursalId();
   const [dateOpen, setDateOpen] = useState(false);
   const [periodGranularity, setPeriodGranularity] = useState<PeriodGranularity>('day');
   const [todaySalesOpen, setTodaySalesOpen] = useState(false);
+  const [reprintDayKey, setReprintDayKey] = useState(() => getMexicoDateKey());
   const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
     const t = startOfDayFromDateKey(getMexicoDateKey());
     return { from: t, to: t };
@@ -227,16 +235,23 @@ export function Dashboard() {
     return { total, count: kpiSales.length };
   }, [kpiSales]);
   const { products: lowStockProducts, loading: stockLoading } = useLowStockProducts();
-  const { sales: salesToday, loading: todaySalesLoading } = useTodaySales();
   const outgoingTransferPendingIds = useOutgoingPendingTransferIds();
 
-  const salesTodaySorted = useMemo(
+  const reprintDayStart = useMemo(() => startOfDayFromDateKey(reprintDayKey), [reprintDayKey]);
+  const reprintDayEnd = useMemo(() => addDays(reprintDayStart, 1), [reprintDayStart]);
+  const { sales: reprintSalesRaw, loading: reprintSalesLoading } = useSalesByDateRange(
+    reprintDayStart,
+    reprintDayEnd
+  );
+  const reprintSalesSorted = useMemo(
     () =>
-      [...salesToday].sort(
+      [...reprintSalesRaw].sort(
         (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       ),
-    [salesToday]
+    [reprintSalesRaw]
   );
+  const reprintTodayKey = getMexicoDateKey();
+  const reprintCanGoNext = reprintDayKey < reprintTodayKey;
 
   const goInventarioStock = () => navigate('/inventario?tab=stock');
 
@@ -828,7 +843,7 @@ export function Dashboard() {
                   </div>
                 )}
                 <p className="mt-2 border-t border-slate-200/80 dark:border-slate-800/60 pt-2 text-center text-[10px] text-slate-600 dark:text-slate-500 md:hidden">
-                  Toca para ver ventas de hoy y reimprimir
+                  Toca para ver ventas y reimprimir tickets
                 </p>
               </CardContent>
             </Card>
@@ -836,32 +851,77 @@ export function Dashboard() {
         </div>
       </div>
 
-      <Dialog open={todaySalesOpen} onOpenChange={setTodaySalesOpen}>
+      <Dialog
+        open={todaySalesOpen}
+        onOpenChange={(open) => {
+          setTodaySalesOpen(open);
+          if (open) setReprintDayKey(getMexicoDateKey());
+        }}
+      >
         <DialogContent className="flex w-full min-w-0 max-h-[92dvh] flex-col gap-0 overflow-hidden border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 p-0 text-slate-900 dark:text-slate-100 md:max-w-[min(92vw,48rem)] lg:max-w-[min(92vw,56rem)]">
           <DialogHeader className="shrink-0 space-y-0 border-b border-slate-200 dark:border-slate-800/80 px-4 pb-3 pt-4 pr-14 text-left">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <DialogTitle>Ventas de hoy</DialogTitle>
+                <DialogTitle>Ventas del día</DialogTitle>
                 <p className="mt-1 text-sm font-normal text-slate-600 dark:text-slate-500">
-                  Lista del día para revisar o reimprimir el ticket.
+                  Elegí la fecha y reimprimí el ticket de cada venta.
                 </p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <Label htmlFor="reprint-day" className="text-xs text-slate-600 dark:text-slate-400">
+                    Fecha
+                  </Label>
+                  <div className="flex min-w-0 flex-1 items-center gap-1 sm:flex-initial">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-9 w-9 shrink-0 border-slate-300 dark:border-slate-600"
+                      aria-label="Día anterior"
+                      onClick={() => setReprintDayKey((k) => shiftMexicoDateKey(k, -1))}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Input
+                      id="reprint-day"
+                      type="date"
+                      max={reprintTodayKey}
+                      value={reprintDayKey}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v) setReprintDayKey(v);
+                      }}
+                      className="h-9 w-auto min-w-[10.5rem] flex-1 border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900 sm:flex-initial"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-9 w-9 shrink-0 border-slate-300 dark:border-slate-600"
+                      aria-label="Día siguiente"
+                      disabled={!reprintCanGoNext}
+                      onClick={() => setReprintDayKey((k) => shiftMexicoDateKey(k, 1))}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
               </div>
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
                 className="shrink-0 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:bg-slate-800 hover:text-cyan-400"
-                title="Reporte de ventas diario (térmica)"
-                aria-label="Imprimir reporte de ventas del día"
-                disabled={salesTodaySorted.length === 0}
+                title="Reporte de ventas del día (térmica)"
+                aria-label="Imprimir reporte térmico del día seleccionado"
+                disabled={reprintSalesSorted.length === 0}
                 onClick={() => {
                   printThermalDailySalesReport({
-                    fechaLabel: formatInAppTimezone(new Date(), {
+                    fechaLabel: formatInAppTimezone(reprintDayStart, {
                       dateStyle: 'full',
                       timeStyle: 'short',
                     }),
                     sucursalId: effectiveSucursalId,
-                    ventas: salesTodaySorted,
+                    ventas: reprintSalesSorted,
                   });
                 }}
               >
@@ -870,20 +930,20 @@ export function Dashboard() {
             </div>
           </DialogHeader>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3">
-            {todaySalesLoading ? (
+            {reprintSalesLoading ? (
               <div className="space-y-2">
                 {[1, 2, 3, 4].map((i) => (
                   <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-200/80 dark:bg-slate-800/50" />
                 ))}
               </div>
-            ) : salesTodaySorted.length === 0 ? (
+            ) : reprintSalesSorted.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-10 text-slate-600 dark:text-slate-500">
                 <Receipt className="mb-2 h-10 w-10 text-slate-600" />
-                <p className="text-sm">No hay ventas registradas hoy</p>
+                <p className="text-sm">No hay ventas en esta fecha</p>
               </div>
             ) : (
               <ul className="space-y-2">
-                {salesTodaySorted.map((sale: Sale) => (
+                {reprintSalesSorted.map((sale: Sale) => (
                   <li
                     key={sale.id}
                     className="flex flex-col gap-2 rounded-lg border border-slate-200/80 dark:border-slate-800/60 bg-slate-200 dark:bg-slate-800/25 p-3 sm:flex-row sm:items-center sm:justify-between"
@@ -910,7 +970,7 @@ export function Dashboard() {
                       type="button"
                       variant="secondary"
                       size="sm"
-                      className="shrink-0 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:bg-slate-700"
+                      className="shrink-0 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:bg-slate-700 hover:text-white focus-visible:bg-slate-700 focus-visible:text-white active:bg-slate-800 active:text-white dark:hover:text-slate-50 dark:focus-visible:text-slate-50 dark:active:text-slate-50"
                       onClick={(e) => {
                         e.stopPropagation();
                         void printThermalTicketFromSale(sale);
