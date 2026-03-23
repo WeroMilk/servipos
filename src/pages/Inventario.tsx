@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { 
   Plus, 
@@ -12,6 +12,7 @@ import {
   MoreHorizontal,
   Printer,
   Truck,
+  Clock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,10 +20,21 @@ import { CardContent, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   Table,
   TableBody,
@@ -39,9 +51,17 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { useProducts, useProductSearch, useEffectiveSucursalId, usePendingIncomingTransfers } from '@/hooks';
+import {
+  useProducts,
+  useProductSearch,
+  useEffectiveSucursalId,
+  usePendingIncomingTransfers,
+  useInventoryMovementsHistory,
+} from '@/hooks';
 import { useAppStore, useAuthStore } from '@/stores';
-import type { Product, Sucursal } from '@/types';
+import type { InventoryMovement, Product, Sucursal } from '@/types';
+import { clearAllInventoryMovementsLocal } from '@/db/database';
+import { deleteAllInventoryMovementsFirestore } from '@/lib/firestore/inventoryMovementsFirestore';
 import { subscribeSucursales } from '@/lib/firestore/sucursalesMetaFirestore';
 import { confirmIncomingStoreTransfer } from '@/lib/firestore/storeTransfersFirestore';
 import { cn, formatMoney } from '@/lib/utils';
@@ -59,6 +79,17 @@ function isStockBajo(p: { existencia: number; existenciaMinima: number }): boole
   if (p.existencia <= 0) return true;
   if (p.existenciaMinima > 0 && p.existencia / p.existenciaMinima < 0.15) return true;
   return p.existencia <= p.existenciaMinima;
+}
+
+function tipoMovimientoLabel(t: InventoryMovement['tipo']): string {
+  const labels: Record<InventoryMovement['tipo'], string> = {
+    entrada: 'Entrada',
+    salida: 'Salida',
+    ajuste: 'Ajuste',
+    venta: 'Venta',
+    compra: 'Compra',
+  };
+  return labels[t];
 }
 
 export function Inventario() {
@@ -120,6 +151,22 @@ export function Inventario() {
   });
   const [inventoryMode, setInventoryMode] = useState<InventoryMode>('productos');
   const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
+  const [movementsHistoryOpen, setMovementsHistoryOpen] = useState(false);
+  const [clearMovementsConfirmOpen, setClearMovementsConfirmOpen] = useState(false);
+  const [clearingMovements, setClearingMovements] = useState(false);
+
+  const isAdmin = user?.role === 'admin';
+  const {
+    movements: inventoryMovements,
+    loading: inventoryMovementsLoading,
+    refreshLocal: refreshInventoryMovementsLocal,
+  } = useInventoryMovementsHistory(movementsHistoryOpen);
+
+  const productById = useMemo(() => {
+    const m = new Map<string, Product>();
+    products.forEach((p) => m.set(p.id, p));
+    return m;
+  }, [products]);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -226,6 +273,27 @@ export function Inventario() {
       addToast({ type: 'error', message: error.message });
     }
   };
+
+  const handleClearInventoryMovements = useCallback(async () => {
+    setClearingMovements(true);
+    try {
+      if (effectiveSucursalId) {
+        await deleteAllInventoryMovementsFirestore(effectiveSucursalId);
+      } else {
+        await clearAllInventoryMovementsLocal();
+      }
+      addToast({ type: 'success', message: 'Historial de movimientos vaciado.' });
+      setClearMovementsConfirmOpen(false);
+      if (!effectiveSucursalId) await refreshInventoryMovementsLocal();
+    } catch (err) {
+      addToast({
+        type: 'error',
+        message: err instanceof Error ? err.message : 'No se pudo vaciar el historial',
+      });
+    } finally {
+      setClearingMovements(false);
+    }
+  }, [effectiveSucursalId, addToast, refreshInventoryMovementsLocal]);
 
   const openEditDialog = (product: Product) => {
     setSelectedProduct(product);
@@ -522,7 +590,18 @@ export function Inventario() {
         </div>
       ) : null}
 
-      <div className="mt-2 flex shrink-0 justify-end pb-2 sm:mt-3">
+      <div className="mt-2 flex shrink-0 flex-wrap items-center justify-end gap-2 pb-2 sm:mt-3">
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          title="Historial de movimientos de inventario"
+          aria-label="Historial de movimientos de inventario"
+          className="h-9 w-9 shrink-0 border-blue-600/45 text-blue-800 hover:bg-blue-500/10 hover:text-blue-900 dark:border-amber-500/45 dark:text-amber-200/95 dark:hover:bg-amber-500/15 dark:hover:text-amber-100"
+          onClick={() => setMovementsHistoryOpen(true)}
+        >
+          <Clock className="h-4 w-4" />
+        </Button>
         <Button
           type="button"
           variant="outline"
@@ -1099,6 +1178,149 @@ export function Inventario() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={movementsHistoryOpen} onOpenChange={setMovementsHistoryOpen}>
+        <DialogContent className="flex max-h-[min(92dvh,40rem)] w-full min-w-0 max-w-[min(96vw,48rem)] flex-col gap-0 overflow-hidden border-slate-200 bg-slate-100 p-0 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
+          <DialogHeader className="shrink-0 space-y-1 border-b border-slate-200 px-4 pb-3 pt-4 dark:border-slate-800/80">
+            <DialogTitle>Historial de movimientos</DialogTitle>
+            <DialogDescription className="text-left text-slate-600 dark:text-slate-400">
+              Artículo modificado, cantidad anterior y nueva, fecha, tipo y motivo (hasta 500 movimientos más
+              recientes).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3">
+            {inventoryMovementsLoading ? (
+              <div className="space-y-2">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="h-14 animate-pulse rounded-lg bg-slate-200/80 dark:bg-slate-800/50" />
+                ))}
+              </div>
+            ) : inventoryMovements.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-slate-600 dark:text-slate-500">
+                <Clock className="mb-2 h-10 w-10 opacity-50" />
+                <p className="text-sm">No hay movimientos registrados</p>
+              </div>
+            ) : (
+              <div className="min-w-0 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800/70">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-slate-200 dark:border-slate-800 hover:bg-transparent">
+                      <TableHead className="text-slate-600 dark:text-slate-400">Artículo</TableHead>
+                      <TableHead className="whitespace-nowrap text-right text-slate-600 dark:text-slate-400">
+                        Antes
+                      </TableHead>
+                      <TableHead className="whitespace-nowrap text-right text-slate-600 dark:text-slate-400">
+                        Después
+                      </TableHead>
+                      <TableHead className="whitespace-nowrap text-slate-600 dark:text-slate-400">
+                        Fecha y hora
+                      </TableHead>
+                      <TableHead className="whitespace-nowrap text-slate-600 dark:text-slate-400">Tipo</TableHead>
+                      <TableHead className="min-w-[8rem] text-slate-600 dark:text-slate-400">Motivo</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {inventoryMovements.map((mov) => {
+                      const prod = productById.get(mov.productId);
+                      const nombre = prod?.nombre?.trim() || `Producto (${mov.productId.slice(0, 8)}…)`;
+                      const when = mov.createdAt instanceof Date ? mov.createdAt : new Date(mov.createdAt);
+                      const motivo = mov.motivo?.trim() || '—';
+                      return (
+                        <TableRow
+                          key={mov.id}
+                          className="border-slate-200 dark:border-slate-800/80 hover:bg-slate-200/40 dark:hover:bg-slate-800/30"
+                        >
+                          <TableCell className="max-w-[12rem]">
+                            <span className="line-clamp-2 text-sm font-medium text-slate-900 dark:text-slate-100">
+                              {nombre}
+                            </span>
+                            {prod?.sku ? (
+                              <span className="block truncate text-[11px] text-slate-500 dark:text-slate-500">
+                                SKU {prod.sku}
+                              </span>
+                            ) : null}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap text-right tabular-nums text-slate-800 dark:text-slate-200">
+                            {mov.cantidadAnterior}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap text-right tabular-nums font-medium text-cyan-600 dark:text-cyan-400">
+                            {mov.cantidadNueva}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap text-xs text-slate-700 dark:text-slate-300">
+                            {formatInAppTimezone(when, {
+                              dateStyle: 'short',
+                              timeStyle: 'short',
+                            })}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap text-xs text-slate-600 dark:text-slate-400">
+                            {tipoMovimientoLabel(mov.tipo)}
+                          </TableCell>
+                          <TableCell
+                            className="max-w-[14rem] text-xs text-slate-700 dark:text-slate-300"
+                            title={motivo !== '—' ? motivo : undefined}
+                          >
+                            <span className="line-clamp-2">{motivo}</span>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="shrink-0 flex-col gap-2 border-t border-slate-200 px-4 py-3 dark:border-slate-800/80 sm:flex-row sm:items-center sm:justify-between">
+            {isAdmin ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full border-red-500/40 text-red-700 hover:bg-red-500/10 dark:border-red-500/35 dark:text-red-300 dark:hover:bg-red-950/40 sm:w-auto"
+                disabled={inventoryMovementsLoading || inventoryMovements.length === 0}
+                onClick={() => setClearMovementsConfirmOpen(true)}
+              >
+                Vaciar historial
+              </Button>
+            ) : (
+              <span className="hidden sm:block" />
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full border-slate-300 dark:border-slate-600 sm:ml-auto sm:w-auto"
+              onClick={() => setMovementsHistoryOpen(false)}
+            >
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={clearMovementsConfirmOpen} onOpenChange={setClearMovementsConfirmOpen}>
+        <AlertDialogContent className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Vaciar historial de movimientos</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-600 dark:text-slate-400">
+              Se eliminarán todos los registros de movimientos de inventario de esta tienda (o de la base
+              local). No se puede deshacer. El stock actual de los productos no cambia.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-800">
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={clearingMovements}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleClearInventoryMovements();
+              }}
+              className="bg-red-600 text-white hover:bg-red-500"
+            >
+              {clearingMovements ? 'Borrando…' : 'Vaciar todo'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

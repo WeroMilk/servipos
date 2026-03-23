@@ -10,4 +10,5 @@ export { useInvoices, useInvoiceDetails, useNextFolio, useCFDIGenerator } from '
 export { useFiscalConfig } from './useConfig';
 export { useEffectiveSucursalId } from './useEffectiveSucursalId';
 export { usePendingIncomingTransfers, useOutgoingPendingTransferIds } from './useStoreTransfers';
+export { useInventoryMovementsHistory } from './useInventoryMovementsHistory';
 export { useDesktopWheelScrollEnhancer } from './useDesktopWheelScrollEnhancer';

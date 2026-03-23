@@ -8,6 +8,7 @@ import {
   convertQuotationToSale,
   generateQuotationFolio,
   deleteQuotation,
+  revertQuotationToPending,
 } from '@/db/database';
 import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
@@ -96,6 +97,17 @@ export function useQuotations() {
     }
   };
 
+  const revertToPending = async (quotationId: string) => {
+    try {
+      await revertQuotationToPending(quotationId);
+      await loadQuotations();
+    } catch (err) {
+      reportHookFailure('hook:useQuotations', 'Revertir cotización a pendiente', err);
+      setError('Error al actualizar cotización');
+      throw err;
+    }
+  };
+
   return {
     quotations,
     loading,
@@ -104,6 +116,7 @@ export function useQuotations() {
     addQuotation,
     editQuotation,
     convertToSale,
+    revertToPending,
     removeQuotation,
   };
 }

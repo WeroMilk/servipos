@@ -471,6 +471,14 @@ export async function deleteProduct(id: string): Promise<void> {
 
 // Stock local: ver `dexieStock.updateStockDexie`; ventas usan `updateStockUnified` (Firestore si hay sucursal).
 
+export async function getInventoryMovementsList(limit = 500): Promise<InventoryMovement[]> {
+  return db.inventoryMovements.orderBy('createdAt').reverse().limit(limit).toArray();
+}
+
+export async function clearAllInventoryMovementsLocal(): Promise<void> {
+  await db.inventoryMovements.clear();
+}
+
 // ============================================
 // FUNCIONES DE VENTAS
 // ============================================
@@ -728,6 +736,22 @@ export async function convertQuotationToSale(
   });
 
   return saleId;
+}
+
+/** Deshace "Ya cobrada": vuelve a pendiente y quita el vínculo a la venta (la venta no se elimina). */
+export async function revertQuotationToPending(quotationId: string): Promise<void> {
+  const q = await db.quotations.get(quotationId);
+  if (!q) throw new Error('Cotización no encontrada');
+  if (q.estado !== 'convertida') throw new Error('Solo las cotizaciones ya cobradas pueden volver a pendiente');
+
+  const next: Quotation = {
+    ...q,
+    estado: 'pendiente',
+    updatedAt: new Date(),
+    syncStatus: 'pending',
+  };
+  Reflect.deleteProperty(next as unknown as Record<string, unknown>, 'ventaId');
+  await db.quotations.put(next);
 }
 
 // ============================================

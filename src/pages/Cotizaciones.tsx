@@ -10,6 +10,7 @@ import {
   FileText,
   Printer,
   Trash2,
+  RotateCcw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +23,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   Table,
   TableBody,
@@ -125,7 +136,8 @@ function printQuotationLetter(q: Quotation, fallbackSucursalId?: string | null):
 }
 
 export function Cotizaciones() {
-  const { quotations, loading, addQuotation, convertToSale, removeQuotation } = useQuotations();
+  const { quotations, loading, addQuotation, convertToSale, revertToPending, removeQuotation } =
+    useQuotations();
   const { products } = useProducts();
   const { clients } = useClients();
   const { effectiveSucursalId } = useEffectiveSucursalId();
@@ -151,6 +163,9 @@ export function Cotizaciones() {
   const [vigenciaDias, setVigenciaDias] = useState(7);
   const [vigenciaFocus, setVigenciaFocus] = useState(false);
   const [notas, setNotas] = useState('');
+  const [revertConfirmOpen, setRevertConfirmOpen] = useState(false);
+  const [revertTarget, setRevertTarget] = useState<Quotation | null>(null);
+  const [reverting, setReverting] = useState(false);
 
   const filteredProducts = useMemo(() => {
     const q = productSearchQuery.trim().toLowerCase();
@@ -288,6 +303,30 @@ export function Cotizaciones() {
     }
   };
 
+  const openRevertConfirm = (q: Quotation) => {
+    setRevertTarget(q);
+    setRevertConfirmOpen(true);
+  };
+
+  const handleRevertToPending = async () => {
+    if (!revertTarget) return;
+    const id = revertTarget.id;
+    setReverting(true);
+    try {
+      await revertToPending(id);
+      addToast({ type: 'success', message: 'Cotización vuelta a pendiente' });
+      setRevertConfirmOpen(false);
+      setRevertTarget(null);
+      setSelectedQuotation((prev) =>
+        prev && prev.id === id ? { ...prev, estado: 'pendiente', ventaId: undefined } : prev
+      );
+    } catch (error: unknown) {
+      addToast({ type: 'error', message: error instanceof Error ? error.message : 'Error' });
+    } finally {
+      setReverting(false);
+    }
+  };
+
   const resetForm = () => {
     setQuotationItems([]);
     setSelectedClient('');
@@ -381,19 +420,37 @@ export function Cotizaciones() {
                         </div>
                         <p className="mt-2 text-center text-xs text-cyan-500/80">Ver detalle…</p>
                       </button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9 shrink-0 self-start text-slate-600 dark:text-slate-500 hover:text-red-400"
-                        aria-label="Eliminar cotización"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void handleDeleteQuotation(q);
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex shrink-0 flex-col gap-1 self-start">
+                        {q.estado === 'convertida' ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 text-slate-600 dark:text-slate-500 hover:text-amber-400"
+                            title="Volver a pendiente"
+                            aria-label="Volver cotización a pendiente"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openRevertConfirm(q);
+                            }}
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                          </Button>
+                        ) : null}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 w-9 text-slate-600 dark:text-slate-500 hover:text-red-400"
+                          aria-label="Eliminar cotización"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleDeleteQuotation(q);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   ))
                 )}
@@ -469,6 +526,15 @@ export function Cotizaciones() {
                                   >
                                     <ShoppingCart className="mr-2 h-4 w-4" />
                                     Convertir a Venta
+                                  </DropdownMenuItem>
+                                )}
+                                {quotation.estado === 'convertida' && (
+                                  <DropdownMenuItem
+                                    onClick={() => openRevertConfirm(quotation)}
+                                    className="text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 hover:text-amber-800 dark:hover:text-amber-200"
+                                  >
+                                    <RotateCcw className="mr-2 h-4 w-4" />
+                                    Volver a pendiente
                                   </DropdownMenuItem>
                                 )}
                                 <DropdownMenuItem
@@ -799,7 +865,7 @@ export function Cotizaciones() {
                 </div>
               </div>
 
-              <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                 <Button
                   type="button"
                   variant="outline"
@@ -818,11 +884,56 @@ export function Cotizaciones() {
                   <Send className="mr-2 h-4 w-4" />
                   Enviar por email
                 </Button>
+                {selectedQuotation.estado === 'convertida' ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-amber-500/40 text-amber-800 hover:bg-amber-500/10 dark:border-amber-500/35 dark:text-amber-200 dark:hover:bg-amber-950/40"
+                    onClick={() => openRevertConfirm(selectedQuotation)}
+                  >
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    Volver a pendiente
+                  </Button>
+                ) : null}
               </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={revertConfirmOpen}
+        onOpenChange={(open) => {
+          setRevertConfirmOpen(open);
+          if (!open) setRevertTarget(null);
+        }}
+      >
+        <AlertDialogContent className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Volver a pendiente?</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-600 dark:text-slate-400">
+              La cotización {revertTarget?.folio ? `«${revertTarget.folio}» ` : ''}dejará de aparecer como ya cobrada.
+              La venta que se generó al cobrarla sigue en el historial de ventas; si fue un error, revísala o cancélala
+              allí aparte.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-800">
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={reverting}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleRevertToPending();
+              }}
+              className="bg-amber-600 text-white hover:bg-amber-500"
+            >
+              {reverting ? 'Guardando…' : 'Volver a pendiente'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

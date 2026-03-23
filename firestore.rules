@@ -110,7 +110,10 @@ service cloud.firestore {
         allow read, write: if canAccessSucursal(sucursalId);
       }
       match /inventoryMovements/{movId} {
-        allow read, write: if canAccessSucursal(sucursalId);
+        allow read: if canAccessSucursal(sucursalId);
+        allow create: if canAccessSucursal(sucursalId);
+        allow update: if canAccessSucursal(sucursalId);
+        allow delete: if isAdmin() && canAccessSucursal(sucursalId);
       }
       match /counters/{counterId} {
         allow read, write: if canAccessSucursal(sucursalId);
