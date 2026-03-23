@@ -367,8 +367,3 @@ export async function printThermalTicketFromSale(sale: Sale): Promise<void> {
           : undefined,
   });
 }
-</think>
-
-
-<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>
-Read
