@@ -55,7 +55,9 @@ export const useSyncStore = create<SyncStore>()(
           reportAppEvent({
             kind: 'success',
             source: 'sync',
-            title: 'Estado de cola local actualizado',
+            title: 'Contador de cola local actualizado',
+            detail:
+              'Suma de filas en IndexedDB con syncStatus «pending». No implica subida automática a Firebase.',
           });
         } catch (error) {
           console.error('Error en sincronización:', error);

@@ -1,5 +1,5 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, Moon, Sun, User, Zap, Power, PowerOff } from 'lucide-react';
+import { LogOut, Moon, Sun, User, Zap, Power, PowerOff, ClipboardList } from 'lucide-react';
 import { useAuthStore, useSyncStore, useAppStore, getResolvedIsDark } from '@/stores';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,12 +16,14 @@ import { AppEventsNotificationPanel } from '@/components/ui-custom/AppEventsNoti
 import { BRAND_LOGO_URL } from '@/lib/branding';
 import { ROLE_LABELS } from '@/lib/userPermissions';
 import { useCajaPosHeaderStore } from '@/stores/cajaPosHeaderStore';
+import { useVentasAbiertasPosHeaderStore } from '@/stores/ventasAbiertasPosHeaderStore';
 
 export function Header() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout, hasPermission } = useAuthStore();
   const cajaPosHeader = useCajaPosHeaderStore();
+  const ventasAbiertasHeader = useVentasAbiertasPosHeaderStore();
   const { isOnline, isSyncing, pendingCount, sync } = useSyncStore();
   const toggleTheme = useAppStore((s) => s.toggleTheme);
   const resolvedDark = useAppStore((s) => getResolvedIsDark(s));
@@ -56,38 +58,70 @@ export function Header() {
         <p className="hidden text-xs font-semibold tracking-[0.18em] text-slate-500 xl:block xl:text-sm">
           MENÚ
         </p>
-        {location.pathname === '/pos' &&
-        cajaPosHeader.registered &&
-        hasPermission('ventas:crear') ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            disabled={cajaPosHeader.loading}
-            title={
-              cajaPosHeader.loading
-                ? 'Sincronizando caja…'
-                : cajaPosHeader.cajaAbierta
-                  ? 'Cerrar caja (arqueo final)'
-                  : 'Abrir caja'
-            }
-            aria-label={
-              cajaPosHeader.cajaAbierta ? 'Cerrar caja' : 'Abrir caja'
-            }
-            onClick={() => cajaPosHeader.toggleCaja()}
-            className={cn(
-              'ml-1 hidden h-9 w-9 shrink-0 rounded-xl border-slate-300 dark:border-slate-600 md:flex',
-              cajaPosHeader.cajaAbierta
-                ? 'border-emerald-500/50 text-emerald-700 hover:bg-emerald-500/10 dark:border-emerald-500/45 dark:text-emerald-300'
-                : 'text-slate-600 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800'
-            )}
-          >
-            {cajaPosHeader.cajaAbierta ? (
-              <PowerOff className="h-4 w-4" />
-            ) : (
-              <Power className="h-4 w-4" />
-            )}
-          </Button>
+        {location.pathname === '/pos' && hasPermission('ventas:crear') ? (
+          <>
+            {cajaPosHeader.registered ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                disabled={cajaPosHeader.loading}
+                title={
+                  cajaPosHeader.loading
+                    ? 'Sincronizando caja…'
+                    : cajaPosHeader.cajaAbierta
+                      ? 'Cerrar caja (arqueo final)'
+                      : 'Abrir caja'
+                }
+                aria-label={
+                  cajaPosHeader.cajaAbierta ? 'Cerrar caja' : 'Abrir caja'
+                }
+                onClick={() => cajaPosHeader.toggleCaja()}
+                className={cn(
+                  'ml-1 hidden h-9 w-9 shrink-0 rounded-xl border-slate-300 dark:border-slate-600 md:flex',
+                  cajaPosHeader.cajaAbierta
+                    ? 'border-emerald-500/50 text-emerald-700 hover:bg-emerald-500/10 dark:border-emerald-500/45 dark:text-emerald-300'
+                    : 'text-slate-600 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800'
+                )}
+              >
+                {cajaPosHeader.cajaAbierta ? (
+                  <PowerOff className="h-4 w-4" />
+                ) : (
+                  <Power className="h-4 w-4" />
+                )}
+              </Button>
+            ) : null}
+            {ventasAbiertasHeader.registered ? (
+              <div className="relative ml-1 shrink-0 md:ml-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  title="Ventas abiertas (pendiente de pago)"
+                  aria-label={
+                    ventasAbiertasHeader.count > 0
+                      ? `Ventas abiertas: ${ventasAbiertasHeader.count}`
+                      : 'Ventas abiertas'
+                  }
+                  onClick={() => ventasAbiertasHeader.openVentasAbiertasDialog()}
+                  className="relative h-9 w-9 rounded-xl border-slate-300 dark:border-slate-600 text-amber-800 hover:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/15"
+                >
+                  <ClipboardList className="h-4 w-4" />
+                </Button>
+                {ventasAbiertasHeader.count > 0 ? (
+                  <span
+                    className={cn(
+                      'pointer-events-none absolute -right-1 -top-1 flex min-h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none text-white shadow-sm ring-2 ring-white dark:ring-slate-950',
+                      'bg-amber-500 dark:bg-amber-600'
+                    )}
+                    aria-hidden
+                  >
+                    {ventasAbiertasHeader.count > 99 ? '99+' : ventasAbiertasHeader.count}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+          </>
         ) : null}
       </div>
 
@@ -97,6 +131,13 @@ export function Header() {
           type="button"
           onClick={() => void sync()}
           disabled={!isOnline || isSyncing}
+          title={
+            isSyncing
+              ? 'Actualizando contador…'
+              : pendingCount > 0
+                ? `${pendingCount} fila(s) en esta computadora (IndexedDB) con sync «pendiente»: productos, ventas, cotizaciones, facturas, clientes o movimientos. Pulse para recalcular. No es un error de red por sí solo; con sucursal en la nube lo habitual es que ventas/clientes ya estén en Firestore. El contador puede no bajar si esos registros locales nunca se marcan como sincronizados.`
+                : 'Ningún pendiente en la cola local. Pulse para comprobar de nuevo.'
+          }
           className={cn(
             'flex shrink-0 items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-all duration-200 sm:px-3',
             isSyncing
@@ -108,7 +149,7 @@ export function Header() {
         >
           <Zap className={cn('h-4 w-4', isSyncing && 'animate-pulse')} />
           <span className="hidden sm:inline">
-            {isSyncing ? 'Sincronizando...' : pendingCount > 0 ? `${pendingCount} pendientes` : 'Sincronizado'}
+            {isSyncing ? 'Comprobando…' : pendingCount > 0 ? `${pendingCount} pendientes` : 'Sincronizado'}
           </span>
         </button>
 

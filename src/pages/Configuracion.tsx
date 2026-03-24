@@ -916,7 +916,7 @@ export function Configuracion() {
             className="mt-0 flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
           >
             <Card className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
-              <CardHeader className="shrink-0 px-3 py-2 sm:px-4">
+              <CardHeader className="shrink-0 space-y-1 px-3 py-2 sm:px-4">
                 <CardTitle className="text-sm text-slate-900 dark:text-slate-100 sm:text-base">
                   Categorías y proveedores (inventario)
                 </CardTitle>
@@ -925,35 +925,43 @@ export function Configuracion() {
                   Valores iniciales orientados a refaccionaria de electrodomésticos; puede adaptarlos aquí.
                 </p>
               </CardHeader>
-              <CardContent className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3 pt-0 sm:p-4 sm:pt-0">
-                <div className="space-y-2">
-                  <Label className="text-xs text-slate-600 dark:text-slate-400">Categorías</Label>
-                  <textarea
-                    value={draftCategorias}
-                    onChange={(e) => setDraftCategorias(e.target.value)}
-                    rows={12}
-                    className="min-h-[10rem] w-full rounded-md border border-slate-300 bg-slate-200/80 p-2 font-mono text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-100"
-                    spellCheck={false}
-                  />
+              <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3 pt-0 sm:p-4 sm:pt-0">
+                <div className="flex min-h-0 flex-1 flex-col gap-4 xl:flex-row xl:gap-4">
+                  <div className="flex min-h-[12rem] flex-1 flex-col gap-2 xl:min-h-0">
+                    <Label className="shrink-0 text-xs text-slate-600 dark:text-slate-400">
+                      Categorías
+                    </Label>
+                    <textarea
+                      value={draftCategorias}
+                      onChange={(e) => setDraftCategorias(e.target.value)}
+                      rows={4}
+                      className="min-h-0 w-full flex-1 resize-none overflow-y-auto overscroll-y-contain rounded-md border border-slate-300 bg-slate-200/80 p-2 font-mono text-sm text-slate-900 [-webkit-overflow-scrolling:touch] dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-100"
+                      spellCheck={false}
+                    />
+                  </div>
+                  <div className="flex min-h-[10rem] flex-1 flex-col gap-2 xl:min-h-0">
+                    <Label className="shrink-0 text-xs text-slate-600 dark:text-slate-400">
+                      Proveedores
+                    </Label>
+                    <textarea
+                      value={draftProveedores}
+                      onChange={(e) => setDraftProveedores(e.target.value)}
+                      rows={4}
+                      className="min-h-0 w-full flex-1 resize-none overflow-y-auto overscroll-y-contain rounded-md border border-slate-300 bg-slate-200/80 p-2 font-mono text-sm text-slate-900 [-webkit-overflow-scrolling:touch] dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-100"
+                      spellCheck={false}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-xs text-slate-600 dark:text-slate-400">Proveedores</Label>
-                  <textarea
-                    value={draftProveedores}
-                    onChange={(e) => setDraftProveedores(e.target.value)}
-                    rows={8}
-                    className="min-h-[8rem] w-full rounded-md border border-slate-300 bg-slate-200/80 p-2 font-mono text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-100"
-                    spellCheck={false}
-                  />
+                <div className="flex shrink-0 justify-end border-t border-slate-200/90 pt-3 dark:border-slate-800/80 xl:pt-2">
+                  <Button
+                    type="button"
+                    onClick={handleSaveInventarioListas}
+                    className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+                  >
+                    <Save className="mr-2 h-4 w-4" />
+                    Guardar listas
+                  </Button>
                 </div>
-                <Button
-                  type="button"
-                  onClick={handleSaveInventarioListas}
-                  className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
-                >
-                  <Save className="mr-2 h-4 w-4" />
-                  Guardar listas
-                </Button>
               </CardContent>
             </Card>
           </TabsContent>

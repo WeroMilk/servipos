@@ -112,6 +112,10 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
 
   const lineasPagoPreview = useMemo(() => lineasMediosPagoSesion(ventasSesion), [ventasSesion]);
   const gruposPagoPreview = useMemo(() => resumenGruposMedioPagoCierre(ventasSesion), [ventasSesion]);
+  const lineasTarjetaPreview = useMemo(
+    () => lineasPagoPreview.filter((r) => r.clave === '04' || r.clave === '28' || r.clave === '29'),
+    [lineasPagoPreview]
+  );
 
   useImperativeHandle(
     ref,
@@ -134,6 +138,53 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
   const userId = user?.id ?? 'system';
   const userNombre =
     user?.name?.trim() || user?.username?.trim() || user?.email?.trim() || 'Usuario';
+
+  const conciliacionDestacada =
+    activa && previewCierre ? (
+      <div className="space-y-3">
+        <div className="rounded-xl border-2 border-emerald-500/50 bg-emerald-500/[0.12] p-4 dark:border-emerald-500/40 dark:bg-emerald-950/40">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-800 dark:text-emerald-300">
+            Efectivo que debe haber en caja
+          </p>
+          <p className="mt-1 text-xs leading-snug text-emerald-900/90 dark:text-emerald-200/85">
+            Suma del fondo inicial más las ventas cobradas en efectivo, menos el cambio que entregó a los clientes.
+          </p>
+          <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-emerald-950 dark:text-emerald-50">
+            {formatMoney(previewCierre.esperadoEnCaja)}
+          </p>
+          <p className="mt-2 text-xs tabular-nums text-emerald-900/80 dark:text-emerald-300/90">
+            {formatMoney(activa.fondoInicial)} (fondo) + {formatMoney(previewCierre.efectivoCobrado)} (cobros
+            efectivo) − {formatMoney(previewCierre.cambioEntregado)} (cambio)
+          </p>
+        </div>
+        <div className="rounded-xl border-2 border-cyan-500/50 bg-cyan-500/[0.12] p-4 dark:border-cyan-500/40 dark:bg-cyan-950/40">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-cyan-900 dark:text-cyan-300">
+            Tarjetas — total para cuadrar
+          </p>
+          <p className="mt-1 text-xs leading-snug text-cyan-900/90 dark:text-cyan-200/85">
+            Total de cobros con tarjeta en esta sesión en el POS. Cuadre este importe con la suma de comprobantes
+            (vouchers) o con el corte que reporte su terminal bancaria.
+          </p>
+          <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-cyan-950 dark:text-cyan-50">
+            {formatMoney(gruposPagoPreview.tarjetas)}
+          </p>
+          {lineasTarjetaPreview.length > 0 ? (
+            <ul className="mt-3 space-y-1 border-t border-cyan-800/25 pt-2 text-xs text-cyan-950/95 dark:border-cyan-400/25 dark:text-cyan-100/90">
+              {lineasTarjetaPreview.map((row) => (
+                <li key={row.clave} className="flex justify-between gap-2">
+                  <span className="min-w-0 truncate">{row.label}</span>
+                  <span className="shrink-0 tabular-nums font-medium">{formatMoney(row.monto)}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-2 text-xs text-cyan-900/75 dark:text-cyan-300/75">
+              Sin cobros con tarjeta en esta sesión.
+            </p>
+          )}
+        </div>
+      </div>
+    ) : null;
 
   const handleOpen = async () => {
     const fondo = parseFloat(fondoInput.replace(',', '.')) || 0;
@@ -372,50 +423,30 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
           <DialogHeader>
             <DialogTitle>Cerrar caja</DialogTitle>
             <DialogDescription className="text-left text-slate-600 dark:text-slate-400">
-              Compare el efectivo contado con el esperado según el sistema. Al confirmar se genera un comprobante
-              para impresora térmica.
+              Arriba: efectivo que debería haber en cajón (fondo + ventas en efectivo − cambio) y total tarjetas
+              para cuadrar con terminal o vouchers. Compare el conteo físico con el esperado en efectivo. Al
+              confirmar se imprime el comprobante.
             </DialogDescription>
           </DialogHeader>
           {activa && previewCierre ? (
             <div className="space-y-3 py-2 text-sm">
-              <div className="rounded-lg border border-slate-200 bg-slate-200/60 p-3 dark:border-slate-700 dark:bg-slate-800/60">
-                <p className="font-medium text-slate-800 dark:text-slate-200">Resumen de la sesión</p>
-                <ul className="mt-2 space-y-1 text-slate-600 dark:text-slate-400">
-                  <li>Fondo inicial: {formatMoney(activa.fondoInicial)}</li>
-                  <li>Efectivo cobrado (pagos 01): {formatMoney(previewCierre.efectivoCobrado)}</li>
-                  <li>Cambio entregado: {formatMoney(previewCierre.cambioEntregado)}</li>
-                  <li className="font-semibold text-slate-800 dark:text-slate-200">
-                    Esperado en caja: {formatMoney(previewCierre.esperadoEnCaja)}
-                  </li>
-                  <li>Tickets completados: {previewCierre.tickets}</li>
-                  <li>Total ventas (completadas): {formatMoney(previewCierre.total)}</li>
-                </ul>
-              </div>
+              {conciliacionDestacada}
 
               <div className="rounded-lg border border-slate-200 bg-slate-200/40 p-3 dark:border-slate-700 dark:bg-slate-800/40">
-                <p className="font-medium text-slate-800 dark:text-slate-200">Ventas por medio de pago</p>
-                <ul className="mt-2 grid gap-1.5 text-slate-700 dark:text-slate-300 sm:grid-cols-3">
-                  <li className="rounded-md bg-slate-100/90 px-2 py-1.5 dark:bg-slate-900/50">
-                    <span className="block text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-500">
-                      Efectivo
-                    </span>
-                    <span className="font-semibold tabular-nums">{formatMoney(gruposPagoPreview.efectivoCobros)}</span>
-                  </li>
-                  <li className="rounded-md bg-slate-100/90 px-2 py-1.5 dark:bg-slate-900/50">
-                    <span className="block text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-500">
-                      Tarjetas
-                    </span>
-                    <span className="font-semibold tabular-nums">{formatMoney(gruposPagoPreview.tarjetas)}</span>
-                  </li>
-                  <li className="rounded-md bg-slate-100/90 px-2 py-1.5 dark:bg-slate-900/50">
-                    <span className="block text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-500">
-                      Otros medios
-                    </span>
-                    <span className="font-semibold tabular-nums">{formatMoney(gruposPagoPreview.otros)}</span>
-                  </li>
-                </ul>
+                <p className="font-medium text-slate-800 dark:text-slate-200">
+                  Desglose por forma de pago (sesión)
+                </p>
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-500">
+                  Tickets completados: {previewCierre.tickets} · Total ventas (completadas):{' '}
+                  {formatMoney(previewCierre.total)}
+                </p>
+                {gruposPagoPreview.otros > 0 ? (
+                  <p className="mt-2 text-xs font-medium text-slate-700 dark:text-slate-300">
+                    Otros medios (transferencia, etc.): {formatMoney(gruposPagoPreview.otros)}
+                  </p>
+                ) : null}
                 {lineasPagoPreview.length > 0 ? (
-                  <ul className="mt-3 space-y-1 border-t border-slate-200 pt-2 text-xs text-slate-600 dark:border-slate-600 dark:text-slate-400">
+                  <ul className="mt-2 space-y-1 border-t border-slate-200 pt-2 text-xs text-slate-600 dark:border-slate-600 dark:text-slate-400">
                     {lineasPagoPreview.map((row) => (
                       <li key={row.clave} className="flex justify-between gap-2">
                         <span className="min-w-0 truncate">{row.label}</span>
@@ -467,49 +498,30 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
           <DialogHeader>
             <DialogTitle>Arqueo previo</DialogTitle>
             <DialogDescription className="text-left text-slate-600 dark:text-slate-400">
-              Revise totales y medios de pago antes del cierre definitivo. Al imprimir se genera el arqueo de la
-              sesión y el reporte de ventas del día calendario.
+              Efectivo esperado en cajón (fondo + ventas en efectivo − cambio) y total tarjetas para cuadrar con
+              terminal o vouchers. Al imprimir se genera el arqueo de la sesión y el reporte de ventas del día
+              calendario.
             </DialogDescription>
           </DialogHeader>
           {activa && previewCierre ? (
             <div className="space-y-3 py-2 text-sm">
-              <div className="rounded-lg border border-slate-200 bg-slate-200/60 p-3 dark:border-slate-700 dark:bg-slate-800/60">
-                <p className="font-medium text-slate-800 dark:text-slate-200">Resumen de la sesión</p>
-                <ul className="mt-2 space-y-1 text-slate-600 dark:text-slate-400">
-                  <li>Fondo inicial: {formatMoney(activa.fondoInicial)}</li>
-                  <li>Efectivo cobrado (pagos 01): {formatMoney(previewCierre.efectivoCobrado)}</li>
-                  <li>Cambio entregado: {formatMoney(previewCierre.cambioEntregado)}</li>
-                  <li className="font-semibold text-slate-800 dark:text-slate-200">
-                    Esperado en caja: {formatMoney(previewCierre.esperadoEnCaja)}
-                  </li>
-                  <li>Tickets completados: {previewCierre.tickets}</li>
-                  <li>Total ventas (completadas): {formatMoney(previewCierre.total)}</li>
-                </ul>
-              </div>
+              {conciliacionDestacada}
+
               <div className="rounded-lg border border-slate-200 bg-slate-200/40 p-3 dark:border-slate-700 dark:bg-slate-800/40">
-                <p className="font-medium text-slate-800 dark:text-slate-200">Ventas por medio de pago</p>
-                <ul className="mt-2 grid gap-1.5 text-slate-700 dark:text-slate-300 sm:grid-cols-3">
-                  <li className="rounded-md bg-slate-100/90 px-2 py-1.5 dark:bg-slate-900/50">
-                    <span className="block text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-500">
-                      Efectivo
-                    </span>
-                    <span className="font-semibold tabular-nums">{formatMoney(gruposPagoPreview.efectivoCobros)}</span>
-                  </li>
-                  <li className="rounded-md bg-slate-100/90 px-2 py-1.5 dark:bg-slate-900/50">
-                    <span className="block text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-500">
-                      Tarjetas
-                    </span>
-                    <span className="font-semibold tabular-nums">{formatMoney(gruposPagoPreview.tarjetas)}</span>
-                  </li>
-                  <li className="rounded-md bg-slate-100/90 px-2 py-1.5 dark:bg-slate-900/50">
-                    <span className="block text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-500">
-                      Otros medios
-                    </span>
-                    <span className="font-semibold tabular-nums">{formatMoney(gruposPagoPreview.otros)}</span>
-                  </li>
-                </ul>
+                <p className="font-medium text-slate-800 dark:text-slate-200">
+                  Desglose por forma de pago (sesión)
+                </p>
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-500">
+                  Tickets completados: {previewCierre.tickets} · Total ventas (completadas):{' '}
+                  {formatMoney(previewCierre.total)}
+                </p>
+                {gruposPagoPreview.otros > 0 ? (
+                  <p className="mt-2 text-xs font-medium text-slate-700 dark:text-slate-300">
+                    Otros medios (transferencia, etc.): {formatMoney(gruposPagoPreview.otros)}
+                  </p>
+                ) : null}
                 {lineasPagoPreview.length > 0 ? (
-                  <ul className="mt-3 space-y-1 border-t border-slate-200 pt-2 text-xs text-slate-600 dark:border-slate-600 dark:text-slate-400">
+                  <ul className="mt-2 space-y-1 border-t border-slate-200 pt-2 text-xs text-slate-600 dark:border-slate-600 dark:text-slate-400">
                     {lineasPagoPreview.map((row) => (
                       <li key={row.clave} className="flex justify-between gap-2">
                         <span className="min-w-0 truncate">{row.label}</span>

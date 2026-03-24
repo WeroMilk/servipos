@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { FirebaseError } from 'firebase/app';
 import type { Client } from '@/types';
 import {
   db,
@@ -126,6 +127,11 @@ export function useClients() {
       return id;
     } catch (err) {
       setError('Error al crear cliente');
+      if (err instanceof FirebaseError && err.code === 'permission-denied') {
+        throw new Error(
+          'No tiene permiso para guardar en Firebase. Revise: (1) que exista el documento users/{su uid de Auth} en Firestore con role «admin» o sucursalId igual a esta tienda; (2) que haya desplegado las reglas recientes: firebase deploy --only firestore:rules'
+        );
+      }
       throw err;
     }
   };
@@ -141,6 +147,11 @@ export function useClients() {
     } catch (err) {
       reportHookFailure('hook:useClients', 'Actualizar cliente', err);
       setError('Error al actualizar cliente');
+      if (err instanceof FirebaseError && err.code === 'permission-denied') {
+        throw new Error(
+          'No tiene permiso para actualizar en Firebase. Compruebe users/{uid} y sucursalId, y despliegue firestore:rules.'
+        );
+      }
       throw err;
     }
   };

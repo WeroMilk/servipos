@@ -14,8 +14,9 @@ function timestampToDate(value: unknown): Date {
 }
 
 function parseRole(value: unknown): UserRole {
-  if (value === 'admin') return 'admin';
-  if (value === 'gerente') return 'gerente';
+  const s = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  if (s === 'admin') return 'admin';
+  if (s === 'gerente') return 'gerente';
   return 'cashier';
 }
 

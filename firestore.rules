@@ -22,8 +22,15 @@ service cloud.firestore {
       return get(userPath()).data;
     }
 
+    // Incluye mayúsculas: si en users/{uid} el role quedó como "Admin", antes fallaba la comparación estricta.
     function isAdmin() {
-      return userExists() && userData().role == 'admin';
+      return userExists()
+        && userData().role is string
+        && (
+          userData().role == 'admin'
+          || userData().role == 'Admin'
+          || userData().role == 'ADMIN'
+        );
     }
 
     function userSucursalId() {

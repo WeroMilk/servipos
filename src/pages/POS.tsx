@@ -15,6 +15,7 @@ import {
   Wallet,
   Clock,
   ClipboardCheck,
+  ClipboardList,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,6 +47,10 @@ import { Label } from '@/components/ui/label';
 import { useShallow } from 'zustand/react/shallow';
 import { useCartStore, useAppStore, useAuthStore } from '@/stores';
 import { setCajaPosHeaderBridge, clearCajaPosHeaderBridge } from '@/stores/cajaPosHeaderStore';
+import {
+  setVentasAbiertasPosHeaderBridge,
+  clearVentasAbiertasPosHeaderBridge,
+} from '@/stores/ventasAbiertasPosHeaderStore';
 import { useProductSearch, useSales, useClients, useEffectiveSucursalId, useCajaSesion } from '@/hooks';
 import { CajaPosToolbar, type CajaPosToolbarHandle } from '@/components/caja/CajaPosToolbar';
 import type { Product, FormaPago, Payment, Sale, Sucursal, CartItem } from '@/types';
@@ -248,6 +253,20 @@ export function POS() {
     [salesCatalog]
   );
 
+  const [ventasAbiertasDialogOpen, setVentasAbiertasDialogOpen] = useState(false);
+
+  useEffect(() => {
+    if (!hasPermission('ventas:crear')) {
+      clearVentasAbiertasPosHeaderBridge();
+      return;
+    }
+    setVentasAbiertasPosHeaderBridge({
+      count: ventasAbiertas.length,
+      onOpen: () => setVentasAbiertasDialogOpen(true),
+    });
+    return () => clearVentasAbiertasPosHeaderBridge();
+  }, [hasPermission, ventasAbiertas]);
+
   const [openSaleResume, setOpenSaleResume] = useState<{ sale: Sale } | null>(null);
   const [dejarAbiertaBusy, setDejarAbiertaBusy] = useState(false);
   const [resumeOpenBusy, setResumeOpenBusy] = useState(false);
@@ -327,6 +346,10 @@ export function POS() {
   const [montoRecibidoInput, setMontoRecibidoInput] = useState('');
   /** Últimos 4 dígitos del voucher para el siguiente abono con tarjeta (04/28). */
   const [tarjetaUltimos4, setTarjetaUltimos4] = useState('');
+  /** En parcialidades (PPD), medio del próximo abono (mezcla efectivo + tarjetas sin cambiar el selector lateral). */
+  const [ppdAbonoFormaPago, setPpdAbonoFormaPago] = useState('01');
+  /** Se incrementa al abrir el diálogo de cobro para inicializar `ppdAbonoFormaPago` sin pisar cambios al mover el selector lateral. */
+  const [checkoutPaymentKey, setCheckoutPaymentKey] = useState(0);
   const [processingSale, setProcessingSale] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>('cart');
   const [globalDiscFocus, setGlobalDiscFocus] = useState(false);
@@ -483,6 +506,7 @@ export function POS() {
   const openCheckoutDialog = () => {
     setCheckoutPhase('payment');
     setCheckoutOpen(true);
+    setCheckoutPaymentKey((k) => k + 1);
   };
 
   useEffect(() => {
@@ -492,8 +516,21 @@ export function POS() {
     }
   }, [checkoutOpen, checkoutPhase]);
 
+  const formaPagoRef = useRef(formaPago);
+  formaPagoRef.current = formaPago;
+
+  useEffect(() => {
+    if (!checkoutOpen || checkoutPhase !== 'payment' || metodoPago !== 'PPD') return;
+    const fp = formaPagoRef.current;
+    const ok = FORMAS_PAGO_UI.some((f) => f.clave === fp);
+    setPpdAbonoFormaPago(ok ? fp : '01');
+  }, [checkoutOpen, checkoutPhase, metodoPago, checkoutPaymentKey]);
+
   const esFormaTarjeta = (fp: string) => fp === '04' || fp === '28';
   const esFormaEfectivo = (fp: string) => fp === '01';
+
+  /** Forma aplicada al siguiente abono manual (en PPD la elige el diálogo). */
+  const formaPagoAbono = metodoPago === 'PPD' ? ppdAbonoFormaPago : formaPago;
 
   /** Tarjeta en una sola exhibición: solo voucher (4 dígitos), sin capturar monto ni billetes. */
   const cobroTarjetaPue =
@@ -521,16 +558,16 @@ export function POS() {
       addToast({ type: 'warning', message: 'Ingrese un monto mayor a cero' });
       return;
     }
-    if (esFormaTarjeta(formaPago)) {
+    if (esFormaTarjeta(formaPagoAbono)) {
       const d4 = digitos4TarjetaPendiente();
       if (d4.length !== 4) {
         toastTarjeta4Requeridos();
         return;
       }
-      addPago({ formaPago, monto, referencia: d4 });
+      addPago({ formaPago: formaPagoAbono, monto, referencia: d4 });
       setTarjetaUltimos4('');
     } else {
-      addPago({ formaPago, monto });
+      addPago({ formaPago: formaPagoAbono, monto });
     }
     setMontoRecibidoInput('');
   };
@@ -770,6 +807,7 @@ export function POS() {
       });
       setOpenSaleResume({ sale });
       setFormaPago('01');
+      setVentasAbiertasDialogOpen(false);
       addToast({
         type: 'success',
         message: `Venta ${sale.folio} cargada. Registre el cobro y pulse Cobrar.`,
@@ -955,13 +993,34 @@ export function POS() {
     const cobroTarjetaPueLocal =
       !esTraspasoTienda && esFormaTarjeta(formaPago) && metodoPago === 'PUE';
 
-    if (!esTraspasoTienda && !cobroTarjetaPueLocal && esFormaEfectivo(formaPago)) {
-      const norm = montoRecibidoInput.replace(',', '.').trim();
-      if (norm) {
-        const m = parseFloat(norm);
-        if (Number.isFinite(m) && m > 0) {
-          addPago({ formaPago, monto: m });
-          setMontoRecibidoInput('');
+    if (!esTraspasoTienda && !cobroTarjetaPueLocal) {
+      if (metodoPago === 'PPD') {
+        const fpLinea = ppdAbonoFormaPago;
+        const norm = montoRecibidoInput.replace(',', '.').trim();
+        if (norm) {
+          const m = parseFloat(norm);
+          if (Number.isFinite(m) && m > 0) {
+            if (esFormaTarjeta(fpLinea)) {
+              const d4 = digitos4TarjetaPendiente();
+              if (d4.length === 4) {
+                addPago({ formaPago: fpLinea, monto: m, referencia: d4 });
+                setMontoRecibidoInput('');
+                setTarjetaUltimos4('');
+              }
+            } else {
+              addPago({ formaPago: fpLinea, monto: m });
+              setMontoRecibidoInput('');
+            }
+          }
+        }
+      } else if (esFormaEfectivo(formaPago)) {
+        const norm = montoRecibidoInput.replace(',', '.').trim();
+        if (norm) {
+          const m = parseFloat(norm);
+          if (Number.isFinite(m) && m > 0) {
+            addPago({ formaPago, monto: m });
+            setMontoRecibidoInput('');
+          }
         }
       }
     }
@@ -1647,49 +1706,6 @@ export function POS() {
             </span>
           </button>
 
-          {ventasAbiertas.length > 0 ? (
-            <div
-              className={cn(
-                'flex max-h-[min(11rem,32dvh)] min-h-0 shrink-0 flex-col gap-1.5 overflow-hidden rounded-xl border border-amber-500/25 bg-amber-500/5 p-2 sm:p-2.5'
-              )}
-            >
-              <p className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300 sm:text-xs">
-                Ventas abiertas (pendiente de pago)
-              </p>
-              <ul className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain pr-0.5">
-                {ventasAbiertas.map((vs) => (
-                  <li key={vs.id}>
-                    <button
-                      type="button"
-                      disabled={resumeOpenBusy || dejarAbiertaBusy}
-                      onClick={() => void resumeOpenSale(vs)}
-                      className={cn(
-                        'flex w-full flex-col gap-0.5 rounded-lg border border-slate-200/80 bg-slate-100/90 px-2 py-1.5 text-left transition-colors hover:border-cyan-500/40 hover:bg-slate-200/90 dark:border-slate-700/80 dark:bg-slate-900/60 dark:hover:border-cyan-500/35 dark:hover:bg-slate-800/80',
-                        (resumeOpenBusy || dejarAbiertaBusy) && 'pointer-events-none opacity-50'
-                      )}
-                    >
-                      <span className="font-mono text-xs font-medium text-slate-800 dark:text-slate-200">
-                        {vs.folio}
-                      </span>
-                      <span className="truncate text-[11px] text-slate-600 dark:text-slate-400">
-                        {vs.cliente?.nombre?.trim() || vs.clienteId || 'Cliente'}
-                      </span>
-                      <span className="text-xs font-semibold tabular-nums text-cyan-600 dark:text-cyan-400">
-                        {formatMoney(Number(vs.total) || 0)}
-                      </span>
-                      <span className="text-[10px] text-slate-500 dark:text-slate-500">
-                        {formatInAppTimezone(
-                          vs.createdAt instanceof Date ? vs.createdAt : new Date(vs.createdAt),
-                          { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }
-                        )}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-
           <Card className="flex min-w-0 flex-col overflow-visible border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 max-lg:flex-none lg:min-h-0 lg:flex-1 lg:overflow-visible">
             <CardContent className="flex flex-col gap-3 overflow-visible p-2 sm:p-3 lg:min-h-0 lg:flex-1 lg:overflow-visible lg:p-4">
               <div className="shrink-0 space-y-2">
@@ -2046,6 +2062,67 @@ export function POS() {
         </aside>
       </div>
 
+      <Dialog open={ventasAbiertasDialogOpen} onOpenChange={setVentasAbiertasDialogOpen}>
+        <DialogContent className="max-h-[min(85dvh,calc(100dvh-4rem))] w-[min(calc(100vw-1.5rem),24rem)] border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-900 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <ClipboardList className="h-5 w-5 shrink-0 text-amber-500" />
+              Ventas abiertas
+            </DialogTitle>
+            <p className="text-left text-xs font-normal text-slate-600 dark:text-slate-400">
+              Pendiente de pago. Toque una fila para cargarla en el carrito y cobrar.
+            </p>
+          </DialogHeader>
+          {ventasAbiertas.length === 0 ? (
+            <p className="py-6 text-center text-sm text-slate-600 dark:text-slate-400">
+              No hay ventas abiertas en esta sucursal.
+            </p>
+          ) : (
+            <ul className="max-h-[min(50dvh,22rem)] space-y-2 overflow-y-auto overscroll-contain pr-1">
+              {ventasAbiertas.map((vs) => (
+                <li key={vs.id}>
+                  <button
+                    type="button"
+                    disabled={resumeOpenBusy || dejarAbiertaBusy}
+                    onClick={() => void resumeOpenSale(vs)}
+                    className={cn(
+                      'flex w-full flex-col gap-0.5 rounded-xl border border-slate-200/90 bg-slate-200/60 px-3 py-2.5 text-left transition-colors hover:border-cyan-500/45 hover:bg-slate-200/90 dark:border-slate-700/90 dark:bg-slate-800/60 dark:hover:border-cyan-500/40 dark:hover:bg-slate-800/90',
+                      (resumeOpenBusy || dejarAbiertaBusy) && 'pointer-events-none opacity-50'
+                    )}
+                  >
+                    <span className="font-mono text-sm font-medium text-slate-800 dark:text-slate-200">
+                      {vs.folio}
+                    </span>
+                    <span className="truncate text-xs text-slate-600 dark:text-slate-400">
+                      {vs.cliente?.nombre?.trim() || vs.clienteId || 'Cliente'}
+                    </span>
+                    <span className="text-sm font-semibold tabular-nums text-cyan-600 dark:text-cyan-400">
+                      {formatMoney(Number(vs.total) || 0)}
+                    </span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-500">
+                      {formatInAppTimezone(
+                        vs.createdAt instanceof Date ? vs.createdAt : new Date(vs.createdAt),
+                        { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }
+                      )}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <DialogFooter className="sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              className="border-slate-300 dark:border-slate-600"
+              onClick={() => setVentasAbiertasDialogOpen(false)}
+            >
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={checkoutOpen} onOpenChange={handleCheckoutOpenChange}>
         <DialogContent
           className={cn(
@@ -2092,6 +2169,44 @@ export function POS() {
 
                 {!cobroTarjetaPue && !esTraspasoTienda && !checkoutDevolucionListo ? (
                   <div className="space-y-2">
+                    {metodoPago === 'PPD' ? (
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-slate-600 dark:text-slate-400">
+                          Medio de este abono
+                        </Label>
+                        <Select
+                          value={ppdAbonoFormaPago}
+                          onValueChange={(v) => {
+                            setPpdAbonoFormaPago(v);
+                            if (!esFormaTarjeta(v)) setTarjetaUltimos4('');
+                          }}
+                        >
+                          <SelectTrigger className="h-10 w-full border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent
+                            align="start"
+                            sideOffset={6}
+                            hideScrollButtons
+                            className="z-[300] max-h-[min(50dvh,18rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
+                          >
+                            {FORMAS_PAGO_UI.map((fp) => (
+                              <SelectItem
+                                key={fp.clave}
+                                value={fp.clave}
+                                className="text-slate-900 dark:text-slate-100"
+                              >
+                                {fp.descripcion}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-500 sm:text-xs">
+                          Parcialidades: registre cada cobro (varias tarjetas, efectivo + tarjeta, etc.). El total
+                          abonado debe cubrir el importe mostrado arriba.
+                        </p>
+                      </div>
+                    ) : null}
                     <Label>Monto recibido</Label>
                     <div className="flex gap-2">
                       <Input
@@ -2118,7 +2233,7 @@ export function POS() {
                         Agregar
                       </Button>
                     </div>
-                    {esFormaEfectivo(formaPago) ? (
+                    {esFormaEfectivo(formaPagoAbono) ? (
                       <p className="text-center text-[11px] leading-snug text-slate-600 dark:text-slate-500 sm:text-xs">
                         Puede escribir el monto exacto y pulsar <strong>Completar venta</strong>: se registrará
                         automáticamente sin usar «Agregar» ni los billetes rápidos.
@@ -2127,7 +2242,7 @@ export function POS() {
                   </div>
                 ) : null}
 
-                {esFormaTarjeta(formaPago) && !esTraspasoTienda && !checkoutDevolucionListo ? (
+                {esFormaTarjeta(formaPagoAbono) && !esTraspasoTienda && !checkoutDevolucionListo ? (
                   <div className="space-y-2">
                     <Label>Últimos 4 dígitos (voucher)</Label>
                     <Input
@@ -2159,13 +2274,13 @@ export function POS() {
                   </div>
                 ) : null}
 
-                {esFormaEfectivo(formaPago) && !esTraspasoTienda && !checkoutDevolucionListo ? (
+                {esFormaEfectivo(formaPagoAbono) && !esTraspasoTienda && !checkoutDevolucionListo ? (
                   <div className="flex flex-wrap gap-2">
                     {[50, 100, 200, 500, 1000].map((amount) => (
                       <button
                         key={amount}
                         type="button"
-                        onClick={() => addPago({ formaPago, monto: amount })}
+                        onClick={() => addPago({ formaPago: formaPagoAbono, monto: amount })}
                         className="rounded-lg bg-slate-200 dark:bg-slate-800 px-3 py-2 text-sm text-slate-700 dark:text-slate-300 transition-colors hover:bg-slate-700"
                       >
                         {formatMoney(amount)}

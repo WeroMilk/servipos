@@ -130,7 +130,10 @@ export function Sidebar() {
         </div>
 
         {pendingCount > 0 ? (
-          <div className="mt-2 hidden items-center gap-2 rounded-lg bg-cyan-500/10 px-3 py-2 text-xs text-cyan-800 dark:text-cyan-400 xl:flex">
+          <div
+            className="mt-2 hidden items-center gap-2 rounded-lg bg-cyan-500/10 px-3 py-2 text-xs text-cyan-800 dark:text-cyan-400 xl:flex"
+            title="Registros en IndexedDB con syncStatus pendiente (cola local). Ver barra superior para más detalle."
+          >
             <div className="h-2 w-2 animate-pulse rounded-full bg-cyan-600 dark:bg-cyan-400" />
             <span>
               {pendingCount} pendiente{pendingCount > 1 ? 's' : ''}
@@ -141,7 +144,7 @@ export function Sidebar() {
         {pendingCount > 0 ? (
           <div
             className="mt-2 flex justify-center xl:hidden"
-            title={`${pendingCount} pendiente${pendingCount > 1 ? 's' : ''}`}
+            title={`${pendingCount} registro(s) en cola local (IndexedDB).`}
           >
             <div className="h-2 w-2 animate-pulse rounded-full bg-cyan-600 dark:bg-cyan-400" />
           </div>
