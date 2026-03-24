@@ -6,6 +6,7 @@ import {
   getSalesByDateRange,
   createSale,
   cancelSale,
+  completePendingSale as completePendingSaleDb,
 } from '@/db/database';
 import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
@@ -116,6 +117,23 @@ export function useSales(limit: number = 100) {
     }
   };
 
+  const completePendingSale = async (
+    id: string,
+    patch: Parameters<typeof completePendingSaleDb>[1]
+  ) => {
+    try {
+      const sid = getEffectiveSucursalId();
+      await completePendingSaleDb(id, patch, { sucursalId: sid });
+      if (!sid) {
+        await loadSalesLocal();
+      }
+    } catch (err) {
+      reportHookFailure('hook:useSales', 'Completar venta pendiente', err);
+      setError('Error al completar venta');
+      throw err;
+    }
+  };
+
   return {
     sales,
     loading,
@@ -123,6 +141,7 @@ export function useSales(limit: number = 100) {
     refresh,
     addSale,
     cancelSale: cancel,
+    completePendingSale,
   };
 }
 

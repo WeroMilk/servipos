@@ -12,6 +12,9 @@ import {
   MapPin,
   Wallet,
   Percent,
+  Package,
+  Truck,
+  Shield,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,15 +22,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useFiscalConfig } from '@/hooks';
-import { useAppStore, useAuthStore, useClientPriceListStore } from '@/stores';
+import { useAppStore, useAuthStore, useClientPriceListStore, useInventoryListsStore } from '@/stores';
 import {
   CLIENT_PRICE_LIST_ORDER,
   CLIENT_PRICE_LABELS,
   type ClientPriceListId,
 } from '@/lib/clientPriceLists';
 import { UserManagement } from '@/components/ui-custom/UserManagement';
+import { UserPermissionsEditor } from '@/components/ui-custom/UserPermissionsEditor';
 import { SucursalManagement } from '@/components/ui-custom/SucursalManagement';
 import { PageShell } from '@/components/ui-custom/PageShell';
+import { HistorialAbastoConfig } from '@/components/ui-custom/HistorialAbastoConfig';
 import { REGIMENES_FISCALES, USOS_CFDI } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -38,10 +43,20 @@ export function Configuracion() {
   const canManageUsers = hasPermission('usuarios:gestionar');
   const canManageSucursales = hasPermission('sucursales:gestionar');
   const canEditListaPreciosCliente = hasPermission('configuracion:editar');
+  const canVerHistorialAbasto = hasPermission('configuracion:ver');
   const discountsListaCliente = useClientPriceListStore((s) => s.discounts);
   const setDiscountListaCliente = useClientPriceListStore((s) => s.setDiscount);
+  const categoriasInventario = useInventoryListsStore((s) => s.categorias);
+  const proveedoresInventario = useInventoryListsStore((s) => s.proveedores);
+  const setCategoriasInventario = useInventoryListsStore((s) => s.setCategorias);
+  const setProveedoresInventario = useInventoryListsStore((s) => s.setProveedores);
+  const [draftCategorias, setDraftCategorias] = useState('');
+  const [draftProveedores, setDraftProveedores] = useState('');
   const adminExtraTabs =
-    (canManageUsers ? 1 : 0) + (canManageSucursales ? 1 : 0) + (canEditListaPreciosCliente ? 1 : 0);
+    (canManageUsers ? 2 : 0) +
+    (canManageSucursales ? 1 : 0) +
+    (canEditListaPreciosCliente ? 2 : 0) +
+    (canVerHistorialAbasto ? 1 : 0);
   const totalTabs = 4 + adminExtraTabs;
   
   const [activeTab, setActiveTab] = useState('fiscal');
@@ -131,6 +146,18 @@ export function Configuracion() {
     );
   };
 
+  useEffect(() => {
+    if (activeTab !== 'inventario-listas') return;
+    setDraftCategorias(categoriasInventario.join('\n'));
+    setDraftProveedores(proveedoresInventario.join('\n'));
+  }, [activeTab, categoriasInventario, proveedoresInventario]);
+
+  const handleSaveInventarioListas = () => {
+    setCategoriasInventario(draftCategorias.split('\n'));
+    setProveedoresInventario(draftProveedores.split('\n'));
+    addToast({ type: 'success', message: 'Listas de inventario guardadas en este equipo.' });
+  };
+
   const handleSaveNominaFolios = async () => {
     const serie = fiscalForm.serieNomina?.trim();
     if (!serie || !fiscalForm.folioNominaActual) return;
@@ -204,7 +231,9 @@ export function Configuracion() {
             totalTabs <= 4 && 'xl:grid-cols-4',
             totalTabs === 5 && 'xl:grid-cols-5',
             totalTabs === 6 && 'xl:grid-cols-6',
-            totalTabs >= 7 && 'xl:grid-cols-7'
+            totalTabs === 7 && 'xl:grid-cols-7',
+            totalTabs === 8 && 'xl:grid-cols-8',
+            totalTabs >= 9 && 'xl:grid-cols-9'
           )}
         >
           <TabsTrigger value="fiscal" className={configuracionTabTriggerClass}>
@@ -235,10 +264,28 @@ export function Configuracion() {
               Usuarios
             </TabsTrigger>
           )}
+          {canManageUsers && (
+            <TabsTrigger value="permisos" className={configuracionTabTriggerClass}>
+              <Shield className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
+              Permisos
+            </TabsTrigger>
+          )}
           {canEditListaPreciosCliente && (
             <TabsTrigger value="lista-precios" className={configuracionTabTriggerClass}>
               <Percent className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
               Precios cliente
+            </TabsTrigger>
+          )}
+          {canEditListaPreciosCliente && (
+            <TabsTrigger value="inventario-listas" className={configuracionTabTriggerClass}>
+              <Package className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
+              Inventario
+            </TabsTrigger>
+          )}
+          {canVerHistorialAbasto && (
+            <TabsTrigger value="historial-abasto" className={configuracionTabTriggerClass}>
+              <Truck className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
+              Abasto
             </TabsTrigger>
           )}
         </TabsList>
@@ -779,6 +826,15 @@ export function Configuracion() {
           </TabsContent>
         )}
 
+        {canManageUsers && (
+          <TabsContent
+            value="permisos"
+            className="mt-0 flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
+          >
+            <UserPermissionsEditor embedded />
+          </TabsContent>
+        )}
+
         {canEditListaPreciosCliente && (
           <TabsContent
             value="lista-precios"
@@ -816,6 +872,64 @@ export function Configuracion() {
                     </div>
                   </div>
                 ))}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+
+        {canVerHistorialAbasto && (
+          <TabsContent
+            value="historial-abasto"
+            className="mt-0 flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
+          >
+            <HistorialAbastoConfig enabled={activeTab === 'historial-abasto'} />
+          </TabsContent>
+        )}
+
+        {canEditListaPreciosCliente && (
+          <TabsContent
+            value="inventario-listas"
+            className="mt-0 flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
+          >
+            <Card className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
+              <CardHeader className="shrink-0 px-3 py-2 sm:px-4">
+                <CardTitle className="text-sm text-slate-900 dark:text-slate-100 sm:text-base">
+                  Categorías y proveedores (inventario)
+                </CardTitle>
+                <p className="text-xs font-normal text-slate-600 dark:text-slate-400">
+                  Una línea por categoría o por proveedor. Se usan en los desplegables al crear o editar productos.
+                  Valores iniciales orientados a refaccionaria de electrodomésticos; puede adaptarlos aquí.
+                </p>
+              </CardHeader>
+              <CardContent className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3 pt-0 sm:p-4 sm:pt-0">
+                <div className="space-y-2">
+                  <Label className="text-xs text-slate-600 dark:text-slate-400">Categorías</Label>
+                  <textarea
+                    value={draftCategorias}
+                    onChange={(e) => setDraftCategorias(e.target.value)}
+                    rows={12}
+                    className="min-h-[10rem] w-full rounded-md border border-slate-300 bg-slate-200/80 p-2 font-mono text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-100"
+                    spellCheck={false}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-slate-600 dark:text-slate-400">Proveedores</Label>
+                  <textarea
+                    value={draftProveedores}
+                    onChange={(e) => setDraftProveedores(e.target.value)}
+                    rows={8}
+                    className="min-h-[8rem] w-full rounded-md border border-slate-300 bg-slate-200/80 p-2 font-mono text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-100"
+                    spellCheck={false}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  onClick={handleSaveInventarioListas}
+                  className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  Guardar listas
+                </Button>
               </CardContent>
             </Card>
           </TabsContent>

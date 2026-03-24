@@ -13,6 +13,8 @@ import {
   Printer,
   ChevronLeft,
   ChevronRight,
+  BadgeCheck,
+  FileQuestion,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -62,6 +64,7 @@ import { DashboardPeriodPopover, type PeriodGranularity } from '@/components/ui-
 import { useAuthStore, useAppStore } from '@/stores';
 import { cancelSale } from '@/db/database';
 import { saleListaCancelacionEtiqueta } from '@/lib/saleCancelacion';
+import { saleIsInvoiced } from '@/lib/saleInvoiced';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -249,7 +252,7 @@ export function Dashboard() {
   }, [salesFetched, inicio, fin]);
 
   const kpiVentasParaTotales = useMemo(
-    () => kpiSales.filter((s) => s.estado !== 'cancelada'),
+    () => kpiSales.filter((s) => s.estado !== 'cancelada' && s.estado !== 'pendiente'),
     [kpiSales]
   );
 
@@ -363,7 +366,7 @@ export function Dashboard() {
       const day0 = startOfDay(d);
       const next = addDays(day0, 1);
       const ventas = salesFetched.reduce((sum, sale) => {
-        if (sale.estado === 'cancelada') return sum;
+        if (sale.estado === 'cancelada' || sale.estado === 'pendiente') return sum;
         const t = sale.createdAt instanceof Date ? sale.createdAt : new Date(sale.createdAt);
         const x = t.getTime();
         if (x >= day0.getTime() && x < next.getTime()) {
@@ -999,7 +1002,20 @@ export function Dashboard() {
                     className="flex flex-col gap-2 rounded-lg border border-slate-200/80 dark:border-slate-800/60 bg-slate-200 dark:bg-slate-800/25 p-3 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-200">{sale.folio}</p>
+                      <p className="flex min-w-0 items-center gap-2 truncate text-sm font-medium text-slate-800 dark:text-slate-200">
+                        <span
+                          className="shrink-0"
+                          title={saleIsInvoiced(sale) ? 'Facturada' : 'Sin facturar'}
+                          aria-label={saleIsInvoiced(sale) ? 'Facturada' : 'Sin facturar'}
+                        >
+                          {saleIsInvoiced(sale) ? (
+                            <BadgeCheck className="h-4 w-4 text-emerald-500" aria-hidden />
+                          ) : (
+                            <FileQuestion className="h-4 w-4 text-slate-500 dark:text-slate-400" aria-hidden />
+                          )}
+                        </span>
+                        <span className="truncate">{sale.folio}</span>
+                      </p>
                       <p className="text-xs text-slate-600 dark:text-slate-500">
                         {formatInAppTimezone(
                           sale.createdAt instanceof Date ? sale.createdAt : new Date(sale.createdAt),
@@ -1009,6 +1025,9 @@ export function Dashboard() {
                           <span className="ml-2 text-amber-400">
                             · {saleListaCancelacionEtiqueta(sale)}
                           </span>
+                        ) : null}
+                        {sale.estado === 'pendiente' ? (
+                          <span className="ml-2 text-amber-400">· Pendiente de cobro (fiado)</span>
                         ) : null}
                         {sale.formaPago === 'TTS' && outgoingTransferPendingIds.has(sale.id) ? (
                           <span className="ml-2 text-amber-400">· Traspaso pendiente recepción</span>

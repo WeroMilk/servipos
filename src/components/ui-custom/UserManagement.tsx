@@ -48,6 +48,7 @@ import type { Sucursal } from '@/types';
 import { useAuthStore, useAppStore } from '@/stores';
 import { normalizeServipartzEmail } from '@/lib/servipartzAuth';
 import { cn } from '@/lib/utils';
+import { ROLE_LABELS } from '@/lib/userPermissions';
 
 type FormMode = 'create' | 'edit';
 
@@ -360,7 +361,7 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
                           </Select>
                         </TableCell>
                         <TableCell className={cn('text-slate-600 dark:text-slate-400', embedded && 'py-1.5')}>
-                          {u.role === 'admin' ? 'Administrador' : 'Cajero'}
+                          {ROLE_LABELS[u.role]}
                         </TableCell>
                         <TableCell>
                           <span
@@ -514,10 +515,13 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
                 </SelectTrigger>
                 <SelectContent className="border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900">
                   <SelectItem value="admin" className="text-slate-900 dark:text-slate-100">
-                    Administrador
+                    {ROLE_LABELS.admin}
+                  </SelectItem>
+                  <SelectItem value="gerente" className="text-slate-900 dark:text-slate-100">
+                    {ROLE_LABELS.gerente}
                   </SelectItem>
                   <SelectItem value="cashier" className="text-slate-900 dark:text-slate-100">
-                    Cajero
+                    {ROLE_LABELS.cashier}
                   </SelectItem>
                 </SelectContent>
               </Select>

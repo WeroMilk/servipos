@@ -1,4 +1,5 @@
 import { db } from './database';
+import type { StockEntradaMeta } from '@/types';
 
 /**
  * Ajuste de existencias solo en Dexie (modo sin sucursal / local).
@@ -9,7 +10,8 @@ export async function updateStockDexie(
   tipo: 'entrada' | 'salida' | 'ajuste',
   motivo?: string,
   referencia?: string,
-  usuarioId?: string
+  usuarioId?: string,
+  entradaMeta?: StockEntradaMeta
 ): Promise<void> {
   const product = await db.products.get(productId);
   if (!product) throw new Error('Producto no encontrado');
@@ -32,6 +34,8 @@ export async function updateStockDexie(
     syncStatus: 'pending',
   });
 
+  const prov = entradaMeta?.proveedor?.trim();
+  const pu = entradaMeta?.precioUnitarioCompra;
   await db.inventoryMovements.add({
     id: crypto.randomUUID(),
     productId,
@@ -41,6 +45,9 @@ export async function updateStockDexie(
     cantidadNueva,
     motivo,
     referencia,
+    proveedor: tipo === 'entrada' && prov ? prov : undefined,
+    precioUnitarioCompra:
+      tipo === 'entrada' && pu != null && Number.isFinite(pu) && pu >= 0 ? pu : undefined,
     usuarioId: usuarioId || 'system',
     createdAt: new Date(),
     syncStatus: 'pending',

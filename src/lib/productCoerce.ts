@@ -1,4 +1,5 @@
 import type { Product } from '@/types';
+import { CLIENT_PRICE_LIST_ORDER, type ClientPriceListId } from '@/lib/clientPriceLists';
 
 /** Evita throws en sort/UI cuando IndexedDB u orígenes devuelven campos incompletos. */
 export function coerceProduct(p: Product): Product {
@@ -7,6 +8,16 @@ export function coerceProduct(p: Product): Product {
   const existenciaMinima = Number(p.existenciaMinima);
   const impuesto = Number(p.impuesto);
   const precioCompraNum = p.precioCompra != null ? Number(p.precioCompra) : NaN;
+  let preciosPorListaCliente: Product['preciosPorListaCliente'] = undefined;
+  const raw = p.preciosPorListaCliente;
+  if (raw && typeof raw === 'object') {
+    const out: Partial<Record<ClientPriceListId, number>> = {};
+    for (const id of CLIENT_PRICE_LIST_ORDER) {
+      const v = raw[id];
+      if (typeof v === 'number' && Number.isFinite(v) && v >= 0) out[id] = v;
+    }
+    preciosPorListaCliente = Object.keys(out).length > 0 ? out : undefined;
+  }
   return {
     ...p,
     nombre: p.nombre != null ? String(p.nombre) : '',
@@ -17,6 +28,7 @@ export function coerceProduct(p: Product): Product {
     existenciaMinima: Number.isFinite(existenciaMinima) ? existenciaMinima : 0,
     impuesto: Number.isFinite(impuesto) ? impuesto : 16,
     unidadMedida: p.unidadMedida != null ? String(p.unidadMedida) : 'H87',
+    preciosPorListaCliente,
   };
 }
 

@@ -31,7 +31,7 @@ service cloud.firestore {
     }
 
     function validUserRole(r) {
-      return r == 'admin' || r == 'cashier';
+      return r == 'admin' || r == 'gerente' || r == 'cashier';
     }
 
     // Perfil: lectura propia o admin. Alta/edición de perfiles solo admin (app: UserManagement + REST signUp).
@@ -60,9 +60,13 @@ service cloud.firestore {
 
       allow update: if isAdmin()
         && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['name', 'username', 'email', 'role', 'isActive', 'sucursalId', 'updatedAt'])
+          .hasOnly(['name', 'username', 'email', 'role', 'isActive', 'sucursalId', 'updatedAt', 'useCustomPermissions', 'customPermissions'])
         && validUserRole(request.resource.data.role)
-        && request.resource.data.updatedAt == request.time;
+        && request.resource.data.updatedAt == request.time
+        && (!request.resource.data.keys().hasAny(['useCustomPermissions'])
+            || request.resource.data.useCustomPermissions is bool)
+        && (!request.resource.data.keys().hasAny(['customPermissions'])
+            || request.resource.data.customPermissions is list);
 
       allow delete: if false;
     }

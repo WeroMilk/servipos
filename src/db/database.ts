@@ -15,6 +15,7 @@ import { updateStockUnified } from '@/data/stockBridge';
 import {
   createSaleFirestore,
   cancelSaleFirestore,
+  completePendingSaleFirestore,
   patchSaleInvoiceFirestore,
   getSaleByIdFirestore,
   getSaleByFolioFirestore,
@@ -499,6 +500,26 @@ export async function getSalesByDateRange(inicio: Date, fin: Date): Promise<Sale
     .toArray();
 }
 
+/** Ventas locales asociadas a un cliente (Dexie), más recientes primero. */
+export async function getSalesByClienteId(
+  clienteId: string,
+  options?: { sucursalId?: string | null }
+): Promise<Sale[]> {
+  if (!clienteId || clienteId === 'mostrador') return [];
+  const rows = await db.sales.where('clienteId').equals(clienteId).toArray();
+  const sid = options?.sucursalId;
+  const filtered =
+    sid != null && String(sid).trim().length > 0
+      ? rows.filter((s) => !s.sucursalId || s.sucursalId === sid)
+      : rows;
+  filtered.sort((a, b) => {
+    const ta = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
+    const tb = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
+    return tb - ta;
+  });
+  return filtered;
+}
+
 export async function getSaleById(id: string): Promise<Sale | undefined> {
   return await db.sales.get(id);
 }
@@ -522,7 +543,9 @@ export async function createSale(
 ): Promise<{ id: string; folio: string }> {
   if (options?.sucursalId) {
     const { id, folio } = await createSaleFirestore(options.sucursalId, sale);
-    await adjustClientTicketCount(sale.clienteId, 1);
+    if (sale.estado !== 'pendiente') {
+      await adjustClientTicketCount(sale.clienteId, 1);
+    }
     return { id, folio };
   }
 
@@ -550,8 +573,56 @@ export async function createSale(
     );
   }
 
-  await adjustClientTicketCount(sale.clienteId, 1);
+  if (sale.estado !== 'pendiente') {
+    await adjustClientTicketCount(sale.clienteId, 1);
+  }
   return { id: id as string, folio };
+}
+
+/** Cierra cobro de venta `pendiente` (inventario ya salió al crearla). */
+export async function completePendingSale(
+  id: string,
+  patch: {
+    formaPago: Sale['formaPago'];
+    metodoPago: Sale['metodoPago'];
+    pagos: Sale['pagos'];
+    cambio: number;
+    usuarioNombreCierre?: string | null;
+  },
+  options?: { sucursalId?: string }
+): Promise<void> {
+  const sucursalId = options?.sucursalId;
+  if (sucursalId) {
+    await completePendingSaleFirestore(sucursalId, id, patch);
+    const updated = await getSaleByIdFirestore(sucursalId, id);
+    if (updated?.clienteId && updated.clienteId !== MOSTRADOR_CLIENT_ID) {
+      await adjustClientTicketCount(updated.clienteId, 1);
+    }
+    return;
+  }
+
+  const sale = await db.sales.get(id);
+  if (!sale) throw new Error('Venta no encontrada');
+  if (sale.estado !== 'pendiente') throw new Error('Esta venta ya no está pendiente de pago');
+  if (sale.facturaId) throw new Error('No se puede completar una venta ya vinculada a factura');
+
+  await db.sales.update(id, {
+    estado: 'completada',
+    formaPago: patch.formaPago,
+    metodoPago: patch.metodoPago,
+    pagos: patch.pagos,
+    cambio: patch.cambio,
+    usuarioNombre:
+      typeof patch.usuarioNombreCierre === 'string' && patch.usuarioNombreCierre.trim().length > 0
+        ? patch.usuarioNombreCierre.trim()
+        : sale.usuarioNombre,
+    updatedAt: new Date(),
+    syncStatus: 'pending',
+  });
+
+  if (sale.clienteId && sale.clienteId !== MOSTRADOR_CLIENT_ID) {
+    await adjustClientTicketCount(sale.clienteId, 1);
+  }
 }
 
 export async function cancelSale(
@@ -572,6 +643,7 @@ export async function cancelSale(
     if (
       prev &&
       prev.estado !== 'cancelada' &&
+      (prev.estado === 'completada' || prev.estado === 'facturada') &&
       prev.clienteId &&
       prev.clienteId !== MOSTRADOR_CLIENT_ID
     ) {
@@ -611,7 +683,11 @@ export async function cancelSale(
     syncStatus: 'pending',
   });
 
-  if (sale.clienteId && sale.clienteId !== MOSTRADOR_CLIENT_ID) {
+  if (
+    (sale.estado === 'completada' || sale.estado === 'facturada') &&
+    sale.clienteId &&
+    sale.clienteId !== MOSTRADOR_CLIENT_ID
+  ) {
     await adjustClientTicketCount(sale.clienteId, -1);
   }
 }
@@ -673,6 +749,41 @@ export async function getQuotations(sucursalId?: string): Promise<Quotation[]> {
       if (c) next = { ...next, cliente: c };
     }
     return attachProductsToQuotation(next, productMap);
+  });
+}
+
+/**
+ * Busca cotización pendiente y vigente cuyo folio termine en -XXXX (últimos 4 dígitos del consecutivo).
+ * Ej. folio `C-20260323-0007` → buscar `0007` o `7`.
+ */
+export async function findQuotationByLast4Folio(
+  last4Raw: string,
+  sucursalId?: string
+): Promise<Quotation | undefined> {
+  const digits = last4Raw.replace(/\D/g, '').slice(-4);
+  if (digits.length < 1) return undefined;
+  const suffix = `-${digits.padStart(4, '0')}`;
+  const all = await getQuotations(sucursalId);
+  const now = Date.now();
+  const cands = all.filter(
+    (q) =>
+      q.estado === 'pendiente' &&
+      q.folio.endsWith(suffix) &&
+      new Date(q.fechaVigencia).getTime() >= now
+  );
+  if (cands.length === 0) return undefined;
+  cands.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  return cands[0];
+}
+
+/** Marca cotización como cobrada en POS y enlaza el id de la venta completada. */
+export async function markQuotationConvertedWithSale(quotationId: string, ventaId: string): Promise<void> {
+  const q = await db.quotations.get(quotationId);
+  if (!q) throw new Error('Cotización no encontrada');
+  if (q.estado === 'convertida') return;
+  await updateQuotation(quotationId, {
+    estado: 'convertida',
+    ventaId,
   });
 }
 

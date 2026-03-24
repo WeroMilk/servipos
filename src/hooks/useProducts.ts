@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { Product } from '@/types';
+import type { Product, StockEntradaMeta } from '@/types';
 import {
   getProducts,
   getProductByBarcode,
@@ -141,10 +141,20 @@ export function useProducts() {
     tipo: 'entrada' | 'salida' | 'ajuste',
     motivo?: string,
     referencia?: string,
-    usuarioId?: string
+    usuarioId?: string,
+    entradaMeta?: StockEntradaMeta
   ) => {
     try {
-      await updateStockUnified(sucursalId, productId, cantidad, tipo, motivo, referencia, usuarioId);
+      await updateStockUnified(
+        sucursalId,
+        productId,
+        cantidad,
+        tipo,
+        motivo,
+        referencia,
+        usuarioId,
+        entradaMeta
+      );
       if (!sucursalId) {
         await loadProductsLocal();
       }

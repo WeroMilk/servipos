@@ -16,6 +16,7 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { CLIENT_PRICE_LIST_ORDER, normalizeClientPriceListId } from '@/lib/clientPriceLists';
 import type { Client, FormaPago, MetodoPago, Payment, Sale, SaleItem, SaleStatus } from '@/types';
 import { getMexicoDateKey } from '@/lib/quincenaMx';
 
@@ -24,6 +25,8 @@ import { getMexicoDateKey } from '@/lib/quincenaMx';
 // ============================================
 
 const SALES_PAGE_SIZE = 500;
+/** Ventas abiertas (fiado) fuera del top N por fecha: query aparte para que no desaparezcan del catálogo. */
+const PENDING_OPEN_SALES_LIMIT = 500;
 
 function salesCol(sucursalId: string) {
   return collection(db, 'sucursales', sucursalId, 'sales');
@@ -54,6 +57,7 @@ function parseFormaPago(v: unknown): FormaPago {
   const s = String(v ?? '01');
   if (s === 'TTS') return 'TTS';
   if (s === 'DEV') return 'DEV';
+  if (s === 'COT') return 'COT';
   if (['01', '02', '03', '04', '08', '28', '99'].includes(s)) return s as FormaPago;
   return '01';
 }
@@ -71,6 +75,12 @@ function parseEstado(v: unknown): SaleStatus {
   const s = String(v ?? 'completada');
   if (s === 'pendiente' || s === 'completada' || s === 'cancelada' || s === 'facturada') return s;
   return 'completada';
+}
+
+function parsePosResumeListaPrecios(v: unknown): string | undefined {
+  if (typeof v !== 'string' || !v.trim()) return undefined;
+  const s = v.trim();
+  return (CLIENT_PRICE_LIST_ORDER as readonly string[]).includes(s) ? s : undefined;
 }
 
 function mapSaleItem(raw: Record<string, unknown>): SaleItem {
@@ -102,6 +112,10 @@ function mapClientEmbedded(raw: Record<string, unknown>): Client {
     nombre: String(raw.nombre ?? ''),
     razonSocial: raw.razonSocial != null ? String(raw.razonSocial) : undefined,
     isMostrador: raw.isMostrador === true,
+    listaPreciosId:
+      raw.listaPreciosId != null && raw.listaPreciosId !== ''
+        ? normalizeClientPriceListId(raw.listaPreciosId)
+        : undefined,
     createdAt: firestoreTimestampToDate(raw.createdAt),
     updatedAt: firestoreTimestampToDate(raw.updatedAt),
     syncStatus: 'synced',
@@ -145,6 +159,11 @@ export function saleDocToSale(snap: DocumentSnapshot): Sale | null {
       typeof d.usuarioNombre === 'string' && d.usuarioNombre.trim().length > 0
         ? String(d.usuarioNombre).trim()
         : undefined,
+    posResumeGlobalDiscount:
+      d.posResumeGlobalDiscount != null && Number.isFinite(Number(d.posResumeGlobalDiscount))
+        ? Number(d.posResumeGlobalDiscount)
+        : undefined,
+    posResumeListaPrecios: parsePosResumeListaPrecios(d.posResumeListaPrecios),
     sucursalId: typeof sucursalFromPath === 'string' && sucursalFromPath.length > 0 ? sucursalFromPath : undefined,
     createdAt: firestoreTimestampToDate(d.createdAt),
     updatedAt: firestoreTimestampToDate(d.updatedAt),
@@ -171,6 +190,7 @@ function saleInputToPayload(
           nombre: sale.cliente.nombre,
           razonSocial: sale.cliente.razonSocial ?? null,
           isMostrador: sale.cliente.isMostrador,
+          listaPreciosId: sale.cliente.listaPreciosId ?? null,
           createdAt: sale.cliente.createdAt,
           updatedAt: sale.cliente.updatedAt,
         }
@@ -203,6 +223,8 @@ function saleInputToPayload(
     notas: sale.notas ?? null,
     usuarioId: sale.usuarioId,
     usuarioNombre: sale.usuarioNombre?.trim() ? sale.usuarioNombre.trim() : null,
+    posResumeGlobalDiscount: sale.posResumeGlobalDiscount ?? null,
+    posResumeListaPrecios: sale.posResumeListaPrecios ?? null,
     transferenciaSucursalDestinoId:
       sale.transferenciaSucursalDestinoId && sale.transferenciaSucursalDestinoId.length > 0
         ? sale.transferenciaSucursalDestinoId
@@ -408,6 +430,51 @@ export async function getSaleByIdFirestore(
 }
 
 /** Busca venta por folio diario (ej. V-20260322-0001) en la sucursal actual. */
+/** Completa cobro de una venta en estado `pendiente` (sin tocar inventario). */
+export async function completePendingSaleFirestore(
+  sucursalId: string,
+  saleId: string,
+  patch: {
+    formaPago: FormaPago;
+    metodoPago: MetodoPago;
+    pagos: Payment[];
+    cambio: number;
+    /** Cajero que cierra el cobro (si se omite, se conserva el de la venta). */
+    usuarioNombreCierre?: string | null;
+  }
+): Promise<void> {
+  const saleRef = doc(db, 'sucursales', sucursalId, 'sales', saleId);
+
+  await runTransaction(db, async (transaction) => {
+    const saleSnap = await transaction.get(saleRef);
+    if (!saleSnap.exists()) throw new Error('Venta no encontrada');
+    const sale = saleDocToSale(saleSnap);
+    if (!sale) throw new Error('Venta no encontrada');
+    if (sale.estado !== 'pendiente') throw new Error('Esta venta ya no está pendiente de pago');
+    if (sale.facturaId) throw new Error('No se puede completar una venta ya vinculada a factura');
+
+    const nombreCierre =
+      typeof patch.usuarioNombreCierre === 'string' && patch.usuarioNombreCierre.trim().length > 0
+        ? patch.usuarioNombreCierre.trim()
+        : sale.usuarioNombre ?? null;
+
+    transaction.update(saleRef, {
+      estado: 'completada',
+      formaPago: patch.formaPago,
+      metodoPago: patch.metodoPago,
+      pagos: patch.pagos.map((p) => ({
+        id: p.id,
+        formaPago: p.formaPago,
+        monto: p.monto,
+        referencia: p.referencia ?? null,
+      })),
+      cambio: patch.cambio,
+      usuarioNombre: nombreCierre,
+      updatedAt: serverTimestamp(),
+    });
+  });
+}
+
 export async function getSaleByFolioFirestore(
   sucursalId: string,
   folioRaw: string
@@ -448,9 +515,26 @@ export async function patchSaleInvoiceFirestore(
 // --- Lista en tiempo real (compartida entre hooks) ---
 
 let lastSales: Sale[] = [];
+let lastSalesRecent: Sale[] = [];
+let lastSalesPending: Sale[] = [];
 const salesListeners = new Set<(sales: Sale[]) => void>();
-let salesUnsub: Unsubscribe | null = null;
+let salesUnsubRecent: Unsubscribe | null = null;
+let salesUnsubPending: Unsubscribe | null = null;
 let salesSucursalId: string | null = null;
+
+function mergeSalesCatalog(): Sale[] {
+  const byId = new Map<string, Sale>();
+  for (const s of lastSalesPending) byId.set(s.id, s);
+  for (const s of lastSalesRecent) byId.set(s.id, s);
+  return Array.from(byId.values()).sort(
+    (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
+  );
+}
+
+function notifySalesCatalogListeners(): void {
+  lastSales = mergeSalesCatalog();
+  salesListeners.forEach((l) => l([...lastSales]));
+}
 
 export function getSalesCatalogSnapshot(): Sale[] {
   return lastSales;
@@ -464,21 +548,51 @@ export function subscribeSalesCatalog(
   salesListeners.add(onSales);
 
   if (salesSucursalId !== sucursalId) {
-    salesUnsub?.();
+    salesUnsubRecent?.();
+    salesUnsubPending?.();
+    salesUnsubRecent = null;
+    salesUnsubPending = null;
+    lastSalesRecent = [];
+    lastSalesPending = [];
+    lastSales = [];
     salesSucursalId = sucursalId;
-    const q = query(salesCol(sucursalId), orderBy('createdAt', 'desc'), limit(SALES_PAGE_SIZE));
-    salesUnsub = onSnapshot(
-      q,
+    notifySalesCatalogListeners();
+
+    const qRecent = query(salesCol(sucursalId), orderBy('createdAt', 'desc'), limit(SALES_PAGE_SIZE));
+    const qPending = query(
+      salesCol(sucursalId),
+      where('estado', '==', 'pendiente'),
+      orderBy('createdAt', 'desc'),
+      limit(PENDING_OPEN_SALES_LIMIT)
+    );
+
+    salesUnsubRecent = onSnapshot(
+      qRecent,
       (snap) => {
-        lastSales = snap.docs
+        lastSalesRecent = snap.docs
           .map((d) => saleDocToSale(d))
           .filter((s): s is Sale => s != null);
-        salesListeners.forEach((l) => l([...lastSales]));
+        notifySalesCatalogListeners();
       },
       (err) => {
-        console.error('Firestore sales:', err);
-        lastSales = [];
-        salesListeners.forEach((l) => l([]));
+        console.error('Firestore sales (recientes):', err);
+        lastSalesRecent = [];
+        notifySalesCatalogListeners();
+      }
+    );
+
+    salesUnsubPending = onSnapshot(
+      qPending,
+      (snap) => {
+        lastSalesPending = snap.docs
+          .map((d) => saleDocToSale(d))
+          .filter((s): s is Sale => s != null);
+        notifySalesCatalogListeners();
+      },
+      (err) => {
+        console.error('Firestore sales (pendientes):', err);
+        lastSalesPending = [];
+        notifySalesCatalogListeners();
       }
     );
   }
@@ -486,9 +600,13 @@ export function subscribeSalesCatalog(
   return () => {
     salesListeners.delete(onSales);
     if (salesListeners.size === 0) {
-      salesUnsub?.();
-      salesUnsub = null;
+      salesUnsubRecent?.();
+      salesUnsubPending?.();
+      salesUnsubRecent = null;
+      salesUnsubPending = null;
       salesSucursalId = null;
+      lastSalesRecent = [];
+      lastSalesPending = [];
       lastSales = [];
     }
   };

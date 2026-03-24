@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { FirebaseError } from 'firebase/app';
 import type { AuthState, Permission, User } from '@/types';
@@ -8,42 +8,13 @@ import { normalizeServipartzEmail } from '@/lib/servipartzAuth';
 import { mapFirestoreUserProfile, userFromAuthOnly } from '@/lib/mapFirestoreUser';
 import { useSucursalContextStore } from '@/stores/sucursalContextStore';
 import { reportAppEvent } from '@/lib/appEventLog';
+import { userHasPermission } from '@/lib/userPermissions';
 
 // ============================================
 // STORE DE AUTENTICACIÓN (Firebase Auth + perfil Firestore)
 // ============================================
 
 type AuthStore = AuthState;
-
-const rolePermissions: Record<string, Permission[]> = {
-  admin: [
-    'ventas:ver',
-    'ventas:crear',
-    'inventario:ver',
-    'inventario:crear',
-    'inventario:editar',
-    'inventario:eliminar',
-    'cotizaciones:ver',
-    'cotizaciones:crear',
-    'facturas:ver',
-    'facturas:crear',
-    'reportes:ver',
-    'configuracion:ver',
-    'configuracion:editar',
-    'usuarios:gestionar',
-    'sucursales:gestionar',
-    'checador:registrar',
-    'checador:reporte',
-  ],
-  cashier: [
-    'ventas:ver',
-    'ventas:crear',
-    'inventario:ver',
-    'cotizaciones:ver',
-    'cotizaciones:crear',
-    'checador:registrar',
-  ],
-};
 
 async function loadUserProfile(firebaseUid: string, email: string | null): Promise<User> {
   const snap = await getDoc(doc(db, 'users', firebaseUid));
@@ -82,9 +53,18 @@ export const useAuthStore = create<AuthStore>((set) => ({
 
   hasPermission: (permission: Permission): boolean => {
     const { user } = useAuthStore.getState();
-    if (!user || !user.isActive) return false;
-    const permissions = rolePermissions[user.role] || [];
-    return permissions.includes(permission);
+    return userHasPermission(user, permission);
+  },
+
+  refreshUserProfile: async () => {
+    const fbUser = getAuth().currentUser;
+    if (!fbUser) return;
+    try {
+      const user = await loadUserProfile(fbUser.uid, fbUser.email);
+      useAuthStore.setState({ user });
+    } catch (e) {
+      console.error('refreshUserProfile:', e);
+    }
   },
 }));
 

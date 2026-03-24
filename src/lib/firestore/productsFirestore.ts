@@ -15,7 +15,8 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Product } from '@/types';
+import type { Product, StockEntradaMeta } from '@/types';
+import { CLIENT_PRICE_LIST_ORDER, type ClientPriceListId } from '@/lib/clientPriceLists';
 
 // ============================================
 // PRODUCTOS + STOCK EN FIRESTORE (por sucursal)
@@ -27,6 +28,17 @@ function productsCol(sucursalId: string) {
 
 function movementsCol(sucursalId: string) {
   return collection(db, 'sucursales', sucursalId, 'inventoryMovements');
+}
+
+function parsePreciosPorListaCliente(raw: unknown): Product['preciosPorListaCliente'] {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const o = raw as Record<string, unknown>;
+  const out: Partial<Record<ClientPriceListId, number>> = {};
+  for (const id of CLIENT_PRICE_LIST_ORDER) {
+    const v = o[id];
+    if (typeof v === 'number' && Number.isFinite(v) && v >= 0) out[id] = v;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 function firestoreTimestampToDate(value: unknown): Date {
@@ -58,6 +70,7 @@ export function docToProduct(snap: QueryDocumentSnapshot): Product {
       typeof d.existenciaMinima === 'number' ? d.existenciaMinima : Number(d.existenciaMinima) || 0,
     categoria: d.categoria != null ? String(d.categoria) : undefined,
     proveedor: d.proveedor != null ? String(d.proveedor) : undefined,
+    preciosPorListaCliente: parsePreciosPorListaCliente(d.preciosPorListaCliente),
     imagen: d.imagen != null ? String(d.imagen) : undefined,
     unidadMedida: String(d.unidadMedida ?? 'H87'),
     activo: d.activo !== false,
@@ -82,6 +95,10 @@ function productToFirestorePayload(
     existenciaMinima: product.existenciaMinima,
     categoria: product.categoria ?? null,
     proveedor: product.proveedor ?? null,
+    preciosPorListaCliente:
+      product.preciosPorListaCliente && Object.keys(product.preciosPorListaCliente).length > 0
+        ? product.preciosPorListaCliente
+        : null,
     imagen: product.imagen ?? null,
     unidadMedida: product.unidadMedida,
     activo: product.activo,
@@ -197,6 +214,12 @@ export async function updateProductFirestore(
     payload.codigoBarras = v && v.length > 0 ? v : null;
   }
 
+  if ('preciosPorListaCliente' in updates && updates.preciosPorListaCliente !== undefined) {
+    const m = updates.preciosPorListaCliente;
+    payload.preciosPorListaCliente =
+      m && Object.keys(m).length > 0 ? m : null;
+  }
+
   await updateDoc(ref, payload);
 }
 
@@ -211,7 +234,8 @@ export async function adjustStockFirestore(
   tipo: 'entrada' | 'salida' | 'ajuste',
   motivo?: string,
   referencia?: string,
-  usuarioId?: string
+  usuarioId?: string,
+  entradaMeta?: StockEntradaMeta
 ): Promise<void> {
   const prodRef = doc(db, 'sucursales', sucursalId, 'products', productId);
 
@@ -239,6 +263,8 @@ export async function adjustStockFirestore(
     });
 
     const movRef = doc(movementsCol(sucursalId));
+    const prov = entradaMeta?.proveedor?.trim();
+    const pu = entradaMeta?.precioUnitarioCompra;
     transaction.set(movRef, {
       productId,
       tipo,
@@ -247,6 +273,10 @@ export async function adjustStockFirestore(
       cantidadNueva,
       motivo: motivo ?? null,
       referencia: referencia ?? null,
+      proveedor:
+        tipo === 'entrada' && prov && prov.length > 0 ? prov : null,
+      precioUnitarioCompra:
+        tipo === 'entrada' && pu != null && Number.isFinite(pu) && pu >= 0 ? pu : null,
       usuarioId: usuarioId ?? 'system',
       createdAt: serverTimestamp(),
     });
@@ -300,6 +330,10 @@ export async function ensureProductAtDestForTransfer(
       proveedor: od.proveedor != null ? String(od.proveedor) : null,
       imagen: od.imagen != null ? String(od.imagen) : null,
       unidadMedida: String(od.unidadMedida ?? 'H87'),
+      preciosPorListaCliente:
+        od.preciosPorListaCliente != null && typeof od.preciosPorListaCliente === 'object'
+          ? od.preciosPorListaCliente
+          : null,
       activo: true,
       createdAt: ts,
       updatedAt: ts,

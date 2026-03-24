@@ -38,6 +38,10 @@ function parseTipo(raw: unknown): InventoryMovement['tipo'] {
 }
 
 export function movementDocToMovement(id: string, d: Record<string, unknown>): InventoryMovement {
+  const pu = d.precioUnitarioCompra;
+  const precioUnitarioCompra =
+    typeof pu === 'number' && Number.isFinite(pu) && pu >= 0 ? pu : undefined;
+  const prov = d.proveedor != null ? String(d.proveedor).trim() : '';
   return {
     id,
     productId: String(d.productId ?? ''),
@@ -47,6 +51,8 @@ export function movementDocToMovement(id: string, d: Record<string, unknown>): I
     cantidadNueva: Number(d.cantidadNueva) || 0,
     motivo: d.motivo != null && String(d.motivo).length > 0 ? String(d.motivo) : undefined,
     referencia: d.referencia != null && String(d.referencia).length > 0 ? String(d.referencia) : undefined,
+    proveedor: prov.length > 0 ? prov : undefined,
+    precioUnitarioCompra,
     usuarioId: String(d.usuarioId ?? ''),
     createdAt: firestoreTimestampToDate(d.createdAt),
     syncStatus: 'synced',

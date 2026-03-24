@@ -1,22 +1,25 @@
 import { create } from 'zustand';
 import type { Product, CartItem, Client } from '@/types';
 import type { ClientPriceListId } from '@/lib/clientPriceLists';
-import { getListaPrecioClientePct } from '@/stores/clientPriceListStore';
+import {
+  getCartLineUnitSinIvaBase,
+  getProductUnitSinIvaForClienteList,
+} from '@/lib/productListPricing';
 
 // ============================================
 // STORE DEL CARRITO DE COMPRAS (POS)
 // ============================================
 
-function lineUnitNet(item: CartItem): number {
-  const u = Number(item.precioUnitarioOverride ?? item.product.precioVenta) || 0;
+function lineUnitNet(item: CartItem, listaId: ClientPriceListId): number {
+  const u = getCartLineUnitSinIvaBase(item, listaId);
   const discPct = Number(item.discount) || 0;
   return u * (1 - discPct / 100);
 }
 
-function subtotalAfterLineDiscounts(items: CartItem[]): number {
+function subtotalAfterLineDiscounts(items: CartItem[], listaId: ClientPriceListId): number {
   return items.reduce((sum, item) => {
     const qty = Number(item.quantity) || 0;
-    return sum + lineUnitNet(item) * qty;
+    return sum + lineUnitNet(item, listaId) * qty;
   }, 0);
 }
 
@@ -30,7 +33,7 @@ interface CartState {
   notas: string;
   /** Sucursal destino para forma de pago traspaso tienda–tienda (solo admin). */
   transferenciaDestinoSucursalId: string;
-  /** Lista "Precios por cliente" (descuento adicional sobre subtotal de líneas). */
+  /** Lista "Precios por cliente" (precio por producto o % sobre `precioVenta`). */
   precioClienteListaId: ClientPriceListId;
 
   // Acciones
@@ -49,6 +52,13 @@ interface CartState {
   setNotas: (notas: string) => void;
   setTransferenciaDestinoSucursalId: (id: string) => void;
   clearCart: () => void;
+  /** Reemplaza el carrito al retomar una venta abierta (`pendiente`) sin validar stock. */
+  replaceCartForOpenSaleResume: (params: {
+    items: CartItem[];
+    client: Client | null;
+    globalDiscount: number;
+    precioClienteListaId: ClientPriceListId;
+  }) => void;
 
   // Cálculos (Number() evita NaN → formatMoney muestra $0.00)
   getSubtotal: () => number;
@@ -189,46 +199,58 @@ export const useCartStore = create<CartState>((set, get) => ({
     });
   },
 
-  getSubtotal: () => subtotalAfterLineDiscounts(get().items),
+  replaceCartForOpenSaleResume: (params) => {
+    set({
+      items: params.items,
+      client: params.client,
+      discount: params.globalDiscount,
+      precioClienteListaId: params.precioClienteListaId,
+      formaPago: '01',
+      metodoPago: 'PUE',
+      pagos: [],
+      notas: '',
+      transferenciaDestinoSucursalId: '',
+    });
+  },
+
+  getSubtotal: () => subtotalAfterLineDiscounts(get().items, get().precioClienteListaId),
 
   getImpuestos: () => {
-    const S0 = subtotalAfterLineDiscounts(get().items);
-    const listaPct = getListaPrecioClientePct(get().precioClienteListaId);
-    const S1 = S0 * (1 - listaPct / 100);
+    const S0 = subtotalAfterLineDiscounts(get().items, get().precioClienteListaId);
     const globalPct = Number(get().discount) || 0;
-    const S2 = S1 * (1 - globalPct / 100);
-    return S2 * 0.16;
+    const S1 = S0 * (1 - globalPct / 100);
+    return S1 * 0.16;
   },
 
   getDescuento: () => {
     const items = get().items;
-    const rawLineSum = items.reduce((sum, item) => {
-      const u = Number(item.precioUnitarioOverride ?? item.product.precioVenta) || 0;
+    const listaId = get().precioClienteListaId;
+    let lineDiscAmt = 0;
+    let listaDiscAmt = 0;
+    for (const item of items) {
       const q = Number(item.quantity) || 0;
-      return sum + u * q;
-    }, 0);
-
-    const S0 = subtotalAfterLineDiscounts(items);
-    const lineDiscAmt = rawLineSum - S0;
-
-    const listaPct = getListaPrecioClientePct(get().precioClienteListaId);
-    const listaDiscAmt = S0 * (listaPct / 100);
-    const S1 = S0 - listaDiscAmt;
-
+      const discPct = Number(item.discount) || 0;
+      const uEff = getCartLineUnitSinIvaBase(item, listaId);
+      lineDiscAmt += uEff * (discPct / 100) * q;
+      const o = item.precioUnitarioOverride;
+      if (o == null || !Number.isFinite(Number(o))) {
+        const pv = Number(item.product.precioVenta) || 0;
+        const uList = getProductUnitSinIvaForClienteList(item.product, listaId);
+        listaDiscAmt += (pv - uList) * (1 - discPct / 100) * q;
+      }
+    }
+    const S0 = subtotalAfterLineDiscounts(items, listaId);
     const globalPct = Number(get().discount) || 0;
-    const globalDiscAmt = S1 * (globalPct / 100);
-
+    const globalDiscAmt = S0 * (globalPct / 100);
     return lineDiscAmt + listaDiscAmt + globalDiscAmt;
   },
 
   getTotal: () => {
-    const S0 = subtotalAfterLineDiscounts(get().items);
-    const listaPct = getListaPrecioClientePct(get().precioClienteListaId);
-    const S1 = S0 * (1 - listaPct / 100);
+    const S0 = subtotalAfterLineDiscounts(get().items, get().precioClienteListaId);
     const globalPct = Number(get().discount) || 0;
-    const S2 = S1 * (1 - globalPct / 100);
-    const imp = S2 * 0.16;
-    const t = S2 + imp;
+    const S1 = S0 * (1 - globalPct / 100);
+    const imp = S1 * 0.16;
+    const t = S1 + imp;
     return Number.isFinite(t) ? t : 0;
   },
 

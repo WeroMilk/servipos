@@ -14,10 +14,11 @@ import { cn } from '@/lib/utils';
 import { AdminSucursalSwitcher } from '@/components/ui-custom/AdminSucursalSwitcher';
 import { AppEventsNotificationPanel } from '@/components/ui-custom/AppEventsNotificationPanel';
 import { BRAND_LOGO_URL } from '@/lib/branding';
+import { ROLE_LABELS } from '@/lib/userPermissions';
 
 export function Header() {
   const navigate = useNavigate();
-  const { user, logout } = useAuthStore();
+  const { user, logout, hasPermission } = useAuthStore();
   const { isOnline, isSyncing, pendingCount, sync } = useSyncStore();
   const toggleTheme = useAppStore((s) => s.toggleTheme);
   const resolvedDark = useAppStore((s) => getResolvedIsDark(s));
@@ -86,7 +87,7 @@ export function Header() {
           {resolvedDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
         </Button>
 
-        {user && user.role !== 'cashier' ? <AppEventsNotificationPanel dock="header" /> : null}
+        {user && hasPermission('reportes:ver') ? <AppEventsNotificationPanel dock="header" /> : null}
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -99,7 +100,9 @@ export function Header() {
               </div>
               <div className="hidden min-w-0 text-left sm:block">
                 <p className="truncate text-sm font-medium">{user?.name}</p>
-                <p className="truncate text-xs capitalize text-slate-500">{user?.role}</p>
+                <p className="truncate text-xs text-slate-500">
+                  {user?.role ? ROLE_LABELS[user.role] : ''}
+                </p>
               </div>
             </Button>
           </DropdownMenuTrigger>

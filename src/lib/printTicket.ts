@@ -6,7 +6,8 @@ import {
   getBrandLogoAbsoluteUrl,
 } from '@/lib/documentPrintBranding';
 import { getClientById } from '@/db/database';
-import { FORMAS_PAGO, type Sale } from '@/types';
+import { FORMAS_PAGO, type Quotation, type Sale } from '@/types';
+import { formatInAppTimezone } from '@/lib/appTimezone';
 import { thermalTicketCancelacionNotas } from '@/lib/saleCancelacion';
 
 async function resolveClienteTicketLabel(sale: Sale): Promise<string> {
@@ -41,6 +42,8 @@ export type TicketPayload = {
   cajeroNombre?: string;
   /** Desglose de pagos en el ticket (p. ej. tarjeta con últimos 4 del voucher). */
   resumenPagos?: { label: string; monto: number; ultimos4?: string }[];
+  /** Texto final bajo el pie de sucursal (p. ej. cotización: sin valor fiscal). */
+  pieMensaje?: string;
 };
 
 function escapeHtml(s: string): string {
@@ -54,17 +57,18 @@ function escapeHtml(s: string): string {
 /** CSS compartido: ticket de venta 80 mm e informes térmicos (tipografía grande para leer en papel). */
 const THERMAL_BASE_STYLES = `@page { size: 80mm auto; margin: 4mm; }
   * { box-sizing: border-box; }
-  body { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 18px; color: #111; width: 72mm; margin: 0 auto; padding: 4px; }
-  h1 { font-size: 22px; text-align: center; margin: 0 0 8px; }
-  .meta { font-size: 15px; margin-bottom: 8px; border-bottom: 1px dashed #333; padding-bottom: 6px; }
+  body { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 22px; color: #111; width: 72mm; margin: 0 auto; padding: 4px; }
+  h1 { font-size: 28px; text-align: center; margin: 0 0 10px; line-height: 1.15; }
+  .meta { font-size: 18px; margin-bottom: 10px; border-bottom: 1px dashed #333; padding-bottom: 8px; }
   table { width: 100%; border-collapse: collapse; }
-  td { padding: 3px 0; vertical-align: top; font-size: 16px; }
-  td.desc { font-weight: 600; padding-top: 8px; }
+  td { padding: 4px 0; vertical-align: top; font-size: 20px; }
+  td.desc { font-weight: 600; padding-top: 10px; font-size: 21px; }
   td.right { text-align: right; white-space: nowrap; }
-  .tot { margin-top: 10px; border-top: 1px dashed #333; padding-top: 8px; font-size: 19px; }
-  .tot strong { font-size: 24px; }
-  .pie-sucursal { margin-top: 10px; padding-top: 8px; border-top: 1px dashed #999; text-align: center; font-size: 13px; line-height: 1.45; color: #222; }
-  .pie-sucursal .titulo-suc { font-weight: 700; font-size: 15px; margin-bottom: 4px; }`;
+  .tot { margin-top: 12px; border-top: 1px dashed #333; padding-top: 10px; font-size: 22px; }
+  .tot strong { font-size: 30px; }
+  .pie-sucursal { margin-top: 12px; padding-top: 10px; border-top: 1px dashed #999; text-align: center; font-size: 16px; line-height: 1.5; color: #222; width: 100%; }
+  .pie-sucursal .titulo-suc { font-weight: 700; font-size: 18px; margin-bottom: 6px; text-align: center; }
+  .pie-sucursal > div { text-align: center; }`;
 
 /**
  * Abre HTML para imprimir con `about:blank` + `document.write` (no `blob:` URL).
@@ -179,13 +183,13 @@ export function printThermalTicket(payload: TicketPayload): void {
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Ticket</title>
 <style>${THERMAL_BASE_STYLES}
-  .logo-ticket { display: block; margin: 0 auto 8px; max-width: 26mm; height: auto; }
-  .ticket-pagos { margin-top: 10px; padding-top: 8px; border-top: 1px dashed #333; font-size: 16px; line-height: 1.45; }
-  .ticket-pagos .tit { font-weight: 600; margin-bottom: 4px; }
-  .ticket-notas { margin-top: 10px; font-size: 14px; }
-  .ticket-gracias { margin-top: 14px; text-align: center; font-size: 15px; }
+  .logo-ticket { display: block; margin: 0 0 10px 0; margin-right: auto; max-width: 30mm; height: auto; }
+  .ticket-pagos { margin-top: 12px; padding-top: 10px; border-top: 1px dashed #333; font-size: 19px; line-height: 1.5; }
+  .ticket-pagos .tit { font-weight: 600; margin-bottom: 6px; }
+  .ticket-notas { margin-top: 12px; font-size: 17px; text-align: center; white-space: pre-line; }
+  .ticket-gracias { margin-top: 16px; text-align: center; font-size: 18px; }
 </style></head><body>
-  <img class="logo-ticket" src="${escapeHtml(getBrandLogoAbsoluteUrl())}" alt="" width="80" height="80" />
+  <img class="logo-ticket" src="${escapeHtml(getBrandLogoAbsoluteUrl())}" alt="" width="96" height="96" />
   <h1>${escapeHtml(negocio)}</h1>
   <div class="meta">
     ${payload.folio ? `<div>Folio: ${escapeHtml(payload.folio)}</div>` : ''}
@@ -211,7 +215,6 @@ export function printThermalTicket(payload: TicketPayload): void {
         })
         .join('')}</div>`
     : ''}
-  ${payload.notas ? `<p class="ticket-notas">${escapeHtml(payload.notas)}</p>` : ''}
   ${(() => {
     const lines = getThermalTicketSucursalFooterLines(payload.sucursalId);
     if (!lines?.length) return '';
@@ -219,10 +222,59 @@ export function printThermalTicket(payload: TicketPayload): void {
     const body = rest.map((ln) => `<div>${escapeHtml(ln)}</div>`).join('');
     return `<div class="pie-sucursal"><div class="titulo-suc">${escapeHtml(titulo)}</div>${body}</div>`;
   })()}
-  <p class="ticket-gracias">¡Gracias por su compra!</p>
+  ${payload.notas ? `<p class="ticket-notas">${escapeHtml(payload.notas)}</p>` : ''}
+  <p class="ticket-gracias">${escapeHtml(payload.pieMensaje ?? '¡Gracias por su compra!')}</p>
 </body></html>`;
 
   openAndPrintHtml(html, 'width=360,height=720', 250);
+}
+
+const COTIZACION_ESTADO_TICKET: Record<string, string> = {
+  pendiente: 'Pendiente',
+  aceptada: 'Aceptada',
+  rechazada: 'Rechazada',
+  vencida: 'Vencida',
+  convertida: 'Ya cobrada',
+};
+
+/** Cotización en rollo 80 mm (misma plantilla que ticket de venta). */
+export function printThermalQuotation(
+  q: Quotation,
+  options?: { sucursalId?: string | null }
+): void {
+  const lineas = q.productos.map((it) => {
+    const qty = Number(it.cantidad) || 0;
+    const lineTot = Number(it.total) || 0;
+    const precioUnit = qty > 0 ? lineTot / qty : 0;
+    return {
+      descripcion: it.producto?.nombre?.trim() || 'Producto',
+      cantidad: qty,
+      precioUnit,
+      total: lineTot,
+    };
+  });
+
+  const est = COTIZACION_ESTADO_TICKET[q.estado] ?? q.estado;
+  const notasPartes = [
+    `Vigencia: ${formatInAppTimezone(q.fechaVigencia, { dateStyle: 'medium' })}`,
+    `Estado: ${est}`,
+    q.notas?.trim() ? `Notas: ${q.notas.trim()}` : '',
+  ].filter(Boolean);
+
+  printThermalTicket({
+    negocio: 'COTIZACIÓN',
+    folio: q.folio,
+    fecha: formatInAppTimezone(q.createdAt, { dateStyle: 'medium', timeStyle: 'short' }),
+    cliente: q.cliente?.nombre ?? 'Mostrador',
+    cajeroNombre: q.usuarioNombre?.trim() || undefined,
+    lineas,
+    subtotal: Number(q.subtotal) || 0,
+    impuestos: Number(q.impuestos) || 0,
+    total: Number(q.total) || 0,
+    sucursalId: q.sucursalId ?? options?.sucursalId ?? undefined,
+    notas: notasPartes.join('\n'),
+    pieMensaje: 'Cotización sin valor fiscal. Precios y existencias sujetos a cambio.',
+  });
 }
 
 /** Lista de productos con stock bajo para revisión en tienda (80 mm). */
@@ -270,12 +322,13 @@ export function printThermalDailySalesReport(input: {
         v.estado === 'cancelada' ?
           v.cancelacionMotivo === 'devolucion' ? ' (dev.)'
           : ' (cancel.)'
+        : v.estado === 'pendiente' ? ' (abierta)'
         : '';
       return `<tr><td>${escapeHtml(v.folio)}${st}</td><td class="right">${formatMoney(Number(v.total) || 0)}</td></tr>`;
     })
     .join('');
   const bruto = list
-    .filter((v) => v.estado !== 'cancelada')
+    .filter((v) => v.estado !== 'cancelada' && v.estado !== 'pendiente')
     .reduce((s, v) => s + (Number(v.total) || 0), 0);
   const lines = getThermalTicketSucursalFooterLines(input.sucursalId);
   const pie =
@@ -290,7 +343,7 @@ export function printThermalDailySalesReport(input: {
   <h1>REPORTE VENTAS</h1>
   <div class="meta">${escapeHtml(input.fechaLabel)}<br/>${list.length} ticket(s)</div>
   <table>${rows || '<tr><td>Sin ventas.</td></tr>'}</table>
-  <div class="tot"><strong>Total día: ${formatMoney(bruto)}</strong><br/><span style="font-size:14px;">Sin canceladas</span></div>
+  <div class="tot"><strong>Total día: ${formatMoney(bruto)}</strong><br/><span style="font-size:14px;">Sin canceladas ni ventas abiertas</span></div>
   ${pie}
 </body></html>`;
   openAndPrintHtml(html, 'width=360,height=720', 250);
@@ -372,11 +425,14 @@ export async function printThermalTicketFromSale(sale: Sale): Promise<void> {
     total: Number(sale.total) || 0,
     cambio: sale.cambio,
     resumenPagos: resumenPagos.length > 0 ? resumenPagos : undefined,
-    notas:
-      sale.estado === 'cancelada'
-        ? thermalTicketCancelacionNotas(sale)
-        : sale.notas
-          ? String(sale.notas)
-          : undefined,
+    notas: (() => {
+      if (sale.estado === 'cancelada') return thermalTicketCancelacionNotas(sale);
+      const base = sale.notas ? String(sale.notas) : '';
+      if (sale.estado === 'pendiente') {
+        const extra = 'PENDIENTE DE COBRO — El importe no cuenta como venta cobrada hasta completar el pago en POS.';
+        return base ? `${base}\n${extra}` : extra;
+      }
+      return base || undefined;
+    })(),
   });
 }

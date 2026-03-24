@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react';
-import { 
-  Plus, 
-  Search, 
-  Edit2, 
-  User, 
+import { useEffect, useMemo, useState } from 'react';
+import {
+  Plus,
+  Search,
+  Edit2,
+  User,
   Building2,
   MapPin,
   Mail,
@@ -11,6 +11,11 @@ import {
   MoreHorizontal,
   Ticket,
   Trash2,
+  BadgeCheck,
+  FileQuestion,
+  Printer,
+  Loader2,
+  ChevronLeft,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,14 +53,24 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { useClients, useClientSearch } from '@/hooks';
+import { useClients, useClientSearch, useEffectiveSucursalId } from '@/hooks';
 import { useAppStore, useAuthStore } from '@/stores';
-import type { Client } from '@/types';
+import type { Client, Sale } from '@/types';
 import { REGIMENES_FISCALES, USOS_CFDI } from '@/types';
 import { PageShell } from '@/components/ui-custom/PageShell';
 import { ClientAddressSonoraFields } from '@/components/ui-custom/ClientAddressSonoraFields';
-import { cn } from '@/lib/utils';
+import { cn, formatMoney } from '@/lib/utils';
+import { formatInAppTimezone } from '@/lib/appTimezone';
+import { getSalesByClienteId } from '@/db/database';
+import { printThermalTicketFromSale } from '@/lib/printTicket';
+import { saleIsInvoiced } from '@/lib/saleInvoiced';
+import { saleListaCancelacionEtiqueta } from '@/lib/saleCancelacion';
 import { ESTADO_SONORA, lookupCp } from '@/data/sonoraAddress';
+import {
+  CLIENT_PRICE_LABELS,
+  CLIENT_PRICE_LIST_ORDER,
+  type ClientPriceListId,
+} from '@/lib/clientPriceLists';
 
 type ClientSortMode = 'nombre' | 'rfc' | 'email' | 'tickets';
 
@@ -93,8 +108,16 @@ function sortClients(list: Client[], mode: ClientSortMode): Client[] {
   return next;
 }
 
+function saleEstadoEtiqueta(s: Sale): string {
+  if (s.estado === 'pendiente') return 'Pendiente de cobro';
+  if (s.estado === 'cancelada') return 'Cancelada';
+  if (s.estado === 'facturada') return 'Facturada';
+  return 'Completada';
+}
+
 export function Clientes() {
   const { clients, loading, addClient, editClient, removeClient } = useClients();
+  const { effectiveSucursalId } = useEffectiveSucursalId();
   const { addToast } = useAppStore();
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === 'admin';
@@ -109,6 +132,44 @@ export function Clientes() {
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
   const [deletingClient, setDeletingClient] = useState(false);
 
+  const [clientVentasCliente, setClientVentasCliente] = useState<Client | null>(null);
+  const [clientVentasSale, setClientVentasSale] = useState<Sale | null>(null);
+  const [clientVentasList, setClientVentasList] = useState<Sale[]>([]);
+  const [clientVentasLoading, setClientVentasLoading] = useState(false);
+
+  useEffect(() => {
+    if (!clientVentasCliente) {
+      setClientVentasList([]);
+      return;
+    }
+    let cancelled = false;
+    setClientVentasLoading(true);
+    void getSalesByClienteId(clientVentasCliente.id, { sucursalId: effectiveSucursalId })
+      .then((rows) => {
+        if (!cancelled) setClientVentasList(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setClientVentasList([]);
+      })
+      .finally(() => {
+        if (!cancelled) setClientVentasLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [clientVentasCliente, effectiveSucursalId]);
+
+  const openClientVentasDialog = (client: Client) => {
+    setClientVentasSale(null);
+    setClientVentasCliente(client);
+  };
+
+  const closeClientVentasDialog = () => {
+    setClientVentasCliente(null);
+    setClientVentasSale(null);
+    setClientVentasList([]);
+  };
+
   // Form state
   const [formData, setFormData] = useState({
     rfc: '',
@@ -119,6 +180,7 @@ export function Clientes() {
     usoCfdi: 'G03',
     email: '',
     telefono: '',
+    listaPreciosId: 'regular' as ClientPriceListId,
     calle: '',
     numeroExterior: '',
     numeroInterior: '',
@@ -217,6 +279,7 @@ export function Clientes() {
       usoCfdi: client.usoCfdi || 'G03',
       email: client.email || '',
       telefono: client.telefono || '',
+      listaPreciosId: client.listaPreciosId ?? 'regular',
       calle: client.direccion?.calle || '',
       numeroExterior: client.direccion?.numeroExterior || '',
       numeroInterior: client.direccion?.numeroInterior || '',
@@ -242,6 +305,7 @@ export function Clientes() {
       usoCfdi: 'G03',
       email: '',
       telefono: '',
+      listaPreciosId: 'regular',
       calle: '',
       numeroExterior: '',
       numeroInterior: '',
@@ -405,13 +469,15 @@ export function Clientes() {
                     >
                       Ver ficha completa…
                     </button>
-                    <span
-                      className="flex shrink-0 items-center gap-1 rounded-lg border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-amber-400"
-                      title="Tickets de compra (ventas completadas)"
+                    <button
+                      type="button"
+                      className="flex shrink-0 items-center gap-1 rounded-lg border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-amber-400 transition-colors hover:bg-amber-500/20 hover:text-amber-300"
+                      title="Ver todas las ventas de este cliente"
+                      onClick={() => openClientVentasDialog(client)}
                     >
                       <Ticket className="h-3 w-3" aria-hidden />
                       {client.ticketsComprados ?? 0}
-                    </span>
+                    </button>
                     {isAdmin ? (
                       <Button
                         type="button"
@@ -487,13 +553,15 @@ export function Clientes() {
                         </button>
                       </TableCell>
                       <TableCell className="align-top text-center">
-                        <span
-                          className="inline-flex items-center justify-center gap-1 rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold tabular-nums text-amber-400"
-                          title="Tickets de compra"
+                        <button
+                          type="button"
+                          className="inline-flex items-center justify-center gap-1 rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold tabular-nums text-amber-400 transition-colors hover:bg-amber-500/20 hover:text-amber-300"
+                          title="Ver todas las ventas de este cliente"
+                          onClick={() => openClientVentasDialog(client)}
                         >
                           <Ticket className="h-3.5 w-3.5" aria-hidden />
                           {client.ticketsComprados ?? 0}
-                        </span>
+                        </button>
                       </TableCell>
                       <TableCell className="align-top">
                         {client.rfc ? (
@@ -637,6 +705,29 @@ export function Clientes() {
               />
             </div>
 
+            <div className="min-w-0 space-y-2 sm:col-span-2 lg:col-span-1">
+              <Label>Lista de precios (POS)</Label>
+              <select
+                value={formData.listaPreciosId}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    listaPreciosId: e.target.value as ClientPriceListId,
+                  })
+                }
+                className="h-10 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 px-3 text-slate-900 dark:text-slate-100"
+              >
+                {CLIENT_PRICE_LIST_ORDER.map((id) => (
+                  <option key={id} value={id}>
+                    {CLIENT_PRICE_LABELS[id]}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-slate-500 dark:text-slate-500">
+                Precios que verá este cliente al elegirlo en punto de venta (regular, técnico, mayoreo, etc.).
+              </p>
+            </div>
+
             <div className="min-w-0 space-y-2">
               <Label>Régimen Fiscal</Label>
               <select
@@ -751,6 +842,29 @@ export function Clientes() {
               />
             </div>
 
+            <div className="min-w-0 space-y-2 sm:col-span-2 lg:col-span-1">
+              <Label>Lista de precios (POS)</Label>
+              <select
+                value={formData.listaPreciosId}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    listaPreciosId: e.target.value as ClientPriceListId,
+                  })
+                }
+                className="h-10 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 px-3 text-slate-900 dark:text-slate-100"
+              >
+                {CLIENT_PRICE_LIST_ORDER.map((id) => (
+                  <option key={id} value={id}>
+                    {CLIENT_PRICE_LABELS[id]}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-slate-500 dark:text-slate-500">
+                Precios que verá este cliente al elegirlo en punto de venta (regular, técnico, mayoreo, etc.).
+              </p>
+            </div>
+
             <div className="min-w-0 space-y-2">
               <Label>Régimen Fiscal</Label>
               <select
@@ -817,14 +931,31 @@ export function Clientes() {
                 <p className="text-slate-900 dark:text-slate-100">{detailClient.nombre}</p>
               </div>
               <div>
+                <p className="text-slate-600 dark:text-slate-500">Lista de precios (POS)</p>
+                <p className="text-slate-900 dark:text-slate-100">
+                  {CLIENT_PRICE_LABELS[detailClient.listaPreciosId ?? 'regular']}
+                </p>
+              </div>
+              <div>
                 <p className="text-slate-600 dark:text-slate-500">Tickets de compra</p>
-                <p className="inline-flex items-center gap-1.5 text-amber-400">
-                  <Ticket className="h-4 w-4 shrink-0" />
+                <button
+                  type="button"
+                  className="group mt-1 inline-flex flex-wrap items-center gap-1.5 rounded-lg border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-left text-amber-400 transition-colors hover:bg-amber-500/20 hover:text-amber-300"
+                  title="Ver historial de ventas y reimprimir tickets"
+                  onClick={() => {
+                    const c = detailClient;
+                    setDetailClient(null);
+                    openClientVentasDialog(c);
+                  }}
+                >
+                  <Ticket className="h-4 w-4 shrink-0" aria-hidden />
                   <span className="text-lg font-semibold tabular-nums">
                     {detailClient.ticketsComprados ?? 0}
                   </span>
-                  <span className="text-xs font-normal text-slate-600 dark:text-slate-500">(ventas por ticket)</span>
-                </p>
+                  <span className="text-xs font-normal text-slate-600 group-hover:text-slate-500 dark:text-slate-500">
+                    (pulse para ver ventas)
+                  </span>
+                </button>
               </div>
               {detailClient.rfc ? (
                 <div>
@@ -877,6 +1008,181 @@ export function Clientes() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!clientVentasCliente}
+        onOpenChange={(o) => {
+          if (!o) closeClientVentasDialog();
+        }}
+      >
+        <DialogContent className="flex max-h-[92dvh] w-[calc(100%-1.5rem)] max-w-none flex-col gap-0 overflow-hidden border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 p-0 text-slate-900 dark:text-slate-100 sm:w-full md:max-w-[min(92vw,32rem)] lg:max-w-[min(92vw,36rem)]">
+          <DialogHeader className="shrink-0 space-y-0 border-b border-slate-200 dark:border-slate-800/80 px-4 pb-3 pt-4 pr-14 text-left">
+            {clientVentasSale ? (
+              <div className="flex items-start gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 shrink-0 text-slate-600 dark:text-slate-400"
+                  aria-label="Volver al listado"
+                  onClick={() => setClientVentasSale(null)}
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </Button>
+                <div className="min-w-0">
+                  <DialogTitle className="truncate">Ticket {clientVentasSale.folio}</DialogTitle>
+                  <p className="mt-1 text-sm font-normal text-slate-600 dark:text-slate-500">
+                    {clientVentasCliente?.nombre}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <DialogTitle>Ventas del cliente</DialogTitle>
+                <p className="mt-1 text-sm font-normal text-slate-600 dark:text-slate-500">
+                  {clientVentasCliente?.nombre}
+                </p>
+              </>
+            )}
+          </DialogHeader>
+
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3">
+            {clientVentasSale ? (
+              <div className="space-y-4">
+                <div
+                  className={cn(
+                    'rounded-lg border px-3 py-2.5 text-sm',
+                    saleIsInvoiced(clientVentasSale)
+                      ? 'border-emerald-500/35 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200'
+                      : 'border-slate-300/80 bg-slate-200/80 text-slate-800 dark:border-slate-600 dark:bg-slate-800/50 dark:text-slate-200'
+                  )}
+                >
+                  <p className="flex items-center gap-2 font-medium">
+                    {saleIsInvoiced(clientVentasSale) ? (
+                      <>
+                        <BadgeCheck className="h-5 w-5 shrink-0 text-emerald-500" aria-hidden />
+                        Facturada
+                      </>
+                    ) : (
+                      <>
+                        <FileQuestion className="h-5 w-5 shrink-0 text-slate-500" aria-hidden />
+                        Sin facturar
+                      </>
+                    )}
+                  </p>
+                  {saleIsInvoiced(clientVentasSale) && clientVentasSale.facturaId ? (
+                    <p className="mt-1 text-xs opacity-90">
+                      Vinculada a factura (id: {clientVentasSale.facturaId.slice(0, 8)}…)
+                    </p>
+                  ) : null}
+                </div>
+                <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+                  <div>
+                    <dt className="text-slate-600 dark:text-slate-500">Fecha</dt>
+                    <dd className="font-medium text-slate-900 dark:text-slate-100">
+                      {formatInAppTimezone(
+                        clientVentasSale.createdAt instanceof Date
+                          ? clientVentasSale.createdAt
+                          : new Date(clientVentasSale.createdAt),
+                        { dateStyle: 'medium', timeStyle: 'short' }
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-600 dark:text-slate-500">Estado</dt>
+                    <dd className="font-medium text-slate-900 dark:text-slate-100">
+                      {saleEstadoEtiqueta(clientVentasSale)}
+                    </dd>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <dt className="text-slate-600 dark:text-slate-500">Total</dt>
+                    <dd className="text-lg font-semibold tabular-nums text-cyan-600 dark:text-cyan-400">
+                      {formatMoney(clientVentasSale.total)}
+                    </dd>
+                  </div>
+                </dl>
+                <Button
+                  type="button"
+                  className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white sm:w-auto"
+                  onClick={() => void printThermalTicketFromSale(clientVentasSale)}
+                >
+                  <Printer className="mr-2 h-4 w-4" />
+                  Abrir ticket para imprimir
+                </Button>
+              </div>
+            ) : clientVentasLoading ? (
+              <div className="flex flex-col items-center justify-center gap-2 py-12 text-slate-600 dark:text-slate-500">
+                <Loader2 className="h-8 w-8 animate-spin text-cyan-500" aria-hidden />
+                <p className="text-sm">Cargando ventas…</p>
+              </div>
+            ) : clientVentasList.length === 0 ? (
+              <div className="py-10 text-center text-sm text-slate-600 dark:text-slate-500">
+                <p>No hay ventas guardadas en este dispositivo para este cliente.</p>
+                <p className="mt-2 text-xs">
+                  Si usa otra sucursal o recién sincronizó, espere a que las ventas bajen al historial local.
+                </p>
+              </div>
+            ) : (
+              <ul className="space-y-2">
+                {clientVentasList.map((sale) => (
+                  <li key={sale.id}>
+                    <button
+                      type="button"
+                      className="flex w-full flex-col gap-1 rounded-lg border border-slate-200/80 p-3 text-left transition-colors hover:bg-slate-200/80 dark:border-slate-800/60 dark:hover:bg-slate-800/40"
+                      onClick={() => setClientVentasSale(sale)}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="flex min-w-0 items-center gap-2 font-medium text-slate-900 dark:text-slate-100">
+                          <span
+                            className="shrink-0"
+                            title={saleIsInvoiced(sale) ? 'Facturada' : 'Sin facturar'}
+                          >
+                            {saleIsInvoiced(sale) ? (
+                              <BadgeCheck className="h-4 w-4 text-emerald-500" aria-hidden />
+                            ) : (
+                              <FileQuestion className="h-4 w-4 text-slate-500" aria-hidden />
+                            )}
+                          </span>
+                          <span className="truncate">{sale.folio}</span>
+                        </span>
+                        <span className="shrink-0 text-sm font-semibold tabular-nums text-cyan-600 dark:text-cyan-400">
+                          {formatMoney(sale.total)}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600 dark:text-slate-500">
+                        {formatInAppTimezone(
+                          sale.createdAt instanceof Date ? sale.createdAt : new Date(sale.createdAt),
+                          { dateStyle: 'short', timeStyle: 'short' }
+                        )}
+                        {saleListaCancelacionEtiqueta(sale) ? (
+                          <span className="text-amber-600 dark:text-amber-400">
+                            {' '}
+                            · {saleListaCancelacionEtiqueta(sale)}
+                          </span>
+                        ) : null}
+                        {sale.estado === 'pendiente' ? (
+                          <span className="text-amber-600 dark:text-amber-400"> · Fiado</span>
+                        ) : null}
+                      </p>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <DialogFooter className="shrink-0 border-t border-slate-200 dark:border-slate-800/80 px-4 py-3">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full border-slate-300 dark:border-slate-700 sm:w-auto"
+              onClick={closeClientVentasDialog}
+            >
+              Cerrar
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

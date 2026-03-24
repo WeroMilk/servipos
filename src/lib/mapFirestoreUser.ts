@@ -1,4 +1,4 @@
-import type { User, UserRole } from '@/types';
+import type { Permission, User, UserRole } from '@/types';
 
 function timestampToDate(value: unknown): Date {
   if (
@@ -14,7 +14,37 @@ function timestampToDate(value: unknown): Date {
 }
 
 function parseRole(value: unknown): UserRole {
-  return value === 'admin' ? 'admin' : 'cashier';
+  if (value === 'admin') return 'admin';
+  if (value === 'gerente') return 'gerente';
+  return 'cashier';
+}
+
+function parsePermissionArray(value: unknown): Permission[] {
+  if (!Array.isArray(value)) return [];
+  const allowed = new Set<string>([
+    'ventas:ver',
+    'ventas:crear',
+    'inventario:ver',
+    'inventario:crear',
+    'inventario:editar',
+    'inventario:eliminar',
+    'cotizaciones:ver',
+    'cotizaciones:crear',
+    'facturas:ver',
+    'facturas:crear',
+    'reportes:ver',
+    'configuracion:ver',
+    'configuracion:editar',
+    'usuarios:gestionar',
+    'sucursales:gestionar',
+    'checador:registrar',
+    'checador:reporte',
+  ]);
+  const out: Permission[] = [];
+  for (const x of value) {
+    if (typeof x === 'string' && allowed.has(x)) out.push(x as Permission);
+  }
+  return out;
 }
 
 /**
@@ -31,6 +61,8 @@ export function mapFirestoreUserProfile(
     typeof data.email === 'string' && data.email.length > 0 ? data.email : fallbackEmail;
   const localPart = email.includes('@') ? email.split('@')[0]! : email;
 
+  const useCustom = data.useCustomPermissions === true;
+
   return {
     id: uid,
     username: typeof data.username === 'string' && data.username.length > 0 ? data.username : localPart,
@@ -40,6 +72,8 @@ export function mapFirestoreUserProfile(
     role: parseRole(data.role),
     isActive: data.isActive !== false,
     sucursalId: typeof data.sucursalId === 'string' ? data.sucursalId : undefined,
+    useCustomPermissions: useCustom ? true : undefined,
+    customPermissions: useCustom ? parsePermissionArray(data.customPermissions) : undefined,
     createdAt: timestampToDate(data.createdAt),
     updatedAt: timestampToDate(data.updatedAt),
   };

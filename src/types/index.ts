@@ -2,10 +2,31 @@
 // TIPOS DEL SISTEMA SERVIPARTZ POS
 // ============================================
 
+import type { ClientPriceListId } from '@/lib/clientPriceLists';
+
 // ============================================
 // USUARIOS Y AUTENTICACIÓN
 // ============================================
-export type UserRole = 'admin' | 'cashier';
+export type UserRole = 'admin' | 'gerente' | 'cashier';
+
+export type Permission =
+  | 'ventas:ver'
+  | 'ventas:crear'
+  | 'inventario:ver'
+  | 'inventario:crear'
+  | 'inventario:editar'
+  | 'inventario:eliminar'
+  | 'cotizaciones:ver'
+  | 'cotizaciones:crear'
+  | 'facturas:ver'
+  | 'facturas:crear'
+  | 'reportes:ver'
+  | 'configuracion:ver'
+  | 'configuracion:editar'
+  | 'usuarios:gestionar'
+  | 'sucursales:gestionar'
+  | 'checador:registrar'
+  | 'checador:reporte';
 
 export interface User {
   id: string;
@@ -18,6 +39,13 @@ export interface User {
   isActive: boolean;
   /** Sucursal asignada; la app filtrará datos por este id cuando migre a Firestore. */
   sucursalId?: string;
+  /**
+   * Si es true, solo aplican `customPermissions` (sustituyen la plantilla del rol).
+   * Si es false o no existe, se usa la plantilla del rol (admin / gerente / cajero).
+   */
+  useCustomPermissions?: boolean;
+  /** Lista completa de permisos cuando `useCustomPermissions` es true. */
+  customPermissions?: Permission[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -41,26 +69,9 @@ export interface AuthState {
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   hasPermission: (permission: Permission) => boolean;
+  /** Vuelve a leer `users/{uid}` en Firestore y actualiza la sesión (p. ej. tras cambiar permisos). */
+  refreshUserProfile: () => Promise<void>;
 }
-
-export type Permission = 
-  | 'ventas:ver' 
-  | 'ventas:crear' 
-  | 'inventario:ver' 
-  | 'inventario:crear' 
-  | 'inventario:editar' 
-  | 'inventario:eliminar'
-  | 'cotizaciones:ver'
-  | 'cotizaciones:crear'
-  | 'facturas:ver'
-  | 'facturas:crear'
-  | 'reportes:ver'
-  | 'configuracion:ver'
-  | 'configuracion:editar'
-  | 'usuarios:gestionar'
-  | 'sucursales:gestionar'
-  | 'checador:registrar'
-  | 'checador:reporte';
 
 /** Un día de asistencia en Firestore `checadorRegistros/{userId}_{YYYY-MM-DD}`. */
 export interface ChecadorDiaRegistro {
@@ -118,6 +129,7 @@ export interface Direccion {
 // ============================================
 // PRODUCTOS E INVENTARIO
 // ============================================
+
 export interface Product {
   id: string;
   sku: string;
@@ -126,6 +138,8 @@ export interface Product {
   descripcion?: string;
   precioVenta: number;
   precioCompra?: number;
+  /** Precio unitario sin IVA por tipo de cliente (opcional); si falta, aplica el % de configuración sobre `precioVenta`. */
+  preciosPorListaCliente?: Partial<Record<ClientPriceListId, number>>;
   impuesto: number; // IVA por defecto 16%
   existencia: number;
   existenciaMinima: number;
@@ -149,9 +163,19 @@ export interface InventoryMovement {
   cantidadNueva: number;
   motivo?: string;
   referencia?: string; // ID de venta, compra, etc.
+  /** Proveedor registrado en entradas de stock (compra / abasto). */
+  proveedor?: string;
+  /** Precio unitario de compra en esa entrada (sin IVA), si se capturó. */
+  precioUnitarioCompra?: number;
   usuarioId: string;
   createdAt: Date;
   syncStatus: SyncStatus;
+}
+
+/** Metadatos opcionales al registrar entrada de mercancía (Firestore / Dexie). */
+export interface StockEntradaMeta {
+  proveedor?: string;
+  precioUnitarioCompra?: number;
 }
 
 export interface PurchaseOrder {
@@ -185,6 +209,11 @@ export interface Client {
   telefono?: string;
   direccion?: Direccion;
   isMostrador: boolean; // Cliente genérico para ventas de mostrador
+  /**
+   * Lista de precios por defecto en POS (regular, técnico, mayoreo −, mayoreo +, Cananea).
+   * Si no viene definida, se trata como `regular`.
+   */
+  listaPreciosId?: ClientPriceListId;
   /** Número de tickets de compra completados (ventas) asociados a este cliente. */
   ticketsComprados?: number;
   /** Aislamiento por tienda en datos locales (Dexie). */
@@ -223,6 +252,10 @@ export interface Sale {
   usuarioNombre?: string;
   /** Tienda (ruta Firestore `sucursales/{id}/sales/...`); para ticket / reimpresión. */
   sucursalId?: string;
+  /** Solo ventas `pendiente`: % desc. global del carrito al guardar (retomar en POS). */
+  posResumeGlobalDiscount?: number;
+  /** Lista de precios del carrito al guardar venta abierta (`regular`, `tecnico`, …). */
+  posResumeListaPrecios?: string;
   createdAt: Date;
   updatedAt: Date;
   syncStatus: SyncStatus;
@@ -285,7 +318,8 @@ export type FormaPago =
   | '28' // Tarjeta de débito
   | '99' // Por definir
   | 'TTS' // Transferencia de tienda a tienda (interno; solo admin, total $0)
-  | 'DEV'; // Devolución: cancela ticket previo y reembolso en mostrador (no es forma SAT)
+  | 'DEV' // Devolución: cancela ticket previo y reembolso en mostrador (no es forma SAT)
+  | 'COT'; // Cotización: solo en POS para cargar carrito; no se guarda en venta timbrada
 
 export type MetodoPago = 'PUE' | 'PPD'; // Pago en una sola exhibición o Parcialidades
 
@@ -551,6 +585,7 @@ export const FORMAS_PAGO: CatalogoSAT[] = [
   { clave: '31', descripcion: 'Intermediario pagos' },
   { clave: '99', descripcion: 'Por definir' },
   { clave: 'DEV', descripcion: 'Devolución' },
+  { clave: 'COT', descripcion: 'Cotización' },
 ];
 
 /** Opciones mostradas en POS y facturación (el catálogo completo sigue en FORMAS_PAGO para tickets e históricos). */

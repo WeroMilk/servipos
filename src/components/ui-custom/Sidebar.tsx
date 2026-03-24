@@ -6,6 +6,7 @@ import { useAuthStore, useSyncStore } from '@/stores';
 import { cn } from '@/lib/utils';
 import { MAIN_NAV_ITEMS } from '@/lib/mainNavItems';
 import { BRAND_LOGO_URL } from '@/lib/branding';
+import { ROLE_LABELS } from '@/lib/userPermissions';
 interface NavItemProps {
   to: string;
   icon: LucideIcon;
@@ -149,7 +150,7 @@ export function Sidebar() {
           <div className="mt-2 hidden border-t border-slate-200/80 pt-3 dark:border-slate-800/50 xl:block">
             <p className="text-xs text-slate-600 dark:text-slate-500">Usuario</p>
             <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-300">{user.name}</p>
-            <p className="text-xs capitalize text-slate-600 dark:text-slate-500">{user.role}</p>
+            <p className="text-xs text-slate-600 dark:text-slate-500">{ROLE_LABELS[user.role]}</p>
           </div>
         ) : null}
 

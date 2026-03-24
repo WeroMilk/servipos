@@ -1,5 +1,6 @@
 import {
   collection,
+  deleteField,
   doc,
   getDocs,
   onSnapshot,
@@ -9,7 +10,7 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { User, UserRole } from '@/types';
+import type { Permission, User, UserRole } from '@/types';
 import { mapFirestoreUserProfile } from '@/lib/mapFirestoreUser';
 
 const USERS = 'users';
@@ -57,6 +58,9 @@ export async function updateFirestoreDirectoryUser(
     role?: UserRole;
     isActive?: boolean;
     sucursalId?: string | null;
+    useCustomPermissions?: boolean;
+    /** `null` borra el arreglo en Firestore (volver solo a plantilla del rol). */
+    customPermissions?: Permission[] | null;
   }
 ): Promise<void> {
   const ref = doc(db, USERS, uid);
@@ -68,6 +72,19 @@ export async function updateFirestoreDirectoryUser(
   if (patch.isActive !== undefined) payload.isActive = patch.isActive;
   if (patch.sucursalId !== undefined) {
     payload.sucursalId = patch.sucursalId === null || patch.sucursalId === '' ? null : patch.sucursalId;
+  }
+  if (patch.useCustomPermissions !== undefined) {
+    payload.useCustomPermissions = patch.useCustomPermissions;
+    if (patch.useCustomPermissions === false) {
+      payload.customPermissions = deleteField();
+    }
+  }
+  if (patch.customPermissions !== undefined) {
+    if (patch.customPermissions === null) {
+      payload.customPermissions = deleteField();
+    } else {
+      payload.customPermissions = patch.customPermissions;
+    }
   }
   await updateDoc(ref, payload);
 }

@@ -13,6 +13,7 @@ import {
   Percent,
   User,
   Wallet,
+  Clock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,9 +46,15 @@ import { Label } from '@/components/ui/label';
 import { useShallow } from 'zustand/react/shallow';
 import { useCartStore, useAppStore, useAuthStore } from '@/stores';
 import { useProductSearch, useSales, useClients, useEffectiveSucursalId } from '@/hooks';
-import type { Product, FormaPago, Sale, Sucursal, CartItem } from '@/types';
+import type { Product, FormaPago, Payment, Sale, Sucursal, CartItem } from '@/types';
 import { FORMAS_PAGO_UI } from '@/types';
-import { getSaleByFolio } from '@/db/database';
+import {
+  getSaleByFolio,
+  getClientById,
+  findQuotationByLast4Folio,
+  markQuotationConvertedWithSale,
+} from '@/db/database';
+import { clientFromQuotationForPos } from '@/lib/posQuotationCart';
 import {
   CLIENT_PRICE_LIST_ORDER,
   CLIENT_PRICE_LABELS,
@@ -58,19 +65,21 @@ import { subscribeSucursales } from '@/lib/firestore/sucursalesMetaFirestore';
 import { cn, formatMoney } from '@/lib/utils';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { printThermalTicket } from '@/lib/printTicket';
+import { getCartLineUnitSinIvaBase } from '@/lib/productListPricing';
+import type { ClientPriceListId } from '@/lib/clientPriceLists';
 
 // ============================================
 // PUNTO DE VENTA (POS) — Vista tipo app, sin scroll de página
 // ============================================
 
-function cartLineUnitSinIva(item: CartItem): number {
-  const u = Number(item.precioUnitarioOverride ?? item.product.precioVenta) || 0;
+function cartLineUnitSinIva(item: CartItem, listaId: ClientPriceListId): number {
+  const u = getCartLineUnitSinIvaBase(item, listaId);
   return u * (1 - (Number(item.discount) || 0) / 100);
 }
 
-function cartLineTotalConIva(item: CartItem): number {
+function cartLineTotalConIva(item: CartItem, listaId: ClientPriceListId): number {
   const imp = Number(item.product.impuesto) || 16;
-  return cartLineUnitSinIva(item) * item.quantity * (1 + imp / 100);
+  return cartLineUnitSinIva(item, listaId) * item.quantity * (1 + imp / 100);
 }
 
 /** Precio unitario base (catálogo/override, antes de desc. línea) mostrado al usuario con IVA. */
@@ -116,7 +125,8 @@ export function POS() {
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'admin';
   const { addToast } = useAppStore();
-  const { addSale, cancelSale: ejecutarCancelacionVenta } = useSales();
+  const { addSale, sales: salesCatalog, completePendingSale, cancelSale: ejecutarCancelacionVenta } =
+    useSales(500);
   const { effectiveSucursalId } = useEffectiveSucursalId();
 
   const [sucursalesCat, setSucursalesCat] = useState<Sucursal[]>([]);
@@ -125,6 +135,7 @@ export function POS() {
   const formasPagoPos = useMemo(() => {
     const base = [
       ...FORMAS_PAGO_UI,
+      { clave: 'COT' as const, descripcion: 'Cotización' },
       { clave: 'DEV' as const, descripcion: 'Devolución' },
     ];
     if (isAdmin) {
@@ -162,6 +173,7 @@ export function POS() {
       removePago: s.removePago,
       setClient: s.setClient,
       clearCart: s.clearCart,
+      replaceCartForOpenSaleResume: s.replaceCartForOpenSaleResume,
       getSubtotal: s.getSubtotal,
       getImpuestos: s.getImpuestos,
       getDescuento: s.getDescuento,
@@ -194,28 +206,70 @@ export function POS() {
     removePago,
     setClient,
     clearCart,
+    replaceCartForOpenSaleResume,
     getTotalPagado,
     getCambio,
   } = cart;
 
+  const ventasAbiertas = useMemo(
+    () =>
+      salesCatalog
+        .filter((s) => s.estado === 'pendiente')
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 40),
+    [salesCatalog]
+  );
+
+  const [openSaleResume, setOpenSaleResume] = useState<{ sale: Sale } | null>(null);
+  const [dejarAbiertaBusy, setDejarAbiertaBusy] = useState(false);
+  const [resumeOpenBusy, setResumeOpenBusy] = useState(false);
+
+  const formasPagoPosEffective = useMemo(() => {
+    if (openSaleResume) {
+      return formasPagoPos.filter(
+        (fp) => fp.clave !== 'DEV' && fp.clave !== 'TTS' && fp.clave !== 'COT'
+      );
+    }
+    return formasPagoPos;
+  }, [formasPagoPos, openSaleResume]);
+
   const [devolucionFolioInput, setDevolucionFolioInput] = useState('');
   const [devolucionSaleResuelta, setDevolucionSaleResuelta] = useState<Sale | null>(null);
   const [devolucionBusy, setDevolucionBusy] = useState(false);
+  const [cotizacionUltimos4, setCotizacionUltimos4] = useState('');
+  const [cotizacionBusy, setCotizacionBusy] = useState(false);
+  const [saleFromQuotationId, setSaleFromQuotationId] = useState<string | null>(null);
+  const [quotationLoadedFolio, setQuotationLoadedFolio] = useState<string | null>(null);
 
   const esFormaDevolucion = formaPago === 'DEV';
+  const esFormaCotizacion = formaPago === 'COT';
 
   useEffect(() => {
-    if (!formasPagoPos.some((fp) => fp.clave === formaPago)) {
+    if (!formasPagoPosEffective.some((fp) => fp.clave === formaPago)) {
       setFormaPago('01');
     }
-  }, [formasPagoPos, formaPago, setFormaPago]);
+  }, [formasPagoPosEffective, formaPago, setFormaPago]);
 
   useEffect(() => {
     if (!esFormaDevolucion) {
       setDevolucionFolioInput('');
       setDevolucionSaleResuelta(null);
+    } else {
+      setOpenSaleResume(null);
+      setSaleFromQuotationId(null);
+      setQuotationLoadedFolio(null);
+      setCotizacionUltimos4('');
     }
   }, [esFormaDevolucion]);
+
+  useEffect(() => {
+    if (esFormaCotizacion) {
+      setOpenSaleResume(null);
+      setDevolucionFolioInput('');
+      setDevolucionSaleResuelta(null);
+      useCartStore.setState({ pagos: [] });
+    }
+  }, [esFormaCotizacion]);
 
   /** Sin useMemo: se recalcula cada vez que useShallow detecta cambio en items/pagos/discount (evita Cobrar $0.00). */
   const subtotalVenta = cart.getSubtotal();
@@ -307,6 +361,10 @@ export function POS() {
   /** Reinicia carrito, cobro, búsqueda y devolución como al entrar al POS. */
   const resetPuntoVenta = useCallback(() => {
     handleCheckoutOpenChange(false);
+    setOpenSaleResume(null);
+    setSaleFromQuotationId(null);
+    setQuotationLoadedFolio(null);
+    setCotizacionUltimos4('');
     clearCart();
     setSearchQuery('');
     setShowProductSearch(false);
@@ -423,6 +481,14 @@ export function POS() {
   };
 
   const handleAddProduct = (product: Product) => {
+    if (openSaleResume) {
+      addToast({
+        type: 'warning',
+        message:
+          'No agregue productos mientras retoma una venta abierta. Use «Salir sin cobrar (venta abierta)» si necesita otro ticket.',
+      });
+      return;
+    }
     try {
       addItem(product, 1);
       setSearchQuery('');
@@ -500,6 +566,248 @@ export function POS() {
     }
   };
 
+  const resolveProductForResume = async (productId: string): Promise<Product | undefined> => {
+    if (effectiveSucursalId) {
+      return getProductCatalogSnapshot().find((p) => p.id === productId);
+    }
+    return getProductById(productId);
+  };
+
+  const handleDejarVentaAbierta = async () => {
+    if (openSaleResume) {
+      addToast({
+        type: 'warning',
+        message: 'Termine o cancele la venta abierta que está retomando antes de crear otra.',
+      });
+      return;
+    }
+    if (saleFromQuotationId) {
+      addToast({
+        type: 'warning',
+        message: 'Hay una cotización cargada. Cobre o vacíe el carrito antes de dejar otra venta abierta.',
+      });
+      return;
+    }
+    if (items.length === 0) {
+      addToast({ type: 'error', message: 'Agregue productos al carrito' });
+      return;
+    }
+    if (esTraspasoTienda) {
+      addToast({ type: 'warning', message: 'No aplica venta abierta en traspaso entre tiendas.' });
+      return;
+    }
+    setDejarAbiertaBusy(true);
+    try {
+      const cajeroNombre =
+        user?.name?.trim() || user?.username?.trim() || user?.email?.trim() || undefined;
+      const notasAbierta = 'Venta abierta (pendiente de pago)';
+      const saleData = {
+        clienteId: client?.id || 'mostrador',
+        ...(client ? { cliente: client } : {}),
+        productos: items.map((item) => {
+          const unitBase = getCartLineUnitSinIvaBase(item, precioClienteListaId);
+          const sub = unitBase * item.quantity * (1 - item.discount / 100);
+          return {
+            id: crypto.randomUUID(),
+            productId: item.product.id,
+            cantidad: item.quantity,
+            precioUnitario: unitBase,
+            descuento: item.discount,
+            impuesto: item.product.impuesto,
+            subtotal: sub,
+            total: sub * (1 + item.product.impuesto / 100),
+          };
+        }),
+        subtotal: subtotalCobro,
+        descuento: descuentoCobro,
+        impuestos: impuestosCobro,
+        total: totalCobro,
+        formaPago: '99' as FormaPago,
+        metodoPago: 'PPD' as const,
+        pagos: [] as Payment[],
+        estado: 'pendiente' as const,
+        notas: notasAbierta,
+        usuarioId: user?.id || 'system',
+        usuarioNombre: cajeroNombre,
+        posResumeGlobalDiscount: discount,
+        posResumeListaPrecios: precioClienteListaId,
+      };
+
+      const { folio: folioVenta } = await addSale(saleData);
+      clearCart();
+      addToast({
+        type: 'success',
+        message: `Venta ${folioVenta} guardada como abierta (fiado). Cobre cuando pague el cliente.`,
+      });
+    } catch (error: unknown) {
+      addToast({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'No se pudo guardar la venta abierta',
+      });
+    } finally {
+      setDejarAbiertaBusy(false);
+    }
+  };
+
+  const resumeOpenSale = async (sale: Sale) => {
+    if (saleFromQuotationId) {
+      addToast({
+        type: 'warning',
+        message: 'Hay una cotización cargada. Cancele la venta o complétela antes de retomar una venta abierta.',
+      });
+      return;
+    }
+    if (openSaleResume && openSaleResume.sale.id !== sale.id) {
+      addToast({
+        type: 'warning',
+        message: 'Ya hay una venta abierta en el carrito. Cancele la venta actual o complétela primero.',
+      });
+      return;
+    }
+    if (items.length > 0 && !openSaleResume) {
+      addToast({
+        type: 'warning',
+        message: 'Vacíe el carrito o use Cancelar venta antes de retomar una venta abierta.',
+      });
+      return;
+    }
+    setResumeOpenBusy(true);
+    try {
+      const cartItems: CartItem[] = [];
+      for (const line of sale.productos ?? []) {
+        const product = await resolveProductForResume(line.productId);
+        if (!product) {
+          addToast({
+            type: 'error',
+            message: `No se encontró el producto en catálogo (ID ${line.productId.slice(0, 8)}…).`,
+          });
+          return;
+        }
+        cartItems.push({
+          product,
+          quantity: line.cantidad,
+          discount: line.descuento,
+          precioUnitarioOverride: line.precioUnitario,
+        });
+      }
+      let clientePos = clientFromSaleForPos(sale);
+      if (!clientePos && sale.clienteId && sale.clienteId !== 'mostrador') {
+        const row = await getClientById(sale.clienteId);
+        if (row?.nombre?.trim()) {
+          clientePos = row;
+        }
+      }
+      const listaId = parseResumeListaPreciosId(sale);
+      replaceCartForOpenSaleResume({
+        items: cartItems,
+        client: clientePos,
+        globalDiscount: Number(sale.posResumeGlobalDiscount) || 0,
+        precioClienteListaId: listaId,
+      });
+      setOpenSaleResume({ sale });
+      setFormaPago('01');
+      addToast({
+        type: 'success',
+        message: `Venta ${sale.folio} cargada. Registre el cobro y pulse Cobrar.`,
+      });
+      setMobileTab('cart');
+    } catch (e: unknown) {
+      addToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'No se pudo cargar la venta abierta',
+      });
+    } finally {
+      setResumeOpenBusy(false);
+    }
+  };
+
+  const abandonarVentaAbiertaRetomada = () => {
+    setOpenSaleResume(null);
+    clearCart();
+    addToast({ type: 'info', message: 'Se descartó el carrito. La venta sigue pendiente en la lista.' });
+  };
+
+  const handleBuscarCotizacion = async () => {
+    if (openSaleResume) {
+      addToast({
+        type: 'warning',
+        message: 'Termine o cancele la venta abierta retomada antes de cargar una cotización.',
+      });
+      return;
+    }
+    const digits = cotizacionUltimos4.replace(/\D/g, '');
+    if (digits.length < 1) {
+      addToast({
+        type: 'warning',
+        message: 'Ingrese los últimos 4 dígitos del folio de cotización (ej. 0007 para C-…-0007).',
+      });
+      return;
+    }
+    setCotizacionBusy(true);
+    try {
+      const q = await findQuotationByLast4Folio(cotizacionUltimos4, effectiveSucursalId ?? undefined);
+      if (!q) {
+        addToast({
+          type: 'error',
+          message:
+            'No hay cotización pendiente y vigente con ese número. Revise el ticket o la pantalla Cotizaciones.',
+        });
+        return;
+      }
+      const cartItems: CartItem[] = [];
+      for (const line of q.productos) {
+        const product = await resolveProductForResume(line.productId);
+        if (!product) {
+          addToast({
+            type: 'error',
+            message: `No se encontró el producto en catálogo (ID ${line.productId.slice(0, 8)}…).`,
+          });
+          return;
+        }
+        cartItems.push({
+          product,
+          quantity: line.cantidad,
+          discount: line.descuento,
+          precioUnitarioOverride: line.precioUnitario,
+        });
+      }
+      let clientePos = clientFromQuotationForPos(q);
+      if (!clientePos && q.clienteId && q.clienteId !== 'mostrador') {
+        const row = await getClientById(q.clienteId);
+        if (row?.nombre?.trim()) clientePos = row;
+      }
+      replaceCartForOpenSaleResume({
+        items: cartItems,
+        client: clientePos,
+        globalDiscount: 0,
+        precioClienteListaId: clientePos?.listaPreciosId ?? 'regular',
+      });
+      setSaleFromQuotationId(q.id);
+      setQuotationLoadedFolio(q.folio);
+      setCotizacionUltimos4('');
+      setFormaPago('01');
+      addToast({
+        type: 'success',
+        message: `Cotización ${q.folio} cargada. Elija forma de pago y pulse Cobrar; al cobrar quedará «Ya cobrada».`,
+      });
+      setMobileTab('cart');
+    } catch (e: unknown) {
+      addToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'No se pudo cargar la cotización',
+      });
+    } finally {
+      setCotizacionBusy(false);
+    }
+  };
+
+  const descartarCotizacionCargada = () => {
+    setSaleFromQuotationId(null);
+    setQuotationLoadedFolio(null);
+    clearCart();
+    addToast({ type: 'info', message: 'Carrito vaciado. La cotización sigue pendiente en Cotizaciones.' });
+  };
+
   const handleProcessSale = async () => {
     if (formaPago === 'DEV') {
       if (!devolucionSaleResuelta || devolucionSaleResuelta.estado !== 'completada') {
@@ -567,6 +875,15 @@ export function POS() {
       } finally {
         setProcessingSale(false);
       }
+      return;
+    }
+
+    if (formaPago === 'COT') {
+      addToast({
+        type: 'warning',
+        message:
+          'Cotización solo sirve para cargar el pedido: ingrese los 4 dígitos, pulse Buscar y luego elija la forma de pago con la que cobrará.',
+      });
       return;
     }
 
@@ -638,10 +955,84 @@ export function POS() {
     setProcessingSale(true);
 
     try {
-      const cambioVentaFinal = esTraspasoTienda ? 0 : cobroTarjetaPueLocal ? 0 : getCambio();
-
       const cajeroNombre =
         user?.name?.trim() || user?.username?.trim() || user?.email?.trim() || undefined;
+
+      if (openSaleResume?.sale) {
+        const pend = openSaleResume.sale;
+        if (!cartMatchesOpenSale(pend, items, precioClienteListaId)) {
+          addToast({
+            type: 'error',
+            message:
+              'El carrito no coincide con la venta abierta. Use «Salir sin cobrar (venta abierta)» o retome desde la lista.',
+          });
+          return;
+        }
+        if (Math.abs(totalVenta - (Number(pend.total) || 0)) > 0.08) {
+          addToast({
+            type: 'error',
+            message: 'El total no coincide con la venta abierta.',
+          });
+          return;
+        }
+        const cambioAbierta = cobroTarjetaPueLocal ? 0 : getCambio();
+        const pagosCompletacion: Payment[] = pagosParaVenta.map((p) => ({
+          id: crypto.randomUUID(),
+          formaPago: p.formaPago as FormaPago,
+          monto: p.monto,
+          referencia: p.referencia,
+        }));
+        await completePendingSale(pend.id, {
+          formaPago: formaPago as FormaPago,
+          metodoPago: metodoPago as 'PUE' | 'PPD',
+          pagos: pagosCompletacion,
+          cambio: cambioAbierta,
+          usuarioNombreCierre: cajeroNombre,
+        });
+
+        const clienteNombre = client?.nombre || pend.cliente?.nombre?.trim() || 'Mostrador';
+        const lineas = items.map((item) => {
+          const unitSinIva = cartLineUnitSinIva(item, precioClienteListaId);
+          const imp = Number(item.product.impuesto) || 16;
+          const unitConIva = unitSinIva * (1 + imp / 100);
+          const lineTot = unitConIva * item.quantity;
+          return {
+            descripcion: item.product.nombre,
+            cantidad: item.quantity,
+            precioUnit: unitConIva,
+            total: lineTot,
+          };
+        });
+        const resumenPagosAbierta = pagosParaVenta.map((p) => ({
+          label: labelFormaPago(p.formaPago),
+          monto: p.monto,
+          ultimos4:
+            esFormaTarjeta(p.formaPago) && /^\d{4}$/.test(p.referencia?.trim() ?? '')
+              ? p.referencia!.trim()
+              : undefined,
+        }));
+        setTicketSnapshot({
+          clienteNombre,
+          cajeroNombre,
+          lineas,
+          subtotal: subtotalCobro,
+          impuestos: impuestosCobro,
+          total: totalCobro,
+          cambio: cambioAbierta,
+          sucursalId: effectiveSucursalId,
+          folio: pend.folio?.trim() || undefined,
+          notas: pend.notas ? String(pend.notas) : undefined,
+          resumenPagos: resumenPagosAbierta,
+        });
+        setOpenSaleResume(null);
+        clearCart();
+        setCheckoutPhase('success');
+        addToast({ type: 'success', message: 'Cobro registrado. Venta completada.' });
+        return;
+      }
+
+      const cambioVentaFinal = esTraspasoTienda ? 0 : cobroTarjetaPueLocal ? 0 : getCambio();
+
       const destNombre =
         sucursalesCat.find((s) => s.id === transferenciaDestinoSucursalId)?.nombre ??
         transferenciaDestinoSucursalId;
@@ -650,7 +1041,7 @@ export function POS() {
         /** Snapshot para ticket / reimpresión (solo `clienteId` dejaba el UUID en el ticket). */
         ...(client ? { cliente: client } : {}),
         productos: items.map((item) => {
-          const unitBase = item.precioUnitarioOverride ?? item.product.precioVenta;
+          const unitBase = getCartLineUnitSinIvaBase(item, precioClienteListaId);
           const sub =
             unitBase * item.quantity * (1 - item.discount / 100);
           return {
@@ -680,7 +1071,11 @@ export function POS() {
             })),
         cambio: cambioVentaFinal,
         estado: 'completada' as const,
-        notas: esTraspasoTienda ? `Traspaso tienda a tienda → ${destNombre}` : '',
+        notas: esTraspasoTienda
+          ? `Traspaso tienda a tienda → ${destNombre}`
+          : saleFromQuotationId && quotationLoadedFolio
+            ? `Cotización ${quotationLoadedFolio}`
+            : '',
         transferenciaSucursalDestinoId: esTraspasoTienda
           ? transferenciaDestinoSucursalId.trim()
           : undefined,
@@ -688,11 +1083,26 @@ export function POS() {
         usuarioNombre: cajeroNombre,
       };
 
-      const { folio: folioVenta } = await addSale(saleData);
+      const { id: ventaIdNueva, folio: folioVenta } = await addSale(saleData);
+
+      if (saleFromQuotationId) {
+        try {
+          await markQuotationConvertedWithSale(saleFromQuotationId, ventaIdNueva);
+        } catch (err) {
+          console.error(err);
+          addToast({
+            type: 'warning',
+            message:
+              'La venta se registró, pero no se pudo marcar la cotización como cobrada. Revise Cotizaciones o intente de nuevo desde soporte.',
+          });
+        }
+        setSaleFromQuotationId(null);
+        setQuotationLoadedFolio(null);
+      }
 
       const clienteNombre = client?.nombre || 'Mostrador';
       const lineas = items.map((item) => {
-        const unitSinIva = cartLineUnitSinIva(item);
+        const unitSinIva = cartLineUnitSinIva(item, precioClienteListaId);
         const imp = Number(item.product.impuesto) || 16;
         const unitConIva = unitSinIva * (1 + imp / 100);
         const lineTot = unitConIva * item.quantity;
@@ -725,7 +1135,7 @@ export function POS() {
         cambio: cambioVentaFinal,
         sucursalId: effectiveSucursalId,
         folio: folioVenta?.trim() || undefined,
-        notas: esTraspasoTienda ? saleData.notas : undefined,
+        notas: saleData.notas?.trim() ? String(saleData.notas) : undefined,
         resumenPagos,
       });
       clearCart();
@@ -808,6 +1218,55 @@ export function POS() {
 
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 flex-col gap-2 sm:gap-3">
+      {openSaleResume ? (
+        <div
+          className={cn(
+            'flex shrink-0 flex-col gap-2 rounded-xl border border-amber-500/35 bg-amber-500/10 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:px-4'
+          )}
+        >
+          <div className="flex min-w-0 items-start gap-2 sm:items-center">
+            <Clock className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400 sm:mt-0" />
+            <p className="text-xs leading-snug text-amber-950 dark:text-amber-100 sm:text-sm">
+              Retomando venta abierta{' '}
+              <span className="font-mono font-semibold">{openSaleResume.sale.folio}</span>. Registre el pago y
+              pulse Cobrar. No cambie productos ni cantidades.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0 border-amber-600/40 text-amber-900 hover:bg-amber-500/15 dark:border-amber-500/40 dark:text-amber-100"
+            onClick={abandonarVentaAbiertaRetomada}
+          >
+            Salir sin cobrar (venta abierta)
+          </Button>
+        </div>
+      ) : null}
+
+      {saleFromQuotationId && quotationLoadedFolio && !openSaleResume ? (
+        <div
+          className={cn(
+            'flex shrink-0 flex-col gap-2 rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:px-4'
+          )}
+        >
+          <p className="text-xs leading-snug text-emerald-950 dark:text-emerald-100 sm:text-sm">
+            Cotización{' '}
+            <span className="font-mono font-semibold">{quotationLoadedFolio}</span> en el carrito. Cobre con la forma
+            de pago real; al terminar quedará «Ya cobrada» en Cotizaciones.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0 border-emerald-600/40 text-emerald-900 hover:bg-emerald-500/15 dark:border-emerald-500/40 dark:text-emerald-100"
+            onClick={descartarCotizacionCargada}
+          >
+            Vaciar carrito
+          </Button>
+        </div>
+      ) : null}
+
       {/* Pestañas móvil: una vista completa por pestaña (sin scroll de página) */}
       <div
         className={cn(
@@ -937,7 +1396,7 @@ export function POS() {
                           <p className="truncate font-medium text-slate-800 dark:text-slate-200">{item.product.nombre}</p>
                           <p className="text-xs text-slate-600 dark:text-slate-500">SKU {item.product.sku}</p>
                           <p className="text-xs text-cyan-400/90 sm:text-sm">
-                            {formatMoney(cartLineUnitSinIva(item))} c/u{' '}
+                            {formatMoney(cartLineUnitSinIva(item, precioClienteListaId))} c/u{' '}
                             <span className="text-slate-500 dark:text-slate-400">sin IVA</span>
                           </p>
                         </div>
@@ -1015,7 +1474,7 @@ export function POS() {
                           </div>
 
                           <p className="min-w-[4.5rem] text-right text-sm font-bold text-slate-800 dark:text-slate-200">
-                            {formatMoney(cartLineTotalConIva(item))}
+                            {formatMoney(cartLineTotalConIva(item, precioClienteListaId))}
                           </p>
 
                           <button
@@ -1104,6 +1563,49 @@ export function POS() {
             </span>
           </button>
 
+          {ventasAbiertas.length > 0 ? (
+            <div
+              className={cn(
+                'flex max-h-[min(11rem,32dvh)] min-h-0 shrink-0 flex-col gap-1.5 overflow-hidden rounded-xl border border-amber-500/25 bg-amber-500/5 p-2 sm:p-2.5'
+              )}
+            >
+              <p className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300 sm:text-xs">
+                Ventas abiertas (pendiente de pago)
+              </p>
+              <ul className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain pr-0.5">
+                {ventasAbiertas.map((vs) => (
+                  <li key={vs.id}>
+                    <button
+                      type="button"
+                      disabled={resumeOpenBusy || dejarAbiertaBusy}
+                      onClick={() => void resumeOpenSale(vs)}
+                      className={cn(
+                        'flex w-full flex-col gap-0.5 rounded-lg border border-slate-200/80 bg-slate-100/90 px-2 py-1.5 text-left transition-colors hover:border-cyan-500/40 hover:bg-slate-200/90 dark:border-slate-700/80 dark:bg-slate-900/60 dark:hover:border-cyan-500/35 dark:hover:bg-slate-800/80',
+                        (resumeOpenBusy || dejarAbiertaBusy) && 'pointer-events-none opacity-50'
+                      )}
+                    >
+                      <span className="font-mono text-xs font-medium text-slate-800 dark:text-slate-200">
+                        {vs.folio}
+                      </span>
+                      <span className="truncate text-[11px] text-slate-600 dark:text-slate-400">
+                        {vs.cliente?.nombre?.trim() || vs.clienteId || 'Cliente'}
+                      </span>
+                      <span className="text-xs font-semibold tabular-nums text-cyan-600 dark:text-cyan-400">
+                        {formatMoney(Number(vs.total) || 0)}
+                      </span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-500">
+                        {formatInAppTimezone(
+                          vs.createdAt instanceof Date ? vs.createdAt : new Date(vs.createdAt),
+                          { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }
+                        )}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
           <Card className="flex min-w-0 flex-col overflow-visible border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 max-lg:flex-none lg:min-h-0 lg:flex-1 lg:overflow-hidden">
             <CardContent className="flex flex-col gap-3 overflow-visible p-2 sm:p-3 lg:min-h-0 lg:flex-1 lg:overflow-hidden lg:p-4">
               <div className="shrink-0 space-y-2">
@@ -1135,6 +1637,19 @@ export function POS() {
                     Devolución: ingrese el folio del ticket, pulse Buscar, deje el carrito vacío y use Cobrar.
                   </p>
                 ) : null}
+                {esFormaCotizacion ? (
+                  <p className="text-[10px] text-cyan-700 dark:text-cyan-400/90 sm:text-xs">
+                    Cotización: últimos 4 dígitos del folio (ej. 0007), Buscar, luego elija efectivo u otra forma y
+                    Cobrar. Al cobrar la cotización pasa a «Ya cobrada».
+                  </p>
+                ) : null}
+                {quotationLoadedFolio && saleFromQuotationId && !esFormaCotizacion ? (
+                  <p className="text-[10px] font-medium text-emerald-700 dark:text-emerald-400/90 sm:text-xs">
+                    Pedido desde cotización{' '}
+                    <span className="font-mono">{quotationLoadedFolio}</span>. Al completar el cobro se actualizará
+                    en Cotizaciones.
+                  </p>
+                ) : null}
               </div>
 
               {/*
@@ -1151,7 +1666,7 @@ export function POS() {
                       if (v === 'TTS' && isAdmin) {
                         useCartStore.setState({ pagos: [] });
                       }
-                      if (v === 'DEV') {
+                      if (v === 'DEV' || v === 'COT') {
                         useCartStore.setState({ pagos: [] });
                       }
                       if (v !== 'TTS') setTransferenciaDestinoSucursalId('');
@@ -1166,7 +1681,7 @@ export function POS() {
                       hideScrollButtons
                       className="z-[300] max-h-[min(50dvh,18rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
                     >
-                      {formasPagoPos.map((fp) => (
+                      {formasPagoPosEffective.map((fp) => (
                         <SelectItem
                           key={fp.clave}
                           value={fp.clave}
@@ -1234,6 +1749,47 @@ export function POS() {
                   </div>
                 ) : null}
 
+                {esFormaCotizacion ? (
+                  <div className="space-y-2 rounded-lg border border-cyan-500/25 bg-cyan-500/5 p-2.5 sm:p-3">
+                    <Label className="text-[10px] text-slate-600 dark:text-slate-400 sm:text-xs">
+                      Últimos 4 dígitos del folio de cotización
+                    </Label>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        placeholder="0007"
+                        maxLength={8}
+                        value={cotizacionUltimos4}
+                        onChange={(e) =>
+                          setCotizacionUltimos4(e.target.value.replace(/\D/g, '').slice(0, 4))
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            void handleBuscarCotizacion();
+                          }
+                        }}
+                        className="h-10 border-slate-300 font-mono text-sm tracking-wider dark:border-slate-700 dark:bg-slate-800"
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="h-10 shrink-0 bg-slate-200 text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                        disabled={cotizacionBusy}
+                        onClick={() => void handleBuscarCotizacion()}
+                      >
+                        {cotizacionBusy ? 'Buscando…' : 'Buscar'}
+                      </Button>
+                    </div>
+                    <p className="text-[10px] leading-snug text-slate-600 dark:text-slate-500 sm:text-xs">
+                      Ej. folio <span className="font-mono">C-20260323-0007</span> → escriba{' '}
+                      <span className="font-mono">0007</span>.
+                    </p>
+                  </div>
+                ) : null}
+
                 {formaPago === 'TTS' && isAdmin ? (
                   <div className="space-y-1">
                     <Label className="text-[10px] text-slate-600 dark:text-slate-400 sm:text-xs">Tienda destino</Label>
@@ -1287,7 +1843,7 @@ export function POS() {
                   </Select>
                 </div>
 
-                {!esFormaDevolucion ? (
+                {!esFormaDevolucion && !esFormaCotizacion ? (
                   <>
                     <div className="space-y-1">
                       <Label className="text-[10px] text-slate-600 dark:text-slate-400 sm:text-xs">Desc. global %</Label>
@@ -1352,8 +1908,10 @@ export function POS() {
                   !devolucionSaleResuelta ||
                   devolucionSaleResuelta.estado !== 'completada' ||
                   items.length > 0
-                : items.length === 0 ||
-                  (formaPago === 'TTS' && isAdmin && !transferenciaDestinoSucursalId?.trim())
+                : esFormaCotizacion
+                  ? true
+                  : items.length === 0 ||
+                    (formaPago === 'TTS' && isAdmin && !transferenciaDestinoSucursalId?.trim())
               }
               className="h-11 w-full min-w-0 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-base font-bold text-white shadow-lg shadow-cyan-500/25 sm:h-12 md:h-14 md:text-lg"
             >
@@ -1368,6 +1926,25 @@ export function POS() {
             >
               <X className="mr-2 h-4 w-4" />
               Cancelar venta
+            </Button>
+
+            <Button
+              type="button"
+              onClick={() => void handleDejarVentaAbierta()}
+              disabled={
+                dejarAbiertaBusy ||
+                resumeOpenBusy ||
+                Boolean(openSaleResume) ||
+                Boolean(saleFromQuotationId) ||
+                items.length === 0 ||
+                esTraspasoTienda ||
+                esFormaDevolucion
+              }
+              variant="secondary"
+              className="h-10 w-full rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-950 hover:bg-amber-500/20 dark:border-amber-500/35 dark:text-amber-100 dark:hover:bg-amber-500/15 sm:h-11"
+            >
+              <Clock className="mr-2 h-4 w-4 shrink-0" />
+              {dejarAbiertaBusy ? 'Guardando…' : 'Dejar venta abierta (fiado)'}
             </Button>
           </div>
         </aside>
@@ -1641,6 +2218,7 @@ export function POS() {
               type="button"
               onClick={() => {
                 setClient(null);
+                setPrecioClienteLista('regular');
                 setShowClientDialog(false);
               }}
               className="w-full rounded-lg border border-slate-300 dark:border-slate-700/80 bg-slate-200 dark:bg-slate-800/80 p-3 text-left transition-colors hover:bg-slate-200 dark:bg-slate-800"
@@ -1656,6 +2234,7 @@ export function POS() {
                   type="button"
                   onClick={() => {
                     setClient(c);
+                    setPrecioClienteLista(c.listaPreciosId ?? 'regular');
                     setShowClientDialog(false);
                   }}
                   className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-200/80 dark:bg-slate-800/50 p-3 text-left transition-colors hover:bg-slate-200 dark:bg-slate-800"

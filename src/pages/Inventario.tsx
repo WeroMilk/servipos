@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { 
   Plus, 
@@ -58,8 +58,20 @@ import {
   usePendingIncomingTransfers,
   useInventoryMovementsHistory,
 } from '@/hooks';
-import { useAppStore, useAuthStore } from '@/stores';
+import { useAppStore, useAuthStore, useInventoryListsStore } from '@/stores';
 import type { InventoryMovement, Product, Sucursal } from '@/types';
+import {
+  CLIENT_PRICE_LIST_ORDER,
+  CLIENT_PRICE_LABELS,
+  type ClientPriceListId,
+} from '@/lib/clientPriceLists';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { clearAllInventoryMovementsLocal } from '@/db/database';
 import { deleteAllInventoryMovementsFirestore } from '@/lib/firestore/inventoryMovementsFirestore';
 import { subscribeSucursales } from '@/lib/firestore/sucursalesMetaFirestore';
@@ -90,6 +102,51 @@ function tipoMovimientoLabel(t: InventoryMovement['tipo']): string {
     compra: 'Compra',
   };
   return labels[t];
+}
+
+function InventarioCurrencyInput({ className, ...props }: ComponentProps<typeof Input>) {
+  return (
+    <div className="relative">
+      <span
+        className="pointer-events-none absolute left-2.5 top-1/2 z-[1] -translate-y-1/2 text-sm font-medium text-slate-600 dark:text-slate-400"
+        aria-hidden
+      >
+        $
+      </span>
+      <Input {...props} className={cn('pl-7', className)} />
+    </div>
+  );
+}
+
+function emptyPreciosListaStr(): Record<ClientPriceListId, string> {
+  const o = {} as Record<ClientPriceListId, string>;
+  for (const id of CLIENT_PRICE_LIST_ORDER) o[id] = '';
+  return o;
+}
+
+function parsePreciosListaForm(
+  strMap: Record<ClientPriceListId, string>
+): Product['preciosPorListaCliente'] | undefined {
+  const out: Partial<Record<ClientPriceListId, number>> = {};
+  for (const id of CLIENT_PRICE_LIST_ORDER) {
+    const t = (strMap[id] ?? '').replace(',', '.').trim();
+    if (t === '') continue;
+    const n = parseFloat(t);
+    if (Number.isFinite(n) && n >= 0) out[id] = n;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/** Catálogo guarda `precioVenta` sin IVA; en formulario se captura con IVA usando `impuesto` del producto. */
+function precioVentaSinIvaToConIva(sinIva: number, impuestoPct: number): number {
+  const imp = Number(impuestoPct) || 0;
+  return sinIva * (1 + imp / 100);
+}
+
+function precioVentaConIvaToSinIva(conIva: number, impuestoPct: number): number {
+  const imp = Number(impuestoPct) || 0;
+  if (imp <= -100) return 0;
+  return conIva / (1 + imp / 100);
 }
 
 export function Inventario() {
@@ -135,8 +192,15 @@ export function Inventario() {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showStockDialog, setShowStockDialog] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [stockAdjustment, setStockAdjustment] = useState({ tipo: 'entrada', cantidad: 0, motivo: '' });
+  const [stockAdjustment, setStockAdjustment] = useState({
+    tipo: 'entrada',
+    cantidad: 0,
+    motivo: '',
+    proveedorEntrada: '',
+    precioCompraUnit: 0,
+  });
   const [stockQtyFocus, setStockQtyFocus] = useState(false);
+  const [stockPrecioCompraFocus, setStockPrecioCompraFocus] = useState(false);
   /** Al enfocar, ocultar 0 para escribir sin borrar; al salir vacío queda 0 en estado. */
   const [addNumFocus, setAddNumFocus] = useState({
     precioVenta: false,
@@ -184,6 +248,33 @@ export function Inventario() {
     unidadMedida: 'H87',
   });
 
+  const [preciosListaStr, setPreciosListaStr] = useState(emptyPreciosListaStr);
+  const categoriasLista = useInventoryListsStore((s) => s.categorias);
+  const proveedoresLista = useInventoryListsStore((s) => s.proveedores);
+
+  const categoriaSelectOptions = useMemo(() => {
+    const s = new Set(categoriasLista);
+    if (formData.categoria && !s.has(formData.categoria)) {
+      return [formData.categoria, ...categoriasLista];
+    }
+    return categoriasLista;
+  }, [categoriasLista, formData.categoria]);
+
+  const proveedorSelectOptions = useMemo(() => {
+    const s = new Set(proveedoresLista);
+    if (formData.proveedor && !s.has(formData.proveedor)) {
+      return [formData.proveedor, ...proveedoresLista];
+    }
+    return proveedoresLista;
+  }, [proveedoresLista, formData.proveedor]);
+
+  const stockProveedorOptions = useMemo(() => {
+    const s = new Set(proveedoresLista);
+    const pe = stockAdjustment.proveedorEntrada.trim();
+    if (pe && !s.has(pe)) return [pe, ...proveedoresLista];
+    return proveedoresLista;
+  }, [proveedoresLista, stockAdjustment.proveedorEntrada]);
+
   const { results: searchResults, search } = useProductSearch();
 
   const handleSearch = (query: string) => {
@@ -216,10 +307,37 @@ export function Inventario() {
   }, [showEditDialog]);
 
   const handleAddProduct = async () => {
+    const nombre = formData.nombre.trim();
+    if (!nombre) {
+      addToast({ type: 'warning', message: 'El nombre es obligatorio' });
+      return;
+    }
+    const codigoBarras = (formData.codigoBarras ?? '').trim();
+    if (!codigoBarras) {
+      addToast({ type: 'warning', message: 'El código de barras es obligatorio' });
+      return;
+    }
+    const skuTrim = (formData.sku ?? '').trim();
+    const skuFinal = skuTrim || codigoBarras;
+    const lowerSku = skuFinal.toLowerCase();
+    const activos = products.filter((p) => p.activo !== false);
+    if (activos.some((p) => p.sku.toLowerCase() === lowerSku)) {
+      addToast({ type: 'error', message: 'Ya existe un producto con ese SKU' });
+      return;
+    }
+    if (activos.some((p) => (p.codigoBarras ?? '').trim() === codigoBarras)) {
+      addToast({ type: 'error', message: 'Ese código de barras ya está registrado' });
+      return;
+    }
+    const preciosPorListaCliente = parsePreciosListaForm(preciosListaStr);
     try {
       await addProduct({
         ...formData,
+        nombre,
+        sku: skuFinal,
+        codigoBarras,
         activo: true,
+        ...(preciosPorListaCliente ? { preciosPorListaCliente } : {}),
       } as any);
       setShowAddDialog(false);
       resetForm();
@@ -231,9 +349,14 @@ export function Inventario() {
 
   const handleEditProduct = async () => {
     if (!selectedProduct) return;
-    
+
+    const preciosPorListaCliente = parsePreciosListaForm(preciosListaStr);
+
     try {
-      await editProduct(selectedProduct.id, formData);
+      await editProduct(selectedProduct.id, {
+        ...formData,
+        preciosPorListaCliente: preciosPorListaCliente ?? {},
+      });
       setShowEditDialog(false);
       setSelectedProduct(null);
       addToast({ type: 'success', message: 'Producto actualizado exitosamente' });
@@ -257,17 +380,32 @@ export function Inventario() {
     if (!selectedProduct) return;
     
     try {
+      const entradaMeta =
+        stockAdjustment.tipo === 'entrada'
+          ? {
+              proveedor: stockAdjustment.proveedorEntrada.trim() || undefined,
+              precioUnitarioCompra:
+                stockAdjustment.precioCompraUnit > 0 ? stockAdjustment.precioCompraUnit : undefined,
+            }
+          : undefined;
       await adjustStock(
         selectedProduct.id,
         stockAdjustment.cantidad,
         stockAdjustment.tipo as any,
         stockAdjustment.motivo,
         undefined,
-        'system'
+        'system',
+        entradaMeta
       );
       setShowStockDialog(false);
       setSelectedProduct(null);
-      setStockAdjustment({ tipo: 'entrada', cantidad: 0, motivo: '' });
+      setStockAdjustment({
+        tipo: 'entrada',
+        cantidad: 0,
+        motivo: '',
+        proveedorEntrada: '',
+        precioCompraUnit: 0,
+      });
       addToast({ type: 'success', message: 'Stock ajustado exitosamente' });
     } catch (error: any) {
       addToast({ type: 'error', message: error.message });
@@ -311,12 +449,24 @@ export function Inventario() {
       proveedor: product.proveedor || '',
       unidadMedida: product.unidadMedida,
     });
+    const pl = emptyPreciosListaStr();
+    for (const id of CLIENT_PRICE_LIST_ORDER) {
+      const v = product.preciosPorListaCliente?.[id];
+      pl[id] = v != null && Number.isFinite(v) ? String(v) : '';
+    }
+    setPreciosListaStr(pl);
     setShowEditDialog(true);
   };
 
   const openStockDialog = (product: Product) => {
     setSelectedProduct(product);
-    setStockAdjustment({ tipo: 'entrada', cantidad: 0, motivo: '' });
+    setStockAdjustment({
+      tipo: 'entrada',
+      cantidad: 0,
+      motivo: '',
+      proveedorEntrada: product.proveedor?.trim() || '',
+      precioCompraUnit: product.precioCompra && product.precioCompra > 0 ? product.precioCompra : 0,
+    });
     setStockQtyFocus(false);
     setShowStockDialog(true);
   };
@@ -422,6 +572,7 @@ export function Inventario() {
       proveedor: '',
       unidadMedida: 'H87',
     });
+    setPreciosListaStr(emptyPreciosListaStr());
   };
 
   return (
@@ -837,7 +988,7 @@ export function Inventario() {
           
           <div className="grid grid-cols-2 gap-4 py-4">
             <div className="space-y-2">
-              <Label>SKU *</Label>
+              <Label>SKU</Label>
               <Input
                 value={formData.sku}
                 onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
@@ -845,7 +996,7 @@ export function Inventario() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Código de Barras</Label>
+              <Label>Código de Barras *</Label>
               <Input
                 value={formData.codigoBarras}
                 onChange={(e) => setFormData({ ...formData, codigoBarras: e.target.value })}
@@ -869,26 +1020,42 @@ export function Inventario() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Precio de Venta *</Label>
-              <Input
+              <Label>Precio de Venta (con IVA) *</Label>
+              <InventarioCurrencyInput
                 type="number"
                 inputMode="decimal"
                 min={0}
                 step="any"
-                value={addNumFocus.precioVenta && formData.precioVenta === 0 ? '' : formData.precioVenta}
+                value={
+                  addNumFocus.precioVenta && formData.precioVenta === 0
+                    ? ''
+                    : formData.precioVenta === 0
+                      ? ''
+                      : precioVentaSinIvaToConIva(formData.precioVenta, formData.impuesto)
+                }
                 onFocus={() => setAddNumFocus((f) => ({ ...f, precioVenta: true }))}
                 onBlur={() => setAddNumFocus((f) => ({ ...f, precioVenta: false }))}
                 onChange={(e) => {
                   const v = e.target.value;
                   if (v === '') setFormData((d) => ({ ...d, precioVenta: 0 }));
-                  else setFormData((d) => ({ ...d, precioVenta: parseFloat(v) || 0 }));
+                  else {
+                    const conIva = parseFloat(v);
+                    setFormData((d) => ({
+                      ...d,
+                      precioVenta:
+                        Number.isFinite(conIva) && conIva >= 0
+                          ? precioVentaConIvaToSinIva(conIva, d.impuesto)
+                          : 0,
+                    }));
+                  }
                 }}
                 className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
+              <p className="text-[10px] text-slate-500 dark:text-slate-500">IVA aplicado: {formData.impuesto}%</p>
             </div>
             <div className="space-y-2">
               <Label>Precio de Compra</Label>
-              <Input
+              <InventarioCurrencyInput
                 type="number"
                 inputMode="decimal"
                 min={0}
@@ -942,19 +1109,79 @@ export function Inventario() {
             </div>
             <div className="space-y-2">
               <Label>Categoría</Label>
-              <Input
-                value={formData.categoria}
-                onChange={(e) => setFormData({ ...formData, categoria: e.target.value })}
-                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
-              />
+              <Select
+                value={formData.categoria || '__none__'}
+                onValueChange={(v) => setFormData({ ...formData, categoria: v === '__none__' ? '' : v })}
+              >
+                <SelectTrigger className="h-10 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+                  <SelectValue placeholder="Sin categoría" />
+                </SelectTrigger>
+                <SelectContent
+                  position="popper"
+                  className="z-[300] max-h-[min(50dvh,18rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
+                >
+                  <SelectItem value="__none__" className="text-slate-900 dark:text-slate-100">
+                    Sin categoría
+                  </SelectItem>
+                  {categoriaSelectOptions.map((c) => (
+                    <SelectItem key={c} value={c} className="text-slate-900 dark:text-slate-100">
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label>Proveedor</Label>
-              <Input
-                value={formData.proveedor}
-                onChange={(e) => setFormData({ ...formData, proveedor: e.target.value })}
-                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
-              />
+              <Select
+                value={formData.proveedor || '__none__'}
+                onValueChange={(v) => setFormData({ ...formData, proveedor: v === '__none__' ? '' : v })}
+              >
+                <SelectTrigger className="h-10 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+                  <SelectValue placeholder="Sin proveedor" />
+                </SelectTrigger>
+                <SelectContent
+                  position="popper"
+                  className="z-[300] max-h-[min(50dvh,18rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
+                >
+                  <SelectItem value="__none__" className="text-slate-900 dark:text-slate-100">
+                    Sin proveedor
+                  </SelectItem>
+                  {proveedorSelectOptions.map((c) => (
+                    <SelectItem key={c} value={c} className="text-slate-900 dark:text-slate-100">
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="mt-3 space-y-3 border-t border-slate-200 pt-4 dark:border-slate-800">
+            <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
+              Precios opcionales por tipo de cliente (sin IVA)
+            </p>
+            <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-500">
+              Si deja vacío, en el POS se usa el precio de venta con el % de la lista en Configuración → Precios cliente.
+            </p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {CLIENT_PRICE_LIST_ORDER.map((id) => (
+                <div key={id} className="space-y-1">
+                  <Label className="text-xs text-slate-600 dark:text-slate-400">
+                    {CLIENT_PRICE_LABELS[id]}
+                  </Label>
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="—"
+                    value={preciosListaStr[id]}
+                    onChange={(e) =>
+                      setPreciosListaStr((prev) => ({ ...prev, [id]: e.target.value }))
+                    }
+                    className="h-9 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                  />
+                </div>
+              ))}
             </div>
           </div>
 
@@ -1020,26 +1247,42 @@ export function Inventario() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Precio de Venta *</Label>
-              <Input
+              <Label>Precio de Venta (con IVA) *</Label>
+              <InventarioCurrencyInput
                 type="number"
                 inputMode="decimal"
                 min={0}
                 step="any"
-                value={editNumFocus.precioVenta && formData.precioVenta === 0 ? '' : formData.precioVenta}
+                value={
+                  editNumFocus.precioVenta && formData.precioVenta === 0
+                    ? ''
+                    : formData.precioVenta === 0
+                      ? ''
+                      : precioVentaSinIvaToConIva(formData.precioVenta, formData.impuesto)
+                }
                 onFocus={() => setEditNumFocus((f) => ({ ...f, precioVenta: true }))}
                 onBlur={() => setEditNumFocus((f) => ({ ...f, precioVenta: false }))}
                 onChange={(e) => {
                   const v = e.target.value;
                   if (v === '') setFormData((d) => ({ ...d, precioVenta: 0 }));
-                  else setFormData((d) => ({ ...d, precioVenta: parseFloat(v) || 0 }));
+                  else {
+                    const conIva = parseFloat(v);
+                    setFormData((d) => ({
+                      ...d,
+                      precioVenta:
+                        Number.isFinite(conIva) && conIva >= 0
+                          ? precioVentaConIvaToSinIva(conIva, d.impuesto)
+                          : 0,
+                    }));
+                  }
                 }}
                 className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
+              <p className="text-[10px] text-slate-500 dark:text-slate-500">IVA aplicado: {formData.impuesto}%</p>
             </div>
             <div className="space-y-2">
               <Label>Precio de Compra</Label>
-              <Input
+              <InventarioCurrencyInput
                 type="number"
                 inputMode="decimal"
                 min={0}
@@ -1077,11 +1320,79 @@ export function Inventario() {
             </div>
             <div className="space-y-2">
               <Label>Categoría</Label>
-              <Input
-                value={formData.categoria}
-                onChange={(e) => setFormData({ ...formData, categoria: e.target.value })}
-                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
-              />
+              <Select
+                value={formData.categoria || '__none__'}
+                onValueChange={(v) => setFormData({ ...formData, categoria: v === '__none__' ? '' : v })}
+              >
+                <SelectTrigger className="h-10 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+                  <SelectValue placeholder="Sin categoría" />
+                </SelectTrigger>
+                <SelectContent
+                  position="popper"
+                  className="z-[300] max-h-[min(50dvh,18rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
+                >
+                  <SelectItem value="__none__" className="text-slate-900 dark:text-slate-100">
+                    Sin categoría
+                  </SelectItem>
+                  {categoriaSelectOptions.map((c) => (
+                    <SelectItem key={c} value={c} className="text-slate-900 dark:text-slate-100">
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Proveedor</Label>
+              <Select
+                value={formData.proveedor || '__none__'}
+                onValueChange={(v) => setFormData({ ...formData, proveedor: v === '__none__' ? '' : v })}
+              >
+                <SelectTrigger className="h-10 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+                  <SelectValue placeholder="Sin proveedor" />
+                </SelectTrigger>
+                <SelectContent
+                  position="popper"
+                  className="z-[300] max-h-[min(50dvh,18rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
+                >
+                  <SelectItem value="__none__" className="text-slate-900 dark:text-slate-100">
+                    Sin proveedor
+                  </SelectItem>
+                  {proveedorSelectOptions.map((c) => (
+                    <SelectItem key={c} value={c} className="text-slate-900 dark:text-slate-100">
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="mt-3 space-y-3 border-t border-slate-200 pt-4 dark:border-slate-800">
+            <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
+              Precios opcionales por tipo de cliente (sin IVA)
+            </p>
+            <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-500">
+              Si deja vacío, en el POS se usa el precio de venta con el % de la lista en Configuración → Precios cliente.
+            </p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {CLIENT_PRICE_LIST_ORDER.map((id) => (
+                <div key={id} className="space-y-1">
+                  <Label className="text-xs text-slate-600 dark:text-slate-400">
+                    {CLIENT_PRICE_LABELS[id]}
+                  </Label>
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="—"
+                    value={preciosListaStr[id]}
+                    onChange={(e) =>
+                      setPreciosListaStr((prev) => ({ ...prev, [id]: e.target.value }))
+                    }
+                    className="h-9 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                  />
+                </div>
+              ))}
             </div>
           </div>
 
@@ -1157,6 +1468,75 @@ export function Inventario() {
                 className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
             </div>
+
+            {stockAdjustment.tipo === 'entrada' ? (
+              <>
+                <div className="space-y-2">
+                  <Label>Proveedor</Label>
+                  <Select
+                    value={
+                      stockAdjustment.proveedorEntrada.trim()
+                        ? stockAdjustment.proveedorEntrada.trim()
+                        : '__none__'
+                    }
+                    onValueChange={(v) =>
+                      setStockAdjustment((s) => ({
+                        ...s,
+                        proveedorEntrada: v === '__none__' ? '' : v,
+                      }))
+                    }
+                  >
+                    <SelectTrigger className="h-10 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+                      <SelectValue placeholder="Seleccione proveedor" />
+                    </SelectTrigger>
+                    <SelectContent
+                      position="popper"
+                      className="z-[300] max-h-[min(50dvh,18rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
+                    >
+                      <SelectItem value="__none__" className="text-slate-900 dark:text-slate-100">
+                        Sin especificar
+                      </SelectItem>
+                      {stockProveedorOptions.map((c) => (
+                        <SelectItem key={c} value={c} className="text-slate-900 dark:text-slate-100">
+                          {c}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Precio unitario de compra</Label>
+                  <InventarioCurrencyInput
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    step="any"
+                    value={
+                      stockPrecioCompraFocus && stockAdjustment.precioCompraUnit === 0
+                        ? ''
+                        : stockAdjustment.precioCompraUnit === 0
+                          ? ''
+                          : stockAdjustment.precioCompraUnit
+                    }
+                    onFocus={() => setStockPrecioCompraFocus(true)}
+                    onBlur={() => setStockPrecioCompraFocus(false)}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === '') setStockAdjustment((s) => ({ ...s, precioCompraUnit: 0 }));
+                      else
+                        setStockAdjustment((s) => ({
+                          ...s,
+                          precioCompraUnit: parseFloat(v) || 0,
+                        }));
+                    }}
+                    className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                  />
+                  <p className="text-[11px] text-slate-500 dark:text-slate-500">
+                    Opcional (sin IVA). Se guarda en el historial de Configuración → Abasto.
+                  </p>
+                </div>
+              </>
+            ) : null}
           </div>
 
           <DialogFooter>
@@ -1216,6 +1596,10 @@ export function Inventario() {
                         Fecha y hora
                       </TableHead>
                       <TableHead className="whitespace-nowrap text-slate-600 dark:text-slate-400">Tipo</TableHead>
+                      <TableHead className="min-w-[6rem] text-slate-600 dark:text-slate-400">Proveedor</TableHead>
+                      <TableHead className="whitespace-nowrap text-right text-slate-600 dark:text-slate-400">
+                        P. compra
+                      </TableHead>
                       <TableHead className="min-w-[8rem] text-slate-600 dark:text-slate-400">Motivo</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -1225,6 +1609,7 @@ export function Inventario() {
                       const nombre = prod?.nombre?.trim() || `Producto (${mov.productId.slice(0, 8)}…)`;
                       const when = mov.createdAt instanceof Date ? mov.createdAt : new Date(mov.createdAt);
                       const motivo = mov.motivo?.trim() || '—';
+                      const pu = mov.precioUnitarioCompra;
                       return (
                         <TableRow
                           key={mov.id}
@@ -1254,6 +1639,12 @@ export function Inventario() {
                           </TableCell>
                           <TableCell className="whitespace-nowrap text-xs text-slate-600 dark:text-slate-400">
                             {tipoMovimientoLabel(mov.tipo)}
+                          </TableCell>
+                          <TableCell className="max-w-[6rem] text-xs text-slate-700 dark:text-slate-300">
+                            {mov.proveedor?.trim() || '—'}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap text-right text-xs tabular-nums text-slate-700 dark:text-slate-300">
+                            {pu != null && Number.isFinite(pu) ? formatMoney(pu) : '—'}
                           </TableCell>
                           <TableCell
                             className="max-w-[14rem] text-xs text-slate-700 dark:text-slate-300"

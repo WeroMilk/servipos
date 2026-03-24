@@ -54,7 +54,7 @@ import type { Quotation, Product } from '@/types';
 import { cn, formatMoney } from '@/lib/utils';
 import { PageShell } from '@/components/ui-custom/PageShell';
 import { SendEmailDialog } from '@/components/ui-custom/SendEmailDialog';
-import { printLetterDocument } from '@/lib/printTicket';
+import { printLetterDocument, printThermalQuotation } from '@/lib/printTicket';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 
 const statusColors: Record<string, string> = {
@@ -519,6 +519,24 @@ export function Cotizaciones() {
                                   <FileText className="mr-2 h-4 w-4" />
                                   Ver Detalle
                                 </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => printQuotationLetter(quotation, effectiveSucursalId)}
+                                  className="text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:bg-slate-800 hover:text-slate-900 dark:text-slate-100"
+                                >
+                                  <Printer className="mr-2 h-4 w-4" />
+                                  Imprimir carta
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    printThermalQuotation(quotation, {
+                                      sucursalId: effectiveSucursalId,
+                                    })
+                                  }
+                                  className="text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:bg-slate-800 hover:text-slate-900 dark:text-slate-100"
+                                >
+                                  <Printer className="mr-2 h-4 w-4" />
+                                  Imprimir ticket (80 mm)
+                                </DropdownMenuItem>
                                 {quotation.estado === 'pendiente' && (
                                   <DropdownMenuItem
                                     onClick={() => handleConvertToSale(quotation)}
@@ -752,7 +770,7 @@ export function Cotizaciones() {
               {postSaveQuotation ? `Cotización ${postSaveQuotation.folio} guardada` : 'Cotización guardada'}
             </DialogTitle>
             <DialogDescription className="text-slate-600 dark:text-slate-400">
-              Imprime en tamaño carta o crea otra cotización.
+              Imprima en carta o en ticket térmico (80 mm), o cree otra cotización.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2">
@@ -766,7 +784,20 @@ export function Cotizaciones() {
               }}
             >
               <Printer className="mr-2 h-4 w-4" />
-              Imprimir (carta)
+              Imprimir carta
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="border border-slate-300 bg-slate-200 text-slate-900 hover:bg-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+              onClick={() => {
+                if (postSaveQuotation) {
+                  printThermalQuotation(postSaveQuotation, { sucursalId: effectiveSucursalId });
+                }
+              }}
+            >
+              <Printer className="mr-2 h-4 w-4" />
+              Imprimir ticket (80 mm)
             </Button>
             <Button
               type="button"
@@ -873,7 +904,18 @@ export function Cotizaciones() {
                   onClick={() => printQuotationLetter(selectedQuotation, effectiveSucursalId)}
                 >
                   <Printer className="mr-2 h-4 w-4" />
-                  Imprimir (carta)
+                  Imprimir carta
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300"
+                  onClick={() =>
+                    printThermalQuotation(selectedQuotation, { sucursalId: effectiveSucursalId })
+                  }
+                >
+                  <Printer className="mr-2 h-4 w-4" />
+                  Imprimir ticket (80 mm)
                 </Button>
                 <Button
                   type="button"

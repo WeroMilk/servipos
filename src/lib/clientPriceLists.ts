@@ -10,6 +10,13 @@ export const CLIENT_PRICE_LIST_ORDER = [
 
 export type ClientPriceListId = (typeof CLIENT_PRICE_LIST_ORDER)[number];
 
+export function normalizeClientPriceListId(raw: unknown): ClientPriceListId {
+  if (typeof raw === 'string' && (CLIENT_PRICE_LIST_ORDER as readonly string[]).includes(raw)) {
+    return raw as ClientPriceListId;
+  }
+  return 'regular';
+}
+
 export const CLIENT_PRICE_LABELS: Record<ClientPriceListId, string> = {
   regular: 'Regular',
   tecnico: 'Tecnico',
