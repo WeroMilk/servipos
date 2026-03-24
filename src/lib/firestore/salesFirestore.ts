@@ -59,7 +59,7 @@ function parseFormaPago(v: unknown): FormaPago {
   if (s === 'TTS') return 'TTS';
   if (s === 'DEV') return 'DEV';
   if (s === 'COT') return 'COT';
-  if (['01', '02', '03', '04', '08', '28', '99'].includes(s)) return s as FormaPago;
+  if (['01', '02', '03', '04', '08', '28', '29', '99'].includes(s)) return s as FormaPago;
   return '01';
 }
 
@@ -193,6 +193,20 @@ function yyyymmddFolioZone(d: Date): string {
   return getMexicoDateKey(d).replace(/-/g, '');
 }
 
+function clientSnapshotToFirestorePayload(cliente: Client | null | undefined): Record<string, unknown> | null {
+  if (!cliente) return null;
+  return {
+    id: cliente.id,
+    rfc: cliente.rfc ?? null,
+    nombre: cliente.nombre,
+    razonSocial: cliente.razonSocial ?? null,
+    isMostrador: cliente.isMostrador,
+    listaPreciosId: cliente.listaPreciosId ?? null,
+    createdAt: cliente.createdAt,
+    updatedAt: cliente.updatedAt,
+  };
+}
+
 function saleInputToPayload(
   sale: Omit<Sale, 'id' | 'createdAt' | 'updatedAt' | 'syncStatus' | 'lastSyncAt'>,
   folio: string
@@ -200,18 +214,7 @@ function saleInputToPayload(
   return {
     folio,
     clienteId: sale.clienteId,
-    cliente: sale.cliente
-      ? {
-          id: sale.cliente.id,
-          rfc: sale.cliente.rfc ?? null,
-          nombre: sale.cliente.nombre,
-          razonSocial: sale.cliente.razonSocial ?? null,
-          isMostrador: sale.cliente.isMostrador,
-          listaPreciosId: sale.cliente.listaPreciosId ?? null,
-          createdAt: sale.cliente.createdAt,
-          updatedAt: sale.cliente.updatedAt,
-        }
-      : null,
+    cliente: clientSnapshotToFirestorePayload(sale.cliente ?? null),
     productos: sale.productos.map((p) => {
       const nombre =
         typeof p.productoNombre === 'string' && p.productoNombre.trim()
@@ -518,6 +521,12 @@ export async function completePendingSaleFirestore(
     usuarioNombreCierre?: string | null;
     /** Asocia la venta a la sesión de caja abierta al cobrar. */
     cajaSesionId?: string | null;
+    /**
+     * Cliente al cobrar (carrito POS). Si se envía, sustituye `clienteId` / snapshot `cliente` de la venta
+     * pendiente para historial y contador de tickets.
+     */
+    clienteId?: string;
+    cliente?: Client | null;
   }
 ): Promise<void> {
   const saleRef = doc(db, 'sucursales', sucursalId, 'sales', saleId);
@@ -540,6 +549,12 @@ export async function completePendingSaleFirestore(
         ? { cajaSesionId: patch.cajaSesionId.trim() }
         : {};
 
+    const clienteCierrePatch: Record<string, unknown> = {};
+    if (patch.clienteId !== undefined) {
+      clienteCierrePatch.clienteId = patch.clienteId;
+      clienteCierrePatch.cliente = clientSnapshotToFirestorePayload(patch.cliente ?? null);
+    }
+
     transaction.update(saleRef, {
       estado: 'completada',
       formaPago: patch.formaPago,
@@ -553,6 +568,7 @@ export async function completePendingSaleFirestore(
       cambio: patch.cambio,
       usuarioNombre: nombreCierre,
       ...cajaSesionPatch,
+      ...clienteCierrePatch,
       updatedAt: serverTimestamp(),
     });
   });

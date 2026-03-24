@@ -141,35 +141,35 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
 
   const conciliacionDestacada =
     activa && previewCierre ? (
-      <div className="space-y-3">
-        <div className="rounded-xl border-2 border-emerald-500/50 bg-emerald-500/[0.12] p-4 dark:border-emerald-500/40 dark:bg-emerald-950/40">
-          <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-800 dark:text-emerald-300">
+      <div className="grid gap-3 lg:grid-cols-2 lg:items-start lg:gap-2.5">
+        <div className="rounded-xl border-2 border-emerald-500/50 bg-emerald-500/[0.12] p-4 dark:border-emerald-500/40 dark:bg-emerald-950/40 lg:rounded-lg lg:p-2.5">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-800 dark:text-emerald-300 lg:text-[10px]">
             Efectivo que debe haber en caja
           </p>
-          <p className="mt-1 text-xs leading-snug text-emerald-900/90 dark:text-emerald-200/85">
+          <p className="mt-1 text-xs leading-snug text-emerald-900/90 dark:text-emerald-200/85 lg:mt-0.5 lg:text-[11px] lg:leading-tight">
             Suma del fondo inicial más las ventas cobradas en efectivo, menos el cambio que entregó a los clientes.
           </p>
-          <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-emerald-950 dark:text-emerald-50">
+          <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-emerald-950 dark:text-emerald-50 lg:mt-1 lg:text-xl">
             {formatMoney(previewCierre.esperadoEnCaja)}
           </p>
-          <p className="mt-2 text-xs tabular-nums text-emerald-900/80 dark:text-emerald-300/90">
+          <p className="mt-2 text-xs tabular-nums text-emerald-900/80 dark:text-emerald-300/90 lg:mt-1 lg:text-[10px] lg:leading-tight">
             {formatMoney(activa.fondoInicial)} (fondo) + {formatMoney(previewCierre.efectivoCobrado)} (cobros
             efectivo) − {formatMoney(previewCierre.cambioEntregado)} (cambio)
           </p>
         </div>
-        <div className="rounded-xl border-2 border-cyan-500/50 bg-cyan-500/[0.12] p-4 dark:border-cyan-500/40 dark:bg-cyan-950/40">
-          <p className="text-[11px] font-bold uppercase tracking-wide text-cyan-900 dark:text-cyan-300">
+        <div className="rounded-xl border-2 border-cyan-500/50 bg-cyan-500/[0.12] p-4 dark:border-cyan-500/40 dark:bg-cyan-950/40 lg:rounded-lg lg:p-2.5">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-cyan-900 dark:text-cyan-300 lg:text-[10px]">
             Tarjetas — total para cuadrar
           </p>
-          <p className="mt-1 text-xs leading-snug text-cyan-900/90 dark:text-cyan-200/85">
+          <p className="mt-1 text-xs leading-snug text-cyan-900/90 dark:text-cyan-200/85 lg:mt-0.5 lg:text-[11px] lg:leading-tight">
             Total de cobros con tarjeta en esta sesión en el POS. Cuadre este importe con la suma de comprobantes
             (vouchers) o con el corte que reporte su terminal bancaria.
           </p>
-          <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-cyan-950 dark:text-cyan-50">
+          <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-cyan-950 dark:text-cyan-50 lg:mt-1 lg:text-xl">
             {formatMoney(gruposPagoPreview.tarjetas)}
           </p>
           {lineasTarjetaPreview.length > 0 ? (
-            <ul className="mt-3 space-y-1 border-t border-cyan-800/25 pt-2 text-xs text-cyan-950/95 dark:border-cyan-400/25 dark:text-cyan-100/90">
+            <ul className="mt-3 space-y-1 border-t border-cyan-800/25 pt-2 text-xs text-cyan-950/95 dark:border-cyan-400/25 dark:text-cyan-100/90 lg:mt-1.5 lg:pt-1.5 lg:text-[11px]">
               {lineasTarjetaPreview.map((row) => (
                 <li key={row.clave} className="flex justify-between gap-2">
                   <span className="min-w-0 truncate">{row.label}</span>
@@ -178,7 +178,7 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
               ))}
             </ul>
           ) : (
-            <p className="mt-2 text-xs text-cyan-900/75 dark:text-cyan-300/75">
+            <p className="mt-2 text-xs text-cyan-900/75 dark:text-cyan-300/75 lg:mt-1 lg:text-[11px]">
               Sin cobros con tarjeta en esta sesión.
             </p>
           )}
@@ -494,34 +494,37 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
       </Dialog>
 
       <Dialog open={arqueoDialog} onOpenChange={setArqueoDialog}>
-        <DialogContent className="max-h-[min(88dvh,36rem)] overflow-y-auto border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Arqueo previo</DialogTitle>
-            <DialogDescription className="text-left text-slate-600 dark:text-slate-400">
+        <DialogContent
+          useDialogDescription
+          className="max-h-[min(88dvh,36rem)] overflow-y-auto border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:max-w-md lg:max-h-none lg:max-w-[min(52rem,calc(100vw-2rem))] lg:overflow-visible lg:gap-3 lg:py-4"
+        >
+          <DialogHeader className="lg:gap-1">
+            <DialogTitle className="lg:text-base">Arqueo previo</DialogTitle>
+            <DialogDescription className="text-left text-slate-600 dark:text-slate-400 lg:text-xs lg:leading-snug">
               Efectivo esperado en cajón (fondo + ventas en efectivo − cambio) y total tarjetas para cuadrar con
               terminal o vouchers. Al imprimir se genera el arqueo de la sesión y el reporte de ventas del día
               calendario.
             </DialogDescription>
           </DialogHeader>
           {activa && previewCierre ? (
-            <div className="space-y-3 py-2 text-sm">
+            <div className="space-y-3 py-2 text-sm lg:space-y-2 lg:py-0">
               {conciliacionDestacada}
 
-              <div className="rounded-lg border border-slate-200 bg-slate-200/40 p-3 dark:border-slate-700 dark:bg-slate-800/40">
-                <p className="font-medium text-slate-800 dark:text-slate-200">
+              <div className="rounded-lg border border-slate-200 bg-slate-200/40 p-3 dark:border-slate-700 dark:bg-slate-800/40 lg:p-2">
+                <p className="font-medium text-slate-800 dark:text-slate-200 lg:text-sm">
                   Desglose por forma de pago (sesión)
                 </p>
-                <p className="mt-1 text-xs text-slate-600 dark:text-slate-500">
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-500 lg:mt-0.5">
                   Tickets completados: {previewCierre.tickets} · Total ventas (completadas):{' '}
                   {formatMoney(previewCierre.total)}
                 </p>
                 {gruposPagoPreview.otros > 0 ? (
-                  <p className="mt-2 text-xs font-medium text-slate-700 dark:text-slate-300">
+                  <p className="mt-2 text-xs font-medium text-slate-700 dark:text-slate-300 lg:mt-1">
                     Otros medios (transferencia, etc.): {formatMoney(gruposPagoPreview.otros)}
                   </p>
                 ) : null}
                 {lineasPagoPreview.length > 0 ? (
-                  <ul className="mt-2 space-y-1 border-t border-slate-200 pt-2 text-xs text-slate-600 dark:border-slate-600 dark:text-slate-400">
+                  <ul className="mt-2 space-y-1 border-t border-slate-200 pt-2 text-xs text-slate-600 dark:border-slate-600 dark:text-slate-400 lg:mt-1.5 lg:pt-1.5">
                     {lineasPagoPreview.map((row) => (
                       <li key={row.clave} className="flex justify-between gap-2">
                         <span className="min-w-0 truncate">{row.label}</span>
@@ -532,12 +535,14 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
                     ))}
                   </ul>
                 ) : (
-                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-500">Sin cobros en esta sesión aún.</p>
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-500 lg:mt-1">
+                    Sin cobros en esta sesión aún.
+                  </p>
                 )}
               </div>
             </div>
           ) : null}
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-2 sm:gap-0 lg:pt-0">
             <Button type="button" variant="outline" onClick={() => setArqueoDialog(false)}>
               Cerrar
             </Button>

@@ -1121,6 +1121,8 @@ export function POS() {
           cambio: cambioAbierta,
           usuarioNombreCierre: cajeroNombre,
           cajaSesionId: cajaSesion.activa?.id,
+          clienteId: client?.id ?? 'mostrador',
+          cliente: client ?? null,
         });
 
         const clienteNombre = client?.nombre || pend.cliente?.nombre?.trim() || 'Mostrador';
@@ -1706,8 +1708,8 @@ export function POS() {
             </span>
           </button>
 
-          <Card className="flex min-w-0 flex-col overflow-visible border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 max-lg:flex-none lg:min-h-0 lg:flex-1 lg:overflow-visible">
-            <CardContent className="flex flex-col gap-3 overflow-visible p-2 sm:p-3 lg:min-h-0 lg:flex-1 lg:overflow-visible lg:p-4">
+          <Card className="flex min-w-0 flex-col overflow-visible border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 max-lg:flex-none lg:shrink-0 lg:flex-none lg:overflow-visible">
+            <CardContent className="flex flex-col gap-3 overflow-visible p-2 sm:p-3 lg:overflow-visible lg:p-4">
               <div className="shrink-0 space-y-2">
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs sm:text-sm">
                   <span className="text-slate-600 dark:text-slate-400">Subtotal</span>
@@ -1968,7 +1970,7 @@ export function POS() {
                         max={100}
                       />
                     </div>
-                    <div className="shrink-0 space-y-1.5 pb-1">
+                    <div className="relative z-10 shrink-0 space-y-1.5 pb-1">
                       <Label className="block whitespace-normal text-[10px] leading-snug text-slate-600 dark:text-slate-400 sm:text-xs">
                         Precios por cliente
                       </Label>
@@ -1976,7 +1978,7 @@ export function POS() {
                         value={precioClienteListaId}
                         onValueChange={(v) => setPrecioClienteLista(v as ClientPriceListId)}
                       >
-                        <SelectTrigger className="h-10 w-full min-h-10 min-w-0 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100 md:text-sm">
+                        <SelectTrigger className="h-10 w-full min-h-10 min-w-0 shrink-0 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100 md:text-sm">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent

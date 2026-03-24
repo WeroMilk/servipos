@@ -1,6 +1,53 @@
 import type { FormaPago, Sale } from '@/types';
 import { FORMAS_PAGO } from '@/types';
 
+const FORMAS_SIN_COBRO_CIERRE = new Set<FormaPago>(['TTS', 'DEV', 'COT']);
+
+function sumaMontosPagosRegistrados(pagos: Sale['pagos'] | undefined): number {
+  return (pagos ?? []).reduce((a, p) => a + (Number(p.monto) || 0), 0);
+}
+
+/**
+ * Líneas de cobro para arqueo y totales por forma de pago.
+ * Prioriza `pagos` cuando traen montos. Si vienen vacíos o en cero (legado, sync incompleto, etc.),
+ * infiere un cobro único como en el POS:
+ * - **PUE + efectivo (01):** efectivo recibido = `total + cambio` (lo que entró al cajón antes del vuelto).
+ * - **PUE + otra forma:** un pago por `total` (tarjeta, transferencia, …; cambio suele ser 0).
+ * - **PPD** sin líneas: último recurso, un pago por `total` con `formaPago` de cabecera (mezclas mal guardadas pueden sesgar).
+ */
+export function pagosParaResumenCaja(sale: Sale): { formaPago: FormaPago; monto: number }[] {
+  if (sale.estado !== 'completada') return [];
+
+  const registrados = sale.pagos ?? [];
+  if (sumaMontosPagosRegistrados(registrados) > 0.01) {
+    return registrados.map((p) => ({
+      formaPago: p.formaPago,
+      monto: Number(p.monto) || 0,
+    }));
+  }
+
+  const fp = sale.formaPago;
+  if (FORMAS_SIN_COBRO_CIERRE.has(fp)) return [];
+
+  const total = Number(sale.total) || 0;
+  const cambio = Number(sale.cambio) || 0;
+  if (total <= 0.01 && cambio <= 0.01) return [];
+
+  const esPpd = sale.metodoPago === 'PPD';
+
+  if (!esPpd) {
+    if (fp === '01') {
+      const recibido = total + cambio;
+      if (recibido > 0.01) return [{ formaPago: '01', monto: recibido }];
+      return total > 0.01 ? [{ formaPago: '01', monto: total }] : [];
+    }
+    return total > 0.01 ? [{ formaPago: fp, monto: total }] : [];
+  }
+
+  if (total > 0.01) return [{ formaPago: fp, monto: total }];
+  return [];
+}
+
 /** Efectivo esperado en caja: fondo inicial + cobros en efectivo (01) − cambio entregado. */
 export function computeCajaEfectivoEsperado(
   fondoInicial: number,
@@ -9,8 +56,8 @@ export function computeCajaEfectivoEsperado(
   let efectivoCobrado = 0;
   let cambioEntregado = 0;
   for (const s of ventasCompletadas) {
-    for (const p of s.pagos ?? []) {
-      if (p.formaPago === '01') efectivoCobrado += Number(p.monto) || 0;
+    for (const p of pagosParaResumenCaja(s)) {
+      if (p.formaPago === '01') efectivoCobrado += p.monto;
     }
     cambioEntregado += Number(s.cambio) || 0;
   }
@@ -34,9 +81,9 @@ export function resumenBrutoSesion(ventas: Sale[]): { tickets: number; total: nu
 export function totalesPorFormaPago(ventas: Sale[]): Partial<Record<FormaPago, number>> {
   const out: Partial<Record<FormaPago, number>> = {};
   for (const s of filterVentasCompletadasSesion(ventas)) {
-    for (const p of s.pagos ?? []) {
+    for (const p of pagosParaResumenCaja(s)) {
       const k = p.formaPago;
-      out[k] = (out[k] || 0) + (Number(p.monto) || 0);
+      out[k] = (out[k] || 0) + p.monto;
     }
   }
   return out;

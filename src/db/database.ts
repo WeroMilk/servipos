@@ -615,6 +615,9 @@ export async function completePendingSale(
     cambio: number;
     usuarioNombreCierre?: string | null;
     cajaSesionId?: string | null;
+    /** Cliente elegido en el POS al cobrar (sustituye al de la venta pendiente si cambió). */
+    clienteId?: string;
+    cliente?: Client | null;
   },
   options?: { sucursalId?: string }
 ): Promise<void> {
@@ -638,6 +641,16 @@ export async function completePendingSale(
       ? { cajaSesionId: patch.cajaSesionId.trim() }
       : {};
 
+  const clienteCierrePatch: Partial<Sale> = {};
+  if (patch.clienteId !== undefined) {
+    clienteCierrePatch.clienteId = patch.clienteId;
+    if (patch.cliente && patch.clienteId !== MOSTRADOR_CLIENT_ID) {
+      clienteCierrePatch.cliente = patch.cliente;
+    } else {
+      clienteCierrePatch.cliente = undefined;
+    }
+  }
+
   await db.sales.update(id, {
     estado: 'completada',
     formaPago: patch.formaPago,
@@ -649,12 +662,15 @@ export async function completePendingSale(
         ? patch.usuarioNombreCierre.trim()
         : sale.usuarioNombre,
     ...cajaPatch,
+    ...clienteCierrePatch,
     updatedAt: new Date(),
     syncStatus: 'pending',
   });
 
-  if (sale.clienteId && sale.clienteId !== MOSTRADOR_CLIENT_ID) {
-    await adjustClientTicketCount(sale.clienteId, 1);
+  const clienteIdTickets =
+    patch.clienteId !== undefined ? patch.clienteId : sale.clienteId;
+  if (clienteIdTickets && clienteIdTickets !== MOSTRADOR_CLIENT_ID) {
+    await adjustClientTicketCount(clienteIdTickets, 1);
   }
 }
 
