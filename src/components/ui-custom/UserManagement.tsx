@@ -260,14 +260,6 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
               contraseña de usuarios existentes se gestiona desde Firebase o recuperación de
               correo.
             </p>
-            <p className="mb-3 rounded-md border border-slate-200 dark:border-slate-800/80 bg-slate-200/60 dark:bg-slate-800/30 px-2.5 py-2 text-[11px] leading-snug text-slate-600 dark:text-slate-400 sm:text-xs">
-              <span className="font-medium text-slate-700 dark:text-slate-300">Tienda asignada:</span> indica en qué
-              sucursal opera el usuario (mismo id que el documento en{' '}
-              <code className="text-cyan-500/90">sucursales</code> en Firestore). Los{' '}
-              <span className="text-slate-700 dark:text-slate-300">administradores</span> pueden además cambiar la tienda
-              activa en la barra superior; si no eligen una, se usa la del perfil o la predeterminada
-              del entorno.
-            </p>
             <div className="overflow-x-auto rounded-lg border border-slate-200/80 dark:border-slate-800/60">
               <Table className={embedded ? 'text-sm' : undefined}>
                 <TableHeader>

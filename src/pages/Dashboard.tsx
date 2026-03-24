@@ -943,7 +943,7 @@ export function Dashboard() {
                         const v = e.target.value;
                         if (v) setReprintDayKey(v);
                       }}
-                      className="h-9 w-auto min-w-[10.5rem] flex-1 border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900 dark:[color-scheme:dark] sm:flex-initial [&::-webkit-calendar-picker-indicator]:opacity-90 dark:[&::-webkit-calendar-picker-indicator]:invert"
+                      className="h-9 w-auto min-w-[10.5rem] flex-1 border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900 dark:[color-scheme:dark] sm:flex-initial"
                     />
                     <Button
                       type="button"

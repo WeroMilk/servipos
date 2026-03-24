@@ -15,10 +15,14 @@
 }
 
 @layer base {
-  /* Icono nativo del input date legible en modo oscuro (Chrome/Edge/Safari). */
-  .dark input[type='date']::-webkit-calendar-picker-indicator {
-    filter: invert(1);
+  /* Indicador nativo del input date (Chrome/Edge/Safari). */
+  input[type='date']::-webkit-calendar-picker-indicator {
+    cursor: pointer;
     opacity: 0.9;
+  }
+  .dark input[type='date']::-webkit-calendar-picker-indicator {
+    filter: brightness(0) invert(1);
+    opacity: 1;
   }
 
   :root {

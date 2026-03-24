@@ -1669,10 +1669,10 @@ export function POS() {
         {/* Columna cobro / resumen */}
         <aside
           className={cn(
-            'flex w-full flex-col gap-2 sm:gap-3',
+            'flex w-full flex-col gap-2 sm:gap-3 lg:gap-1.5',
             'max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-y-auto max-lg:overscroll-y-contain',
-            /* Desktop: altura acotada al flex row; scroll solo en la tarjeta para no recortar Cobrar / Arqueo */
-            'lg:min-h-0 lg:max-h-full lg:w-[min(100%,26rem)] lg:shrink-0 lg:overflow-hidden',
+            /* Desktop: sin scroll interno; contenido compacto para ver resumen + cobro + botones */
+            'lg:min-h-0 lg:max-h-full lg:w-[min(100%,26rem)] lg:shrink-0 lg:overflow-visible',
             'xl:w-[min(100%,30rem)] 2xl:w-[min(100%,34rem)]',
             mobileTab !== 'checkout' && 'hidden lg:flex'
           )}
@@ -1680,7 +1680,7 @@ export function POS() {
           <button
             type="button"
             className={cn(
-              'flex w-full shrink-0 items-center justify-between gap-2 p-2 text-left sm:gap-3 sm:p-3',
+              'flex w-full shrink-0 items-center justify-between gap-2 p-2 text-left sm:gap-3 sm:p-3 lg:gap-2 lg:p-2',
               panelClass,
               'cursor-pointer transition-colors',
               'hover:border-cyan-500/40 hover:bg-slate-100/95 dark:hover:border-cyan-500/35 dark:hover:bg-slate-800/70',
@@ -1692,29 +1692,29 @@ export function POS() {
             }}
             aria-label={`Cliente: ${client?.nombre || 'Mostrador'}. Cambiar cliente`}
           >
-            <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-500/20 sm:h-10 sm:w-10">
-                <User className="h-4 w-4 text-cyan-400 sm:h-5 sm:w-5" />
+            <div className="flex min-w-0 items-center gap-2 sm:gap-3 lg:gap-2">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-500/20 sm:h-10 sm:w-10 lg:h-8 lg:w-8">
+                <User className="h-4 w-4 text-cyan-400 sm:h-5 sm:w-5 lg:h-4 lg:w-4" />
               </div>
               <div className="min-w-0">
-                <p className="text-[10px] uppercase tracking-wide text-slate-600 dark:text-slate-500 sm:text-xs">
+                <p className="text-[10px] uppercase tracking-wide text-slate-600 dark:text-slate-500 sm:text-xs lg:text-[9px]">
                   Cliente
                 </p>
-                <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-200 sm:text-base">
+                <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-200 sm:text-base lg:text-sm">
                   {client?.nombre || 'Mostrador'}
                 </p>
               </div>
             </div>
-            <span className="shrink-0 text-xs font-medium text-cyan-700 sm:text-sm dark:text-cyan-400">
+            <span className="shrink-0 text-xs font-medium text-cyan-700 sm:text-sm dark:text-cyan-400 lg:text-xs">
               Cambiar
             </span>
           </button>
 
-          <div className="min-w-0 overflow-x-hidden overscroll-y-contain lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+          <div className="min-w-0 overflow-x-hidden overscroll-y-contain lg:flex-none lg:overflow-visible">
           <Card className="flex min-w-0 flex-col overflow-visible border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 max-lg:flex-none lg:shrink-0 lg:flex-none lg:overflow-visible">
-            <CardContent className="flex flex-col gap-3 overflow-visible p-2 sm:p-3 lg:overflow-visible lg:p-4">
-              <div className="shrink-0 space-y-2">
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs sm:text-sm">
+            <CardContent className="flex flex-col gap-3 overflow-visible p-2 sm:p-3 lg:gap-2 lg:overflow-visible lg:p-2.5">
+              <div className="shrink-0 space-y-2 lg:space-y-1">
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs sm:text-sm lg:gap-x-2 lg:gap-y-0.5 lg:text-xs">
                   <span className="text-slate-600 dark:text-slate-400">Subtotal</span>
                   <span className="text-right text-slate-700 dark:text-slate-300">{formatMoney(subtotalCobro)}</span>
                   <span className="text-slate-600 dark:text-slate-400">Descuento</span>
@@ -1723,10 +1723,12 @@ export function POS() {
                   <span className="text-right text-slate-700 dark:text-slate-300">{formatMoney(impuestosCobro)}</span>
                 </div>
 
-                <div className="border-t border-slate-200 dark:border-slate-800 pt-2">
+                <div className="border-t border-slate-200 dark:border-slate-800 pt-2 lg:pt-1.5">
                   <div className="flex items-end justify-between gap-2">
-                    <span className="text-sm font-medium text-slate-800 dark:text-slate-200 sm:text-base">Total</span>
-                    <span className="text-xl font-bold tabular-nums text-cyan-400 sm:text-2xl lg:text-3xl">
+                    <span className="text-sm font-medium text-slate-800 dark:text-slate-200 sm:text-base lg:text-sm">
+                      Total
+                    </span>
+                    <span className="text-xl font-bold tabular-nums text-cyan-400 sm:text-2xl lg:text-2xl">
                       {formatMoney(totalCobro)}
                     </span>
                   </div>
@@ -1758,12 +1760,13 @@ export function POS() {
               </div>
 
               {/*
-                Controles de pago fuera de overflow-y-auto: evita que Radix Select
-                (portal + focus) choque con el scroll y provoque “refresh” o cierres raros.
+                Controles de pago: en lg sin scroll en el panel; Select sigue en portal Radix.
               */}
-              <div className="shrink-0 space-y-3 border-t border-slate-200 dark:border-slate-800/80 pt-3">
-                <div className="space-y-1">
-                  <Label className="text-[10px] text-slate-600 dark:text-slate-400 sm:text-xs">Forma de pago</Label>
+              <div className="shrink-0 space-y-3 border-t border-slate-200 dark:border-slate-800/80 pt-3 lg:space-y-2 lg:pt-2">
+                <div className="space-y-1 lg:space-y-0.5">
+                  <Label className="text-[10px] text-slate-600 dark:text-slate-400 sm:text-xs lg:text-[10px]">
+                    Forma de pago
+                  </Label>
                   <Select
                     value={formaPago}
                     onValueChange={(v) => {
@@ -1777,7 +1780,7 @@ export function POS() {
                       if (v !== 'TTS') setTransferenciaDestinoSucursalId('');
                     }}
                   >
-                    <SelectTrigger className="h-10 w-full min-w-0 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100 md:h-10 md:text-sm">
+                    <SelectTrigger className="h-10 w-full min-w-0 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100 md:h-10 md:text-sm lg:h-9 lg:min-h-9 lg:text-xs">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent
@@ -1904,7 +1907,7 @@ export function POS() {
                         setTransferenciaDestinoSucursalId(v === '__none__' ? '' : v)
                       }
                     >
-                      <SelectTrigger className="h-10 w-full min-w-0 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100 md:text-sm">
+                      <SelectTrigger className="h-10 w-full min-w-0 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100 md:text-sm lg:h-9 lg:min-h-9 lg:text-xs">
                         <SelectValue placeholder="Seleccione tienda" />
                       </SelectTrigger>
                       <SelectContent
@@ -1926,10 +1929,12 @@ export function POS() {
                   </div>
                 ) : null}
 
-                <div className="space-y-1">
-                  <Label className="text-[10px] text-slate-600 dark:text-slate-400 sm:text-xs">Método</Label>
+                <div className="space-y-1 lg:space-y-0.5">
+                  <Label className="text-[10px] text-slate-600 dark:text-slate-400 sm:text-xs lg:text-[10px]">
+                    Método
+                  </Label>
                   <Select value={metodoPago} onValueChange={setMetodoPago}>
-                    <SelectTrigger className="h-10 w-full min-w-0 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100 md:text-sm">
+                    <SelectTrigger className="h-10 w-full min-w-0 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100 md:text-sm lg:h-9 lg:min-h-9 lg:text-xs">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent
@@ -1949,9 +1954,11 @@ export function POS() {
                 </div>
 
                 {!esFormaDevolucion && !esFormaCotizacion ? (
-                  <>
-                    <div className="space-y-1">
-                      <Label className="text-[10px] text-slate-600 dark:text-slate-400 sm:text-xs">Desc. global %</Label>
+                  <div className="grid gap-3 lg:grid-cols-2 lg:gap-2">
+                    <div className="space-y-1 lg:space-y-0.5">
+                      <Label className="text-[10px] text-slate-600 dark:text-slate-400 sm:text-xs lg:text-[10px]">
+                        Desc. global %
+                      </Label>
                       <Input
                         type="number"
                         inputMode="decimal"
@@ -1968,20 +1975,20 @@ export function POS() {
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') e.preventDefault();
                         }}
-                        className="h-10 w-full border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100 md:h-10 md:text-sm"
+                        className="h-10 w-full border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100 md:h-10 md:text-sm lg:h-9 lg:text-xs"
                         min={0}
                         max={100}
                       />
                     </div>
-                    <div className="relative z-10 shrink-0 space-y-1.5 pb-1">
-                      <Label className="block whitespace-normal text-[10px] leading-snug text-slate-600 dark:text-slate-400 sm:text-xs">
+                    <div className="relative z-10 shrink-0 space-y-1.5 pb-1 lg:space-y-0.5 lg:pb-0">
+                      <Label className="block whitespace-normal text-[10px] leading-snug text-slate-600 dark:text-slate-400 sm:text-xs lg:text-[10px]">
                         Precios por cliente
                       </Label>
                       <Select
                         value={precioClienteListaId}
                         onValueChange={(v) => setPrecioClienteLista(v as ClientPriceListId)}
                       >
-                        <SelectTrigger className="h-10 w-full min-h-10 min-w-0 shrink-0 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100 md:text-sm">
+                        <SelectTrigger className="h-10 w-full min-h-10 min-w-0 shrink-0 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100 md:text-sm lg:h-9 lg:min-h-9 lg:text-xs">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent
@@ -1998,7 +2005,7 @@ export function POS() {
                         </SelectContent>
                       </Select>
                     </div>
-                  </>
+                  </div>
                 ) : null}
               </div>
             </CardContent>
@@ -2047,7 +2054,7 @@ export function POS() {
                 esFormaDevolucion
               }
               variant="secondary"
-              className="h-10 w-full rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-950 hover:bg-amber-500/20 dark:border-amber-500/35 dark:text-amber-100 dark:hover:bg-amber-500/15 sm:h-11"
+              className="h-10 w-full rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-950 hover:bg-amber-500/20 dark:border-amber-500/35 dark:text-amber-100 dark:hover:bg-amber-500/15 sm:h-11 lg:h-9 lg:text-sm"
             >
               <Clock className="mr-2 h-4 w-4 shrink-0" />
               {dejarAbiertaBusy ? 'Guardando…' : 'Dejar venta abierta (fiado)'}
@@ -2058,7 +2065,7 @@ export function POS() {
                 type="button"
                 variant="outline"
                 onClick={() => cajaToolbarRef.current?.openArqueoDialog()}
-                className="h-10 w-full rounded-xl border-amber-500/40 text-amber-900 hover:bg-amber-500/10 dark:border-amber-500/45 dark:text-amber-100 dark:hover:bg-amber-500/15 sm:h-11"
+                className="h-10 w-full rounded-xl border-amber-500/40 text-amber-900 hover:bg-amber-500/10 dark:border-amber-500/45 dark:text-amber-100 dark:hover:bg-amber-500/15 sm:h-11 lg:h-9 lg:text-sm"
               >
                 <ClipboardCheck className="mr-2 h-4 w-4 shrink-0" />
                 Arqueo
