@@ -841,9 +841,10 @@ export async function convertQuotationToSale(
   const sale: Omit<Sale, 'id' | 'createdAt' | 'updatedAt' | 'syncStatus'> = {
     folio: folioLocal,
     clienteId: quotation.clienteId,
-    productos: quotation.productos.map(q => ({
+    productos: quotation.productos.map((q) => ({
       id: crypto.randomUUID(),
       productId: q.productId,
+      productoNombre: q.producto?.nombre?.trim() || undefined,
       cantidad: q.cantidad,
       precioUnitario: q.precioUnitario,
       descuento: q.descuento,

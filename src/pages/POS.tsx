@@ -616,6 +616,7 @@ export function POS() {
           return {
             id: crypto.randomUUID(),
             productId: item.product.id,
+            productoNombre: item.product.nombre?.trim() || undefined,
             cantidad: item.quantity,
             precioUnitario: unitBase,
             descuento: item.discount,
@@ -837,6 +838,7 @@ export function POS() {
         const lineas = (devolucionSaleResuelta.productos ?? []).map((it) => {
           const desc =
             it.producto?.nombre?.trim() ||
+            it.productoNombre?.trim() ||
             `Artículo (${String(it.productId).slice(0, 8)}…)`;
           const disc = Number(it.descuento) || 0;
           const pu = Number(it.precioUnitario) || 0;
@@ -1053,6 +1055,7 @@ export function POS() {
           return {
             id: crypto.randomUUID(),
             productId: item.product.id,
+            productoNombre: item.product.nombre?.trim() || undefined,
             cantidad: item.quantity,
             precioUnitario: unitBase,
             descuento: item.discount,

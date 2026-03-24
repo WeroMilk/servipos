@@ -135,7 +135,7 @@ export function Facturas() {
           claveProdServ: '01010101', // Catálogo SAT - se debería configurar por producto
           claveUnidad: item.producto?.unidadMedida || 'H87',
           cantidad: item.cantidad,
-          descripcion: item.producto?.nombre || '',
+          descripcion: item.producto?.nombre?.trim() || item.productoNombre?.trim() || '',
           precioUnitario: item.precioUnitario,
           descuento: item.descuento,
           impuestosTrasladados: [{

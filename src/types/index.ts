@@ -266,6 +266,8 @@ export interface SaleItem {
   id: string;
   productId: string;
   producto?: Product;
+  /** Nombre capturado al vender; en ticket e historial aunque no venga `producto` embebido. */
+  productoNombre?: string;
   cantidad: number;
   precioUnitario: number;
   descuento: number;

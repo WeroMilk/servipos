@@ -83,10 +83,22 @@ function parsePosResumeListaPrecios(v: unknown): string | undefined {
   return (CLIENT_PRICE_LIST_ORDER as readonly string[]).includes(s) ? s : undefined;
 }
 
+function saleItemProductoNombreFromRaw(raw: Record<string, unknown>): string | undefined {
+  const direct = raw.productoNombre;
+  if (typeof direct === 'string' && direct.trim()) return direct.trim();
+  const po = raw.producto;
+  if (po && typeof po === 'object') {
+    const n = (po as Record<string, unknown>).nombre;
+    if (typeof n === 'string' && n.trim()) return n.trim();
+  }
+  return undefined;
+}
+
 function mapSaleItem(raw: Record<string, unknown>): SaleItem {
   return {
     id: String(raw.id ?? ''),
     productId: String(raw.productId ?? ''),
+    productoNombre: saleItemProductoNombreFromRaw(raw),
     cantidad: Number(raw.cantidad) || 0,
     precioUnitario: Number(raw.precioUnitario) || 0,
     descuento: Number(raw.descuento) || 0,
@@ -195,16 +207,23 @@ function saleInputToPayload(
           updatedAt: sale.cliente.updatedAt,
         }
       : null,
-    productos: sale.productos.map((p) => ({
-      id: p.id,
-      productId: p.productId,
-      cantidad: p.cantidad,
-      precioUnitario: p.precioUnitario,
-      descuento: p.descuento,
-      impuesto: p.impuesto,
-      subtotal: p.subtotal,
-      total: p.total,
-    })),
+    productos: sale.productos.map((p) => {
+      const nombre =
+        typeof p.productoNombre === 'string' && p.productoNombre.trim()
+          ? p.productoNombre.trim()
+          : p.producto?.nombre?.trim();
+      return {
+        id: p.id,
+        productId: p.productId,
+        ...(nombre ? { productoNombre: nombre } : {}),
+        cantidad: p.cantidad,
+        precioUnitario: p.precioUnitario,
+        descuento: p.descuento,
+        impuesto: p.impuesto,
+        subtotal: p.subtotal,
+        total: p.total,
+      };
+    }),
     subtotal: sale.subtotal,
     descuento: sale.descuento,
     impuestos: sale.impuestos,

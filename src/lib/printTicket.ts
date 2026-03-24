@@ -9,6 +9,7 @@ import { getClientById } from '@/db/database';
 import { FORMAS_PAGO, type Quotation, type Sale } from '@/types';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { thermalTicketCancelacionNotas } from '@/lib/saleCancelacion';
+import { getProductCatalogSnapshot } from '@/lib/firestore/productsFirestore';
 
 async function resolveClienteTicketLabel(sale: Sale): Promise<string> {
   const embedded = sale.cliente?.nombre?.trim();
@@ -66,8 +67,8 @@ const THERMAL_BASE_STYLES = `@page { size: 80mm auto; margin: 4mm; }
   td.right { text-align: right; white-space: nowrap; }
   .tot { margin-top: 12px; border-top: 1px dashed #333; padding-top: 10px; font-size: 22px; }
   .tot strong { font-size: 30px; }
-  .pie-sucursal { margin-top: 12px; padding-top: 10px; border-top: 1px dashed #999; text-align: center; font-size: 16px; line-height: 1.5; color: #222; width: 100%; }
-  .pie-sucursal .titulo-suc { font-weight: 700; font-size: 18px; margin-bottom: 6px; text-align: center; }
+  .pie-sucursal { margin-top: 14px; padding-top: 12px; border-top: 1px dashed #999; text-align: center; font-size: 21px; line-height: 1.55; font-weight: 500; color: #111; width: 100%; }
+  .pie-sucursal .titulo-suc { font-weight: 800; font-size: 26px; margin-bottom: 8px; text-align: center; letter-spacing: 0.02em; }
   .pie-sucursal > div { text-align: center; }`;
 
 /**
@@ -186,8 +187,8 @@ export function printThermalTicket(payload: TicketPayload): void {
   .logo-ticket { display: block; margin: 0 0 10px 0; margin-right: auto; max-width: 30mm; height: auto; }
   .ticket-pagos { margin-top: 12px; padding-top: 10px; border-top: 1px dashed #333; font-size: 19px; line-height: 1.5; }
   .ticket-pagos .tit { font-weight: 600; margin-bottom: 6px; }
-  .ticket-notas { margin-top: 12px; font-size: 17px; text-align: center; white-space: pre-line; }
-  .ticket-gracias { margin-top: 16px; text-align: center; font-size: 18px; }
+  .ticket-notas { margin-top: 12px; font-size: 20px; line-height: 1.45; text-align: center; white-space: pre-line; }
+  .ticket-gracias { margin-top: 16px; text-align: center; font-size: 22px; font-weight: 600; line-height: 1.4; }
 </style></head><body>
   <img class="logo-ticket" src="${escapeHtml(getBrandLogoAbsoluteUrl())}" alt="" width="96" height="96" />
   <h1>${escapeHtml(negocio)}</h1>
@@ -380,10 +381,13 @@ ${foot}
 /** Reimprimir ticket a partir de una venta guardada (POS / historial). */
 export async function printThermalTicketFromSale(sale: Sale): Promise<void> {
   const cliente = await resolveClienteTicketLabel(sale);
+  const catalog = getProductCatalogSnapshot();
 
   const lineas = (sale.productos ?? []).map((item) => {
     const desc =
       item.producto?.nombre?.trim() ||
+      item.productoNombre?.trim() ||
+      catalog.find((p) => p.id === item.productId)?.nombre?.trim() ||
       `Artículo (${String(item.productId).slice(0, 8)}…)`;
     const disc = Number(item.descuento) || 0;
     const pu = Number(item.precioUnitario) || 0;
