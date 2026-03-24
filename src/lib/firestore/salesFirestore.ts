@@ -256,6 +256,10 @@ function saleInputToPayload(
       sale.transferenciaSucursalDestinoId && sale.transferenciaSucursalDestinoId.length > 0
         ? sale.transferenciaSucursalDestinoId
         : null,
+    cajaSesionId:
+      typeof sale.cajaSesionId === 'string' && sale.cajaSesionId.trim().length > 0
+        ? sale.cajaSesionId.trim()
+        : null,
   };
 }
 
