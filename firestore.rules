@@ -2,6 +2,10 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Tras cambiar reglas: firebase deploy --only firestore:rules
+    // Caja (cajaEstado/cajaSesiones): requiere documento users/{uidAuth} con role "admin"
+    // o sucursalId igual al id de la tienda (ej. Matriz). Sin perfil en users → permission-denied.
+
     function signedIn() {
       return request.auth != null;
     }

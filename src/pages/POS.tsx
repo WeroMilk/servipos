@@ -1933,8 +1933,8 @@ export function POS() {
                         max={100}
                       />
                     </div>
-                    <div className="space-y-1.5">
-                      <Label className="block min-h-[2.25rem] whitespace-normal text-[10px] leading-snug text-slate-600 dark:text-slate-400 sm:min-h-0 sm:text-xs">
+                    <div className="shrink-0 space-y-1.5 pb-1">
+                      <Label className="block whitespace-normal text-[10px] leading-snug text-slate-600 dark:text-slate-400 sm:text-xs">
                         Precios por cliente
                       </Label>
                       <Select

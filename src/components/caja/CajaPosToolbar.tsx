@@ -26,6 +26,19 @@ import {
 } from '@/lib/cajaResumen';
 import { fetchSalesByCajaSesion } from '@/lib/firestore/salesFirestore';
 import type { Sale } from '@/types';
+import { FirebaseError } from 'firebase/app';
+
+function cajaFirestoreUserMessage(e: unknown): string {
+  if (e instanceof FirebaseError && e.code === 'permission-denied') {
+    return (
+      'Sin permiso en Firestore al usar caja. Desde la carpeta del proyecto ejecute: npm run deploy:firestore:rules. ' +
+      'En la consola de Firebase, confirme que existe el documento users/{su uid de Auth} con role "admin" ' +
+      'o con sucursalId exactamente igual al id de la tienda activa (p. ej. Matriz).'
+    );
+  }
+  if (e instanceof Error) return e.message;
+  return 'No se pudo completar la operación de caja';
+}
 
 type CajaPosToolbarProps = {
   sales: Sale[];
@@ -107,7 +120,7 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
     } catch (e: unknown) {
       addToast({
         type: 'error',
-        message: e instanceof Error ? e.message : 'No se pudo abrir la caja',
+        message: cajaFirestoreUserMessage(e),
       });
     } finally {
       setBusy(false);
@@ -171,7 +184,7 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
     } catch (e: unknown) {
       addToast({
         type: 'error',
-        message: e instanceof Error ? e.message : 'No se pudo cerrar la caja',
+        message: cajaFirestoreUserMessage(e),
       });
     } finally {
       setBusy(false);
