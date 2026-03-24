@@ -51,9 +51,16 @@ import { FORMAS_PAGO_UI } from '@/types';
 import {
   getSaleByFolio,
   getClientById,
+  getProductById,
   findQuotationByLast4Folio,
   markQuotationConvertedWithSale,
 } from '@/db/database';
+import { getProductCatalogSnapshot } from '@/lib/firestore/productsFirestore';
+import {
+  cartMatchesOpenSale,
+  clientFromSaleForPos,
+  parseResumeListaPreciosId,
+} from '@/lib/posOpenSaleResume';
 import { clientFromQuotationForPos } from '@/lib/posQuotationCart';
 import {
   CLIENT_PRICE_LIST_ORDER,
@@ -66,7 +73,6 @@ import { cn, formatMoney } from '@/lib/utils';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { printThermalTicket } from '@/lib/printTicket';
 import { getCartLineUnitSinIvaBase } from '@/lib/productListPricing';
-import type { ClientPriceListId } from '@/lib/clientPriceLists';
 
 // ============================================
 // PUNTO DE VENTA (POS) — Vista tipo app, sin scroll de página

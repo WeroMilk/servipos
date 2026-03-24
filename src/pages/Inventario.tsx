@@ -190,7 +190,6 @@ export function Inventario() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
-  const [showStockDialog, setShowStockDialog] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [stockAdjustment, setStockAdjustment] = useState({
     tipo: 'entrada',
@@ -306,6 +305,15 @@ export function Inventario() {
     }
   }, [showEditDialog]);
 
+  /** Tras un movimiento de stock, el catálogo se actualiza: sincronizar existencia en el editor abierto. */
+  useEffect(() => {
+    if (!showEditDialog || !selectedProduct) return;
+    const fresh = products.find((p) => p.id === selectedProduct.id);
+    if (!fresh || fresh.existencia === selectedProduct.existencia) return;
+    setSelectedProduct(fresh);
+    setFormData((fd) => ({ ...fd, existencia: fresh.existencia }));
+  }, [products, showEditDialog, selectedProduct?.id, selectedProduct?.existencia]);
+
   const handleAddProduct = async () => {
     const nombre = formData.nombre.trim();
     if (!nombre) {
@@ -397,15 +405,15 @@ export function Inventario() {
         'system',
         entradaMeta
       );
-      setShowStockDialog(false);
-      setSelectedProduct(null);
       setStockAdjustment({
         tipo: 'entrada',
         cantidad: 0,
         motivo: '',
-        proveedorEntrada: '',
-        precioCompraUnit: 0,
+        proveedorEntrada: formData.proveedor.trim() || '',
+        precioCompraUnit: formData.precioCompra > 0 ? formData.precioCompra : 0,
       });
+      setStockQtyFocus(false);
+      setStockPrecioCompraFocus(false);
       addToast({ type: 'success', message: 'Stock ajustado exitosamente' });
     } catch (error: any) {
       addToast({ type: 'error', message: error.message });
@@ -455,11 +463,6 @@ export function Inventario() {
       pl[id] = v != null && Number.isFinite(v) ? String(v) : '';
     }
     setPreciosListaStr(pl);
-    setShowEditDialog(true);
-  };
-
-  const openStockDialog = (product: Product) => {
-    setSelectedProduct(product);
     setStockAdjustment({
       tipo: 'entrada',
       cantidad: 0,
@@ -468,7 +471,8 @@ export function Inventario() {
       precioCompraUnit: product.precioCompra && product.precioCompra > 0 ? product.precioCompra : 0,
     });
     setStockQtyFocus(false);
-    setShowStockDialog(true);
+    setStockPrecioCompraFocus(false);
+    setShowEditDialog(true);
   };
 
   const valorInventarioTotal = useMemo(
@@ -885,7 +889,7 @@ export function Inventario() {
                                 className="text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:bg-slate-800 hover:text-slate-900 dark:text-slate-100"
                               >
                                 <Edit2 className="mr-2 h-4 w-4" />
-                                Editar completo
+                                Editar producto
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => handleDeleteProduct(product)}
@@ -949,14 +953,7 @@ export function Inventario() {
                                 className="text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:bg-slate-800 hover:text-slate-900 dark:text-slate-100"
                               >
                                 <Edit2 className="mr-2 h-4 w-4" />
-                                Editar
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => openStockDialog(product)}
-                                className="text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:bg-slate-800 hover:text-slate-900 dark:text-slate-100"
-                              >
-                                <TrendingUp className="mr-2 h-4 w-4" />
-                                Ajustar Stock
+                                Editar / ajustar stock
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => handleDeleteProduct(product)}
@@ -1206,10 +1203,33 @@ export function Inventario() {
       </Dialog>
 
       {/* Edit Dialog - Similar al Add */}
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+      <Dialog
+        open={showEditDialog}
+        onOpenChange={(open) => {
+          setShowEditDialog(open);
+          if (!open) {
+            setSelectedProduct(null);
+            setStockAdjustment({
+              tipo: 'entrada',
+              cantidad: 0,
+              motivo: '',
+              proveedorEntrada: '',
+              precioCompraUnit: 0,
+            });
+          }
+        }}
+      >
         <DialogContent className="bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-h-[92dvh] overflow-auto md:max-w-[min(92vw,64rem)] lg:max-w-[min(92vw,80rem)]">
           <DialogHeader>
-            <DialogTitle>Editar Producto</DialogTitle>
+            <DialogTitle>Editar producto</DialogTitle>
+            <DialogDescription className="text-left text-slate-600 dark:text-slate-400">
+              Datos del artículo y movimientos de entrada, salida o ajuste de existencias en el mismo lugar.
+              {selectedProduct?.nombre ? (
+                <span className="mt-1 block font-medium text-slate-800 dark:text-slate-200">
+                  {selectedProduct.nombre}
+                </span>
+              ) : null}
+            </DialogDescription>
           </DialogHeader>
           
           <div className="grid grid-cols-2 gap-4 py-4">
@@ -1396,67 +1416,46 @@ export function Inventario() {
             </div>
           </div>
 
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setShowEditDialog(false)}
-              className="border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400"
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              onClick={() => void handleEditProduct()}
-              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
-            >
-              Actualizar Producto
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Stock Adjustment Dialog */}
-      <Dialog open={showStockDialog} onOpenChange={setShowStockDialog}>
-        <DialogContent className="max-h-[92dvh] overflow-y-auto border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 md:max-w-[min(92vw,44rem)]">
-          <DialogHeader>
-            <DialogTitle>Ajustar Stock - {selectedProduct?.nombre}</DialogTitle>
-          </DialogHeader>
-          
-          <div className="space-y-4 py-4">
-            <div className="p-4 rounded-lg bg-slate-200/80 dark:bg-slate-800/50">
-              <p className="text-sm text-slate-600 dark:text-slate-400">Stock Actual</p>
-              <p className="text-2xl font-bold text-slate-800 dark:text-slate-200">{selectedProduct?.existencia}</p>
+          <div className="mt-3 space-y-4 border-t border-slate-200 pt-4 dark:border-slate-800">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
+              Ajustar stock
+            </p>
+            <div className="rounded-lg bg-slate-200/80 p-4 dark:bg-slate-800/50">
+              <p className="text-sm text-slate-600 dark:text-slate-400">Stock actual (en sistema)</p>
+              <p className="text-2xl font-bold tabular-nums text-slate-800 dark:text-slate-200">
+                {selectedProduct?.existencia ?? formData.existencia}
+              </p>
             </div>
 
-            <div className="space-y-2">
-              <Label>Tipo de Ajuste</Label>
-              <select
-                value={stockAdjustment.tipo}
-                onChange={(e) => setStockAdjustment({ ...stockAdjustment, tipo: e.target.value })}
-                className="w-full h-10 px-3 rounded-md bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
-              >
-                <option value="entrada">Entrada</option>
-                <option value="salida">Salida</option>
-                <option value="ajuste">Ajuste Directo</option>
-              </select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Cantidad</Label>
-              <Input
-                type="number"
-                inputMode="numeric"
-                value={stockQtyFocus && stockAdjustment.cantidad === 0 ? '' : stockAdjustment.cantidad}
-                onFocus={() => setStockQtyFocus(true)}
-                onBlur={() => setStockQtyFocus(false)}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (v === '') setStockAdjustment((s) => ({ ...s, cantidad: 0 }));
-                  else setStockAdjustment((s) => ({ ...s, cantidad: parseInt(v, 10) || 0 }));
-                }}
-                className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-              />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Tipo de ajuste</Label>
+                <select
+                  value={stockAdjustment.tipo}
+                  onChange={(e) => setStockAdjustment({ ...stockAdjustment, tipo: e.target.value })}
+                  className="h-10 w-full rounded-md border border-slate-300 bg-slate-200 px-3 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                >
+                  <option value="entrada">Entrada</option>
+                  <option value="salida">Salida</option>
+                  <option value="ajuste">Ajuste directo</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label>Cantidad</Label>
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  value={stockQtyFocus && stockAdjustment.cantidad === 0 ? '' : stockAdjustment.cantidad}
+                  onFocus={() => setStockQtyFocus(true)}
+                  onBlur={() => setStockQtyFocus(false)}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === '') setStockAdjustment((st) => ({ ...st, cantidad: 0 }));
+                    else setStockAdjustment((st) => ({ ...st, cantidad: parseInt(v, 10) || 0 }));
+                  }}
+                  className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -1464,13 +1463,13 @@ export function Inventario() {
               <Input
                 value={stockAdjustment.motivo}
                 onChange={(e) => setStockAdjustment({ ...stockAdjustment, motivo: e.target.value })}
-                placeholder="Ej: Compra a proveedor, merma, etc."
-                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                placeholder="Ej: Compra a proveedor, merma, inventario físico…"
+                className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               />
             </div>
 
             {stockAdjustment.tipo === 'entrada' ? (
-              <>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Proveedor</Label>
                   <Select
@@ -1480,8 +1479,8 @@ export function Inventario() {
                         : '__none__'
                     }
                     onValueChange={(v) =>
-                      setStockAdjustment((s) => ({
-                        ...s,
+                      setStockAdjustment((st) => ({
+                        ...st,
                         proveedorEntrada: v === '__none__' ? '' : v,
                       }))
                     }
@@ -1522,38 +1521,47 @@ export function Inventario() {
                     onBlur={() => setStockPrecioCompraFocus(false)}
                     onChange={(e) => {
                       const v = e.target.value;
-                      if (v === '') setStockAdjustment((s) => ({ ...s, precioCompraUnit: 0 }));
+                      if (v === '') setStockAdjustment((st) => ({ ...st, precioCompraUnit: 0 }));
                       else
-                        setStockAdjustment((s) => ({
-                          ...s,
+                        setStockAdjustment((st) => ({
+                          ...st,
                           precioCompraUnit: parseFloat(v) || 0,
                         }));
                     }}
-                    className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                    className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                   />
                   <p className="text-[11px] text-slate-500 dark:text-slate-500">
                     Opcional (sin IVA). Se guarda en el historial de Configuración → Abasto.
                   </p>
                 </div>
-              </>
+              </div>
             ) : null}
+
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full border-slate-300 bg-slate-200 text-slate-900 hover:bg-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 sm:w-auto"
+              onClick={() => void handleStockAdjustment()}
+            >
+              Aplicar ajuste de stock
+            </Button>
           </div>
 
           <DialogFooter>
             <Button
               type="button"
               variant="outline"
-              onClick={() => setShowStockDialog(false)}
+              onClick={() => setShowEditDialog(false)}
               className="border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400"
             >
               Cancelar
             </Button>
             <Button
               type="button"
-              onClick={() => void handleStockAdjustment()}
+              onClick={() => void handleEditProduct()}
               className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
             >
-              Aplicar Ajuste
+              Actualizar Producto
             </Button>
           </DialogFooter>
         </DialogContent>
