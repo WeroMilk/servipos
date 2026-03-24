@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { LogOut, Moon, Sun, User, Zap, Power, PowerOff, ClipboardList } from 'lucide-react';
 import { useAuthStore, useSyncStore, useAppStore, getResolvedIsDark } from '@/stores';
@@ -17,11 +18,13 @@ import { BRAND_LOGO_URL } from '@/lib/branding';
 import { ROLE_LABELS } from '@/lib/userPermissions';
 import { useCajaPosHeaderStore } from '@/stores/cajaPosHeaderStore';
 import { useVentasAbiertasPosHeaderStore } from '@/stores/ventasAbiertasPosHeaderStore';
+import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 
 export function Header() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout, hasPermission } = useAuthStore();
+  const { effectiveSucursalId } = useEffectiveSucursalId();
   const cajaPosHeader = useCajaPosHeaderStore();
   const ventasAbiertasHeader = useVentasAbiertasPosHeaderStore();
   const { isOnline, isSyncing, pendingCount, sync } = useSyncStore();
@@ -32,6 +35,13 @@ export function Header() {
     await logout();
     navigate('/login');
   };
+
+  const enModoNube = Boolean(effectiveSucursalId);
+
+  useEffect(() => {
+    if (!user) return;
+    void useSyncStore.getState().updatePendingCount();
+  }, [user?.id, effectiveSucursalId]);
 
   return (
     <header
@@ -134,9 +144,11 @@ export function Header() {
           title={
             isSyncing
               ? 'Actualizando contador…'
-              : pendingCount > 0
-                ? `${pendingCount} fila(s) en esta computadora (IndexedDB) con sync «pendiente»: productos, ventas, cotizaciones, facturas, clientes o movimientos. Pulse para recalcular. No es un error de red por sí solo; con sucursal en la nube lo habitual es que ventas/clientes ya estén en Firestore. El contador puede no bajar si esos registros locales nunca se marcan como sincronizados.`
-                : 'Ningún pendiente en la cola local. Pulse para comprobar de nuevo.'
+              : enModoNube
+                ? 'Tienda en la nube (Firestore): inventario y ventas se leen y guardan en Firebase. El contador de «pendientes» de IndexedDB no aplica en este modo. Pulse para comprobar conexión.'
+                : pendingCount > 0
+                  ? `${pendingCount} fila(s) en IndexedDB con sync «pendiente» (modo solo local). Pulse para recalcular.`
+                  : 'Ningún pendiente en la cola local. Pulse para comprobar de nuevo.'
           }
           className={cn(
             'flex shrink-0 items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-all duration-200 sm:px-3',

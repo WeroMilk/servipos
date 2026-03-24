@@ -82,7 +82,7 @@ import { printThermalTicket } from '@/lib/printTicket';
 import { getCartLineUnitSinIvaBase } from '@/lib/productListPricing';
 
 // ============================================
-// PUNTO DE VENTA (POS) — Vista tipo app, sin scroll de página
+// PUNTO DE VENTA (POS) — Vista tipo app: lg+ sin scroll del contenedor (solo carrito / panel cobro); móvil conserva scroll vertical.
 // ============================================
 
 function cartLineUnitSinIva(item: CartItem, listaId: ClientPriceListId): number {
@@ -1354,7 +1354,7 @@ export function POS() {
     'rounded-xl border border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 shadow-sm';
 
   return (
-    <div className="flex h-full min-h-0 w-full min-w-0 flex-col gap-2 overflow-y-auto overscroll-y-contain sm:gap-3">
+    <div className="flex h-full min-h-0 w-full min-w-0 flex-col gap-2 overscroll-y-contain max-lg:overflow-y-auto lg:overflow-hidden sm:gap-3">
       <CajaPosToolbar
         ref={cajaToolbarRef}
         sales={salesCatalog}
@@ -1671,7 +1671,9 @@ export function POS() {
           className={cn(
             'flex w-full flex-col gap-2 sm:gap-3',
             'max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-y-auto max-lg:overscroll-y-contain',
-            'lg:min-h-0 lg:w-[min(100%,26rem)] lg:shrink-0 lg:overflow-visible lg:overflow-y-visible xl:w-[min(100%,30rem)] 2xl:w-[min(100%,34rem)]',
+            /* Desktop: altura acotada al flex row; scroll solo en la tarjeta para no recortar Cobrar / Arqueo */
+            'lg:min-h-0 lg:max-h-full lg:w-[min(100%,26rem)] lg:shrink-0 lg:overflow-hidden',
+            'xl:w-[min(100%,30rem)] 2xl:w-[min(100%,34rem)]',
             mobileTab !== 'checkout' && 'hidden lg:flex'
           )}
         >
@@ -1708,6 +1710,7 @@ export function POS() {
             </span>
           </button>
 
+          <div className="min-w-0 overflow-x-hidden overscroll-y-contain lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
           <Card className="flex min-w-0 flex-col overflow-visible border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 max-lg:flex-none lg:shrink-0 lg:flex-none lg:overflow-visible">
             <CardContent className="flex flex-col gap-3 overflow-visible p-2 sm:p-3 lg:overflow-visible lg:p-4">
               <div className="shrink-0 space-y-2">
@@ -2000,6 +2003,7 @@ export function POS() {
               </div>
             </CardContent>
           </Card>
+          </div>
 
           <div className="max-lg:mt-1 shrink-0 space-y-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             <Button

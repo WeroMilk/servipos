@@ -138,16 +138,24 @@ function parsePreciosListaForm(
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
+function roundMoney2(n: number): number {
+  return Math.round((Number(n) || 0) * 100) / 100;
+}
+
+function roundMoney6(n: number): number {
+  return Math.round((Number(n) || 0) * 1e6) / 1e6;
+}
+
 /** Catálogo guarda `precioVenta` sin IVA; en formulario se captura con IVA usando `impuesto` del producto. */
 function precioVentaSinIvaToConIva(sinIva: number, impuestoPct: number): number {
   const imp = Number(impuestoPct) || 0;
-  return sinIva * (1 + imp / 100);
+  return roundMoney2(sinIva * (1 + imp / 100));
 }
 
 function precioVentaConIvaToSinIva(conIva: number, impuestoPct: number): number {
   const imp = Number(impuestoPct) || 0;
   if (imp <= -100) return 0;
-  return conIva / (1 + imp / 100);
+  return roundMoney6(conIva / (1 + imp / 100));
 }
 
 export function Inventario() {
