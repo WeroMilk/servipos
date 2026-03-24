@@ -73,6 +73,17 @@ function cartLineTotalConIva(item: CartItem): number {
   return cartLineUnitSinIva(item) * item.quantity * (1 + imp / 100);
 }
 
+/** Precio unitario base (catálogo/override, antes de desc. línea) mostrado al usuario con IVA. */
+function unitBaseSinIvaToPrecioConIva(baseSinIva: number, impuestoPct: number): number {
+  const imp = Number(impuestoPct) || 0;
+  return baseSinIva * (1 + imp / 100);
+}
+
+function precioConIvaToUnitBaseSinIva(precioConIva: number, impuestoPct: number): number {
+  const imp = Number(impuestoPct) || 0;
+  return precioConIva / (1 + imp / 100);
+}
+
 type MobileTab = 'cart' | 'checkout';
 
 type CheckoutPhase = 'payment' | 'success';
@@ -318,7 +329,9 @@ export function POS() {
     setUnitPriceEditProductId(productId);
     setUnitPriceEditStep(isAdmin ? 'price' : 'pin');
     setUnitPricePinInput('');
-    setUnitPriceInput(String(it.precioUnitarioOverride ?? it.product.precioVenta));
+    const baseSinIva = Number(it.precioUnitarioOverride ?? it.product.precioVenta) || 0;
+    const conIva = unitBaseSinIvaToPrecioConIva(baseSinIva, it.product.impuesto);
+    setUnitPriceInput(conIva.toFixed(2));
     setUnitPriceDialogOpen(true);
   };
 
@@ -341,12 +354,15 @@ export function POS() {
 
   const saveUnitPriceFromDialog = () => {
     if (!unitPriceEditProductId) return;
+    const it = items.find((i) => i.product.id === unitPriceEditProductId);
+    if (!it) return;
     const v = parseFloat(unitPriceInput.replace(',', '.'));
     if (!Number.isFinite(v) || v < 0) {
-      addToast({ type: 'warning', message: 'Ingrese un precio válido (sin IVA)' });
+      addToast({ type: 'warning', message: 'Ingrese un precio válido (con IVA incluido)' });
       return;
     }
-    updateLineUnitPrice(unitPriceEditProductId, v);
+    const sinIva = precioConIvaToUnitBaseSinIva(v, it.product.impuesto);
+    updateLineUnitPrice(unitPriceEditProductId, sinIva);
     addToast({ type: 'success', message: 'Precio unitario actualizado' });
     closeUnitPriceDialog();
   };
@@ -1007,7 +1023,7 @@ export function POS() {
                             onClick={() => openUnitPriceDialog(item.product.id)}
                             className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-200 text-slate-700 transition-colors hover:bg-slate-700 hover:text-white dark:bg-slate-800 dark:text-slate-200"
                             aria-label="Editar precio unitario"
-                            title="Editar precio (sin IVA)"
+                            title="Editar precio (con IVA)"
                           >
                             <Pencil className="h-4 w-4" />
                           </button>
@@ -1665,7 +1681,7 @@ export function POS() {
       >
         <DialogContent className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Precio unitario (sin IVA)</DialogTitle>
+            <DialogTitle>Precio unitario (con IVA)</DialogTitle>
           </DialogHeader>
           {unitPriceEditStep === 'pin' ? (
             <div className="space-y-3 py-2">
@@ -1697,7 +1713,10 @@ export function POS() {
             </div>
           ) : (
             <div className="space-y-3 py-2">
-              <Label>Nuevo precio sin IVA</Label>
+              <p className="text-xs text-slate-600 dark:text-slate-400">
+                Se usa el IVA del producto en catálogo para convertir a precio base en el carrito.
+              </p>
+              <Label>Nuevo precio con IVA incluido</Label>
               <Input
                 type="text"
                 inputMode="decimal"
