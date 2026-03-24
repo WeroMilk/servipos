@@ -51,6 +51,21 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
+/** CSS compartido: ticket de venta 80 mm e informes térmicos (tipografía grande para leer en papel). */
+const THERMAL_BASE_STYLES = `@page { size: 80mm auto; margin: 4mm; }
+  * { box-sizing: border-box; }
+  body { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 18px; color: #111; width: 72mm; margin: 0 auto; padding: 4px; }
+  h1 { font-size: 22px; text-align: center; margin: 0 0 8px; }
+  .meta { font-size: 15px; margin-bottom: 8px; border-bottom: 1px dashed #333; padding-bottom: 6px; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 3px 0; vertical-align: top; font-size: 16px; }
+  td.desc { font-weight: 600; padding-top: 8px; }
+  td.right { text-align: right; white-space: nowrap; }
+  .tot { margin-top: 10px; border-top: 1px dashed #333; padding-top: 8px; font-size: 19px; }
+  .tot strong { font-size: 24px; }
+  .pie-sucursal { margin-top: 10px; padding-top: 8px; border-top: 1px dashed #999; text-align: center; font-size: 13px; line-height: 1.45; color: #222; }
+  .pie-sucursal .titulo-suc { font-weight: 700; font-size: 15px; margin-bottom: 4px; }`;
+
 /**
  * Abre HTML para imprimir con `about:blank` + `document.write` (no `blob:` URL).
  * Así el pie del diálogo de impresión no muestra una URL `blob:https://…` larga.
@@ -163,21 +178,12 @@ export function printThermalTicket(payload: TicketPayload): void {
     .join('');
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Ticket</title>
-<style>
-  @page { size: 80mm auto; margin: 4mm; }
-  * { box-sizing: border-box; }
-  body { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 14px; color: #111; width: 72mm; margin: 0 auto; padding: 4px; }
-  h1 { font-size: 17px; text-align: center; margin: 0 0 6px; }
-  .meta { font-size: 12px; margin-bottom: 8px; border-bottom: 1px dashed #333; padding-bottom: 6px; }
-  table { width: 100%; border-collapse: collapse; }
-  td { padding: 2px 0; vertical-align: top; font-size: 13px; }
-  td.desc { font-weight: 600; padding-top: 6px; }
-  td.right { text-align: right; white-space: nowrap; }
-  .tot { margin-top: 10px; border-top: 1px dashed #333; padding-top: 6px; font-size: 15px; }
-  .tot strong { font-size: 18px; }
-  .pie-sucursal { margin-top: 10px; padding-top: 8px; border-top: 1px dashed #999; text-align: center; font-size: 11px; line-height: 1.4; color: #222; }
-  .pie-sucursal .titulo-suc { font-weight: 700; font-size: 12px; margin-bottom: 4px; }
-  .logo-ticket { display: block; margin: 0 auto 6px; max-width: 24mm; height: auto; }
+<style>${THERMAL_BASE_STYLES}
+  .logo-ticket { display: block; margin: 0 auto 8px; max-width: 26mm; height: auto; }
+  .ticket-pagos { margin-top: 10px; padding-top: 8px; border-top: 1px dashed #333; font-size: 16px; line-height: 1.45; }
+  .ticket-pagos .tit { font-weight: 600; margin-bottom: 4px; }
+  .ticket-notas { margin-top: 10px; font-size: 14px; }
+  .ticket-gracias { margin-top: 14px; text-align: center; font-size: 15px; }
 </style></head><body>
   <img class="logo-ticket" src="${escapeHtml(getBrandLogoAbsoluteUrl())}" alt="" width="80" height="80" />
   <h1>${escapeHtml(negocio)}</h1>
@@ -195,7 +201,7 @@ export function printThermalTicket(payload: TicketPayload): void {
     ${payload.cambio != null && payload.cambio > 0 ? `<div>Cambio: ${formatMoney(payload.cambio)}</div>` : ''}
   </div>
   ${payload.resumenPagos?.length
-    ? `<div style="margin-top:8px;padding-top:6px;border-top:1px dashed #333;font-size:13px;line-height:1.45;"><div style="font-weight:600;margin-bottom:3px;">Pagos</div>${payload.resumenPagos
+    ? `<div class="ticket-pagos"><div class="tit">Pagos</div>${payload.resumenPagos
         .map((p) => {
           const tc =
             p.ultimos4 && /^\d{4}$/.test(p.ultimos4)
@@ -205,7 +211,7 @@ export function printThermalTicket(payload: TicketPayload): void {
         })
         .join('')}</div>`
     : ''}
-  ${payload.notas ? `<p style="margin-top:8px;font-size:12px;">${escapeHtml(payload.notas)}</p>` : ''}
+  ${payload.notas ? `<p class="ticket-notas">${escapeHtml(payload.notas)}</p>` : ''}
   ${(() => {
     const lines = getThermalTicketSucursalFooterLines(payload.sucursalId);
     if (!lines?.length) return '';
@@ -213,23 +219,11 @@ export function printThermalTicket(payload: TicketPayload): void {
     const body = rest.map((ln) => `<div>${escapeHtml(ln)}</div>`).join('');
     return `<div class="pie-sucursal"><div class="titulo-suc">${escapeHtml(titulo)}</div>${body}</div>`;
   })()}
-  <p style="margin-top:12px;text-align:center;font-size:12px;">¡Gracias por su compra!</p>
+  <p class="ticket-gracias">¡Gracias por su compra!</p>
 </body></html>`;
 
   openAndPrintHtml(html, 'width=360,height=720', 250);
 }
-
-const THERMAL_BASE_STYLES = `@page { size: 80mm auto; margin: 4mm; }
-  * { box-sizing: border-box; }
-  body { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 14px; color: #111; width: 72mm; margin: 0 auto; padding: 4px; }
-  h1 { font-size: 17px; text-align: center; margin: 0 0 6px; }
-  .meta { font-size: 12px; margin-bottom: 8px; border-bottom: 1px dashed #333; padding-bottom: 6px; }
-  table { width: 100%; border-collapse: collapse; }
-  td { padding: 2px 0; vertical-align: top; font-size: 13px; }
-  td.right { text-align: right; white-space: nowrap; }
-  .tot { margin-top: 8px; border-top: 1px dashed #333; padding-top: 6px; font-size: 15px; }
-  .pie-sucursal { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #999; text-align: center; font-size: 11px; line-height: 1.4; color: #222; }
-  .pie-sucursal .titulo-suc { font-weight: 700; font-size: 12px; margin-bottom: 4px; }`;
 
 /** Lista de productos con stock bajo para revisión en tienda (80 mm). */
 export function printThermalLowStockReport(input: {
@@ -296,7 +290,7 @@ export function printThermalDailySalesReport(input: {
   <h1>REPORTE VENTAS</h1>
   <div class="meta">${escapeHtml(input.fechaLabel)}<br/>${list.length} ticket(s)</div>
   <table>${rows || '<tr><td>Sin ventas.</td></tr>'}</table>
-  <div class="tot"><strong>Total día: ${formatMoney(bruto)}</strong><br/><span style="font-size:11px;">Sin canceladas</span></div>
+  <div class="tot"><strong>Total día: ${formatMoney(bruto)}</strong><br/><span style="font-size:14px;">Sin canceladas</span></div>
   ${pie}
 </body></html>`;
   openAndPrintHtml(html, 'width=360,height=720', 250);

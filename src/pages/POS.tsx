@@ -1381,6 +1381,14 @@ export function POS() {
               ? 'max-h-[min(88dvh,calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-4.5rem))] w-[min(calc(100vw-1rem),28rem)] min-w-0 overflow-y-auto overflow-x-auto overscroll-y-contain px-4 py-4 pl-4 pr-12 sm:top-[50%] sm:max-h-[calc(100dvh-2.5rem)] sm:w-[min(calc(100vw-2rem),32rem)] sm:p-6 sm:pr-14 md:w-[min(calc(100vw-2rem),40rem)] lg:w-[min(calc(100vw-2rem),48rem)] md:overflow-x-hidden'
               : 'w-[min(calc(100vw-1rem),24rem)] min-w-0 px-4 py-4 pl-4 pr-12 sm:max-w-sm sm:p-6 sm:pr-14 md:w-[min(calc(100vw-2rem),28rem)]'
           )}
+          onKeyDown={(e) => {
+            if (checkoutPhase !== 'payment' || e.key !== 'Enter' || processingSale) return;
+            const t = e.target as HTMLElement;
+            if (t.tagName === 'BUTTON' || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') return;
+            if (t.closest('[data-radix-select-content]') || t.getAttribute('role') === 'option') return;
+            e.preventDefault();
+            void handleProcessSale();
+          }}
         >
           {checkoutPhase === 'payment' ? (
             <>
@@ -1422,7 +1430,8 @@ export function POS() {
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             e.preventDefault();
-                            commitMontoRecibido();
+                            e.stopPropagation();
+                            void handleProcessSale();
                           }
                         }}
                         className="h-12 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-center text-xl text-slate-900 dark:text-slate-100 sm:h-14 sm:text-2xl"
@@ -1458,6 +1467,13 @@ export function POS() {
                       onChange={(e) =>
                         setTarjetaUltimos4(e.target.value.replace(/\D/g, '').slice(0, 4))
                       }
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          void handleProcessSale();
+                        }
+                      }}
                       className="h-11 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-center font-mono text-lg tracking-widest text-slate-900 dark:text-slate-100"
                     />
                     <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-500 sm:text-xs">
