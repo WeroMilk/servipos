@@ -19,7 +19,9 @@ import {
   patchSaleInvoiceFirestore,
   getSaleByIdFirestore,
   getSaleByFolioFirestore,
+  fetchSalesByClienteIdFirestore,
 } from '@/lib/firestore/salesFirestore';
+import { fetchInventoryMovementsByProductIdFirestore } from '@/lib/firestore/inventoryMovementsFirestore';
 import { getDefaultSucursalIdForNewData } from '@/lib/sucursales';
 
 const MOSTRADOR_CLIENT_ID = 'mostrador';
@@ -477,6 +479,27 @@ export async function getInventoryMovementsList(limit = 500): Promise<InventoryM
   return db.inventoryMovements.orderBy('createdAt').reverse().limit(limit).toArray();
 }
 
+/** Movimientos de un producto: Firestore si hay sucursal; si no, Dexie. Más recientes primero. */
+export async function getInventoryMovementsByProductId(
+  productId: string,
+  options?: { sucursalId?: string | null; limit?: number }
+): Promise<InventoryMovement[]> {
+  const pid = productId.trim();
+  if (!pid) return [];
+  const lim = options?.limit ?? 200;
+  const sid = options?.sucursalId;
+  if (sid != null && String(sid).trim().length > 0) {
+    return fetchInventoryMovementsByProductIdFirestore(String(sid).trim(), pid, lim);
+  }
+  const rows = await db.inventoryMovements.where('productId').equals(pid).toArray();
+  rows.sort((a, b) => {
+    const ta = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
+    const tb = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
+    return tb - ta;
+  });
+  return rows.slice(0, lim);
+}
+
 export async function clearAllInventoryMovementsLocal(): Promise<void> {
   await db.inventoryMovements.clear();
 }
@@ -500,24 +523,26 @@ export async function getSalesByDateRange(inicio: Date, fin: Date): Promise<Sale
     .toArray();
 }
 
-/** Ventas locales asociadas a un cliente (Dexie), más recientes primero. */
+/**
+ * Ventas de un cliente: con sucursal en nube lee Firestore; si no, solo Dexie local.
+ * Más recientes primero.
+ */
 export async function getSalesByClienteId(
   clienteId: string,
   options?: { sucursalId?: string | null }
 ): Promise<Sale[]> {
   if (!clienteId || clienteId === 'mostrador') return [];
-  const rows = await db.sales.where('clienteId').equals(clienteId).toArray();
   const sid = options?.sucursalId;
-  const filtered =
-    sid != null && String(sid).trim().length > 0
-      ? rows.filter((s) => !s.sucursalId || s.sucursalId === sid)
-      : rows;
-  filtered.sort((a, b) => {
+  if (sid != null && String(sid).trim().length > 0) {
+    return fetchSalesByClienteIdFirestore(String(sid).trim(), clienteId);
+  }
+  const rows = await db.sales.where('clienteId').equals(clienteId).toArray();
+  rows.sort((a, b) => {
     const ta = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
     const tb = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
     return tb - ta;
   });
-  return filtered;
+  return rows;
 }
 
 export async function getSaleById(id: string): Promise<Sale | undefined> {
@@ -588,6 +613,7 @@ export async function completePendingSale(
     pagos: Sale['pagos'];
     cambio: number;
     usuarioNombreCierre?: string | null;
+    cajaSesionId?: string | null;
   },
   options?: { sucursalId?: string }
 ): Promise<void> {
@@ -606,6 +632,11 @@ export async function completePendingSale(
   if (sale.estado !== 'pendiente') throw new Error('Esta venta ya no está pendiente de pago');
   if (sale.facturaId) throw new Error('No se puede completar una venta ya vinculada a factura');
 
+  const cajaPatch =
+    typeof patch.cajaSesionId === 'string' && patch.cajaSesionId.trim().length > 0
+      ? { cajaSesionId: patch.cajaSesionId.trim() }
+      : {};
+
   await db.sales.update(id, {
     estado: 'completada',
     formaPago: patch.formaPago,
@@ -616,6 +647,7 @@ export async function completePendingSale(
       typeof patch.usuarioNombreCierre === 'string' && patch.usuarioNombreCierre.trim().length > 0
         ? patch.usuarioNombreCierre.trim()
         : sale.usuarioNombre,
+    ...cajaPatch,
     updatedAt: new Date(),
     syncStatus: 'pending',
   });

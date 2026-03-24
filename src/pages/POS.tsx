@@ -27,7 +27,6 @@ import {
 } from '@/components/ui/dialog';
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -45,7 +44,8 @@ import {
 import { Label } from '@/components/ui/label';
 import { useShallow } from 'zustand/react/shallow';
 import { useCartStore, useAppStore, useAuthStore } from '@/stores';
-import { useProductSearch, useSales, useClients, useEffectiveSucursalId } from '@/hooks';
+import { useProductSearch, useSales, useClients, useEffectiveSucursalId, useCajaSesion } from '@/hooks';
+import { CajaPosToolbar } from '@/components/caja/CajaPosToolbar';
 import type { Product, FormaPago, Payment, Sale, Sucursal, CartItem } from '@/types';
 import { FORMAS_PAGO_UI } from '@/types';
 import {
@@ -130,10 +130,12 @@ type PosTicketSnapshot = {
 export function POS() {
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'admin';
+  const hasPermission = useAuthStore((s) => s.hasPermission);
   const { addToast } = useAppStore();
   const { addSale, sales: salesCatalog, completePendingSale, cancelSale: ejecutarCancelacionVenta } =
     useSales(500);
   const { effectiveSucursalId } = useEffectiveSucursalId();
+  const cajaSesion = useCajaSesion({ sucursalId: effectiveSucursalId });
 
   const [sucursalesCat, setSucursalesCat] = useState<Sucursal[]>([]);
   useEffect(() => subscribeSucursales(setSucursalesCat), []);
@@ -311,6 +313,7 @@ export function POS() {
   /** Fila del carrito cuyo % descuento está enfocado (vacío visual si es 0, como desc. global). */
   const [lineDiscountFocusProductId, setLineDiscountFocusProductId] = useState<string | null>(null);
   const [ventaResetConfirmOpen, setVentaResetConfirmOpen] = useState(false);
+  const [ventaResetBusy, setVentaResetBusy] = useState(false);
   const [unitPriceDialogOpen, setUnitPriceDialogOpen] = useState(false);
   const [unitPriceEditProductId, setUnitPriceEditProductId] = useState<string | null>(null);
   const [unitPriceEditStep, setUnitPriceEditStep] = useState<'pin' | 'price'>('pin');
@@ -386,6 +389,32 @@ export function POS() {
     setVentaResetConfirmOpen(false);
     searchInputRef.current?.blur();
   }, [clearCart]);
+
+  const confirmVentaReset = useCallback(async () => {
+    const resumed = openSaleResume;
+    if (resumed?.sale.estado === 'pendiente') {
+      setVentaResetBusy(true);
+      try {
+        await ejecutarCancelacionVenta(resumed.sale.id, {
+          motivo: 'Venta abierta anulada desde el punto de venta',
+        });
+        addToast({
+          type: 'success',
+          message: `Venta ${resumed.sale.folio} cancelada; el inventario se reintegró y ya no aparece en pendientes.`,
+        });
+        resetPuntoVenta();
+      } catch (e: unknown) {
+        addToast({
+          type: 'error',
+          message: e instanceof Error ? e.message : 'No se pudo cancelar la venta abierta',
+        });
+      } finally {
+        setVentaResetBusy(false);
+      }
+      return;
+    }
+    resetPuntoVenta();
+  }, [openSaleResume, ejecutarCancelacionVenta, addToast, resetPuntoVenta]);
 
   const openUnitPriceDialog = (productId: string) => {
     const it = items.find((i) => i.product.id === productId);
@@ -602,6 +631,13 @@ export function POS() {
       addToast({ type: 'warning', message: 'No aplica venta abierta en traspaso entre tiendas.' });
       return;
     }
+    if (cajaSesion.mustOpenCajaToSell && !cajaSesion.activa) {
+      addToast({
+        type: 'warning',
+        message: 'Abra caja antes de dejar una venta abierta en esta tienda.',
+      });
+      return;
+    }
     setDejarAbiertaBusy(true);
     try {
       const cajeroNombre =
@@ -638,6 +674,7 @@ export function POS() {
         usuarioNombre: cajeroNombre,
         posResumeGlobalDiscount: discount,
         posResumeListaPrecios: precioClienteListaId,
+        ...(cajaSesion.activa?.id ? { cajaSesionId: cajaSesion.activa.id } : {}),
       };
 
       const { folio: folioVenta } = await addSale(saleData);
@@ -960,6 +997,14 @@ export function POS() {
       }
     }
 
+    if (cajaSesion.mustOpenCajaToSell && !cajaSesion.activa) {
+      addToast({
+        type: 'warning',
+        message: 'Abra caja con «Abrir caja» antes de cobrar en esta tienda.',
+      });
+      return;
+    }
+
     setProcessingSale(true);
 
     try {
@@ -996,6 +1041,7 @@ export function POS() {
           pagos: pagosCompletacion,
           cambio: cambioAbierta,
           usuarioNombreCierre: cajeroNombre,
+          cajaSesionId: cajaSesion.activa?.id,
         });
 
         const clienteNombre = client?.nombre || pend.cliente?.nombre?.trim() || 'Mostrador';
@@ -1090,6 +1136,7 @@ export function POS() {
           : undefined,
         usuarioId: user?.id || 'system',
         usuarioNombre: cajeroNombre,
+        ...(cajaSesion.activa?.id ? { cajaSesionId: cajaSesion.activa.id } : {}),
       };
 
       const { id: ventaIdNueva, folio: folioVenta } = await addSale(saleData);
@@ -1227,6 +1274,12 @@ export function POS() {
 
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 flex-col gap-2 sm:gap-3">
+      <CajaPosToolbar
+        sales={salesCatalog}
+        canUse={hasPermission('ventas:crear')}
+        sucursalId={effectiveSucursalId}
+        caja={cajaSesion}
+      />
       {openSaleResume ? (
         <div
           className={cn(
@@ -2259,20 +2312,45 @@ export function POS() {
       <AlertDialog open={ventaResetConfirmOpen} onOpenChange={setVentaResetConfirmOpen}>
         <AlertDialogContent className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Reiniciar punto de venta?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {openSaleResume?.sale.estado === 'pendiente'
+                ? '¿Cancelar esta venta abierta?'
+                : '¿Reiniciar punto de venta?'}
+            </AlertDialogTitle>
             <AlertDialogDescription className="text-slate-600 dark:text-slate-400">
-              Se vaciará el carrito, el cobro y la búsqueda. Es el mismo efecto que empezar de cero en esta
-              pantalla.
+              {openSaleResume?.sale.estado === 'pendiente' ? (
+                <>
+                  La venta{' '}
+                  <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
+                    {openSaleResume.sale.folio}
+                  </span>{' '}
+                  quedará <strong>cancelada</strong>, se <strong>reintegrará el inventario</strong> y dejará de
+                  mostrarse en la lista de pendientes.
+                </>
+              ) : (
+                <>
+                  Se vaciará el carrito, el cobro y la búsqueda. Es el mismo efecto que empezar de cero en esta
+                  pantalla.
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="border-slate-300 dark:border-slate-600">No</AlertDialogCancel>
-            <AlertDialogAction
+            <AlertDialogCancel disabled={ventaResetBusy} className="border-slate-300 dark:border-slate-600">
+              No
+            </AlertDialogCancel>
+            <Button
+              type="button"
+              disabled={ventaResetBusy}
               className="bg-cyan-600 text-white hover:bg-cyan-700"
-              onClick={() => resetPuntoVenta()}
+              onClick={() => void confirmVentaReset()}
             >
-              Sí, reiniciar
-            </AlertDialogAction>
+              {ventaResetBusy
+                ? 'Procesando…'
+                : openSaleResume?.sale.estado === 'pendiente'
+                  ? 'Sí, cancelar venta abierta'
+                  : 'Sí, reiniciar'}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -256,10 +256,37 @@ export interface Sale {
   posResumeGlobalDiscount?: number;
   /** Lista de precios del carrito al guardar venta abierta (`regular`, `tecnico`, …). */
   posResumeListaPrecios?: string;
+  /** Sesión de caja (apertura/cierre) en la que se registró la venta; para arqueo. */
+  cajaSesionId?: string;
   createdAt: Date;
   updatedAt: Date;
   syncStatus: SyncStatus;
   lastSyncAt?: Date;
+}
+
+export type CajaSesionEstado = 'abierta' | 'cerrada';
+
+/** Registro de apertura/cierre de caja por sucursal (`sucursales/{id}/cajaSesiones/...`). */
+export interface CajaSesion {
+  id: string;
+  sucursalId?: string;
+  estado: CajaSesionEstado;
+  fondoInicial: number;
+  openedAt: Date;
+  openedByUserId: string;
+  openedByNombre: string;
+  closedAt?: Date;
+  closedByUserId?: string;
+  closedByNombre?: string;
+  /** Efectivo contado físicamente al cierre. */
+  conteoDeclarado?: number;
+  /** Fondo + efectivo cobrado − cambio entregado (ventas de la sesión completadas). */
+  efectivoEsperado?: number;
+  /** Declarado − esperado (positivo = sobrante). */
+  diferencia?: number;
+  notasCierre?: string;
+  ticketsCompletados?: number;
+  totalVentasBruto?: number;
 }
 
 export interface SaleItem {

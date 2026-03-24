@@ -1119,10 +1119,16 @@ export function Clientes() {
               </div>
             ) : clientVentasList.length === 0 ? (
               <div className="py-10 text-center text-sm text-slate-600 dark:text-slate-500">
-                <p>No hay ventas guardadas en este dispositivo para este cliente.</p>
-                <p className="mt-2 text-xs">
-                  Si usa otra sucursal o recién sincronizó, espere a que las ventas bajen al historial local.
+                <p>
+                  {effectiveSucursalId
+                    ? 'No hay ventas registradas para este cliente en esta sucursal.'
+                    : 'No hay ventas guardadas en este dispositivo para este cliente.'}
                 </p>
+                {!effectiveSucursalId ? (
+                  <p className="mt-2 text-xs">
+                    Si usa otra sucursal o recién sincronizó, espere a que las ventas bajen al historial local.
+                  </p>
+                ) : null}
               </div>
             ) : (
               <ul className="space-y-2">

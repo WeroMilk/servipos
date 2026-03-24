@@ -5,6 +5,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  where,
   writeBatch,
   type Unsubscribe,
 } from 'firebase/firestore';
@@ -60,6 +61,25 @@ export function movementDocToMovement(id: string, d: Record<string, unknown>): I
 }
 
 /** Suscripción a los movimientos más recientes (orden descendente por fecha). */
+const BY_PRODUCT_LIMIT = 200;
+
+/** Movimientos de un solo producto (p. ej. historial de entradas en inventario). */
+export async function fetchInventoryMovementsByProductIdFirestore(
+  sucursalId: string,
+  productId: string,
+  maxDocs = BY_PRODUCT_LIMIT
+): Promise<InventoryMovement[]> {
+  const pid = productId.trim();
+  if (!pid) return [];
+  const q = query(movementsCol(sucursalId), where('productId', '==', pid), limit(maxDocs));
+  const snap = await getDocs(q);
+  const list = snap.docs.map((doc) =>
+    movementDocToMovement(doc.id, doc.data() as Record<string, unknown>)
+  );
+  list.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  return list;
+}
+
 export function subscribeInventoryMovements(
   sucursalId: string,
   onUpdate: (movements: InventoryMovement[]) => void,

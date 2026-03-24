@@ -176,6 +176,10 @@ export function saleDocToSale(snap: DocumentSnapshot): Sale | null {
         ? Number(d.posResumeGlobalDiscount)
         : undefined,
     posResumeListaPrecios: parsePosResumeListaPrecios(d.posResumeListaPrecios),
+    cajaSesionId:
+      typeof d.cajaSesionId === 'string' && d.cajaSesionId.trim().length > 0
+        ? d.cajaSesionId.trim()
+        : undefined,
     sucursalId: typeof sucursalFromPath === 'string' && sucursalFromPath.length > 0 ? sucursalFromPath : undefined,
     createdAt: firestoreTimestampToDate(d.createdAt),
     updatedAt: firestoreTimestampToDate(d.updatedAt),
@@ -438,6 +442,38 @@ export async function cancelSaleFirestore(
   });
 }
 
+/** Ventas ligadas a una sesión de caja (arqueo / cierre). */
+export async function fetchSalesByCajaSesion(
+  sucursalId: string,
+  sesionId: string
+): Promise<Sale[]> {
+  const sid = sesionId.trim();
+  if (!sid) return [];
+  const q = query(salesCol(sucursalId), where('cajaSesionId', '==', sid));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => saleDocToSale(d)).filter((s): s is Sale => s != null);
+}
+
+const CLIENT_SALES_QUERY_LIMIT = 500;
+
+/** Ventas de un cliente en la sucursal (p. ej. historial en pantalla Clientes). */
+export async function fetchSalesByClienteIdFirestore(
+  sucursalId: string,
+  clienteId: string
+): Promise<Sale[]> {
+  const cid = clienteId.trim();
+  if (!cid || cid === 'mostrador') return [];
+  const q = query(
+    salesCol(sucursalId),
+    where('clienteId', '==', cid),
+    limit(CLIENT_SALES_QUERY_LIMIT)
+  );
+  const snap = await getDocs(q);
+  const list = snap.docs.map((d) => saleDocToSale(d)).filter((s): s is Sale => s != null);
+  list.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  return list;
+}
+
 export async function getSaleByIdFirestore(
   sucursalId: string,
   saleId: string
@@ -460,6 +496,8 @@ export async function completePendingSaleFirestore(
     cambio: number;
     /** Cajero que cierra el cobro (si se omite, se conserva el de la venta). */
     usuarioNombreCierre?: string | null;
+    /** Asocia la venta a la sesión de caja abierta al cobrar. */
+    cajaSesionId?: string | null;
   }
 ): Promise<void> {
   const saleRef = doc(db, 'sucursales', sucursalId, 'sales', saleId);
@@ -477,6 +515,11 @@ export async function completePendingSaleFirestore(
         ? patch.usuarioNombreCierre.trim()
         : sale.usuarioNombre ?? null;
 
+    const cajaSesionPatch =
+      typeof patch.cajaSesionId === 'string' && patch.cajaSesionId.trim().length > 0
+        ? { cajaSesionId: patch.cajaSesionId.trim() }
+        : {};
+
     transaction.update(saleRef, {
       estado: 'completada',
       formaPago: patch.formaPago,
@@ -489,6 +532,7 @@ export async function completePendingSaleFirestore(
       })),
       cambio: patch.cambio,
       usuarioNombre: nombreCierre,
+      ...cajaSesionPatch,
       updatedAt: serverTimestamp(),
     });
   });

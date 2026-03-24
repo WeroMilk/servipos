@@ -10,6 +10,7 @@ import { FORMAS_PAGO, type Quotation, type Sale } from '@/types';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { thermalTicketCancelacionNotas } from '@/lib/saleCancelacion';
 import { getProductCatalogSnapshot } from '@/lib/firestore/productsFirestore';
+import { labelFormaPagoCaja, totalesPorFormaPago } from '@/lib/cajaResumen';
 
 async function resolveClienteTicketLabel(sale: Sale): Promise<string> {
   const embedded = sale.cliente?.nombre?.trim();
@@ -345,6 +346,65 @@ export function printThermalDailySalesReport(input: {
   <div class="meta">${escapeHtml(input.fechaLabel)}<br/>${list.length} ticket(s)</div>
   <table>${rows || '<tr><td>Sin ventas.</td></tr>'}</table>
   <div class="tot"><strong>Total día: ${formatMoney(bruto)}</strong><br/><span style="font-size:14px;">Sin canceladas ni ventas abiertas</span></div>
+  ${pie}
+</body></html>`;
+  openAndPrintHtml(html, 'width=360,height=720', 250);
+}
+
+/** Comprobante de cierre de caja / arqueo (80 mm). */
+export function printThermalCajaCierre(input: {
+  fechaLabel: string;
+  sucursalId?: string;
+  ventas: Sale[];
+  fondoInicial: number;
+  conteoDeclarado: number;
+  efectivoEsperado: number;
+  diferencia: number;
+  ticketsCompletados: number;
+  totalVentasBruto: number;
+  abiertaPor: string;
+  cerradaPor: string;
+  aperturaLabel: string;
+  cierreLabel: string;
+}): void {
+  const porForma = totalesPorFormaPago(input.ventas);
+  const formaRows = Object.entries(porForma)
+    .filter(([, m]) => (Number(m) || 0) > 0)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(
+      ([clave, m]) =>
+        `<tr><td>${escapeHtml(labelFormaPagoCaja(clave))}</td><td class="right">${formatMoney(Number(m) || 0)}</td></tr>`
+    )
+    .join('');
+  const lines = getThermalTicketSucursalFooterLines(input.sucursalId);
+  const pie =
+    lines?.length ?
+      `<div class="pie-sucursal"><div class="titulo-suc">${escapeHtml(lines[0]!)}</div>${lines
+        .slice(1)
+        .map((ln) => `<div>${escapeHtml(ln)}</div>`)
+        .join('')}</div>`
+    : '';
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Cierre de caja</title>
+<style>${THERMAL_BASE_STYLES}</style></head><body>
+  <h1>CIERRE DE CAJA</h1>
+  <div class="meta">
+    ${escapeHtml(input.fechaLabel)}<br/>
+    Apertura: ${escapeHtml(input.aperturaLabel)} · ${escapeHtml(input.abiertaPor)}<br/>
+    Cierre: ${escapeHtml(input.cierreLabel)} · ${escapeHtml(input.cerradaPor)}
+  </div>
+  <div class="tot" style="border-top:none;padding-top:4px;">
+    <div>Fondo inicial: ${formatMoney(input.fondoInicial)}</div>
+    <div>Tickets cobrados: ${input.ticketsCompletados}</div>
+    <div>Venta neta (completadas): ${formatMoney(input.totalVentasBruto)}</div>
+  </div>
+  <p style="font-size:19px;font-weight:600;margin:10px 0 4px;">Cobros por forma de pago</p>
+  <table>${formaRows || '<tr><td>Sin cobros registrados</td></tr>'}</table>
+  <div class="tot">
+    <div><strong>Efectivo esperado en caja</strong></div>
+    <div style="font-size:26px;"><strong>${formatMoney(input.efectivoEsperado)}</strong></div>
+    <div>Conteo físico: ${formatMoney(input.conteoDeclarado)}</div>
+    <div>Diferencia: ${formatMoney(input.diferencia)}</div>
+  </div>
   ${pie}
 </body></html>`;
   openAndPrintHtml(html, 'width=360,height=720', 250);

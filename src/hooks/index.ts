@@ -9,6 +9,7 @@ export { useQuotations, useQuotationDetails } from './useQuotations';
 export { useInvoices, useInvoiceDetails, useNextFolio, useCFDIGenerator } from './useInvoices';
 export { useFiscalConfig } from './useConfig';
 export { useEffectiveSucursalId } from './useEffectiveSucursalId';
+export { useCajaSesion } from './useCajaSesion';
 export { usePendingIncomingTransfers, useOutgoingPendingTransferIds } from './useStoreTransfers';
 export { useInventoryMovementsHistory } from './useInventoryMovementsHistory';
 export { useDesktopWheelScrollEnhancer } from './useDesktopWheelScrollEnhancer';
