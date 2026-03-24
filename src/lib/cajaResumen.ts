@@ -46,3 +46,30 @@ export function labelFormaPagoCaja(clave: string): string {
   const f = FORMAS_PAGO.find((x) => x.clave === clave);
   return f?.descripcion ?? clave;
 }
+
+/** Filas ordenadas para ticket/UI de cierre (solo montos &gt; 0). */
+export function lineasMediosPagoSesion(ventas: Sale[]): { clave: string; label: string; monto: number }[] {
+  const porForma = totalesPorFormaPago(ventas);
+  return Object.entries(porForma)
+    .filter(([, m]) => (Number(m) || 0) > 0)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([clave, m]) => ({ clave, label: labelFormaPagoCaja(clave), monto: Number(m) || 0 }));
+}
+
+/** Agrupación típica de POS: efectivo, tarjetas SAT 04/28/29, resto de formas. */
+export function resumenGruposMedioPagoCierre(ventas: Sale[]): {
+  efectivoCobros: number;
+  tarjetas: number;
+  otros: number;
+} {
+  const por = totalesPorFormaPago(ventas);
+  const num = (clave: string) => Number(por[clave as FormaPago]) || 0;
+  const efectivoCobros = num('01');
+  const tarjetas = num('04') + num('28') + num('29');
+  const yaEnResumen = new Set(['01', '04', '28', '29']);
+  let otros = 0;
+  for (const [k, v] of Object.entries(por)) {
+    if (!yaEnResumen.has(k)) otros += Number(v) || 0;
+  }
+  return { efectivoCobros, tarjetas, otros };
+}

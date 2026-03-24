@@ -71,27 +71,41 @@ export function subscribeCajaSesionAbierta(
   const estRef = cajaEstadoRef(sucursalId);
   let unsubSesion: Unsubscribe | null = null;
 
-  const unsubEst = onSnapshot(estRef, (estSnap) => {
-    unsubSesion?.();
-    unsubSesion = null;
+  const unsubEst = onSnapshot(
+    estRef,
+    (estSnap) => {
+      unsubSesion?.();
+      unsubSesion = null;
 
-    const openIdRaw = estSnap.data()?.sesionAbiertaId;
-    const openId = typeof openIdRaw === 'string' ? openIdRaw.trim() : '';
-    if (!openId) {
-      cb(null);
-      return;
-    }
-
-    const sRef = cajaSesionRef(sucursalId, openId);
-    unsubSesion = onSnapshot(sRef, (sSnap) => {
-      if (!sSnap.exists()) {
+      const openIdRaw = estSnap.data()?.sesionAbiertaId;
+      const openId = typeof openIdRaw === 'string' ? openIdRaw.trim() : '';
+      if (!openId) {
         cb(null);
         return;
       }
-      const mapped = mapCajaSesionDoc(sucursalId, openId, sSnap.data() as Record<string, unknown>);
-      cb(mapped.estado === 'abierta' ? mapped : null);
-    });
-  });
+
+      const sRef = cajaSesionRef(sucursalId, openId);
+      unsubSesion = onSnapshot(
+        sRef,
+        (sSnap) => {
+          if (!sSnap.exists()) {
+            cb(null);
+            return;
+          }
+          const mapped = mapCajaSesionDoc(sucursalId, openId, sSnap.data() as Record<string, unknown>);
+          cb(mapped.estado === 'abierta' ? mapped : null);
+        },
+        () => {
+          cb(null);
+        }
+      );
+    },
+    () => {
+      unsubSesion?.();
+      unsubSesion = null;
+      cb(null);
+    }
+  );
 
   return () => {
     unsubSesion?.();

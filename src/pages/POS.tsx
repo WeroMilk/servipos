@@ -14,6 +14,7 @@ import {
   User,
   Wallet,
   Clock,
+  PowerOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,7 +46,7 @@ import { Label } from '@/components/ui/label';
 import { useShallow } from 'zustand/react/shallow';
 import { useCartStore, useAppStore, useAuthStore } from '@/stores';
 import { useProductSearch, useSales, useClients, useEffectiveSucursalId, useCajaSesion } from '@/hooks';
-import { CajaPosToolbar } from '@/components/caja/CajaPosToolbar';
+import { CajaPosToolbar, type CajaPosToolbarHandle } from '@/components/caja/CajaPosToolbar';
 import type { Product, FormaPago, Payment, Sale, Sucursal, CartItem } from '@/types';
 import { FORMAS_PAGO_UI } from '@/types';
 import {
@@ -136,6 +137,7 @@ export function POS() {
     useSales(500);
   const { effectiveSucursalId } = useEffectiveSucursalId();
   const cajaSesion = useCajaSesion({ sucursalId: effectiveSucursalId });
+  const cajaToolbarRef = useRef<CajaPosToolbarHandle>(null);
 
   const [sucursalesCat, setSucursalesCat] = useState<Sucursal[]>([]);
   useEffect(() => subscribeSucursales(setSucursalesCat), []);
@@ -1275,6 +1277,7 @@ export function POS() {
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 flex-col gap-2 sm:gap-3">
       <CajaPosToolbar
+        ref={cajaToolbarRef}
         sales={salesCatalog}
         canUse={hasPermission('ventas:crear')}
         sucursalId={effectiveSucursalId}
@@ -1588,7 +1591,7 @@ export function POS() {
           className={cn(
             'flex w-full flex-col gap-2 sm:gap-3',
             'max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-y-auto max-lg:overscroll-y-contain',
-            'lg:min-h-0 lg:w-[min(100%,26rem)] lg:shrink-0 lg:overflow-hidden xl:w-[min(100%,30rem)] 2xl:w-[min(100%,34rem)]',
+            'lg:min-h-0 lg:w-[min(100%,26rem)] lg:shrink-0 lg:overflow-y-auto lg:overscroll-y-contain xl:w-[min(100%,30rem)] 2xl:w-[min(100%,34rem)]',
             mobileTab !== 'checkout' && 'hidden lg:flex'
           )}
         >
@@ -1668,8 +1671,8 @@ export function POS() {
             </div>
           ) : null}
 
-          <Card className="flex min-w-0 flex-col overflow-visible border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 max-lg:flex-none lg:min-h-0 lg:flex-1 lg:overflow-hidden">
-            <CardContent className="flex flex-col gap-3 overflow-visible p-2 sm:p-3 lg:min-h-0 lg:flex-1 lg:overflow-hidden lg:p-4">
+          <Card className="flex min-w-0 flex-col overflow-visible border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 max-lg:flex-none lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-y-contain">
+            <CardContent className="flex flex-col gap-3 overflow-visible p-2 sm:p-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-y-contain lg:p-4">
               <div className="shrink-0 space-y-2">
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs sm:text-sm">
                   <span className="text-slate-600 dark:text-slate-400">Subtotal</span>
@@ -1930,15 +1933,15 @@ export function POS() {
                         max={100}
                       />
                     </div>
-                    <div className="space-y-1">
-                      <Label className="text-[10px] text-slate-600 dark:text-slate-400 sm:text-xs">
-                        Precios por Cliente
+                    <div className="space-y-1.5">
+                      <Label className="block min-h-[2.25rem] whitespace-normal text-[10px] leading-snug text-slate-600 dark:text-slate-400 sm:min-h-0 sm:text-xs">
+                        Precios por cliente
                       </Label>
                       <Select
                         value={precioClienteListaId}
                         onValueChange={(v) => setPrecioClienteLista(v as ClientPriceListId)}
                       >
-                        <SelectTrigger className="h-10 w-full min-w-0 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100 md:text-sm">
+                        <SelectTrigger className="h-10 w-full min-h-10 min-w-0 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100 md:text-sm">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent
@@ -2008,6 +2011,18 @@ export function POS() {
               <Clock className="mr-2 h-4 w-4 shrink-0" />
               {dejarAbiertaBusy ? 'Guardando…' : 'Dejar venta abierta (fiado)'}
             </Button>
+
+            {hasPermission('ventas:crear') && cajaSesion.activa ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => cajaToolbarRef.current?.openCerrarCajaDialog()}
+                className="h-10 w-full rounded-xl border-red-500/40 text-red-800 hover:bg-red-500/10 dark:border-red-500/45 dark:text-red-200 dark:hover:bg-red-500/15 sm:h-11"
+              >
+                <PowerOff className="mr-2 h-4 w-4 shrink-0" />
+                Cerrar caja (informe y arqueo)
+              </Button>
+            ) : null}
           </div>
         </aside>
       </div>

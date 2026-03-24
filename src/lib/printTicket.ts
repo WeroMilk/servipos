@@ -10,7 +10,7 @@ import { FORMAS_PAGO, type Quotation, type Sale } from '@/types';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { thermalTicketCancelacionNotas } from '@/lib/saleCancelacion';
 import { getProductCatalogSnapshot } from '@/lib/firestore/productsFirestore';
-import { labelFormaPagoCaja, totalesPorFormaPago } from '@/lib/cajaResumen';
+import { labelFormaPagoCaja, resumenGruposMedioPagoCierre, totalesPorFormaPago } from '@/lib/cajaResumen';
 
 async function resolveClienteTicketLabel(sale: Sale): Promise<string> {
   const embedded = sale.cliente?.nombre?.trim();
@@ -367,6 +367,7 @@ export function printThermalCajaCierre(input: {
   aperturaLabel: string;
   cierreLabel: string;
 }): void {
+  const grupos = resumenGruposMedioPagoCierre(input.ventas);
   const porForma = totalesPorFormaPago(input.ventas);
   const formaRows = Object.entries(porForma)
     .filter(([, m]) => (Number(m) || 0) > 0)
@@ -396,6 +397,12 @@ export function printThermalCajaCierre(input: {
     <div>Fondo inicial: ${formatMoney(input.fondoInicial)}</div>
     <div>Tickets cobrados: ${input.ticketsCompletados}</div>
     <div>Venta neta (completadas): ${formatMoney(input.totalVentasBruto)}</div>
+  </div>
+  <div class="tot" style="border-top:none;padding-top:8px;font-size:20px;">
+    <div><strong>Resumen medios</strong></div>
+    <div>Efectivo: ${formatMoney(grupos.efectivoCobros)}</div>
+    <div>Tarjetas: ${formatMoney(grupos.tarjetas)}</div>
+    <div>Otros: ${formatMoney(grupos.otros)}</div>
   </div>
   <p style="font-size:19px;font-weight:600;margin:10px 0 4px;">Cobros por forma de pago</p>
   <table>${formaRows || '<tr><td>Sin cobros registrados</td></tr>'}</table>

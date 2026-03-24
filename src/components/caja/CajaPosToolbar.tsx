@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Banknote, Lock, Unlock } from 'lucide-react';
+import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { Banknote, Lock, PowerOff, Unlock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -20,7 +20,9 @@ import { printThermalCajaCierre } from '@/lib/printTicket';
 import {
   computeCajaEfectivoEsperado,
   filterVentasCompletadasSesion,
+  lineasMediosPagoSesion,
   resumenBrutoSesion,
+  resumenGruposMedioPagoCierre,
 } from '@/lib/cajaResumen';
 import { fetchSalesByCajaSesion } from '@/lib/firestore/salesFirestore';
 import type { Sale } from '@/types';
@@ -32,7 +34,13 @@ type CajaPosToolbarProps = {
   caja: CajaSesionHookValue;
 };
 
-export function CajaPosToolbar({ sales, canUse, sucursalId: effectiveSucursalId, caja }: CajaPosToolbarProps) {
+export type CajaPosToolbarHandle = {
+  openAbrirCajaDialog: () => void;
+  openCerrarCajaDialog: () => void;
+};
+
+export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarProps>(
+  function CajaPosToolbar({ sales, canUse, sucursalId: effectiveSucursalId, caja }, ref) {
   const { user } = useAuthStore();
   const { addToast } = useAppStore();
   const { activa, loading, isCloud, openCaja, closeCaja } = caja;
@@ -59,6 +67,26 @@ export function CajaPosToolbar({ sales, canUse, sucursalId: effectiveSucursalId,
     const { tickets, total } = resumenBrutoSesion(ventasSesion);
     return { esperadoEnCaja, efectivoCobrado, cambioEntregado, tickets, total };
   }, [activa, ventasSesion]);
+
+  const previewRef = useRef(previewCierre);
+  previewRef.current = previewCierre;
+
+  const lineasPagoPreview = useMemo(() => lineasMediosPagoSesion(ventasSesion), [ventasSesion]);
+  const gruposPagoPreview = useMemo(() => resumenGruposMedioPagoCierre(ventasSesion), [ventasSesion]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      openAbrirCajaDialog: () => setOpenDialog(true),
+      openCerrarCajaDialog: () => {
+        if (!activa) return;
+        const p = previewRef.current;
+        setConteoInput(p ? String(p.esperadoEnCaja) : '');
+        setCloseDialog(true);
+      },
+    }),
+    [activa]
+  );
 
   const userId = user?.id ?? 'system';
   const userNombre =
@@ -209,13 +237,14 @@ export function CajaPosToolbar({ sales, canUse, sucursalId: effectiveSucursalId,
               type="button"
               size="sm"
               variant="secondary"
-              className="border-slate-300 dark:border-slate-600"
+              className="border-red-500/35 text-red-800 hover:bg-red-500/10 dark:border-red-500/40 dark:text-red-200 dark:hover:bg-red-500/15"
               disabled={busy}
               onClick={() => {
                 setConteoInput(previewCierre ? String(previewCierre.esperadoEnCaja) : '');
                 setCloseDialog(true);
               }}
             >
+              <PowerOff className="mr-1.5 h-4 w-4" />
               Cerrar caja
             </Button>
           )}
@@ -277,6 +306,44 @@ export function CajaPosToolbar({ sales, canUse, sucursalId: effectiveSucursalId,
                   <li>Total ventas (completadas): {formatMoney(previewCierre.total)}</li>
                 </ul>
               </div>
+
+              <div className="rounded-lg border border-slate-200 bg-slate-200/40 p-3 dark:border-slate-700 dark:bg-slate-800/40">
+                <p className="font-medium text-slate-800 dark:text-slate-200">Ventas por medio de pago</p>
+                <ul className="mt-2 grid gap-1.5 text-slate-700 dark:text-slate-300 sm:grid-cols-3">
+                  <li className="rounded-md bg-slate-100/90 px-2 py-1.5 dark:bg-slate-900/50">
+                    <span className="block text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-500">
+                      Efectivo
+                    </span>
+                    <span className="font-semibold tabular-nums">{formatMoney(gruposPagoPreview.efectivoCobros)}</span>
+                  </li>
+                  <li className="rounded-md bg-slate-100/90 px-2 py-1.5 dark:bg-slate-900/50">
+                    <span className="block text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-500">
+                      Tarjetas
+                    </span>
+                    <span className="font-semibold tabular-nums">{formatMoney(gruposPagoPreview.tarjetas)}</span>
+                  </li>
+                  <li className="rounded-md bg-slate-100/90 px-2 py-1.5 dark:bg-slate-900/50">
+                    <span className="block text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-500">
+                      Otros medios
+                    </span>
+                    <span className="font-semibold tabular-nums">{formatMoney(gruposPagoPreview.otros)}</span>
+                  </li>
+                </ul>
+                {lineasPagoPreview.length > 0 ? (
+                  <ul className="mt-3 space-y-1 border-t border-slate-200 pt-2 text-xs text-slate-600 dark:border-slate-600 dark:text-slate-400">
+                    {lineasPagoPreview.map((row) => (
+                      <li key={row.clave} className="flex justify-between gap-2">
+                        <span className="min-w-0 truncate">{row.label}</span>
+                        <span className="shrink-0 tabular-nums font-medium text-slate-800 dark:text-slate-200">
+                          {formatMoney(row.monto)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-500">Sin cobros en esta sesión aún.</p>
+                )}
+              </div>
               <div className="space-y-2">
                 <Label>Conteo físico de efectivo</Label>
                 <Input
@@ -311,4 +378,5 @@ export function CajaPosToolbar({ sales, canUse, sucursalId: effectiveSucursalId,
       </Dialog>
     </>
   );
-}
+  }
+);

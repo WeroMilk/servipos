@@ -187,10 +187,11 @@ export function Configuracion() {
 
   /** Pestañas tipo subrayado (activa = borde inferior cyan), sin bloque de fondo. */
   const configuracionTabTriggerClass = cn(
-    'h-10 shrink-0 flex-none justify-center rounded-none border-0 border-b-2 border-transparent bg-transparent px-3 text-xs text-slate-600 shadow-none ring-offset-0',
+    'h-auto min-h-10 shrink-0 flex-none justify-center rounded-none border-0 border-b-2 border-transparent bg-transparent px-2 py-2 text-center text-xs leading-tight text-slate-600 shadow-none ring-offset-0 sm:min-h-11 sm:px-3 sm:text-sm',
+    'whitespace-normal [text-wrap:balance]',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/35 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-100 dark:focus-visible:ring-offset-slate-950',
     'data-[state=active]:border-cyan-500 data-[state=active]:bg-transparent data-[state=active]:text-cyan-700 data-[state=active]:shadow-none',
-    'dark:text-slate-400 dark:data-[state=active]:text-cyan-400 sm:h-11 sm:text-sm xl:w-full xl:flex-1'
+    'dark:text-slate-400 dark:data-[state=active]:text-cyan-400 xl:w-full xl:flex-1'
   );
 
   return (
@@ -273,7 +274,7 @@ export function Configuracion() {
           {canEditListaPreciosCliente && (
             <TabsTrigger value="lista-precios" className={configuracionTabTriggerClass}>
               <Percent className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
-              Precios cliente
+              Precios por cliente
             </TabsTrigger>
           )}
           {canEditListaPreciosCliente && (

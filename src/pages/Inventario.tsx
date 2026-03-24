@@ -1239,11 +1239,12 @@ export function Inventario() {
           </div>
 
           <div className="mt-3 space-y-3 border-t border-slate-200 pt-4 dark:border-slate-800">
-            <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
+            <p className="text-xs font-medium leading-snug text-slate-600 dark:text-slate-400 [text-wrap:balance]">
               Precios opcionales por tipo de cliente (sin IVA)
             </p>
-            <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-500">
-              Si deja vacío, en el POS se usa el precio de venta con el % de la lista en Configuración → Precios cliente.
+            <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-500 [text-wrap:pretty]">
+              Si deja vacío, en el POS se usa el precio de venta con el % de la lista en Configuración →
+              Precios{'\u00a0'}por{'\u00a0'}cliente.
             </p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {CLIENT_PRICE_LIST_ORDER.map((id) => (
@@ -1473,11 +1474,12 @@ export function Inventario() {
           </div>
 
           <div className="mt-3 space-y-3 border-t border-slate-200 pt-4 dark:border-slate-800">
-            <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
+            <p className="text-xs font-medium leading-snug text-slate-600 dark:text-slate-400 [text-wrap:balance]">
               Precios opcionales por tipo de cliente (sin IVA)
             </p>
-            <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-500">
-              Si deja vacío, en el POS se usa el precio de venta con el % de la lista en Configuración → Precios cliente.
+            <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-500 [text-wrap:pretty]">
+              Si deja vacío, en el POS se usa el precio de venta con el % de la lista en Configuración →
+              Precios{'\u00a0'}por{'\u00a0'}cliente.
             </p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {CLIENT_PRICE_LIST_ORDER.map((id) => (
@@ -1658,7 +1660,7 @@ export function Inventario() {
           if (!open) setPreciosDialogProduct(null);
         }}
       >
-        <DialogContent className="flex max-h-[min(92dvh,44rem)] w-full min-w-0 max-w-[min(96vw,40rem)] flex-col gap-0 overflow-hidden border-slate-200 bg-slate-100 p-0 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
+        <DialogContent className="flex max-h-[min(92dvh,44rem)] w-full min-w-0 max-w-[min(96vw,44rem)] flex-col gap-0 overflow-hidden border-slate-200 bg-slate-100 p-0 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
           <DialogHeader className="shrink-0 space-y-1 border-b border-slate-200 px-4 pb-3 pt-4 dark:border-slate-800/80">
             <DialogTitle>Precios e historial de entradas</DialogTitle>
             {preciosDialogProduct ? (
@@ -1669,12 +1671,12 @@ export function Inventario() {
             ) : null}
           </DialogHeader>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3">
-            <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
+            <p className="text-xs font-medium leading-snug text-slate-600 dark:text-slate-400 [text-wrap:balance]">
               Precios opcionales por tipo de cliente (sin IVA)
             </p>
-            <p className="mb-3 text-[11px] leading-snug text-slate-500 dark:text-slate-500">
-              Si deja vacío, en el POS se usa el precio de venta con el % de la lista en Configuración → Precios
-              cliente.
+            <p className="mb-3 text-[11px] leading-snug text-slate-500 dark:text-slate-500 [text-wrap:pretty]">
+              Si deja vacío, en el POS se usa el precio de venta con el % de la lista en Configuración →
+              Precios{'\u00a0'}por{'\u00a0'}cliente.
             </p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {CLIENT_PRICE_LIST_ORDER.map((id) => (
