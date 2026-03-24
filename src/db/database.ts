@@ -22,6 +22,7 @@ import {
   fetchSalesByClienteIdFirestore,
 } from '@/lib/firestore/salesFirestore';
 import { fetchInventoryMovementsByProductIdFirestore } from '@/lib/firestore/inventoryMovementsFirestore';
+import { updateClientFirestore } from '@/lib/firestore/clientsFirestore';
 import { getDefaultSucursalIdForNewData } from '@/lib/sucursales';
 
 const MOSTRADOR_CLIENT_ID = 'mostrador';
@@ -569,7 +570,7 @@ export async function createSale(
   if (options?.sucursalId) {
     const { id, folio } = await createSaleFirestore(options.sucursalId, sale);
     if (sale.estado !== 'pendiente') {
-      await adjustClientTicketCount(sale.clienteId, 1);
+      await adjustClientTicketCount(sale.clienteId, 1, { sucursalId: options.sucursalId });
     }
     return { id, folio };
   }
@@ -622,7 +623,7 @@ export async function completePendingSale(
     await completePendingSaleFirestore(sucursalId, id, patch);
     const updated = await getSaleByIdFirestore(sucursalId, id);
     if (updated?.clienteId && updated.clienteId !== MOSTRADOR_CLIENT_ID) {
-      await adjustClientTicketCount(updated.clienteId, 1);
+      await adjustClientTicketCount(updated.clienteId, 1, { sucursalId });
     }
     return;
   }
@@ -679,7 +680,7 @@ export async function cancelSale(
       prev.clienteId &&
       prev.clienteId !== MOSTRADOR_CLIENT_ID
     ) {
-      await adjustClientTicketCount(prev.clienteId, -1);
+      await adjustClientTicketCount(prev.clienteId, -1, { sucursalId });
     }
     return;
   }
@@ -1012,17 +1013,25 @@ export async function cancelInvoice(
 // FUNCIONES DE CLIENTES
 // ============================================
 
-/** Ajusta el contador de tickets de compra del cliente (Dexie). No interrumpe ventas si falla. */
-export async function adjustClientTicketCount(clienteId: string | undefined, delta: number): Promise<void> {
+/** Ajusta el contador de tickets de compra del cliente (Dexie y, si aplica, Firestore). No interrumpe ventas si falla. */
+export async function adjustClientTicketCount(
+  clienteId: string | undefined,
+  delta: number,
+  options?: { sucursalId?: string | null }
+): Promise<void> {
   if (!clienteId || clienteId === MOSTRADOR_CLIENT_ID || delta === 0) return;
   try {
     const row = await db.clients.get(clienteId);
     if (!row || row.isMostrador) return;
     const next = Math.max(0, (row.ticketsComprados ?? 0) + delta);
+    const sid = options?.sucursalId?.trim();
+    if (sid) {
+      await updateClientFirestore(sid, clienteId, { ticketsComprados: next });
+    }
     await db.clients.update(clienteId, {
       ticketsComprados: next,
       updatedAt: new Date(),
-      syncStatus: 'pending',
+      syncStatus: sid ? 'synced' : 'pending',
     });
   } catch (e) {
     console.error('adjustClientTicketCount:', e);
@@ -1161,6 +1170,38 @@ export async function incrementInvoiceFolio(): Promise<void> {
     folioActual: config.folioActual + 1,
     updatedAt: new Date(),
   });
+}
+
+/** Serie fija para facturas en modo prueba (no es folio autorizado ante el SAT). */
+export const SERIE_FACTURA_PRUEBA = 'PRUEBA';
+
+/** Serie fija para recibos de nómina impresos solo como prueba. */
+export const SERIE_NOMINA_PRUEBA = 'PRUEBA-N';
+
+/** Reserva folio de factura de prueba sin tocar `folioActual`. */
+export async function reservePruebaInvoiceFolio(): Promise<{ serie: string; folio: string }> {
+  const config = await db.fiscalConfig.toCollection().first();
+  if (!config) throw new Error('No hay configuración fiscal');
+
+  const n = config.folioPruebaFactura ?? 1;
+  await db.fiscalConfig.update(config.id, {
+    folioPruebaFactura: n + 1,
+    updatedAt: new Date(),
+  });
+  return { serie: SERIE_FACTURA_PRUEBA, folio: String(n) };
+}
+
+/** Reserva folio para una impresión de recibo de nómina de prueba sin tocar `folioNominaActual`. */
+export async function reservePruebaNominaFolio(): Promise<{ serie: string; folio: string }> {
+  const config = await db.fiscalConfig.toCollection().first();
+  if (!config) throw new Error('No hay configuración fiscal');
+
+  const n = config.folioPruebaNomina ?? 1;
+  await db.fiscalConfig.update(config.id, {
+    folioPruebaNomina: n + 1,
+    updatedAt: new Date(),
+  });
+  return { serie: SERIE_NOMINA_PRUEBA, folio: String(n) };
 }
 
 // ============================================

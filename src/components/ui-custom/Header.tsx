@@ -1,5 +1,5 @@
-import { Link, useNavigate } from 'react-router-dom';
-import { LogOut, Moon, Sun, User, Zap } from 'lucide-react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { LogOut, Moon, Sun, User, Zap, Power, PowerOff } from 'lucide-react';
 import { useAuthStore, useSyncStore, useAppStore, getResolvedIsDark } from '@/stores';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,10 +15,13 @@ import { AdminSucursalSwitcher } from '@/components/ui-custom/AdminSucursalSwitc
 import { AppEventsNotificationPanel } from '@/components/ui-custom/AppEventsNotificationPanel';
 import { BRAND_LOGO_URL } from '@/lib/branding';
 import { ROLE_LABELS } from '@/lib/userPermissions';
+import { useCajaPosHeaderStore } from '@/stores/cajaPosHeaderStore';
 
 export function Header() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, logout, hasPermission } = useAuthStore();
+  const cajaPosHeader = useCajaPosHeaderStore();
   const { isOnline, isSyncing, pendingCount, sync } = useSyncStore();
   const toggleTheme = useAppStore((s) => s.toggleTheme);
   const resolvedDark = useAppStore((s) => getResolvedIsDark(s));
@@ -53,6 +56,39 @@ export function Header() {
         <p className="hidden text-xs font-semibold tracking-[0.18em] text-slate-500 xl:block xl:text-sm">
           MENÚ
         </p>
+        {location.pathname === '/pos' &&
+        cajaPosHeader.registered &&
+        hasPermission('ventas:crear') ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            disabled={cajaPosHeader.loading}
+            title={
+              cajaPosHeader.loading
+                ? 'Sincronizando caja…'
+                : cajaPosHeader.cajaAbierta
+                  ? 'Cerrar caja (arqueo final)'
+                  : 'Abrir caja'
+            }
+            aria-label={
+              cajaPosHeader.cajaAbierta ? 'Cerrar caja' : 'Abrir caja'
+            }
+            onClick={() => cajaPosHeader.toggleCaja()}
+            className={cn(
+              'ml-1 hidden h-9 w-9 shrink-0 rounded-xl border-slate-300 dark:border-slate-600 md:flex',
+              cajaPosHeader.cajaAbierta
+                ? 'border-emerald-500/50 text-emerald-700 hover:bg-emerald-500/10 dark:border-emerald-500/45 dark:text-emerald-300'
+                : 'text-slate-600 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800'
+            )}
+          >
+            {cajaPosHeader.cajaAbierta ? (
+              <PowerOff className="h-4 w-4" />
+            ) : (
+              <Power className="h-4 w-4" />
+            )}
+          </Button>
+        ) : null}
       </div>
 
       <div className="flex min-w-0 flex-1 items-center justify-end gap-1 sm:gap-2 md:gap-3">

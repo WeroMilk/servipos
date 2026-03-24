@@ -197,7 +197,13 @@ export async function reactivateSucursal(id: string): Promise<void> {
 
 const CHECADOR_COL = 'checadorRegistros';
 const USERS_COL = 'users';
-const BRANCH_SUBCOLLECTIONS = ['sales', 'inventoryMovements', 'products', 'counters'] as const;
+const BRANCH_SUBCOLLECTIONS = [
+  'sales',
+  'inventoryMovements',
+  'products',
+  'counters',
+  'clients',
+] as const;
 
 async function wipeChecadorBySucursalId(sucursalId: string): Promise<void> {
   const checadorCol = collection(db, CHECADOR_COL);

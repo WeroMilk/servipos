@@ -47,7 +47,7 @@ import { FORMAS_PAGO_UI, USOS_CFDI } from '@/types';
 import { cn, formatMoney } from '@/lib/utils';
 import { PageShell } from '@/components/ui-custom/PageShell';
 import { SendEmailDialog } from '@/components/ui-custom/SendEmailDialog';
-import { printLetterDocument } from '@/lib/printTicket';
+import { AVISO_DOC_FISCAL_PRUEBA, printLetterDocument } from '@/lib/printTicket';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { getDocumentFooterLinesForSucursal } from '@/lib/ticketSucursalFooter';
 import jsPDF from 'jspdf';
@@ -166,7 +166,12 @@ export function Facturas() {
       
       setShowAddDialog(false);
       resetForm();
-      addToast({ type: 'success', message: 'Factura generada exitosamente' });
+      addToast({
+        type: 'success',
+        message: fiscalConfig.modoPruebaFiscal
+          ? 'Factura de prueba creada (serie PRUEBA, sin validez fiscal)'
+          : 'Factura generada exitosamente',
+      });
     } catch (error: any) {
       addToast({ type: 'error', message: error.message });
     }
@@ -199,38 +204,49 @@ export function Facturas() {
     const doc = new jsPDF();
     const sucForFooter = invoice.sucursalId ?? effectiveSucursalId ?? null;
 
-    // Encabezado
+    let y = 20;
     doc.setFontSize(20);
-    doc.text('FACTURA', 105, 20, { align: 'center' });
-    
+    doc.text('FACTURA', 105, y, { align: 'center' });
+    y = 28;
+    if (invoice.esPrueba) {
+      doc.setFontSize(8.5);
+      doc.setTextColor(180, 83, 9);
+      const avisoLines = doc.splitTextToSize(AVISO_DOC_FISCAL_PRUEBA, 170);
+      doc.text(avisoLines, 105, y, { align: 'center' });
+      y += avisoLines.length * 4.5 + 8;
+      doc.setTextColor(0, 0, 0);
+    } else {
+      y = 36;
+    }
+
     doc.setFontSize(12);
-    doc.text(`Serie: ${invoice.serie}`, 20, 40);
-    doc.text(`Folio: ${invoice.folio}`, 20, 50);
+    doc.text(`Serie: ${invoice.serie}`, 20, y);
+    doc.text(`Folio: ${invoice.folio}`, 20, y + 10);
     doc.text(
       `Fecha: ${formatInAppTimezone(invoice.fechaEmision, { dateStyle: 'medium' })}`,
       20,
-      60
+      y + 20
     );
-    
-    // Emisor
+
+    const yEmisor = y + 36;
     doc.setFontSize(14);
-    doc.text('EMISOR', 20, 80);
+    doc.text('EMISOR', 20, yEmisor);
     doc.setFontSize(10);
-    doc.text(`RFC: ${invoice.emisor.rfc}`, 20, 90);
-    doc.text(`Nombre: ${invoice.emisor.razonSocial}`, 20, 100);
-    
-    // Receptor
+    doc.text(`RFC: ${invoice.emisor.rfc}`, 20, yEmisor + 10);
+    doc.text(`Nombre: ${invoice.emisor.razonSocial}`, 20, yEmisor + 20);
+
+    const yRec = yEmisor + 40;
     doc.setFontSize(14);
-    doc.text('RECEPTOR', 20, 120);
+    doc.text('RECEPTOR', 20, yRec);
     doc.setFontSize(10);
-    doc.text(`RFC: ${invoice.cliente?.rfc || 'XAXX010101000'}`, 20, 130);
-    doc.text(`Nombre: ${invoice.cliente?.nombre || 'Público en General'}`, 20, 140);
-    
-    // Productos
+    doc.text(`RFC: ${invoice.cliente?.rfc || 'XAXX010101000'}`, 20, yRec + 10);
+    doc.text(`Nombre: ${invoice.cliente?.nombre || 'Público en General'}`, 20, yRec + 20);
+
+    const yConceptos = yRec + 40;
     doc.setFontSize(14);
-    doc.text('CONCEPTOS', 20, 160);
-    
-    let y = 170;
+    doc.text('CONCEPTOS', 20, yConceptos);
+
+    y = yConceptos + 10;
     invoice.productos.forEach(item => {
       doc.setFontSize(9);
       doc.text(`${item.descripcion} - ${item.cantidad} x ${formatMoney(item.precioUnitario)}`, 20, y);
@@ -317,6 +333,7 @@ export function Facturas() {
     `;
     printLetterDocument(`Factura ${inv.serie}-${inv.folio}`, html, {
       sucursalId: inv.sucursalId ?? effectiveSucursalId ?? null,
+      avisoPrueba: inv.esPrueba ? AVISO_DOC_FISCAL_PRUEBA : undefined,
     });
   };
 
@@ -333,7 +350,11 @@ export function Facturas() {
     <>
     <PageShell
       title="Facturación CFDI 4.0"
-      subtitle="Facturas electrónicas"
+      subtitle={
+        fiscalConfig?.modoPruebaFiscal
+          ? 'Modo prueba — no consume folios SAT; desactívalo en Configuración para usar serie y folio oficiales'
+          : 'Facturas electrónicas'
+      }
       className="min-w-0 max-w-none"
       actionsClassName="md:mt-2"
       actions={
@@ -348,6 +369,16 @@ export function Facturas() {
       }
     >
       <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden sm:gap-3">
+      {fiscalConfig?.modoPruebaFiscal ? (
+        <div className="shrink-0 rounded-lg border border-amber-500/35 bg-amber-500/10 px-2.5 py-2 sm:px-3">
+          <p className="text-[11px] leading-snug text-amber-200/95 sm:text-xs">
+            <span className="font-semibold text-amber-300">Modo prueba activo.</span>{' '}
+            Las facturas nuevas usan serie PRUEBA y no avanzan el folio oficial. Para producción: desactiva el modo en
+            Configuración → Datos fiscales, ingresa serie y folio autorizados y usa el timbrado con tu PAC; el XML
+            previo sin timbre no tiene validez ante el SAT.
+          </p>
+        </div>
+      ) : null}
       <div className="flex w-full min-w-0 shrink-0 flex-col gap-2 lg:flex-row lg:items-stretch lg:gap-3">
       {fiscalConfig ? (
         <Card className="shrink-0 border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 lg:min-w-0 lg:max-w-md lg:flex-[0_1_340px]">
@@ -357,9 +388,13 @@ export function Facturas() {
                 <Receipt className="h-4 w-4 text-cyan-400 sm:h-5 sm:w-5" />
               </div>
               <div className="min-w-0">
-                <p className="text-[10px] text-slate-600 dark:text-slate-500 sm:text-xs">Siguiente folio</p>
+                <p className="text-[10px] text-slate-600 dark:text-slate-500 sm:text-xs">
+                  {fiscalConfig.modoPruebaFiscal ? 'Siguiente folio (prueba)' : 'Siguiente folio'}
+                </p>
                 <p className="text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">
-                  {fiscalConfig.serie} - {fiscalConfig.folioActual}
+                  {fiscalConfig.modoPruebaFiscal
+                    ? `PRUEBA - ${fiscalConfig.folioPruebaFactura ?? 1}`
+                    : `${fiscalConfig.serie} - ${fiscalConfig.folioActual}`}
                 </p>
               </div>
             </div>
@@ -408,10 +443,15 @@ export function Facturas() {
                     }}
                     className="min-w-0 flex-1 rounded-lg p-2 text-left transition-colors hover:bg-slate-100/90 dark:bg-slate-900/60"
                   >
-                    <div className="flex justify-between gap-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="font-medium text-slate-900 dark:text-slate-100">
                         {invoice.serie}-{invoice.folio}
                       </span>
+                      {invoice.esPrueba ? (
+                        <Badge className="border border-amber-500/40 bg-amber-500/15 text-[10px] text-amber-600 dark:text-amber-400">
+                          Prueba
+                        </Badge>
+                      ) : null}
                       <span className="shrink-0 text-cyan-400">{formatMoney(invoice.total)}</span>
                     </div>
                     <p className="mt-1 truncate text-sm text-slate-600 dark:text-slate-400">
@@ -482,9 +522,16 @@ export function Facturas() {
                     <TableRow key={invoice.id} className="border-slate-200/80 dark:border-slate-800/50">
                       <TableCell className="align-top">
                         <div className="min-w-0">
-                          <p className="font-medium text-slate-800 dark:text-slate-200">
-                            {invoice.serie}-{invoice.folio}
-                          </p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-medium text-slate-800 dark:text-slate-200">
+                              {invoice.serie}-{invoice.folio}
+                            </p>
+                            {invoice.esPrueba ? (
+                              <Badge className="border border-amber-500/40 bg-amber-500/15 text-[10px] text-amber-600 dark:text-amber-400">
+                                Prueba
+                              </Badge>
+                            ) : null}
+                          </div>
                           {invoice.uuid ? (
                             <p className="truncate text-xs text-slate-600 dark:text-slate-500">
                               UUID: {invoice.uuid.slice(0, 8)}…
@@ -594,6 +641,13 @@ export function Facturas() {
               </div>
             ) : (
               <>
+                {fiscalConfig.modoPruebaFiscal ? (
+                  <div className="rounded-lg border border-amber-500/35 bg-amber-500/10 p-3 text-xs text-amber-200/95">
+                    Se emitirá una factura de prueba con serie <strong className="text-amber-300">PRUEBA</strong> (no se
+                    usa tu folio oficial). Úsala para revisar impresión y XML; la validez ante el SAT requiere timbrado
+                    con PAC y folios autorizados.
+                  </div>
+                ) : null}
                 <div className="space-y-2">
                   <Label>Seleccionar Venta *</Label>
                   <select
@@ -717,6 +771,9 @@ export function Facturas() {
         <DialogContent className="bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-h-[92dvh] overflow-y-auto md:max-w-[min(92vw,72rem)] lg:max-w-[min(92vw,80rem)]">
           <DialogHeader>
             <DialogTitle>XML CFDI 4.0</DialogTitle>
+            {selectedInvoice?.esPrueba ? (
+              <p className="text-xs font-normal text-amber-600 dark:text-amber-400">{AVISO_DOC_FISCAL_PRUEBA}</p>
+            ) : null}
           </DialogHeader>
           
           <div className="py-4">
@@ -745,6 +802,9 @@ export function Facturas() {
         <DialogContent className="bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-h-[92dvh] overflow-y-auto md:max-w-[min(92vw,56rem)] lg:max-w-[min(92vw,64rem)]">
           <DialogHeader>
             <DialogTitle>Factura {selectedInvoice?.serie}-{selectedInvoice?.folio}</DialogTitle>
+            {selectedInvoice?.esPrueba ? (
+              <p className="text-xs font-normal text-amber-600 dark:text-amber-400">{AVISO_DOC_FISCAL_PRUEBA}</p>
+            ) : null}
           </DialogHeader>
           
           {selectedInvoice && (

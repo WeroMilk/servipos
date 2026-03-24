@@ -41,27 +41,21 @@ export const useSyncStore = create<SyncStore>()(
 
       sync: async () => {
         const { isOnline, isSyncing } = get();
-        
+
         if (!isOnline || isSyncing) return;
 
         set({ isSyncing: true });
 
         try {
-          // Aquí iría la lógica de sincronización con el backend
-          // Por ahora simulamos una sincronización exitosa
-          
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          
-          set({ 
-            isSyncing: false, 
+          await get().updatePendingCount();
+          set({
+            isSyncing: false,
             lastSyncAt: new Date(),
-            pendingCount: 0 
           });
-          
           reportAppEvent({
             kind: 'success',
             source: 'sync',
-            title: 'Sincronización completada',
+            title: 'Estado de cola local actualizado',
           });
         } catch (error) {
           console.error('Error en sincronización:', error);
@@ -69,7 +63,7 @@ export const useSyncStore = create<SyncStore>()(
           reportAppEvent({
             kind: 'error',
             source: 'sync',
-            title: 'Error en sincronización',
+            title: 'Error al actualizar estado',
             detail: error instanceof Error ? error.message : String(error),
           });
         }

@@ -10,6 +10,7 @@ import {
   where,
   runTransaction,
   serverTimestamp,
+  Timestamp,
   updateDoc,
   deleteField,
   type DocumentSnapshot,
@@ -18,7 +19,7 @@ import {
 import { db } from '@/lib/firebase';
 import { CLIENT_PRICE_LIST_ORDER, normalizeClientPriceListId } from '@/lib/clientPriceLists';
 import type { Client, FormaPago, MetodoPago, Payment, Sale, SaleItem, SaleStatus } from '@/types';
-import { getMexicoDateKey } from '@/lib/quincenaMx';
+import { getMexicoDateKey, startOfDayFromDateKey } from '@/lib/quincenaMx';
 
 // ============================================
 // VENTAS EN FIRESTORE (tiempo real + folio atómico)
@@ -452,6 +453,25 @@ export async function fetchSalesByCajaSesion(
   const q = query(salesCol(sucursalId), where('cajaSesionId', '==', sid));
   const snap = await getDocs(q);
   return snap.docs.map((d) => saleDocToSale(d)).filter((s): s is Sale => s != null);
+}
+
+/** Ventas creadas en el día calendario YYYY-MM-DD (ancla `startOfDayFromDateKey`, +24 h). */
+export async function fetchSalesForMexicoDateKey(
+  sucursalId: string,
+  dateKey: string
+): Promise<Sale[]> {
+  const start = startOfDayFromDateKey(dateKey);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  const q = query(
+    salesCol(sucursalId),
+    where('createdAt', '>=', Timestamp.fromDate(start)),
+    where('createdAt', '<', Timestamp.fromDate(end))
+  );
+  const snap = await getDocs(q);
+  const list = snap.docs.map((d) => saleDocToSale(d)).filter((s): s is Sale => s != null);
+  list.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  return list;
 }
 
 const CLIENT_SALES_QUERY_LIMIT = 500;

@@ -134,6 +134,10 @@ service cloud.firestore {
       match /cajaSesiones/{sesionId} {
         allow read, write: if canAccessSucursal(sucursalId);
       }
+
+      match /clients/{clientId} {
+        allow read, write: if canAccessSucursal(sucursalId);
+      }
     }
 
     // Auditoría / panel de eventos (append-only para usuarios autenticados; vaciar solo admin).

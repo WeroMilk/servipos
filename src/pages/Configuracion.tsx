@@ -11,23 +11,21 @@ import {
   Users,
   MapPin,
   Wallet,
-  Percent,
   Package,
   Truck,
   Shield,
+  Printer,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useFiscalConfig } from '@/hooks';
-import { useAppStore, useAuthStore, useClientPriceListStore, useInventoryListsStore } from '@/stores';
-import {
-  CLIENT_PRICE_LIST_ORDER,
-  CLIENT_PRICE_LABELS,
-  type ClientPriceListId,
-} from '@/lib/clientPriceLists';
+import { useFiscalConfig, useEffectiveSucursalId } from '@/hooks';
+import { reservePruebaNominaFolio } from '@/db/database';
+import { printNominaPruebaLetter } from '@/lib/printTicket';
+import { useAppStore, useAuthStore, useInventoryListsStore } from '@/stores';
 import { UserManagement } from '@/components/ui-custom/UserManagement';
 import { UserPermissionsEditor } from '@/components/ui-custom/UserPermissionsEditor';
 import { SucursalManagement } from '@/components/ui-custom/SucursalManagement';
@@ -37,15 +35,14 @@ import { REGIMENES_FISCALES, USOS_CFDI } from '@/types';
 import { cn } from '@/lib/utils';
 
 export function Configuracion() {
-  const { config, isConfigured, saveConfig, updateConfig } = useFiscalConfig();
+  const { config, isConfigured, saveConfig, updateConfig, refresh } = useFiscalConfig();
+  const { effectiveSucursalId } = useEffectiveSucursalId();
   const { addToast } = useAppStore();
   const { hasPermission } = useAuthStore();
   const canManageUsers = hasPermission('usuarios:gestionar');
   const canManageSucursales = hasPermission('sucursales:gestionar');
   const canEditListaPreciosCliente = hasPermission('configuracion:editar');
   const canVerHistorialAbasto = hasPermission('configuracion:ver');
-  const discountsListaCliente = useClientPriceListStore((s) => s.discounts);
-  const setDiscountListaCliente = useClientPriceListStore((s) => s.setDiscount);
   const categoriasInventario = useInventoryListsStore((s) => s.categorias);
   const proveedoresInventario = useInventoryListsStore((s) => s.proveedores);
   const setCategoriasInventario = useInventoryListsStore((s) => s.setCategorias);
@@ -55,7 +52,7 @@ export function Configuracion() {
   const adminExtraTabs =
     (canManageUsers ? 2 : 0) +
     (canManageSucursales ? 1 : 0) +
-    (canEditListaPreciosCliente ? 2 : 0) +
+    (canEditListaPreciosCliente ? 1 : 0) +
     (canVerHistorialAbasto ? 1 : 0);
   const totalTabs = 4 + adminExtraTabs;
   
@@ -72,6 +69,7 @@ export function Configuracion() {
     folioActual: 1,
     serieNomina: 'N',
     folioNominaActual: 1,
+    modoPruebaFiscal: false,
     lugarExpedicion: '',
     telefono: '',
     email: '',
@@ -98,6 +96,7 @@ export function Configuracion() {
         folioActual: config.folioActual || 1,
         serieNomina: config.serieNomina ?? 'N',
         folioNominaActual: config.folioNominaActual ?? 1,
+        modoPruebaFiscal: config.modoPruebaFiscal ?? false,
         lugarExpedicion: config.lugarExpedicion || '',
         telefono: config.telefono || '',
         email: config.email || '',
@@ -156,6 +155,32 @@ export function Configuracion() {
     setCategoriasInventario(draftCategorias.split('\n'));
     setProveedoresInventario(draftProveedores.split('\n'));
     addToast({ type: 'success', message: 'Listas de inventario guardadas en este equipo.' });
+  };
+
+  const handlePrintNominaPrueba = async () => {
+    if (!config?.rfc?.trim() || !config.razonSocial?.trim()) {
+      addToast({
+        type: 'error',
+        message: 'Complete y guarde los datos fiscales (RFC, razón social, régimen, CP) en «Datos fiscales».',
+      });
+      return;
+    }
+    try {
+      const { serie, folio } = await reservePruebaNominaFolio();
+      printNominaPruebaLetter({
+        config,
+        serie,
+        folio,
+        sucursalId: effectiveSucursalId,
+      });
+      await refresh();
+      addToast({ type: 'success', message: 'Vista de impresión del recibo de prueba abierta.' });
+    } catch (e) {
+      addToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'No se pudo abrir la impresión',
+      });
+    }
   };
 
   const handleSaveNominaFolios = async () => {
@@ -272,12 +297,6 @@ export function Configuracion() {
             </TabsTrigger>
           )}
           {canEditListaPreciosCliente && (
-            <TabsTrigger value="lista-precios" className={configuracionTabTriggerClass}>
-              <Percent className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
-              Precios por cliente
-            </TabsTrigger>
-          )}
-          {canEditListaPreciosCliente && (
             <TabsTrigger value="inventario-listas" className={configuracionTabTriggerClass}>
               <Package className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
               Inventario
@@ -303,8 +322,8 @@ export function Configuracion() {
                 Datos fiscales CFDI 4.0
               </CardTitle>
             </CardHeader>
-            <CardContent className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-3 pt-0 sm:p-4 sm:pt-0">
-              <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain pr-0.5 [-webkit-overflow-scrolling:touch] [touch-action:pan-y]">
+            <CardContent className="flex min-h-0 flex-1 flex-col gap-2 overflow-visible p-3 pt-0 sm:p-4 sm:pt-0">
+              <div className="min-h-0 flex-1 overflow-visible xl:overflow-visible">
                 <div className="grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   <div className="space-y-1">
                     <Label htmlFor="rfc" className="text-xs text-slate-600 dark:text-slate-400">
@@ -396,6 +415,33 @@ export function Configuracion() {
                         })
                       }
                       className={fieldClass}
+                      disabled={fiscalForm.modoPruebaFiscal}
+                      title={
+                        fiscalForm.modoPruebaFiscal
+                          ? 'En modo prueba las facturas no usan este folio'
+                          : undefined
+                      }
+                    />
+                  </div>
+                  <div className="col-span-full flex flex-col gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100/70 dark:bg-slate-900/35 p-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0 space-y-1">
+                      <Label htmlFor="modoPruebaFiscal" className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                        Modo prueba (facturas y vistas de nómina)
+                      </Label>
+                      <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-400 sm:text-xs">
+                        Las facturas nuevas llevan serie PRUEBA y no avanzan el folio oficial. Las impresiones de recibo
+                        de nómina de prueba usan PRUEBA-N y no tocan el folio de nómina SAT. Para producción: desactiva
+                        esta opción, guarda aquí tu serie y folio autorizados y timbra con tu PAC; el solo hecho de
+                        ingresar folios no sustituye el timbrado.
+                      </p>
+                    </div>
+                    <Switch
+                      id="modoPruebaFiscal"
+                      checked={fiscalForm.modoPruebaFiscal}
+                      onCheckedChange={(checked) =>
+                        setFiscalForm({ ...fiscalForm, modoPruebaFiscal: checked })
+                      }
+                      className="shrink-0 sm:ml-2"
                     />
                   </div>
                   <div className="space-y-1">
@@ -712,6 +758,25 @@ export function Configuracion() {
                     CFDI cumple el esquema oficial y es válido ante el SAT.
                   </p>
                 </div>
+                <div className="rounded-lg border border-slate-200/90 dark:border-slate-700/80 bg-slate-200/40 dark:bg-slate-800/40 p-3">
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    <span className="font-medium text-slate-700 dark:text-slate-300">Impresión de prueba:</span> usa la
+                    serie fija PRUEBA-N y un folio local (siguiente:{' '}
+                    <span className="font-mono text-cyan-600 dark:text-cyan-400">
+                      {config?.folioPruebaNomina ?? 1}
+                    </span>
+                    ). No consume el folio de nómina SAT de la tarjeta de la derecha.
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="mt-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+                    onClick={() => void handlePrintNominaPrueba()}
+                  >
+                    <Printer className="mr-2 h-4 w-4" />
+                    Imprimir recibo de nómina (prueba)
+                  </Button>
+                </div>
                 <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-400 sm:text-sm">
                   Solicita con Soporte los folios para el tipo de comprobante de nómina que uses. Aquí defines la serie y
                   el folio consecutivo que se aplicarán al generar cada recibo; deben coincidir con el rango autorizado.
@@ -833,48 +898,6 @@ export function Configuracion() {
             className="mt-0 flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
           >
             <UserPermissionsEditor embedded />
-          </TabsContent>
-        )}
-
-        {canEditListaPreciosCliente && (
-          <TabsContent
-            value="lista-precios"
-            className="mt-0 flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
-          >
-            <Card className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
-              <CardHeader className="shrink-0 px-3 py-2 sm:px-4">
-                <CardTitle className="text-sm text-slate-900 dark:text-slate-100 sm:text-base">
-                  Precios por cliente (POS)
-                </CardTitle>
-                <p className="text-xs font-normal text-slate-600 dark:text-slate-400">
-                  Descuento del 0% al 100% aplicado al subtotal del carrito (después de descuentos por línea).
-                  Los cambios se guardan automáticamente en este equipo.
-                </p>
-              </CardHeader>
-              <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3 pt-0 sm:p-4 sm:pt-0">
-                {CLIENT_PRICE_LIST_ORDER.map((id) => (
-                  <div key={id} className="flex flex-wrap items-end gap-2 sm:gap-4">
-                    <Label className="min-w-[8rem] text-xs text-slate-600 dark:text-slate-400 sm:text-sm">
-                      {CLIENT_PRICE_LABELS[id]}
-                    </Label>
-                    <div className="flex flex-1 items-center gap-2">
-                      <Input
-                        type="number"
-                        inputMode="numeric"
-                        min={0}
-                        max={100}
-                        className={fieldClass}
-                        value={discountsListaCliente[id]}
-                        onChange={(e) =>
-                          setDiscountListaCliente(id as ClientPriceListId, parseFloat(e.target.value) || 0)
-                        }
-                      />
-                      <span className="text-sm text-slate-600 dark:text-slate-400">%</span>
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
           </TabsContent>
         )}
 

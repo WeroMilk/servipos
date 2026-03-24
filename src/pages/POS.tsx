@@ -14,7 +14,7 @@ import {
   User,
   Wallet,
   Clock,
-  PowerOff,
+  ClipboardCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,6 +45,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { useShallow } from 'zustand/react/shallow';
 import { useCartStore, useAppStore, useAuthStore } from '@/stores';
+import { setCajaPosHeaderBridge, clearCajaPosHeaderBridge } from '@/stores/cajaPosHeaderStore';
 import { useProductSearch, useSales, useClients, useEffectiveSucursalId, useCajaSesion } from '@/hooks';
 import { CajaPosToolbar, type CajaPosToolbarHandle } from '@/components/caja/CajaPosToolbar';
 import type { Product, FormaPago, Payment, Sale, Sucursal, CartItem } from '@/types';
@@ -138,6 +139,23 @@ export function POS() {
   const { effectiveSucursalId } = useEffectiveSucursalId();
   const cajaSesion = useCajaSesion({ sucursalId: effectiveSucursalId });
   const cajaToolbarRef = useRef<CajaPosToolbarHandle>(null);
+
+  useEffect(() => {
+    if (!hasPermission('ventas:crear')) {
+      clearCajaPosHeaderBridge();
+      return;
+    }
+    setCajaPosHeaderBridge({
+      cajaAbierta: Boolean(cajaSesion.activa),
+      loading: cajaSesion.loading,
+      onToggle: () => {
+        if (cajaSesion.loading) return;
+        if (!cajaSesion.activa) cajaToolbarRef.current?.openAbrirCajaDialog();
+        else cajaToolbarRef.current?.openCerrarCajaDialog();
+      },
+    });
+    return () => clearCajaPosHeaderBridge();
+  }, [hasPermission, cajaSesion.activa, cajaSesion.loading]);
 
   const [sucursalesCat, setSucursalesCat] = useState<Sucursal[]>([]);
   useEffect(() => subscribeSucursales(setSucursalesCat), []);
@@ -1275,13 +1293,14 @@ export function POS() {
     'rounded-xl border border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 shadow-sm';
 
   return (
-    <div className="flex h-full min-h-0 w-full min-w-0 flex-col gap-2 sm:gap-3">
+    <div className="flex h-full min-h-0 w-full min-w-0 flex-col gap-2 overflow-y-auto overscroll-y-contain sm:gap-3">
       <CajaPosToolbar
         ref={cajaToolbarRef}
         sales={salesCatalog}
         canUse={hasPermission('ventas:crear')}
         sucursalId={effectiveSucursalId}
         caja={cajaSesion}
+        showStatusBar={false}
       />
       {openSaleResume ? (
         <div
@@ -1591,7 +1610,7 @@ export function POS() {
           className={cn(
             'flex w-full flex-col gap-2 sm:gap-3',
             'max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-y-auto max-lg:overscroll-y-contain',
-            'lg:min-h-0 lg:w-[min(100%,26rem)] lg:shrink-0 lg:overflow-y-auto lg:overscroll-y-contain xl:w-[min(100%,30rem)] 2xl:w-[min(100%,34rem)]',
+            'lg:min-h-0 lg:w-[min(100%,26rem)] lg:shrink-0 lg:overflow-visible lg:overflow-y-visible xl:w-[min(100%,30rem)] 2xl:w-[min(100%,34rem)]',
             mobileTab !== 'checkout' && 'hidden lg:flex'
           )}
         >
@@ -1671,8 +1690,8 @@ export function POS() {
             </div>
           ) : null}
 
-          <Card className="flex min-w-0 flex-col overflow-visible border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 max-lg:flex-none lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-y-contain">
-            <CardContent className="flex flex-col gap-3 overflow-visible p-2 sm:p-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-y-contain lg:p-4">
+          <Card className="flex min-w-0 flex-col overflow-visible border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 max-lg:flex-none lg:min-h-0 lg:flex-1 lg:overflow-visible">
+            <CardContent className="flex flex-col gap-3 overflow-visible p-2 sm:p-3 lg:min-h-0 lg:flex-1 lg:overflow-visible lg:p-4">
               <div className="shrink-0 space-y-2">
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs sm:text-sm">
                   <span className="text-slate-600 dark:text-slate-400">Subtotal</span>
@@ -2016,11 +2035,11 @@ export function POS() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => cajaToolbarRef.current?.openCerrarCajaDialog()}
-                className="h-10 w-full rounded-xl border-red-500/40 text-red-800 hover:bg-red-500/10 dark:border-red-500/45 dark:text-red-200 dark:hover:bg-red-500/15 sm:h-11"
+                onClick={() => cajaToolbarRef.current?.openArqueoDialog()}
+                className="h-10 w-full rounded-xl border-amber-500/40 text-amber-900 hover:bg-amber-500/10 dark:border-amber-500/45 dark:text-amber-100 dark:hover:bg-amber-500/15 sm:h-11"
               >
-                <PowerOff className="mr-2 h-4 w-4 shrink-0" />
-                Cerrar caja (informe y arqueo)
+                <ClipboardCheck className="mr-2 h-4 w-4 shrink-0" />
+                Arqueo
               </Button>
             ) : null}
           </div>

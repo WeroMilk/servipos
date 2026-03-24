@@ -9,6 +9,7 @@ import {
   incrementInvoiceFolio,
   getFiscalConfig,
   deleteInvoiceRecord,
+  reservePruebaInvoiceFolio,
 } from '@/db/database';
 import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
@@ -43,24 +44,41 @@ export function useInvoices() {
     loadInvoices();
   }, [loadInvoices]);
 
-  const addInvoice = async (invoice: Omit<Invoice, 'id' | 'folio' | 'serie' | 'createdAt' | 'updatedAt' | 'syncStatus'>) => {
+  const addInvoice = async (
+    invoice: Omit<Invoice, 'id' | 'folio' | 'serie' | 'createdAt' | 'updatedAt' | 'syncStatus' | 'esPrueba'>
+  ) => {
     try {
-      // Obtener siguiente folio
-      const { serie, folio } = await getNextInvoiceFolio();
-      
+      const cfg = await getFiscalConfig();
+      if (!cfg) throw new Error('No hay configuración fiscal');
+
       const sucursalId = getEffectiveSucursalId();
+
+      if (cfg.modoPruebaFiscal) {
+        const { serie, folio } = await reservePruebaInvoiceFolio();
+        const id = await createInvoice(
+          {
+            ...invoice,
+            serie,
+            folio,
+            esPrueba: true,
+          },
+          { sucursalId }
+        );
+        await loadInvoices();
+        return id;
+      }
+
+      const { serie, folio } = await getNextInvoiceFolio();
       const id = await createInvoice(
         {
           ...invoice,
           serie,
           folio: folio.toString(),
+          esPrueba: false,
         },
         { sucursalId }
       );
-      
-      // Incrementar folio para la siguiente factura
       await incrementInvoiceFolio();
-      
       await loadInvoices();
       return id;
     } catch (err) {
@@ -168,9 +186,10 @@ export function useCFDIGenerator() {
     }
 
     const fechaEmision = new Date(invoice.fechaEmision).toISOString().slice(0, 19);
-    
+    const pruebaComment = invoice.esPrueba ? '\n<!-- Documento de prueba: sin timbrado ni validez ante el SAT -->\n' : '';
+
     // Construir XML CFDI 4.0 (simplificado)
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>${pruebaComment}
 <cfdi:Comprobante 
   xmlns:cfdi="http://www.sat.gob.mx/cfd/4"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"

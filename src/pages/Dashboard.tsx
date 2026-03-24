@@ -908,7 +908,7 @@ export function Dashboard() {
         open={todaySalesOpen}
         onOpenChange={(open) => {
           setTodaySalesOpen(open);
-          if (open) setReprintDayKey(getMexicoDateKey());
+          setReprintDayKey(getMexicoDateKey());
         }}
       >
         <DialogContent className="flex w-full min-w-0 max-h-[92dvh] flex-col gap-0 overflow-hidden border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 p-0 text-slate-900 dark:text-slate-100 md:max-w-[min(92vw,48rem)] lg:max-w-[min(92vw,56rem)]">
@@ -943,7 +943,7 @@ export function Dashboard() {
                         const v = e.target.value;
                         if (v) setReprintDayKey(v);
                       }}
-                      className="h-9 w-auto min-w-[10.5rem] flex-1 border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900 sm:flex-initial"
+                      className="h-9 w-auto min-w-[10.5rem] flex-1 border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900 dark:[color-scheme:dark] sm:flex-initial [&::-webkit-calendar-picker-indicator]:opacity-90 dark:[&::-webkit-calendar-picker-indicator]:invert"
                     />
                     <Button
                       type="button"

@@ -5,6 +5,7 @@ import { Cloud, CloudOff } from 'lucide-react';
 import { useAuthStore, useSyncStore } from '@/stores';
 import { cn } from '@/lib/utils';
 import { MAIN_NAV_ITEMS } from '@/lib/mainNavItems';
+import { SHOW_CHECADOR_NAV } from '@/lib/featureFlags';
 import { BRAND_LOGO_URL } from '@/lib/branding';
 import { ROLE_LABELS } from '@/lib/userPermissions';
 interface NavItemProps {
@@ -86,12 +87,12 @@ export function Sidebar() {
       </NavLink>
 
       <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-y-contain p-2 pt-2 xl:p-3">
-        {MAIN_NAV_ITEMS.map(
-          (item) =>
-            hasPermission(item.permission) && (
-              <NavItem key={item.to} to={item.to} icon={item.icon} label={item.label} />
-            )
-        )}
+        {MAIN_NAV_ITEMS.map((item) => {
+          if (item.to === '/checador' && !SHOW_CHECADOR_NAV) return null;
+          return hasPermission(item.permission) ? (
+            <NavItem key={item.to} to={item.to} icon={item.icon} label={item.label} />
+          ) : null;
+        })}
       </nav>
 
       <div className="shrink-0 border-t border-slate-200/80 p-2 dark:border-slate-800/50 xl:p-4">

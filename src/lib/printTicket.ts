@@ -6,7 +6,7 @@ import {
   getBrandLogoAbsoluteUrl,
 } from '@/lib/documentPrintBranding';
 import { getClientById } from '@/db/database';
-import { FORMAS_PAGO, type Quotation, type Sale } from '@/types';
+import { FORMAS_PAGO, type FiscalConfig, type Quotation, type Sale } from '@/types';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { thermalTicketCancelacionNotas } from '@/lib/saleCancelacion';
 import { getProductCatalogSnapshot } from '@/lib/firestore/productsFirestore';
@@ -351,7 +351,7 @@ export function printThermalDailySalesReport(input: {
   openAndPrintHtml(html, 'width=360,height=720', 250);
 }
 
-/** Comprobante de cierre de caja / arqueo (80 mm). */
+/** Comprobante de cierre de caja o arqueo previo (80 mm). */
 export function printThermalCajaCierre(input: {
   fechaLabel: string;
   sucursalId?: string;
@@ -366,6 +366,8 @@ export function printThermalCajaCierre(input: {
   cerradaPor: string;
   aperturaLabel: string;
   cierreLabel: string;
+  /** `arqueo_previo`: sin conteo físico ni diferencia; título distinto. */
+  ticketKind?: 'cierre' | 'arqueo_previo';
 }): void {
   const grupos = resumenGruposMedioPagoCierre(input.ventas);
   const porForma = totalesPorFormaPago(input.ventas);
@@ -385,13 +387,23 @@ export function printThermalCajaCierre(input: {
         .map((ln) => `<div>${escapeHtml(ln)}</div>`)
         .join('')}</div>`
     : '';
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Cierre de caja</title>
+  const esArqueo = input.ticketKind === 'arqueo_previo';
+  const titulo = esArqueo ? 'ARQUEO PREVIO' : 'CIERRE DE CAJA';
+  const metaCierre = esArqueo
+    ? `Impreso: ${escapeHtml(input.cierreLabel)} · ${escapeHtml(input.cerradaPor)}`
+    : `Cierre: ${escapeHtml(input.cierreLabel)} · ${escapeHtml(input.cerradaPor)}`;
+  const bloqueConteo = esArqueo
+    ? ''
+    : `<div>Conteo físico: ${formatMoney(input.conteoDeclarado)}</div>
+    <div>Diferencia: ${formatMoney(input.diferencia)}</div>`;
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${escapeHtml(titulo)}</title>
 <style>${THERMAL_BASE_STYLES}</style></head><body>
-  <h1>CIERRE DE CAJA</h1>
+  <h1>${escapeHtml(titulo)}</h1>
   <div class="meta">
     ${escapeHtml(input.fechaLabel)}<br/>
     Apertura: ${escapeHtml(input.aperturaLabel)} · ${escapeHtml(input.abiertaPor)}<br/>
-    Cierre: ${escapeHtml(input.cierreLabel)} · ${escapeHtml(input.cerradaPor)}
+    ${metaCierre}
   </div>
   <div class="tot" style="border-top:none;padding-top:4px;">
     <div>Fondo inicial: ${formatMoney(input.fondoInicial)}</div>
@@ -409,40 +421,148 @@ export function printThermalCajaCierre(input: {
   <div class="tot">
     <div><strong>Efectivo esperado en caja</strong></div>
     <div style="font-size:26px;"><strong>${formatMoney(input.efectivoEsperado)}</strong></div>
-    <div>Conteo físico: ${formatMoney(input.conteoDeclarado)}</div>
-    <div>Diferencia: ${formatMoney(input.diferencia)}</div>
+    ${bloqueConteo}
   </div>
   ${pie}
 </body></html>`;
   openAndPrintHtml(html, 'width=360,height=720', 250);
 }
 
+/** Texto estándar para documentos que no son válidos ante el SAT. */
+export const AVISO_DOC_FISCAL_PRUEBA =
+  'DOCUMENTO DE PRUEBA — SIN VALIDEZ FISCAL ANTE EL SAT';
+
 /** Documento tamaño carta (facturas / cotizaciones) en ventana de impresión. */
 export function printLetterDocument(
   title: string,
   innerHtml: string,
-  options?: { sucursalId?: string | null }
+  options?: { sucursalId?: string | null; avisoPrueba?: string }
 ): void {
   const head = buildLetterHeaderHtml();
   const foot = buildLetterFooterHtml(options?.sucursalId);
+  const aviso =
+    options?.avisoPrueba != null && options.avisoPrueba !== ''
+      ? `<div class="aviso-prueba">${escapeHtml(options.avisoPrueba)}</div>`
+      : '';
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${escapeHtml(title)}</title>
 <style>
   @page { size: letter; margin: 12mm; }
   body { font-family: system-ui, sans-serif; font-size: 11pt; color: #111; line-height: 1.4; }
   h1 { font-size: 16pt; margin: 0 0 12px; }
+  h2 { font-size: 12pt; margin: 16px 0 8px; color: #333; }
   table { width: 100%; border-collapse: collapse; margin-top: 12px; }
   th, td { border-bottom: 1px solid #ccc; padding: 6px 4px; text-align: left; }
   th { font-size: 10pt; color: #444; }
   .right { text-align: right; }
   .tot { margin-top: 16px; font-size: 12pt; }
+  .aviso-prueba {
+    margin: 0 0 14px;
+    padding: 10px 12px;
+    border: 2px solid #b45309;
+    background: #fffbeb;
+    color: #92400e;
+    font-weight: 700;
+    font-size: 10.5pt;
+    text-align: center;
+  }
+  .muted { font-size: 9.5pt; color: #555; margin-top: 14px; line-height: 1.45; }
 </style></head><body>
 ${head}
 <h1>${escapeHtml(title)}</h1>
+${aviso}
 ${innerHtml}
 ${foot}
 </body></html>`;
 
   openAndPrintHtml(html, 'width=816,height=1056', 300);
+}
+
+export type NominaPruebaPrintInput = {
+  config: FiscalConfig;
+  serie: string;
+  folio: string;
+  sucursalId?: string | null;
+};
+
+/**
+ * Representación impresa de ejemplo para CFDI de nómina (sin XML ni timbre).
+ * Datos del trabajador y montos son ficticios para revisar maquetación.
+ */
+export function printNominaPruebaLetter(input: NominaPruebaPrintInput): void {
+  const { config, serie, folio } = input;
+  const fecha = formatInAppTimezone(new Date(), { dateStyle: 'long', timeStyle: 'short' });
+  const cp = config.lugarExpedicion || '—';
+  const dir = config.direccion;
+  const domicilioEmisor = [
+    dir?.calle,
+    dir?.numeroExterior,
+    dir?.colonia,
+    dir?.codigoPostal,
+    dir?.ciudad || dir?.municipio,
+    dir?.estado,
+  ]
+    .filter(Boolean)
+    .join(', ');
+
+  const inner = `
+    <p><strong>Serie:</strong> ${escapeHtml(serie)} &nbsp; <strong>Folio:</strong> ${escapeHtml(folio)}</p>
+    <p><strong>Fecha y hora:</strong> ${escapeHtml(fecha)}</p>
+    <p><strong>Tipo:</strong> Nómina (representación impresa de prueba)</p>
+
+    <h2>Emisor</h2>
+    <p><strong>RFC:</strong> ${escapeHtml(config.rfc)}<br/>
+    <strong>Razón social:</strong> ${escapeHtml(config.razonSocial)}<br/>
+    <strong>Régimen fiscal:</strong> ${escapeHtml(config.regimenFiscal)}<br/>
+    <strong>Lugar de expedición:</strong> ${escapeHtml(cp)}<br/>
+    ${domicilioEmisor ? `<strong>Domicilio:</strong> ${escapeHtml(domicilioEmisor)}` : ''}</p>
+
+    <h2>Receptor (ejemplo para maquetación)</h2>
+    <p><strong>Nombre:</strong> MARÍA FICTICIA PÉREZ GARCÍA<br/>
+    <strong>RFC:</strong> XAXX010101000<br/>
+    <strong>Núm. empleado:</strong> 001<br/>
+    <strong>CURP:</strong> XXXX000000HDFXXX00<br/>
+    <strong>Departamento:</strong> Operaciones<br/>
+    <strong>Puesto:</strong> Auxiliar administrativo</p>
+
+    <p><strong>Periodo de pago:</strong> 1 al 15 de marzo 2026 (ejemplo)</p>
+    <p><strong>Días pagados:</strong> 15 &nbsp; <strong>Tipo nómina:</strong> O (ordinaria)</p>
+
+    <h2>Percepciones</h2>
+    <table>
+      <thead><tr><th>Clave</th><th>Concepto</th><th class="right">Importe gravado</th><th class="right">Importe exento</th></tr></thead>
+      <tbody>
+        <tr><td>001</td><td>Sueldos, salarios y jornales</td><td class="right">${formatMoney(8500)}</td><td class="right">${formatMoney(0)}</td></tr>
+        <tr><td>038</td><td>Bono de desempeño (ejemplo)</td><td class="right">${formatMoney(500)}</td><td class="right">${formatMoney(0)}</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Deducciones</h2>
+    <table>
+      <thead><tr><th>Clave</th><th>Concepto</th><th class="right">Importe</th></tr></thead>
+      <tbody>
+        <tr><td>002</td><td>ISR</td><td class="right">${formatMoney(1240)}</td></tr>
+        <tr><td>021</td><td>IMSS</td><td class="right">${formatMoney(285)}</td></tr>
+      </tbody>
+    </table>
+
+    <div class="tot">
+      <p>Total percepciones: ${formatMoney(9000)}</p>
+      <p>Total deducciones: ${formatMoney(1525)}</p>
+      <p><strong>Neto a pagar: ${formatMoney(7475)}</strong></p>
+    </div>
+
+    <p class="muted">
+      Este recibo es solo una vista previa de impresión. Para que una nómina sea válida ante el SAT hace falta
+      generar el XML con complemento de nómina, usar la serie y folio del rango autorizado, sellar con tu CSD y
+      timbrar con un PAC autorizado. Cuando desactives el modo de prueba y guardes los folios oficiales de nómina,
+      el sistema podrá usar esa numeración en la generación real (junto al servicio de timbrado).
+    </p>
+  `;
+
+  printLetterDocument('Recibo de nómina (prueba)', inner, {
+    sucursalId: input.sucursalId,
+    avisoPrueba: AVISO_DOC_FISCAL_PRUEBA,
+  });
 }
 
 /** Reimprimir ticket a partir de una venta guardada (POS / historial). */

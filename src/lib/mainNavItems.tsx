@@ -44,6 +44,7 @@ export const MAIN_NAV_ITEMS: MainNavItem[] = [
     shortLabel: 'Cotiz.',
     permission: 'cotizaciones:ver',
   },
+  // Visibilidad en sidebar/móvil: `SHOW_CHECADOR_NAV` en `@/lib/featureFlags`.
   {
     to: '/checador',
     icon: Clock,

@@ -102,6 +102,15 @@ export interface FiscalConfig {
   /** Serie y folio para CFDI de nómina (folios autorizados ante el SAT). */
   serieNomina?: string;
   folioNominaActual?: number;
+  /**
+   * Si es true, las facturas usan serie PRUEBA y folios locales (no avanza `folioActual`).
+   * Las vistas impresas de nómina de prueba no avanzan `folioNominaActual`.
+   */
+  modoPruebaFiscal?: boolean;
+  /** Siguiente número para facturas de prueba (solo informativo / secuencia local). */
+  folioPruebaFactura?: number;
+  /** Siguiente número para impresiones de recibo de nómina de prueba. */
+  folioPruebaNomina?: number;
   lugarExpedicion: string; // Código postal
   certificadoCsd?: string;
   llavePrivadaCsd?: string;
@@ -425,6 +434,8 @@ export interface Invoice {
   pdfUrl?: string;
   motivoCancelacion?: string;
   fechaCancelacion?: Date;
+  /** Generada en modo prueba: sin validez fiscal; no consume folio SAT configurado. */
+  esPrueba?: boolean;
   /** Aislamiento por tienda en datos locales (Dexie). */
   sucursalId?: string;
   createdAt: Date;
