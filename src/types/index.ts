@@ -610,6 +610,8 @@ export interface CartItem {
   product: Product;
   quantity: number;
   discount: number;
+  /** Precio unitario base (sin IVA) distinto al catálogo; si no hay, se usa `product.precioVenta`. */
+  precioUnitarioOverride?: number;
 }
 
 export type ThemePreference = 'system' | 'light' | 'dark';

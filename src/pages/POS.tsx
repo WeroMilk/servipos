@@ -4,6 +4,7 @@ import {
   Plus,
   Minus,
   Trash2,
+  Pencil,
   ShoppingCart,
   Receipt,
   X,
@@ -24,6 +25,16 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -34,9 +45,15 @@ import { Label } from '@/components/ui/label';
 import { useShallow } from 'zustand/react/shallow';
 import { useCartStore, useAppStore, useAuthStore } from '@/stores';
 import { useProductSearch, useSales, useClients, useEffectiveSucursalId } from '@/hooks';
-import type { Product, FormaPago, Sale, Sucursal } from '@/types';
+import type { Product, FormaPago, Sale, Sucursal, CartItem } from '@/types';
 import { FORMAS_PAGO_UI } from '@/types';
 import { getSaleByFolio } from '@/db/database';
+import {
+  CLIENT_PRICE_LIST_ORDER,
+  CLIENT_PRICE_LABELS,
+  type ClientPriceListId,
+  POS_EDIT_UNIT_PRICE_PIN,
+} from '@/lib/clientPriceLists';
 import { subscribeSucursales } from '@/lib/firestore/sucursalesMetaFirestore';
 import { cn, formatMoney } from '@/lib/utils';
 import { formatInAppTimezone } from '@/lib/appTimezone';
@@ -45,6 +62,16 @@ import { printThermalTicket } from '@/lib/printTicket';
 // ============================================
 // PUNTO DE VENTA (POS) — Vista tipo app, sin scroll de página
 // ============================================
+
+function cartLineUnitSinIva(item: CartItem): number {
+  const u = Number(item.precioUnitarioOverride ?? item.product.precioVenta) || 0;
+  return u * (1 - (Number(item.discount) || 0) / 100);
+}
+
+function cartLineTotalConIva(item: CartItem): number {
+  const imp = Number(item.product.impuesto) || 16;
+  return cartLineUnitSinIva(item) * item.quantity * (1 + imp / 100);
+}
 
 type MobileTab = 'cart' | 'checkout';
 
@@ -112,9 +139,12 @@ export function POS() {
       removeItem: s.removeItem,
       updateQuantity: s.updateQuantity,
       updateDiscount: s.updateDiscount,
+      updateLineUnitPrice: s.updateLineUnitPrice,
       setGlobalDiscount: s.setGlobalDiscount,
       setFormaPago: s.setFormaPago,
       setMetodoPago: s.setMetodoPago,
+      precioClienteListaId: s.precioClienteListaId,
+      setPrecioClienteLista: s.setPrecioClienteLista,
       transferenciaDestinoSucursalId: s.transferenciaDestinoSucursalId,
       setTransferenciaDestinoSucursalId: s.setTransferenciaDestinoSucursalId,
       addPago: s.addPago,
@@ -141,9 +171,12 @@ export function POS() {
     removeItem,
     updateQuantity,
     updateDiscount,
+    updateLineUnitPrice,
     setGlobalDiscount,
     setFormaPago,
     setMetodoPago,
+    precioClienteListaId,
+    setPrecioClienteLista,
     transferenciaDestinoSucursalId,
     setTransferenciaDestinoSucursalId,
     addPago,
@@ -206,6 +239,12 @@ export function POS() {
   const [globalDiscFocus, setGlobalDiscFocus] = useState(false);
   /** Fila del carrito cuyo % descuento está enfocado (vacío visual si es 0, como desc. global). */
   const [lineDiscountFocusProductId, setLineDiscountFocusProductId] = useState<string | null>(null);
+  const [ventaResetConfirmOpen, setVentaResetConfirmOpen] = useState(false);
+  const [unitPriceDialogOpen, setUnitPriceDialogOpen] = useState(false);
+  const [unitPriceEditProductId, setUnitPriceEditProductId] = useState<string | null>(null);
+  const [unitPriceEditStep, setUnitPriceEditStep] = useState<'pin' | 'price'>('pin');
+  const [unitPricePinInput, setUnitPricePinInput] = useState('');
+  const [unitPriceInput, setUnitPriceInput] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
   const productSearchWrapRef = useRef<HTMLDivElement>(null);
 
@@ -269,8 +308,48 @@ export function POS() {
     setDevolucionFolioInput('');
     setDevolucionSaleResuelta(null);
     setDevolucionBusy(false);
+    setVentaResetConfirmOpen(false);
     searchInputRef.current?.blur();
   }, [clearCart]);
+
+  const openUnitPriceDialog = (productId: string) => {
+    const it = items.find((i) => i.product.id === productId);
+    if (!it) return;
+    setUnitPriceEditProductId(productId);
+    setUnitPriceEditStep(isAdmin ? 'price' : 'pin');
+    setUnitPricePinInput('');
+    setUnitPriceInput(String(it.precioUnitarioOverride ?? it.product.precioVenta));
+    setUnitPriceDialogOpen(true);
+  };
+
+  const closeUnitPriceDialog = () => {
+    setUnitPriceDialogOpen(false);
+    setUnitPriceEditProductId(null);
+    setUnitPriceEditStep('pin');
+    setUnitPricePinInput('');
+    setUnitPriceInput('');
+  };
+
+  const confirmUnitPricePin = () => {
+    if (unitPricePinInput.trim() === POS_EDIT_UNIT_PRICE_PIN) {
+      setUnitPriceEditStep('price');
+      setUnitPricePinInput('');
+      return;
+    }
+    addToast({ type: 'error', message: 'Contraseña incorrecta' });
+  };
+
+  const saveUnitPriceFromDialog = () => {
+    if (!unitPriceEditProductId) return;
+    const v = parseFloat(unitPriceInput.replace(',', '.'));
+    if (!Number.isFinite(v) || v < 0) {
+      addToast({ type: 'warning', message: 'Ingrese un precio válido (sin IVA)' });
+      return;
+    }
+    updateLineUnitPrice(unitPriceEditProductId, v);
+    addToast({ type: 'success', message: 'Precio unitario actualizado' });
+    closeUnitPriceDialog();
+  };
 
   const openCheckoutDialog = () => {
     setCheckoutPhase('payment');
@@ -475,13 +554,24 @@ export function POS() {
       return;
     }
 
+    const cobroTarjetaPueLocal =
+      !esTraspasoTienda && esFormaTarjeta(formaPago) && metodoPago === 'PUE';
+
+    if (!esTraspasoTienda && !cobroTarjetaPueLocal && esFormaEfectivo(formaPago)) {
+      const norm = montoRecibidoInput.replace(',', '.').trim();
+      if (norm) {
+        const m = parseFloat(norm);
+        if (Number.isFinite(m) && m > 0) {
+          addPago({ formaPago, monto: m });
+          setMontoRecibidoInput('');
+        }
+      }
+    }
+
     if (items.length === 0) {
       addToast({ type: 'error', message: 'Agregue productos al carrito' });
       return;
     }
-
-    const cobroTarjetaPueLocal =
-      !esTraspasoTienda && esFormaTarjeta(formaPago) && metodoPago === 'PUE';
 
     let pagosParaVenta = pagos;
 
@@ -543,21 +633,21 @@ export function POS() {
         clienteId: client?.id || 'mostrador',
         /** Snapshot para ticket / reimpresión (solo `clienteId` dejaba el UUID en el ticket). */
         ...(client ? { cliente: client } : {}),
-        productos: items.map((item) => ({
-          id: crypto.randomUUID(),
-          productId: item.product.id,
-          cantidad: item.quantity,
-          precioUnitario: item.product.precioVenta,
-          descuento: item.discount,
-          impuesto: item.product.impuesto,
-          subtotal:
-            item.product.precioVenta * item.quantity * (1 - item.discount / 100),
-          total:
-            item.product.precioVenta *
-            item.quantity *
-            (1 - item.discount / 100) *
-            (1 + item.product.impuesto / 100),
-        })),
+        productos: items.map((item) => {
+          const unitBase = item.precioUnitarioOverride ?? item.product.precioVenta;
+          const sub =
+            unitBase * item.quantity * (1 - item.discount / 100);
+          return {
+            id: crypto.randomUUID(),
+            productId: item.product.id,
+            cantidad: item.quantity,
+            precioUnitario: unitBase,
+            descuento: item.discount,
+            impuesto: item.product.impuesto,
+            subtotal: sub,
+            total: sub * (1 + item.product.impuesto / 100),
+          };
+        }),
         subtotal: subtotalCobro,
         descuento: descuentoCobro,
         impuestos: impuestosCobro,
@@ -586,12 +676,14 @@ export function POS() {
 
       const clienteNombre = client?.nombre || 'Mostrador';
       const lineas = items.map((item) => {
-        const unit = item.product.precioVenta * (1 - item.discount / 100);
-        const lineTot = item.product.precioVenta * item.quantity * (1 - item.discount / 100);
+        const unitSinIva = cartLineUnitSinIva(item);
+        const imp = Number(item.product.impuesto) || 16;
+        const unitConIva = unitSinIva * (1 + imp / 100);
+        const lineTot = unitConIva * item.quantity;
         return {
           descripcion: item.product.nombre,
           cantidad: item.quantity,
-          precioUnit: unit,
+          precioUnit: unitConIva,
           total: lineTot,
         };
       });
@@ -777,6 +869,7 @@ export function POS() {
                       </div>
                       <div className="shrink-0 text-right">
                         <p className="font-bold text-cyan-400">{formatMoney(product.precioVenta)}</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400">sin IVA</p>
                         <p
                           className={cn(
                             'text-xs',
@@ -828,7 +921,8 @@ export function POS() {
                           <p className="truncate font-medium text-slate-800 dark:text-slate-200">{item.product.nombre}</p>
                           <p className="text-xs text-slate-600 dark:text-slate-500">SKU {item.product.sku}</p>
                           <p className="text-xs text-cyan-400/90 sm:text-sm">
-                            {formatMoney(item.product.precioVenta)} c/u
+                            {formatMoney(cartLineUnitSinIva(item))} c/u{' '}
+                            <span className="text-slate-500 dark:text-slate-400">sin IVA</span>
                           </p>
                         </div>
 
@@ -905,12 +999,18 @@ export function POS() {
                           </div>
 
                           <p className="min-w-[4.5rem] text-right text-sm font-bold text-slate-800 dark:text-slate-200">
-                            {formatMoney(
-                              item.product.precioVenta *
-                                item.quantity *
-                                (1 - item.discount / 100)
-                            )}
+                            {formatMoney(cartLineTotalConIva(item))}
                           </p>
+
+                          <button
+                            type="button"
+                            onClick={() => openUnitPriceDialog(item.product.id)}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-200 text-slate-700 transition-colors hover:bg-slate-700 hover:text-white dark:bg-slate-800 dark:text-slate-200"
+                            aria-label="Editar precio unitario"
+                            title="Editar precio (sin IVA)"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
 
                           <button
                             type="button"
@@ -1172,29 +1272,56 @@ export function POS() {
                 </div>
 
                 {!esFormaDevolucion ? (
-                  <div className="space-y-1">
-                    <Label className="text-[10px] text-slate-600 dark:text-slate-400 sm:text-xs">Desc. global %</Label>
-                    <Input
-                      type="number"
-                      inputMode="decimal"
-                      value={globalDiscFocus && discount === 0 ? '' : discount}
-                      onFocus={() => setGlobalDiscFocus(true)}
-                      onBlur={() => {
-                        setGlobalDiscFocus(false);
-                      }}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        if (v === '') setGlobalDiscount(0);
-                        else setGlobalDiscount(parseFloat(v) || 0);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') e.preventDefault();
-                      }}
-                      className="h-10 w-full border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100 md:h-10 md:text-sm"
-                      min={0}
-                      max={100}
-                    />
-                  </div>
+                  <>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] text-slate-600 dark:text-slate-400 sm:text-xs">Desc. global %</Label>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        value={globalDiscFocus && discount === 0 ? '' : discount}
+                        onFocus={() => setGlobalDiscFocus(true)}
+                        onBlur={() => {
+                          setGlobalDiscFocus(false);
+                        }}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          if (v === '') setGlobalDiscount(0);
+                          else setGlobalDiscount(parseFloat(v) || 0);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') e.preventDefault();
+                        }}
+                        className="h-10 w-full border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100 md:h-10 md:text-sm"
+                        min={0}
+                        max={100}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] text-slate-600 dark:text-slate-400 sm:text-xs">
+                        Precios por Cliente
+                      </Label>
+                      <Select
+                        value={precioClienteListaId}
+                        onValueChange={(v) => setPrecioClienteLista(v as ClientPriceListId)}
+                      >
+                        <SelectTrigger className="h-10 w-full min-w-0 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100 md:text-sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent
+                          align="start"
+                          sideOffset={6}
+                          hideScrollButtons
+                          className="z-[300] max-h-[min(50dvh,18rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
+                        >
+                          {CLIENT_PRICE_LIST_ORDER.map((id) => (
+                            <SelectItem key={id} value={id} className="text-slate-900 dark:text-slate-100">
+                              {CLIENT_PRICE_LABELS[id]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
                 ) : null}
               </div>
             </CardContent>
@@ -1219,7 +1346,7 @@ export function POS() {
 
             <Button
               type="button"
-              onClick={resetPuntoVenta}
+              onClick={() => setVentaResetConfirmOpen(true)}
               variant="outline"
               className="h-10 w-full rounded-xl border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:bg-slate-800 hover:text-slate-800 dark:text-slate-200 sm:h-11"
             >
@@ -1293,6 +1420,12 @@ export function POS() {
                         Agregar
                       </Button>
                     </div>
+                    {esFormaEfectivo(formaPago) ? (
+                      <p className="text-center text-[11px] leading-snug text-slate-600 dark:text-slate-500 sm:text-xs">
+                        Puede escribir el monto exacto y pulsar <strong>Completar venta</strong>: se registrará
+                        automáticamente sin usar «Agregar» ni los billetes rápidos.
+                      </p>
+                    ) : null}
                   </div>
                 ) : null}
 
@@ -1500,6 +1633,94 @@ export function POS() {
                 </button>
               ))}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={ventaResetConfirmOpen} onOpenChange={setVentaResetConfirmOpen}>
+        <AlertDialogContent className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Reiniciar punto de venta?</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-600 dark:text-slate-400">
+              Se vaciará el carrito, el cobro y la búsqueda. Es el mismo efecto que empezar de cero en esta
+              pantalla.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-slate-300 dark:border-slate-600">No</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-cyan-600 text-white hover:bg-cyan-700"
+              onClick={() => resetPuntoVenta()}
+            >
+              Sí, reiniciar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog
+        open={unitPriceDialogOpen}
+        onOpenChange={(o) => {
+          if (!o) closeUnitPriceDialog();
+        }}
+      >
+        <DialogContent className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Precio unitario (sin IVA)</DialogTitle>
+          </DialogHeader>
+          {unitPriceEditStep === 'pin' ? (
+            <div className="space-y-3 py-2">
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                Ingrese la contraseña de administrador para modificar el precio.
+              </p>
+              <Input
+                type="password"
+                autoComplete="off"
+                placeholder="Contraseña"
+                value={unitPricePinInput}
+                onChange={(e) => setUnitPricePinInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    confirmUnitPricePin();
+                  }
+                }}
+                className="border-slate-300 dark:border-slate-700 dark:bg-slate-800"
+              />
+              <DialogFooter className="gap-2 sm:gap-0">
+                <Button type="button" variant="outline" onClick={closeUnitPriceDialog}>
+                  Cancelar
+                </Button>
+                <Button type="button" onClick={confirmUnitPricePin}>
+                  Continuar
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <div className="space-y-3 py-2">
+              <Label>Nuevo precio sin IVA</Label>
+              <Input
+                type="text"
+                inputMode="decimal"
+                value={unitPriceInput}
+                onChange={(e) => setUnitPriceInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    saveUnitPriceFromDialog();
+                  }
+                }}
+                className="border-slate-300 text-lg dark:border-slate-700 dark:bg-slate-800"
+              />
+              <DialogFooter className="gap-2 sm:gap-0">
+                <Button type="button" variant="outline" onClick={closeUnitPriceDialog}>
+                  Cancelar
+                </Button>
+                <Button type="button" onClick={saveUnitPriceFromDialog}>
+                  Guardar
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

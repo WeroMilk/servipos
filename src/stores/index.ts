@@ -7,4 +7,5 @@ export { useSucursalContextStore } from './sucursalContextStore';
 export { useAppStore, getResolvedIsDark } from './appStore';
 export { useSyncStore } from './syncStore';
 export { useCartStore } from './cartStore';
+export { useClientPriceListStore } from './clientPriceListStore';
 export { useNotificationStore } from './notificationStore';

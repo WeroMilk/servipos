@@ -11,6 +11,7 @@ import {
   Users,
   MapPin,
   Wallet,
+  Percent,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,7 +19,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useFiscalConfig } from '@/hooks';
-import { useAppStore, useAuthStore } from '@/stores';
+import { useAppStore, useAuthStore, useClientPriceListStore } from '@/stores';
+import {
+  CLIENT_PRICE_LIST_ORDER,
+  CLIENT_PRICE_LABELS,
+  type ClientPriceListId,
+} from '@/lib/clientPriceLists';
 import { UserManagement } from '@/components/ui-custom/UserManagement';
 import { SucursalManagement } from '@/components/ui-custom/SucursalManagement';
 import { PageShell } from '@/components/ui-custom/PageShell';
@@ -31,7 +37,11 @@ export function Configuracion() {
   const { hasPermission } = useAuthStore();
   const canManageUsers = hasPermission('usuarios:gestionar');
   const canManageSucursales = hasPermission('sucursales:gestionar');
-  const adminExtraTabs = (canManageUsers ? 1 : 0) + (canManageSucursales ? 1 : 0);
+  const canEditListaPreciosCliente = hasPermission('configuracion:editar');
+  const discountsListaCliente = useClientPriceListStore((s) => s.discounts);
+  const setDiscountListaCliente = useClientPriceListStore((s) => s.setDiscount);
+  const adminExtraTabs =
+    (canManageUsers ? 1 : 0) + (canManageSucursales ? 1 : 0) + (canEditListaPreciosCliente ? 1 : 0);
   const totalTabs = 4 + adminExtraTabs;
   
   const [activeTab, setActiveTab] = useState('fiscal');
@@ -193,7 +203,8 @@ export function Configuracion() {
             'xl:grid xl:w-full xl:justify-normal xl:overflow-x-visible',
             totalTabs <= 4 && 'xl:grid-cols-4',
             totalTabs === 5 && 'xl:grid-cols-5',
-            totalTabs >= 6 && 'xl:grid-cols-6'
+            totalTabs === 6 && 'xl:grid-cols-6',
+            totalTabs >= 7 && 'xl:grid-cols-7'
           )}
         >
           <TabsTrigger value="fiscal" className={configuracionTabTriggerClass}>
@@ -222,6 +233,12 @@ export function Configuracion() {
             <TabsTrigger value="usuarios" className={configuracionTabTriggerClass}>
               <Users className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
               Usuarios
+            </TabsTrigger>
+          )}
+          {canEditListaPreciosCliente && (
+            <TabsTrigger value="lista-precios" className={configuracionTabTriggerClass}>
+              <Percent className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
+              Precios cliente
             </TabsTrigger>
           )}
         </TabsList>
@@ -759,6 +776,48 @@ export function Configuracion() {
             <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
               <UserManagement embedded />
             </div>
+          </TabsContent>
+        )}
+
+        {canEditListaPreciosCliente && (
+          <TabsContent
+            value="lista-precios"
+            className="mt-0 flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
+          >
+            <Card className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
+              <CardHeader className="shrink-0 px-3 py-2 sm:px-4">
+                <CardTitle className="text-sm text-slate-900 dark:text-slate-100 sm:text-base">
+                  Precios por cliente (POS)
+                </CardTitle>
+                <p className="text-xs font-normal text-slate-600 dark:text-slate-400">
+                  Descuento del 0% al 100% aplicado al subtotal del carrito (después de descuentos por línea).
+                  Los cambios se guardan automáticamente en este equipo.
+                </p>
+              </CardHeader>
+              <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3 pt-0 sm:p-4 sm:pt-0">
+                {CLIENT_PRICE_LIST_ORDER.map((id) => (
+                  <div key={id} className="flex flex-wrap items-end gap-2 sm:gap-4">
+                    <Label className="min-w-[8rem] text-xs text-slate-600 dark:text-slate-400 sm:text-sm">
+                      {CLIENT_PRICE_LABELS[id]}
+                    </Label>
+                    <div className="flex flex-1 items-center gap-2">
+                      <Input
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        max={100}
+                        className={fieldClass}
+                        value={discountsListaCliente[id]}
+                        onChange={(e) =>
+                          setDiscountListaCliente(id as ClientPriceListId, parseFloat(e.target.value) || 0)
+                        }
+                      />
+                      <span className="text-sm text-slate-600 dark:text-slate-400">%</span>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
           </TabsContent>
         )}
         </Tabs>
