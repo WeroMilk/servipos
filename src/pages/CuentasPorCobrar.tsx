@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Wallet, Store, Ban } from 'lucide-react';
+import { Wallet, ShoppingCart, Ban } from 'lucide-react';
 import { PageShell } from '@/components/ui-custom/PageShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -369,20 +369,18 @@ export function CuentasPorCobrar() {
             >
               Cerrar
             </Button>
-            {puedeIrPos &&
-            ticketSeleccionado?.sale.clienteId &&
-            ticketSeleccionado.sale.clienteId !== 'mostrador' ? (
+            {puedeIrPos && ticketSeleccionado ? (
               <Button
                 type="button"
                 className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
                 onClick={() => {
-                  const cid = ticketSeleccionado.sale.clienteId;
+                  const id = ticketSeleccionado.sale.id;
                   setTicketSeleccionado(null);
-                  navigate('/pos', { state: { posPreselectClienteId: cid } });
+                  navigate('/pos', { state: { posAbrirVentaId: id } });
                 }}
               >
-                <Store className="mr-2 h-4 w-4" />
-                Ir al POS a cobrar
+                <ShoppingCart className="mr-2 h-4 w-4" />
+                Abrir venta
               </Button>
             ) : null}
             <Button

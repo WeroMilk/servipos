@@ -58,12 +58,14 @@ import type { Product, FormaPago, Payment, Sale, Sucursal, CartItem } from '@/ty
 import { FORMAS_PAGO_UI } from '@/types';
 import {
   getSaleByFolio,
+  getSaleById,
   getClientById,
   getProductById,
   findQuotationByLast4Folio,
   markQuotationConvertedWithSale,
   updatePendingOpenSale,
 } from '@/db/database';
+import { getSaleByIdFirestore } from '@/lib/firestore/salesFirestore';
 import { getProductCatalogSnapshot } from '@/lib/firestore/productsFirestore';
 import {
   buildPendingSaleLineItemsFromCart,
@@ -484,30 +486,6 @@ export function POS() {
 
   const { results: searchResults, search: searchProducts } = useProductSearch();
   const { clients, refresh: refreshClients } = useClients();
-
-  useEffect(() => {
-    const st = location.state as { posPreselectClienteId?: string } | null | undefined;
-    const cid = st?.posPreselectClienteId?.trim();
-    if (!cid || cid === 'mostrador') return;
-    navigate('.', { replace: true, state: null });
-    void (async () => {
-      try {
-        const row = await getClientById(cid);
-        if (row?.nombre?.trim()) {
-          setClient(row);
-          setMobileTab('cart');
-          addToast({
-            type: 'success',
-            message: 'Cliente cargado desde Cuentas por cobrar. Registre el cobro en el POS.',
-          });
-        } else {
-          addToast({ type: 'warning', message: 'No se encontró el cliente.' });
-        }
-      } catch {
-        addToast({ type: 'error', message: 'No se pudo cargar el cliente.' });
-      }
-    })();
-  }, [location.state, navigate, setClient, addToast, setMobileTab]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -960,6 +938,76 @@ export function POS() {
       setResumeOpenBusy(false);
     }
   };
+
+  const resumeOpenSaleRef = useRef(resumeOpenSale);
+  resumeOpenSaleRef.current = resumeOpenSale;
+
+  useEffect(() => {
+    const st = location.state as {
+      posPreselectClienteId?: string;
+      posAbrirVentaId?: string;
+    } | null | undefined;
+    const ventaId = st?.posAbrirVentaId?.trim();
+    const cid = st?.posPreselectClienteId?.trim();
+    if (!ventaId && (!cid || cid === 'mostrador')) return;
+
+    navigate('.', { replace: true, state: null });
+
+    void (async () => {
+      try {
+        if (ventaId) {
+          let sale: Sale | undefined = salesCatalog.find((s) => s.id === ventaId);
+          if (!sale && effectiveSucursalId) {
+            sale = (await getSaleByIdFirestore(effectiveSucursalId, ventaId)) ?? undefined;
+          }
+          if (!sale) {
+            sale = await getSaleById(ventaId);
+          }
+          if (!sale) {
+            addToast({ type: 'error', message: 'No se encontró la venta en este dispositivo.' });
+            return;
+          }
+          if (sale.estado === 'pendiente') {
+            await resumeOpenSaleRef.current(sale);
+            return;
+          }
+          if (sale.clienteId && sale.clienteId !== 'mostrador') {
+            const row = await getClientById(sale.clienteId);
+            if (row?.nombre?.trim()) {
+              setClient(row);
+              setMobileTab('cart');
+              addToast({
+                type: 'success',
+                message: `Venta ${sale.folio?.trim() || sale.id.slice(0, 8)} · pulse Cobrar en el POS para registrar pagos sobre el saldo.`,
+              });
+              return;
+            }
+          }
+          addToast({
+            type: 'warning',
+            message: 'No hay cliente registrado en este ticket para abrirlo en el POS.',
+          });
+          return;
+        }
+
+        if (cid && cid !== 'mostrador') {
+          const row = await getClientById(cid);
+          if (row?.nombre?.trim()) {
+            setClient(row);
+            setMobileTab('cart');
+            addToast({
+              type: 'success',
+              message: 'Cliente cargado desde Cuentas por cobrar. Registre el cobro en el POS.',
+            });
+          } else {
+            addToast({ type: 'warning', message: 'No se encontró el cliente.' });
+          }
+        }
+      } catch {
+        addToast({ type: 'error', message: 'No se pudo abrir la venta o el cliente en el POS.' });
+      }
+    })();
+  }, [location.state, navigate, salesCatalog, effectiveSucursalId, setClient, addToast, setMobileTab]);
 
   const pasarVentaACuentasPorCobrar = async (vs: Sale) => {
     if (vs.estado !== 'pendiente') return;
