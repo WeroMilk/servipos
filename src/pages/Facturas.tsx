@@ -14,6 +14,7 @@ import {
   Printer,
   Trash2,
 } from 'lucide-react';
+import { normalizeClaveProdServ, normalizeClaveUnidadSat } from '@/lib/satCatalog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -129,11 +130,13 @@ export function Facturas() {
         cliente: client,
         emisor: fiscalConfig,
         ventaId: selectedSale.id,
-        productos: selectedSale.productos.map(item => ({
+        productos: selectedSale.productos.map((item) => {
+          const cps = normalizeClaveProdServ(item.producto?.claveProdServ);
+          return {
           id: crypto.randomUUID(),
           productId: item.productId,
-          claveProdServ: '01010101', // Catálogo SAT - se debería configurar por producto
-          claveUnidad: item.producto?.unidadMedida || 'H87',
+          claveProdServ: cps.length === 8 ? cps : '01010101',
+          claveUnidad: normalizeClaveUnidadSat(item.producto?.unidadMedida),
           cantidad: item.cantidad,
           descripcion: item.producto?.nombre?.trim() || item.productoNombre?.trim() || '',
           precioUnitario: item.precioUnitario,
@@ -149,7 +152,8 @@ export function Facturas() {
           impuestosRetenidos: [],
           subtotal: item.subtotal,
           total: item.total,
-        })),
+        };
+        }),
         subtotal: selectedSale.subtotal,
         descuento: selectedSale.descuento,
         impuestosTrasladados: selectedSale.impuestos,

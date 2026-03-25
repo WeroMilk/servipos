@@ -155,7 +155,10 @@ export interface Product {
   categoria?: string;
   proveedor?: string;
   imagen?: string;
-  unidadMedida: string; // pza, kg, lt, etc.
+  /** Clave de unidad SAT (c_ClaveUnidad), ej. H87 pieza, MTR metro, CMT centímetro, E48 servicio. */
+  unidadMedida: string;
+  /** Clave de producto o servicio SAT (8 dígitos), ej. 31171504 — requerida para facturar correctamente. */
+  claveProdServ?: string;
   activo: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -238,6 +241,11 @@ export interface Client {
   listaPreciosId?: ClientPriceListId;
   /** Número de tickets de compra completados (ventas) asociados a este cliente. */
   ticketsComprados?: number;
+  /**
+   * Saldo que el cliente debe a la tienda (ventas PPD con pago parcial o sin pago).
+   * Se incrementa al cobrar con adeudo y puede reducirse con abonos en Cuentas por cobrar.
+   */
+  saldoAdeudado?: number;
   /** Aislamiento por tienda en datos locales (Dexie). */
   sucursalId?: string;
   createdAt: Date;
@@ -288,6 +296,16 @@ export interface Sale {
 
 export type CajaSesionEstado = 'abierta' | 'cerrada';
 
+/** Retiro de efectivo del cajón durante una sesión abierta (bolsa / banco). */
+export interface CajaRetiroEfectivo {
+  id: string;
+  monto: number;
+  notas?: string;
+  createdAt: Date;
+  usuarioId: string;
+  usuarioNombre: string;
+}
+
 /** Registro de apertura/cierre de caja por sucursal (`sucursales/{id}/cajaSesiones/...`). */
 export interface CajaSesion {
   id: string;
@@ -297,12 +315,15 @@ export interface CajaSesion {
   openedAt: Date;
   openedByUserId: string;
   openedByNombre: string;
+  /** Suma de retiros registrados en la sesión; reduce el efectivo esperado en caja. */
+  retirosEfectivoTotal?: number;
+  retirosEfectivo?: CajaRetiroEfectivo[];
   closedAt?: Date;
   closedByUserId?: string;
   closedByNombre?: string;
   /** Efectivo contado físicamente al cierre. */
   conteoDeclarado?: number;
-  /** Fondo + efectivo cobrado − cambio entregado (ventas de la sesión completadas). */
+  /** Fondo + efectivo cobrado − cambio entregado − retiros (ventas de la sesión completadas). */
   efectivoEsperado?: number;
   /** Declarado − esperado (positivo = sobrante). */
   diferencia?: number;

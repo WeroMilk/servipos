@@ -7,6 +7,7 @@ import {
   Inventario,
   Cotizaciones,
   Clientes,
+  CuentasPorCobrar,
   Configuracion,
   Checador,
 } from '@/pages';
@@ -114,6 +115,7 @@ function App() {
             }
           />
           <Route path="clientes" element={<Clientes />} />
+          <Route path="cuentas-por-cobrar" element={<CuentasPorCobrar />} />
           <Route path="configuracion" element={<Configuracion />} />
         </Route>
 

@@ -1,6 +1,16 @@
 import { useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, Moon, Sun, User, Zap, Power, PowerOff, ClipboardList } from 'lucide-react';
+import {
+  LogOut,
+  Moon,
+  Sun,
+  User,
+  Zap,
+  Power,
+  PowerOff,
+  ClipboardList,
+  BanknoteArrowDown,
+} from 'lucide-react';
 import { useAuthStore, useSyncStore, useAppStore, getResolvedIsDark } from '@/stores';
 import { Button } from '@/components/ui/button';
 import {
@@ -26,6 +36,7 @@ export function Header() {
   const { user, logout, hasPermission } = useAuthStore();
   const { effectiveSucursalId } = useEffectiveSucursalId();
   const cajaPosHeader = useCajaPosHeaderStore();
+  const { retiroEfectivoVisible, openRetiroEfectivo } = cajaPosHeader;
   const ventasAbiertasHeader = useVentasAbiertasPosHeaderStore();
   const { isOnline, isSyncing, pendingCount, sync } = useSyncStore();
   const toggleTheme = useAppStore((s) => s.toggleTheme);
@@ -37,6 +48,8 @@ export function Header() {
   };
 
   const enModoNube = Boolean(effectiveSucursalId);
+  /** En sucursal nube el dato vivo es Firestore; no mostrar pendientes de IndexedDB aunque queden filas locales. */
+  const pendingDisplay = enModoNube ? 0 : pendingCount;
 
   useEffect(() => {
     if (!user) return;
@@ -131,6 +144,19 @@ export function Header() {
                 ) : null}
               </div>
             ) : null}
+            {cajaPosHeader.registered && retiroEfectivoVisible ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                title="Retiro de efectivo (sacar del cajón)"
+                aria-label="Retiro de efectivo"
+                onClick={() => openRetiroEfectivo()}
+                className="ml-1 h-9 w-9 shrink-0 rounded-xl border-slate-300 text-slate-700 hover:bg-sky-500/10 hover:text-sky-800 dark:border-slate-600 dark:text-sky-200 dark:hover:bg-sky-500/15 md:ml-1"
+              >
+                <BanknoteArrowDown className="h-4 w-4" />
+              </Button>
+            ) : null}
           </>
         ) : null}
       </div>
@@ -146,22 +172,22 @@ export function Header() {
               ? 'Actualizando contador…'
               : enModoNube
                 ? 'Tienda en la nube (Firestore): inventario y ventas se leen y guardan en Firebase. El contador de «pendientes» de IndexedDB no aplica en este modo. Pulse para comprobar conexión.'
-                : pendingCount > 0
-                  ? `${pendingCount} fila(s) en IndexedDB con sync «pendiente» (modo solo local). Pulse para recalcular.`
+                : pendingDisplay > 0
+                  ? `${pendingDisplay} fila(s) en IndexedDB con sync «pendiente» (modo solo local). Pulse para recalcular.`
                   : 'Ningún pendiente en la cola local. Pulse para comprobar de nuevo.'
           }
           className={cn(
             'flex shrink-0 items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-all duration-200 sm:px-3',
             isSyncing
               ? 'bg-cyan-500/15 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-400'
-              : pendingCount > 0
+              : pendingDisplay > 0
                 ? 'bg-amber-500/15 text-amber-800 dark:bg-amber-500/20 dark:text-amber-400 dark:hover:bg-amber-500/30'
                 : 'bg-slate-200/80 text-slate-600 hover:bg-slate-300/80 dark:bg-slate-800/50 dark:text-slate-400 dark:hover:bg-slate-700/50'
           )}
         >
           <Zap className={cn('h-4 w-4', isSyncing && 'animate-pulse')} />
           <span className="hidden sm:inline">
-            {isSyncing ? 'Comprobando…' : pendingCount > 0 ? `${pendingCount} pendientes` : 'Sincronizado'}
+            {isSyncing ? 'Comprobando…' : pendingDisplay > 0 ? `${pendingDisplay} pendientes` : 'Sincronizado'}
           </span>
         </button>
 

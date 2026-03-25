@@ -9,6 +9,7 @@ import {
   createClient,
   updateClient,
   deleteClient,
+  registrarAbonoACuentaCliente,
 } from '@/db/database';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 import { reportHookFailure } from '@/lib/appEventLog';
@@ -258,6 +259,16 @@ export function useClients() {
     await loadClients();
   }, [effectiveSucursalId, loadClients]);
 
+  const registrarAbonoCuenta = useCallback(
+    async (clienteId: string, monto: number) => {
+      await registrarAbonoACuentaCliente(clienteId, monto, {
+        sucursalId: effectiveSucursalId ?? undefined,
+      });
+      await refresh();
+    },
+    [effectiveSucursalId, refresh]
+  );
+
   return {
     clients,
     loading,
@@ -266,6 +277,7 @@ export function useClients() {
     addClient,
     editClient,
     removeClient,
+    registrarAbonoCuenta,
   };
 }
 

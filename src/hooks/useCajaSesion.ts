@@ -33,11 +33,18 @@ function localToCajaSesion(s: {
   openedAt: string;
   openedByUserId: string;
   openedByNombre: string;
+  retirosEfectivoTotal?: number;
+  retirosEfectivo?: { id: string; monto: number; notas?: string; createdAt: string; usuarioId: string; usuarioNombre: string }[];
 }): CajaSesion {
   return {
     id: s.id,
     estado: 'abierta',
     fondoInicial: s.fondoInicial,
+    retirosEfectivoTotal: s.retirosEfectivoTotal,
+    retirosEfectivo: s.retirosEfectivo?.map((r) => ({
+      ...r,
+      createdAt: new Date(r.createdAt),
+    })),
     openedAt: new Date(s.openedAt),
     openedByUserId: s.openedByUserId,
     openedByNombre: s.openedByNombre,

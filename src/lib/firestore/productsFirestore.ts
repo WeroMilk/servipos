@@ -17,6 +17,7 @@ import {
 import { db } from '@/lib/firebase';
 import type { Product, StockEntradaMeta } from '@/types';
 import { CLIENT_PRICE_LIST_ORDER, type ClientPriceListId } from '@/lib/clientPriceLists';
+import { normalizeClaveProdServ, normalizeClaveUnidadSat } from '@/lib/satCatalog';
 
 // ============================================
 // PRODUCTOS + STOCK EN FIRESTORE (por sucursal)
@@ -72,7 +73,11 @@ export function docToProduct(snap: QueryDocumentSnapshot): Product {
     proveedor: d.proveedor != null ? String(d.proveedor) : undefined,
     preciosPorListaCliente: parsePreciosPorListaCliente(d.preciosPorListaCliente),
     imagen: d.imagen != null ? String(d.imagen) : undefined,
-    unidadMedida: String(d.unidadMedida ?? 'H87'),
+    unidadMedida: normalizeClaveUnidadSat(d.unidadMedida != null ? String(d.unidadMedida) : 'H87'),
+    claveProdServ: (() => {
+      const raw = d.claveProdServ != null ? String(d.claveProdServ).replace(/\D/g, '').slice(0, 8) : '';
+      return raw.length === 8 ? raw : undefined;
+    })(),
     activo: d.activo !== false,
     createdAt: firestoreTimestampToDate(d.createdAt),
     updatedAt: firestoreTimestampToDate(d.updatedAt),
@@ -100,7 +105,11 @@ function productToFirestorePayload(
         ? product.preciosPorListaCliente
         : null,
     imagen: product.imagen ?? null,
-    unidadMedida: product.unidadMedida,
+    unidadMedida: normalizeClaveUnidadSat(product.unidadMedida),
+    claveProdServ:
+      normalizeClaveProdServ(product.claveProdServ).length === 8
+        ? normalizeClaveProdServ(product.claveProdServ)
+        : null,
     activo: product.activo,
   };
 }
@@ -212,6 +221,11 @@ export async function updateProductFirestore(
   if ('codigoBarras' in updates) {
     const v = updates.codigoBarras;
     payload.codigoBarras = v && v.length > 0 ? v : null;
+  }
+
+  if ('claveProdServ' in updates) {
+    const n = normalizeClaveProdServ(updates.claveProdServ);
+    payload.claveProdServ = n.length === 8 ? n : null;
   }
 
   if ('preciosPorListaCliente' in updates && updates.preciosPorListaCliente !== undefined) {

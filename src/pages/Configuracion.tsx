@@ -219,13 +219,9 @@ export function Configuracion() {
     'dark:text-slate-400 dark:data-[state=active]:text-cyan-400 xl:w-full xl:flex-1'
   );
 
-  /** Un solo scroll vertical por pestaña (móvil); evita tarjetas flex-1 con scroll interno y huecos vacíos. */
+  /** Un solo scroll vertical por pestaña para que en escritorio se vea todo el formulario (incl. datos fiscales). */
   const configuracionTabsPanelClass =
     'mt-0 flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch] outline-none data-[state=inactive]:hidden';
-
-  /** Datos fiscales: desde lg (escritorio típico) sin scroll del panel; en móvil/tablet estrecha se mantiene scroll. */
-  const configuracionFiscalTabsPanelClass =
-    'mt-0 flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch] outline-none data-[state=inactive]:hidden lg:overflow-hidden lg:overscroll-y-auto';
 
   return (
     <PageShell
@@ -325,19 +321,19 @@ export function Configuracion() {
           </TabsList>
         </div>
 
-        <TabsContent value="fiscal" className={configuracionFiscalTabsPanelClass}>
-          <Card className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col border-slate-200/80 bg-slate-50/90 dark:border-slate-800/50 dark:bg-slate-900/50 lg:min-h-0">
-            <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4 lg:py-1.5">
+        <TabsContent value="fiscal" className={configuracionTabsPanelClass}>
+          <Card className="w-full min-w-0 shrink-0 border-slate-200/80 bg-slate-50/90 dark:border-slate-800/50 dark:bg-slate-900/50">
+            <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
               <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-slate-100 sm:text-base">
                 <Receipt className="h-4 w-4 shrink-0 text-cyan-400 sm:h-5 sm:w-5" />
                 Datos fiscales CFDI 4.0
               </CardTitle>
             </CardHeader>
-            <CardContent className="flex min-h-0 flex-1 flex-col gap-2 p-3 pt-0 sm:p-4 sm:pt-0 lg:min-h-0 lg:gap-1.5 lg:overflow-hidden lg:pb-2 lg:pt-0">
-              <div className="min-h-0 min-w-0 flex-1 lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden">
-                <div className="flex min-h-0 flex-col gap-3 lg:min-h-0 lg:flex-1 lg:flex-row lg:items-stretch lg:gap-5 lg:overflow-hidden">
-                  {/* Columna principal (CFDI); en lg+ comparte fila con dirección */}
-                  <div className="min-w-0 flex-1 space-y-2 lg:min-h-0 lg:flex-1 lg:overflow-visible">
+            <CardContent className="flex flex-col gap-2 p-3 pt-0 sm:p-4 sm:pt-0 sm:pb-4">
+              <div className="min-w-0 w-full">
+                <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:gap-6">
+                  {/* Columna principal (CFDI); en xl+ comparte fila con dirección */}
+                  <div className="min-w-0 flex-1 space-y-2">
                     <div className="grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2 lg:grid-cols-2 lg:gap-y-1.5">
                       <div className="space-y-1">
                         <Label htmlFor="rfc" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
@@ -511,8 +507,8 @@ export function Configuracion() {
                     </div>
                   </div>
 
-                  {/* Dirección fiscal: debajo en móvil; columna derecha en lg+ */}
-                  <div className="min-w-0 flex-1 space-y-2 border-t border-slate-200 pt-2 dark:border-slate-800/80 lg:w-[min(100%,20rem)] lg:flex-none lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0 lg:overflow-visible xl:w-[min(100%,22rem)] xl:pl-5">
+                  {/* Dirección fiscal: debajo en móvil; columna derecha en xl+ */}
+                  <div className="min-w-0 flex-1 space-y-2 border-t border-slate-200 pt-2 dark:border-slate-800/80 xl:w-[min(100%,22rem)] xl:flex-none xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
                     <p className="text-sm font-medium text-slate-600 dark:text-slate-500 sm:text-xs">
                       Dirección fiscal
                     </p>
@@ -596,7 +592,7 @@ export function Configuracion() {
                 </div>
               </div>
 
-              <div className="flex shrink-0 justify-end border-t border-slate-200/80 pt-2 dark:border-slate-800/60 lg:pt-1.5">
+              <div className="flex shrink-0 justify-end border-t border-slate-200/80 pt-3 dark:border-slate-800/60">
                 <Button
                   type="button"
                   size="sm"

@@ -1,6 +1,39 @@
-import type { CartItem, Client, Sale } from '@/types';
+import type { CartItem, Client, Sale, SaleItem } from '@/types';
 import { CLIENT_PRICE_LIST_ORDER, type ClientPriceListId } from '@/lib/clientPriceLists';
 import { getCartLineUnitSinIvaBase } from '@/lib/productListPricing';
+
+/** Cantidades agregadas por `productId` (varias líneas del mismo SKU se suman). */
+export function saleItemsQtyByProductId(lines: SaleItem[]): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const l of lines) {
+    const id = String(l.productId ?? '').trim();
+    if (!id) continue;
+    m.set(id, (m.get(id) ?? 0) + (Number(l.cantidad) || 0));
+  }
+  return m;
+}
+
+/** Líneas de venta a partir del carrito actual (misma lógica que al crear venta abierta). */
+export function buildPendingSaleLineItemsFromCart(
+  items: CartItem[],
+  listaId: ClientPriceListId
+): SaleItem[] {
+  return items.map((item) => {
+    const unitBase = getCartLineUnitSinIvaBase(item, listaId);
+    const sub = unitBase * item.quantity * (1 - (Number(item.discount) || 0) / 100);
+    return {
+      id: crypto.randomUUID(),
+      productId: item.product.id,
+      productoNombre: item.product.nombre?.trim() || undefined,
+      cantidad: item.quantity,
+      precioUnitario: unitBase,
+      descuento: Number(item.discount) || 0,
+      impuesto: item.product.impuesto,
+      subtotal: sub,
+      total: sub * (1 + item.product.impuesto / 100),
+    };
+  });
+}
 
 export function parseResumeListaPreciosId(sale: Sale): ClientPriceListId {
   const s = sale.posResumeListaPrecios;
@@ -29,21 +62,3 @@ export function clientFromSaleForPos(sale: Sale): Client | null {
   return null;
 }
 
-/** Comprueba que el carrito coincide con la venta pendiente (mismas líneas y precios). */
-export function cartMatchesOpenSale(
-  sale: Sale,
-  items: CartItem[],
-  listaId: ClientPriceListId
-): boolean {
-  const lines = sale.productos ?? [];
-  if (lines.length !== items.length) return false;
-  for (const line of lines) {
-    const it = items.find((i) => i.product.id === line.productId);
-    if (!it) return false;
-    if (it.quantity !== line.cantidad) return false;
-    if (Math.abs((it.discount || 0) - (line.descuento || 0)) > 0.02) return false;
-    const u = getCartLineUnitSinIvaBase(it, listaId);
-    if (Math.abs(u - (Number(line.precioUnitario) || 0)) > 0.02) return false;
-  }
-  return true;
-}

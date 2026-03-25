@@ -20,6 +20,7 @@ import { db } from '@/lib/firebase';
 import { CLIENT_PRICE_LIST_ORDER, normalizeClientPriceListId } from '@/lib/clientPriceLists';
 import type { Client, FormaPago, MetodoPago, Payment, Sale, SaleItem, SaleStatus } from '@/types';
 import { getMexicoDateKey, startOfDayFromDateKey } from '@/lib/quincenaMx';
+import { saleItemsQtyByProductId } from '@/lib/posOpenSaleResume';
 
 // ============================================
 // VENTAS EN FIRESTORE (tiempo real + folio atómico)
@@ -509,6 +510,127 @@ export async function getSaleByIdFirestore(
   const snap = await getDoc(ref);
   const s = saleDocToSale(snap);
   return s ?? undefined;
+}
+
+/**
+ * Actualiza líneas y totales de una venta `pendiente` y ajusta inventario por la diferencia
+ * respecto a lo ya descontado (transacción: todas las lecturas antes de las escrituras).
+ */
+export async function updatePendingOpenSaleFirestore(
+  sucursalId: string,
+  saleId: string,
+  patch: {
+    productos: SaleItem[];
+    subtotal: number;
+    descuento: number;
+    impuestos: number;
+    total: number;
+    clienteId: string;
+    cliente?: Client | null;
+    posResumeGlobalDiscount: number;
+    posResumeListaPrecios: string;
+  }
+): Promise<void> {
+  const sid = saleId.trim();
+  if (!sid) throw new Error('Venta inválida');
+
+  const sRef = doc(db, 'sucursales', sucursalId, 'sales', sid);
+
+  await runTransaction(db, async (transaction) => {
+    const saleSnap = await transaction.get(sRef);
+    if (!saleSnap.exists()) throw new Error('Venta no encontrada');
+    const sale = saleDocToSale(saleSnap);
+    if (!sale) throw new Error('Venta no encontrada');
+    if (sale.estado !== 'pendiente') throw new Error('Solo se pueden editar ventas abiertas');
+    if (sale.facturaId) throw new Error('No se puede editar una venta ya vinculada a factura');
+
+    const oldLines = sale.productos ?? [];
+    const oldMap = saleItemsQtyByProductId(oldLines);
+    const newMap = saleItemsQtyByProductId(patch.productos);
+    const allIds = new Set<string>([...oldMap.keys(), ...newMap.keys()]);
+    const sortedIds = [...allIds].sort();
+    const prodRefs = sortedIds.map((id) => doc(db, 'sucursales', sucursalId, 'products', id));
+    const prodSnaps = await Promise.all(prodRefs.map((r) => transaction.get(r)));
+
+    const usuarioMov = sale.usuarioId?.trim() || 'system';
+
+    for (let i = 0; i < sortedIds.length; i++) {
+      const pid = sortedIds[i]!;
+      const ps = prodSnaps[i]!;
+      const delta = (newMap.get(pid) ?? 0) - (oldMap.get(pid) ?? 0);
+      if (delta === 0) continue;
+      if (!ps.exists()) throw new Error(`Producto no encontrado: ${pid}`);
+      const pdata = ps.data() as Record<string, unknown>;
+      const cantidadAnterior =
+        typeof pdata.existencia === 'number' ? pdata.existencia : Number(pdata.existencia) || 0;
+      const cantidadNueva = cantidadAnterior - delta;
+      if (cantidadNueva < 0) throw new Error('Stock insuficiente');
+
+      transaction.update(prodRefs[i]!, {
+        existencia: cantidadNueva,
+        updatedAt: serverTimestamp(),
+      });
+
+      const movRef = doc(movementsCol(sucursalId));
+      if (delta > 0) {
+        transaction.set(movRef, {
+          productId: pid,
+          tipo: 'salida',
+          cantidad: delta,
+          cantidadAnterior,
+          cantidadNueva,
+          motivo: 'Ajuste por edición de venta abierta',
+          referencia: sid,
+          usuarioId: usuarioMov,
+          createdAt: serverTimestamp(),
+        });
+      } else {
+        const entra = -delta;
+        transaction.set(movRef, {
+          productId: pid,
+          tipo: 'entrada',
+          cantidad: entra,
+          cantidadAnterior,
+          cantidadNueva,
+          motivo: 'Ajuste por edición de venta abierta',
+          referencia: sid,
+          usuarioId: usuarioMov,
+          createdAt: serverTimestamp(),
+        });
+      }
+    }
+
+    const productosFs = patch.productos.map((p) => {
+      const nombre =
+        typeof p.productoNombre === 'string' && p.productoNombre.trim()
+          ? p.productoNombre.trim()
+          : p.producto?.nombre?.trim();
+      return {
+        id: p.id,
+        productId: p.productId,
+        ...(nombre ? { productoNombre: nombre } : {}),
+        cantidad: p.cantidad,
+        precioUnitario: p.precioUnitario,
+        descuento: p.descuento,
+        impuesto: p.impuesto,
+        subtotal: p.subtotal,
+        total: p.total,
+      };
+    });
+
+    transaction.update(sRef, {
+      productos: productosFs,
+      subtotal: patch.subtotal,
+      descuento: patch.descuento,
+      impuestos: patch.impuestos,
+      total: patch.total,
+      clienteId: patch.clienteId,
+      cliente: clientSnapshotToFirestorePayload(patch.cliente ?? null),
+      posResumeGlobalDiscount: patch.posResumeGlobalDiscount,
+      posResumeListaPrecios: patch.posResumeListaPrecios?.trim() || null,
+      updatedAt: serverTimestamp(),
+    });
+  });
 }
 
 /** Busca venta por folio diario (ej. V-20260322-0001) en la sucursal actual. */

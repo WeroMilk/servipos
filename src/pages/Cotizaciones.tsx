@@ -11,6 +11,10 @@ import {
   Printer,
   Trash2,
   RotateCcw,
+  ArrowDownWideNarrow,
+  Calendar,
+  ArrowDownAZ,
+  ArrowUpAZ,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -72,6 +76,69 @@ const statusLabels: Record<string, string> = {
   rechazada: 'Rechazada',
   vencida: 'Vencida',
   convertida: 'Ya Cobrada',
+};
+
+type CotizacionStatusFiltro = 'todas' | 'cobrada' | 'pendiente' | 'expirada';
+
+type CotizacionOrden =
+  | 'fecha-desc'
+  | 'fecha-asc'
+  | 'nombre-asc'
+  | 'nombre-desc';
+
+function vigenciaTs(q: Quotation): number {
+  const d = q.fechaVigencia;
+  return d instanceof Date ? d.getTime() : new Date(d as string).getTime();
+}
+
+function createdTs(q: Quotation): number {
+  const d = q.createdAt;
+  return d instanceof Date ? d.getTime() : new Date(d as string).getTime();
+}
+
+/** Incluye vencida/rechazada en sistema o vigencia pasada (pendiente/aceptada aún no marcadas). */
+function esCotizacionExpirada(q: Quotation): boolean {
+  if (q.estado === 'convertida') return false;
+  if (q.estado === 'vencida' || q.estado === 'rechazada') return true;
+  return vigenciaTs(q) < Date.now();
+}
+
+function coincideFiltroEstado(q: Quotation, filtro: CotizacionStatusFiltro): boolean {
+  if (filtro === 'todas') return true;
+  if (filtro === 'cobrada') return q.estado === 'convertida';
+  if (filtro === 'expirada') return esCotizacionExpirada(q);
+  return !esCotizacionExpirada(q) && q.estado !== 'convertida';
+}
+
+function nombreOrden(q: Quotation): string {
+  return (q.cliente?.nombre?.trim() || q.folio || '').toLocaleLowerCase('es');
+}
+
+function ordenarCotizaciones(list: Quotation[], orden: CotizacionOrden): Quotation[] {
+  const out = [...list];
+  switch (orden) {
+    case 'fecha-desc':
+      return out.sort((a, b) => createdTs(b) - createdTs(a));
+    case 'fecha-asc':
+      return out.sort((a, b) => createdTs(a) - createdTs(b));
+    case 'nombre-asc':
+      return out.sort((a, b) =>
+        nombreOrden(a).localeCompare(nombreOrden(b), 'es', { sensitivity: 'base' })
+      );
+    case 'nombre-desc':
+      return out.sort((a, b) =>
+        nombreOrden(b).localeCompare(nombreOrden(a), 'es', { sensitivity: 'base' })
+      );
+    default:
+      return out;
+  }
+}
+
+const ORDEN_LABELS: Record<CotizacionOrden, string> = {
+  'fecha-desc': 'Fecha: más reciente primero',
+  'fecha-asc': 'Fecha: más antigua primero',
+  'nombre-asc': 'Nombre: A → Z',
+  'nombre-desc': 'Nombre: Z → A',
 };
 
 function esc(s: string): string {
@@ -150,6 +217,8 @@ export function Cotizaciones() {
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [filtroEstado, setFiltroEstado] = useState<CotizacionStatusFiltro>('todas');
+  const [ordenCotizaciones, setOrdenCotizaciones] = useState<CotizacionOrden>('fecha-desc');
   const [productSearchQuery, setProductSearchQuery] = useState('');
 
   const [emailOpen, setEmailOpen] = useState(false);
@@ -335,13 +404,21 @@ export function Cotizaciones() {
     setProductSearchQuery('');
   };
 
-  const filteredQuotations = quotations.filter((q) => {
-    const sq = searchQuery.toLowerCase();
-    return (
-      q.folio.toLowerCase().includes(sq) ||
-      (q.cliente?.nombre?.toLowerCase() ?? '').includes(sq)
-    );
-  });
+  const filteredQuotations = useMemo(() => {
+    const sq = searchQuery.trim().toLowerCase();
+    return quotations.filter((q) => {
+      if (!sq) return true;
+      return (
+        q.folio.toLowerCase().includes(sq) ||
+        (q.cliente?.nombre?.toLowerCase() ?? '').includes(sq)
+      );
+    });
+  }, [quotations, searchQuery]);
+
+  const displayQuotations = useMemo(() => {
+    const porEstado = filteredQuotations.filter((q) => coincideFiltroEstado(q, filtroEstado));
+    return ordenarCotizaciones(porEstado, ordenCotizaciones);
+  }, [filteredQuotations, filtroEstado, ordenCotizaciones]);
 
   const openDetail = (q: Quotation) => {
     setSelectedQuotation(q);
@@ -367,14 +444,107 @@ export function Cotizaciones() {
         }
       >
         <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden sm:gap-3">
-          <div className="relative w-full min-w-0 shrink-0">
-            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-600 dark:text-slate-500 sm:left-3 sm:h-5 sm:w-5" />
-            <Input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Folio o cliente..."
-              className="h-9 w-full border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900/50 pl-9 text-sm text-slate-900 dark:text-slate-100 sm:h-10 sm:pl-10"
-            />
+          <div className="flex w-full min-w-0 shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+            <div className="relative min-w-0 flex-1">
+              <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-600 dark:text-slate-500 sm:left-3 sm:h-5 sm:w-5" />
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Folio o cliente..."
+                className="h-9 w-full border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900/50 pl-9 text-sm text-slate-900 dark:text-slate-100 sm:h-10 sm:pl-10"
+              />
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9 shrink-0 border-slate-200 bg-slate-50/90 dark:border-slate-800 dark:bg-slate-900/50 sm:h-10 sm:w-10"
+                  title={ORDEN_LABELS[ordenCotizaciones]}
+                  aria-label="Ordenar lista"
+                >
+                  <ArrowDownWideNarrow className="h-4 w-4 text-slate-700 dark:text-slate-300" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="min-w-[14rem] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
+              >
+                <DropdownMenuItem
+                  onClick={() => setOrdenCotizaciones('fecha-desc')}
+                  className={cn(
+                    'gap-2 text-slate-700 dark:text-slate-300',
+                    ordenCotizaciones === 'fecha-desc' && 'bg-cyan-500/15 text-cyan-800 dark:text-cyan-200'
+                  )}
+                >
+                  <Calendar className="h-4 w-4 shrink-0 opacity-70" />
+                  {ORDEN_LABELS['fecha-desc']}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setOrdenCotizaciones('fecha-asc')}
+                  className={cn(
+                    'gap-2 text-slate-700 dark:text-slate-300',
+                    ordenCotizaciones === 'fecha-asc' && 'bg-cyan-500/15 text-cyan-800 dark:text-cyan-200'
+                  )}
+                >
+                  <Calendar className="h-4 w-4 shrink-0 opacity-70" />
+                  {ORDEN_LABELS['fecha-asc']}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setOrdenCotizaciones('nombre-asc')}
+                  className={cn(
+                    'gap-2 text-slate-700 dark:text-slate-300',
+                    ordenCotizaciones === 'nombre-asc' && 'bg-cyan-500/15 text-cyan-800 dark:text-cyan-200'
+                  )}
+                >
+                  <ArrowDownAZ className="h-4 w-4 shrink-0 opacity-70" />
+                  {ORDEN_LABELS['nombre-asc']}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setOrdenCotizaciones('nombre-desc')}
+                  className={cn(
+                    'gap-2 text-slate-700 dark:text-slate-300',
+                    ordenCotizaciones === 'nombre-desc' && 'bg-cyan-500/15 text-cyan-800 dark:text-cyan-200'
+                  )}
+                >
+                  <ArrowUpAZ className="h-4 w-4 shrink-0 opacity-70" />
+                  {ORDEN_LABELS['nombre-desc']}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          <div
+            data-wheel-scroll-x="strip"
+            className="flex min-w-0 shrink-0 gap-1.5 overflow-x-auto pb-0.5 [-webkit-overflow-scrolling:touch] touch-pan-x sm:gap-2"
+            role="tablist"
+            aria-label="Filtrar por estado"
+          >
+            {(
+              [
+                { id: 'todas' as const, label: 'Todas' },
+                { id: 'cobrada' as const, label: 'Ya cobrada' },
+                { id: 'pendiente' as const, label: 'Pendiente' },
+                { id: 'expirada' as const, label: 'Expirada' },
+              ] as const
+            ).map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={filtroEstado === id}
+                onClick={() => setFiltroEstado(id)}
+                className={cn(
+                  'shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm',
+                  filtroEstado === id
+                    ? 'border-cyan-500/50 bg-cyan-500/15 text-cyan-800 dark:border-cyan-500/40 dark:bg-cyan-500/20 dark:text-cyan-200'
+                    : 'border-slate-200 bg-slate-100/80 text-slate-600 hover:border-slate-300 hover:bg-slate-200/80 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-400 dark:hover:border-slate-600 dark:hover:bg-slate-800'
+                )}
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
           <Card className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
@@ -388,10 +558,14 @@ export function Cotizaciones() {
                   <div className="flex justify-center py-8">
                     <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500/30 border-t-cyan-500" />
                   </div>
-                ) : filteredQuotations.length === 0 ? (
-                  <p className="py-8 text-center text-slate-600 dark:text-slate-500">No se encontraron cotizaciones</p>
+                ) : displayQuotations.length === 0 ? (
+                  <p className="px-2 py-8 text-center text-sm text-slate-600 dark:text-slate-500">
+                    {filteredQuotations.length === 0
+                      ? 'No se encontraron cotizaciones con ese criterio.'
+                      : 'No hay cotizaciones en esta categoría. Pruebe otra pestaña o quite el filtro de búsqueda.'}
+                  </p>
                 ) : (
-                  filteredQuotations.map((q) => (
+                  displayQuotations.map((q) => (
                     <div
                       key={q.id}
                       className="flex gap-1 rounded-xl border border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-950/40 p-1 transition-colors hover:border-slate-300 dark:border-slate-700"
@@ -477,14 +651,16 @@ export function Cotizaciones() {
                           <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-cyan-500/30 border-t-cyan-500" />
                         </TableCell>
                       </TableRow>
-                    ) : filteredQuotations.length === 0 ? (
+                    ) : displayQuotations.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={7} className="py-8 text-center text-slate-600 dark:text-slate-500">
-                          No se encontraron cotizaciones
+                          {filteredQuotations.length === 0
+                            ? 'No se encontraron cotizaciones con ese criterio.'
+                            : 'No hay cotizaciones en esta categoría.'}
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredQuotations.map((quotation) => (
+                      displayQuotations.map((quotation) => (
                         <TableRow key={quotation.id} className="border-slate-200/80 dark:border-slate-800/50">
                           <TableCell className="font-medium text-slate-800 dark:text-slate-200">{quotation.folio}</TableCell>
                           <TableCell className="max-w-[12rem] truncate text-slate-600 dark:text-slate-400">

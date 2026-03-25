@@ -1,15 +1,18 @@
 import {
+  arrayUnion,
   doc,
   getDoc,
+  increment,
   runTransaction,
   serverTimestamp,
   onSnapshot,
   type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { CajaSesion } from '@/types';
+import type { CajaRetiroEfectivo, CajaSesion } from '@/types';
 import {
   computeCajaEfectivoEsperado,
+  efectivoEsperadoMenosRetiros,
   filterVentasCompletadasSesion,
   resumenBrutoSesion,
 } from '@/lib/cajaResumen';
@@ -36,6 +39,27 @@ function firestoreTimestampToDate(value: unknown): Date {
   return new Date();
 }
 
+function parseRetirosEfectivoFirestore(raw: unknown): CajaRetiroEfectivo[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  const out: CajaRetiroEfectivo[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== 'object') continue;
+    const o = row as Record<string, unknown>;
+    const id = String(o.id ?? '');
+    const monto = Number(o.monto) || 0;
+    if (!id || monto <= 0) continue;
+    out.push({
+      id,
+      monto,
+      notas: o.notas != null && String(o.notas).trim() ? String(o.notas).trim() : undefined,
+      createdAt: firestoreTimestampToDate(o.createdAt),
+      usuarioId: String(o.usuarioId ?? ''),
+      usuarioNombre: String(o.usuarioNombre ?? ''),
+    });
+  }
+  return out.length > 0 ? out : undefined;
+}
+
 function mapCajaSesionDoc(
   sucursalId: string,
   sesionId: string,
@@ -45,6 +69,9 @@ function mapCajaSesionDoc(
     id: sesionId,
     estado: d.estado === 'cerrada' ? 'cerrada' : 'abierta',
     fondoInicial: Number(d.fondoInicial) || 0,
+    retirosEfectivoTotal:
+      d.retirosEfectivoTotal != null ? Number(d.retirosEfectivoTotal) || 0 : undefined,
+    retirosEfectivo: parseRetirosEfectivoFirestore(d.retirosEfectivo),
     openedAt: firestoreTimestampToDate(d.openedAt),
     openedByUserId: String(d.openedByUserId ?? ''),
     openedByNombre: String(d.openedByNombre ?? ''),
@@ -186,18 +213,27 @@ export async function closeCajaSessionFirestore(
   const sRef = cajaSesionRef(sucursalId, sid);
 
   await runTransaction(db, async (transaction) => {
+    // Firestore (SDK web/móvil): todas las lecturas deben ir antes de cualquier escritura.
     const sSnap = await transaction.get(sRef);
+    const estSnap = await transaction.get(estRef);
+
     if (!sSnap.exists()) throw new Error('Sesión de caja no encontrada');
     const data = sSnap.data() as Record<string, unknown>;
     if (data.estado !== 'abierta') throw new Error('Esta sesión de caja ya está cerrada');
 
     const fondo = Number(data.fondoInicial) || 0;
-    const { esperadoEnCaja } = computeCajaEfectivoEsperado(fondo, completadas);
+    const retirosTotal = Number(data.retirosEfectivoTotal) || 0;
+    const { esperadoEnCaja: esperadoBruto } = computeCajaEfectivoEsperado(fondo, completadas);
+    const esperadoEnCaja = efectivoEsperadoMenosRetiros(esperadoBruto, retirosTotal);
     const declarado = Number(input.conteoDeclarado);
     if (!Number.isFinite(declarado) || declarado < 0) {
       throw new Error('Indique un conteo de efectivo válido');
     }
     const diferencia = Math.round((declarado - esperadoEnCaja) * 100) / 100;
+
+    const curOpen = estSnap.exists()
+      ? String((estSnap.data() as Record<string, unknown>).sesionAbiertaId ?? '').trim()
+      : '';
 
     transaction.update(sRef, {
       estado: 'cerrada',
@@ -213,10 +249,6 @@ export async function closeCajaSessionFirestore(
       updatedAt: serverTimestamp(),
     });
 
-    const estSnap = await transaction.get(estRef);
-    const curOpen = estSnap.exists()
-      ? String((estSnap.data() as Record<string, unknown>).sesionAbiertaId ?? '').trim()
-      : '';
     if (curOpen === sid) {
       transaction.set(
         estRef,
@@ -238,4 +270,44 @@ export async function getCajaSesionFirestore(
   const snap = await getDoc(cajaSesionRef(sucursalId, sesionId.trim()));
   if (!snap.exists()) return null;
   return mapCajaSesionDoc(sucursalId, snap.id, snap.data() as Record<string, unknown>);
+}
+
+/** Registra retiro de efectivo del cajón (sesión abierta). Actualiza totales para el cierre de caja. */
+export async function registrarRetiroEfectivoFirestore(
+  sucursalId: string,
+  sesionId: string,
+  input: {
+    monto: number;
+    notas?: string;
+    usuarioId: string;
+    usuarioNombre: string;
+  }
+): Promise<void> {
+  const sid = sesionId.trim();
+  if (!sid) throw new Error('Sesión inválida');
+  const monto = Math.round(Math.max(0, Number(input.monto) || 0) * 100) / 100;
+  if (monto <= 0) throw new Error('Indique un monto mayor a cero');
+
+  const sRef = cajaSesionRef(sucursalId, sid);
+  const item = {
+    id: crypto.randomUUID(),
+    monto,
+    notas: input.notas?.trim() || null,
+    createdAt: serverTimestamp(),
+    usuarioId: input.usuarioId,
+    usuarioNombre: input.usuarioNombre.trim() || 'Usuario',
+  };
+
+  await runTransaction(db, async (transaction) => {
+    const sSnap = await transaction.get(sRef);
+    if (!sSnap.exists()) throw new Error('Sesión de caja no encontrada');
+    const d = sSnap.data() as Record<string, unknown>;
+    if (d.estado !== 'abierta') throw new Error('La caja no está abierta; no se puede registrar el retiro');
+
+    transaction.update(sRef, {
+      retirosEfectivoTotal: increment(monto),
+      retirosEfectivo: arrayUnion(item),
+      updatedAt: serverTimestamp(),
+    });
+  });
 }

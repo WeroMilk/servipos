@@ -22,9 +22,11 @@ import {
   fetchSalesByCajaSesion,
   fetchSalesForMexicoDateKey,
 } from '@/lib/firestore/salesFirestore';
+import { registrarRetiroEfectivoFirestore } from '@/lib/firestore/cajaFirestore';
 import { getSalesByDateRange } from '@/db/database';
 import {
   computeCajaEfectivoEsperado,
+  efectivoEsperadoMenosRetiros,
   filterVentasCompletadasSesion,
   lineasMediosPagoSesion,
   resumenBrutoSesion,
@@ -32,6 +34,7 @@ import {
 } from '@/lib/cajaResumen';
 import type { Sale } from '@/types';
 import { FirebaseError } from 'firebase/app';
+import { useCajaLocalStore } from '@/stores/cajaLocalStore';
 
 function cajaFirestoreUserMessage(e: unknown): string {
   if (e instanceof FirebaseError && e.code === 'permission-denied') {
@@ -58,6 +61,7 @@ export type CajaPosToolbarHandle = {
   openAbrirCajaDialog: () => void;
   openCerrarCajaDialog: () => void;
   openArqueoDialog: () => void;
+  openRetiroEfectivoDialog: () => void;
 };
 
 async function ventasDelDiaCalendario(
@@ -86,9 +90,12 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
   const [openDialog, setOpenDialog] = useState(false);
   const [closeDialog, setCloseDialog] = useState(false);
   const [arqueoDialog, setArqueoDialog] = useState(false);
+  const [retiroDialog, setRetiroDialog] = useState(false);
   const [fondoInput, setFondoInput] = useState('0');
   const [conteoInput, setConteoInput] = useState('');
   const [notasCierre, setNotasCierre] = useState('');
+  const [retiroMontoInput, setRetiroMontoInput] = useState('');
+  const [retiroNotas, setRetiroNotas] = useState('');
   const [busy, setBusy] = useState(false);
 
   const ventasSesion = useMemo(
@@ -99,12 +106,22 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
   const previewCierre = useMemo(() => {
     if (!activa) return null;
     const completadas = filterVentasCompletadasSesion(ventasSesion);
-    const { esperadoEnCaja, efectivoCobrado, cambioEntregado } = computeCajaEfectivoEsperado(
+    const { esperadoEnCaja: esperadoBruto, efectivoCobrado, cambioEntregado } = computeCajaEfectivoEsperado(
       activa.fondoInicial,
       completadas
     );
+    const retirosTotal = activa.retirosEfectivoTotal ?? 0;
+    const esperadoEnCaja = efectivoEsperadoMenosRetiros(esperadoBruto, retirosTotal);
     const { tickets, total } = resumenBrutoSesion(ventasSesion);
-    return { esperadoEnCaja, efectivoCobrado, cambioEntregado, tickets, total };
+    return {
+      esperadoEnCaja,
+      esperadoBruto,
+      retirosTotal,
+      efectivoCobrado,
+      cambioEntregado,
+      tickets,
+      total,
+    };
   }, [activa, ventasSesion]);
 
   const previewRef = useRef(previewCierre);
@@ -131,6 +148,12 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
         if (!activa) return;
         setArqueoDialog(true);
       },
+      openRetiroEfectivoDialog: () => {
+        if (!activa) return;
+        setRetiroMontoInput('');
+        setRetiroNotas('');
+        setRetiroDialog(true);
+      },
     }),
     [activa]
   );
@@ -155,6 +178,12 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
           <p className="mt-2 text-xs tabular-nums text-emerald-900/80 dark:text-emerald-300/90 lg:mt-1 lg:text-[10px] lg:leading-tight">
             {formatMoney(activa.fondoInicial)} (fondo) + {formatMoney(previewCierre.efectivoCobrado)} (cobros
             efectivo) − {formatMoney(previewCierre.cambioEntregado)} (cambio)
+            {previewCierre.retirosTotal > 0.005 ? (
+              <>
+                {' '}
+                − {formatMoney(previewCierre.retirosTotal)} (retiros)
+              </>
+            ) : null}
           </p>
         </div>
         <div className="rounded-xl border-2 border-cyan-500/50 bg-cyan-500/[0.12] p-4 dark:border-cyan-500/40 dark:bg-cyan-950/40 lg:rounded-lg lg:p-2.5">
@@ -208,6 +237,53 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
     }
   };
 
+  const handleRegistrarRetiro = async () => {
+    if (!activa || !previewCierre) return;
+    const monto = parseFloat(retiroMontoInput.replace(',', '.'));
+    if (!Number.isFinite(monto) || monto <= 0) {
+      addToast({ type: 'error', message: 'Ingrese un monto válido mayor a cero' });
+      return;
+    }
+    const disponible = previewCierre.esperadoEnCaja;
+    const mRounded = Math.round(monto * 100) / 100;
+    if (mRounded > disponible + 0.005) {
+      addToast({
+        type: 'error',
+        message: `No puede retirar más del efectivo disponible en caja (${formatMoney(disponible)}).`,
+      });
+      return;
+    }
+    setBusy(true);
+    try {
+      if (isCloud && effectiveSucursalId) {
+        await registrarRetiroEfectivoFirestore(effectiveSucursalId, activa.id, {
+          monto: mRounded,
+          notas: retiroNotas.trim() || undefined,
+          usuarioId: userId,
+          usuarioNombre: userNombre,
+        });
+      } else {
+        useCajaLocalStore.getState().addRetiroEfectivo({
+          monto: mRounded,
+          notas: retiroNotas.trim() || undefined,
+          usuarioId: userId,
+          usuarioNombre: userNombre,
+        });
+      }
+      addToast({ type: 'success', message: `Retiro registrado: ${formatMoney(mRounded)}` });
+      setRetiroDialog(false);
+      setRetiroMontoInput('');
+      setRetiroNotas('');
+    } catch (e: unknown) {
+      addToast({
+        type: 'error',
+        message: cajaFirestoreUserMessage(e),
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleClose = async () => {
     if (!activa) return;
     const declarado = parseFloat(conteoInput.replace(',', '.'));
@@ -238,7 +314,9 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
       }
 
       const completadas = filterVentasCompletadasSesion(ventasPrint);
-      const { esperadoEnCaja } = computeCajaEfectivoEsperado(activa.fondoInicial, completadas);
+      const { esperadoEnCaja: esperadoBruto } = computeCajaEfectivoEsperado(activa.fondoInicial, completadas);
+      const retirosTotal = activa.retirosEfectivoTotal ?? 0;
+      const esperadoEnCaja = efectivoEsperadoMenosRetiros(esperadoBruto, retirosTotal);
       const { tickets, total } = resumenBrutoSesion(ventasPrint);
       const diferencia = Math.round((declarado - esperadoEnCaja) * 100) / 100;
 
@@ -256,6 +334,7 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
         cerradaPor: userNombre,
         aperturaLabel: formatInAppTimezone(activa.openedAt, { dateStyle: 'short', timeStyle: 'short' }),
         cierreLabel: formatInAppTimezone(new Date(), { dateStyle: 'short', timeStyle: 'short' }),
+        retirosEfectivoTotal: retirosTotal > 0.005 ? retirosTotal : undefined,
         ticketKind: 'cierre',
       });
 
@@ -283,7 +362,9 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
   const imprimirArqueoYReporteDia = async () => {
     if (!activa || !previewCierre) return;
     const completadas = filterVentasCompletadasSesion(ventasSesion);
-    const { esperadoEnCaja } = computeCajaEfectivoEsperado(activa.fondoInicial, completadas);
+    const { esperadoEnCaja: esperadoBruto } = computeCajaEfectivoEsperado(activa.fondoInicial, completadas);
+    const retirosTotal = activa.retirosEfectivoTotal ?? 0;
+    const esperadoEnCaja = efectivoEsperadoMenosRetiros(esperadoBruto, retirosTotal);
     const { tickets, total } = resumenBrutoSesion(ventasSesion);
     const ahora = new Date();
     printThermalCajaCierre({
@@ -300,6 +381,7 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
       cerradaPor: userNombre,
       aperturaLabel: formatInAppTimezone(activa.openedAt, { dateStyle: 'short', timeStyle: 'short' }),
       cierreLabel: formatInAppTimezone(ahora, { dateStyle: 'short', timeStyle: 'short' }),
+      retirosEfectivoTotal: retirosTotal > 0.005 ? retirosTotal : undefined,
       ticketKind: 'arqueo_previo',
     });
     const ventasDia = await ventasDelDiaCalendario(isCloud, effectiveSucursalId ?? null);
@@ -548,6 +630,59 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
             </Button>
             <Button type="button" onClick={() => void imprimirArqueoYReporteDia()}>
               Imprimir arqueo y reporte del día
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={retiroDialog} onOpenChange={setRetiroDialog}>
+        <DialogContent className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Retiro de efectivo</DialogTitle>
+            <DialogDescription className="text-left text-slate-600 dark:text-slate-400">
+              Registre el efectivo que sale de caja (p. ej. excedente o depósito). El sistema resta el monto del
+              efectivo esperado en cajón hasta el cierre.
+            </DialogDescription>
+          </DialogHeader>
+          {activa && previewCierre ? (
+            <div className="space-y-3 py-2 text-sm">
+              <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-emerald-950 dark:border-emerald-500/25 dark:bg-emerald-950/30 dark:text-emerald-100">
+                <span className="font-medium">Disponible para retirar:</span>{' '}
+                <span className="tabular-nums font-semibold">{formatMoney(previewCierre.esperadoEnCaja)}</span>
+              </p>
+              <div className="space-y-2">
+                <Label>Monto a retirar</Label>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  value={retiroMontoInput}
+                  onChange={(e) => setRetiroMontoInput(e.target.value)}
+                  placeholder="0.00"
+                  className="border-slate-300 dark:border-slate-700 dark:bg-slate-800"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Notas (opcional)</Label>
+                <Input
+                  value={retiroNotas}
+                  onChange={(e) => setRetiroNotas(e.target.value)}
+                  placeholder="Motivo o referencia"
+                  className="border-slate-300 dark:border-slate-700 dark:bg-slate-800"
+                />
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setRetiroDialog(false)}
+              disabled={busy}
+            >
+              Cancelar
+            </Button>
+            <Button type="button" disabled={busy} onClick={() => void handleRegistrarRetiro()}>
+              {busy ? 'Registrando…' : 'Confirmar retiro'}
             </Button>
           </DialogFooter>
         </DialogContent>

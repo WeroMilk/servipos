@@ -6,6 +6,7 @@ import {
   FileText,
   Receipt,
   Users,
+  Wallet,
   Settings,
   Clock,
 } from 'lucide-react';
@@ -54,6 +55,13 @@ export const MAIN_NAV_ITEMS: MainNavItem[] = [
   },
   { to: '/facturas', icon: Receipt, label: 'Facturación', shortLabel: 'Fact.', permission: 'facturas:ver' },
   { to: '/clientes', icon: Users, label: 'Clientes', shortLabel: 'Cli.', permission: 'ventas:ver' },
+  {
+    to: '/cuentas-por-cobrar',
+    icon: Wallet,
+    label: 'Cuentas por cobrar',
+    shortLabel: 'CxC',
+    permission: 'ventas:ver',
+  },
   {
     to: '/configuracion',
     icon: Settings,

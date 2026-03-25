@@ -61,10 +61,11 @@ import {
   getProductById,
   findQuotationByLast4Folio,
   markQuotationConvertedWithSale,
+  updatePendingOpenSale,
 } from '@/db/database';
 import { getProductCatalogSnapshot } from '@/lib/firestore/productsFirestore';
 import {
-  cartMatchesOpenSale,
+  buildPendingSaleLineItemsFromCart,
   clientFromSaleForPos,
   parseResumeListaPreciosId,
 } from '@/lib/posOpenSaleResume';
@@ -124,6 +125,8 @@ type PosTicketSnapshot = {
   impuestos: number;
   total: number;
   cambio: number;
+  /** Importe que quedó a cuenta del cliente (venta PPD con pago parcial o sin pago). */
+  adeudoPendiente?: number;
   sucursalId?: string;
   /** Folio de venta (ej. V-YYYYMMDD-0001) para ticket y referencia al facturar. */
   folio?: string;
@@ -158,6 +161,8 @@ export function POS() {
         if (!cajaSesion.activa) cajaToolbarRef.current?.openAbrirCajaDialog();
         else cajaToolbarRef.current?.openCerrarCajaDialog();
       },
+      retiroEfectivoVisible: Boolean(cajaSesion.activa),
+      onRetiroEfectivo: () => cajaToolbarRef.current?.openRetiroEfectivoDialog(),
     });
     return () => clearCajaPosHeaderBridge();
   }, [hasPermission, cajaSesion.activa, cajaSesion.loading]);
@@ -268,8 +273,88 @@ export function POS() {
   }, [hasPermission, ventasAbiertas]);
 
   const [openSaleResume, setOpenSaleResume] = useState<{ sale: Sale } | null>(null);
+  const openSaleResumeRef = useRef<{ sale: Sale } | null>(null);
+  openSaleResumeRef.current = openSaleResume;
   const [dejarAbiertaBusy, setDejarAbiertaBusy] = useState(false);
   const [resumeOpenBusy, setResumeOpenBusy] = useState(false);
+
+  const persistOpenSaleEdits = useCallback(async (): Promise<Sale | null> => {
+    const resume = openSaleResumeRef.current;
+    if (!resume?.sale || resume.sale.estado !== 'pendiente') return null;
+    const cartState = useCartStore.getState();
+    if (cartState.items.length === 0) return null;
+
+    const productos = buildPendingSaleLineItemsFromCart(
+      cartState.items,
+      cartState.precioClienteListaId
+    );
+    const subtotal = cartState.getSubtotal();
+    const descuento = cartState.getDescuento();
+    const impuestos = cartState.getImpuestos();
+    const total = cartState.getTotal();
+    const clienteId = cartState.client?.id ?? 'mostrador';
+    const clienteEmbed =
+      cartState.client &&
+      !cartState.client.isMostrador &&
+      cartState.client.id !== 'mostrador'
+        ? cartState.client
+        : undefined;
+
+    await updatePendingOpenSale(
+      resume.sale.id,
+      {
+        productos,
+        subtotal,
+        descuento,
+        impuestos,
+        total,
+        clienteId,
+        cliente: clienteEmbed,
+        posResumeGlobalDiscount: cartState.discount,
+        posResumeListaPrecios: cartState.precioClienteListaId,
+      },
+      { sucursalId: effectiveSucursalId ?? undefined }
+    );
+
+    const nextSale: Sale = {
+      ...resume.sale,
+      productos,
+      subtotal,
+      descuento,
+      impuestos,
+      total,
+      clienteId,
+      cliente: clienteEmbed,
+      posResumeGlobalDiscount: cartState.discount,
+      posResumeListaPrecios: cartState.precioClienteListaId,
+      updatedAt: new Date(),
+    };
+    setOpenSaleResume({ sale: nextSale });
+    return nextSale;
+  }, [effectiveSucursalId]);
+
+  useEffect(() => {
+    if (!openSaleResume?.sale || openSaleResume.sale.estado !== 'pendiente') return;
+    const t = window.setTimeout(() => {
+      void persistOpenSaleEdits().catch((err: unknown) => {
+        addToast({
+          type: 'error',
+          message:
+            err instanceof Error ? err.message : 'No se pudieron guardar los cambios de la venta abierta',
+        });
+      });
+    }, 500);
+    return () => window.clearTimeout(t);
+  }, [
+    items,
+    discount,
+    precioClienteListaId,
+    client,
+    openSaleResume?.sale?.id,
+    openSaleResume?.sale?.estado,
+    persistOpenSaleEdits,
+    addToast,
+  ]);
 
   const formasPagoPosEffective = useMemo(() => {
     if (openSaleResume) {
@@ -333,6 +418,12 @@ export function POS() {
   const subtotalCobro = esTraspasoTienda ? 0 : subtotalVenta;
   const impuestosCobro = esTraspasoTienda ? 0 : impuestosVenta;
   const descuentoCobro = esTraspasoTienda ? 0 : descuentoVenta;
+
+  /** PPD + cliente registrado: permite cobrar menos del total (saldo en cuenta del cliente). */
+  const puedeVentaConSaldoPendiente =
+    !esTraspasoTienda &&
+    metodoPago === 'PPD' &&
+    Boolean(client?.id && client.id !== 'mostrador' && !client.isMostrador);
 
   const labelFormaPago = (clave: string) =>
     formasPagoPos.find((fp) => fp.clave === clave)?.descripcion ?? clave;
@@ -573,14 +664,6 @@ export function POS() {
   };
 
   const handleAddProduct = (product: Product) => {
-    if (openSaleResume) {
-      addToast({
-        type: 'warning',
-        message:
-          'No agregue productos mientras retoma una venta abierta. Use «Salir sin cobrar (venta abierta)» si necesita otro ticket.',
-      });
-      return;
-    }
     try {
       addItem(product, 1);
       setSearchQuery('');
@@ -1043,7 +1126,8 @@ export function POS() {
       }
       pagosParaVenta = [{ formaPago, monto: totalCobro, referencia: d4 }];
     } else if (!esTraspasoTienda) {
-      if (getTotalPagado() < totalCobro) {
+      const permiteDeuda = puedeVentaConSaldoPendiente;
+      if (!permiteDeuda && getTotalPagado() < totalCobro) {
         addToast({ type: 'error', message: 'El pago es insuficiente' });
         return;
       }
@@ -1064,6 +1148,13 @@ export function POS() {
         }
       }
     }
+
+    const sumPagosCobro = esTraspasoTienda
+      ? 0
+      : pagosParaVenta.reduce((s, p) => s + (Number(p.monto) || 0), 0);
+    const adeudoTicket = esTraspasoTienda
+      ? 0
+      : Math.max(0, Math.round((totalCobro - sumPagosCobro) * 100) / 100);
 
     if (formaPago === 'TTS') {
       if (!isAdmin) {
@@ -1091,21 +1182,17 @@ export function POS() {
         user?.name?.trim() || user?.username?.trim() || user?.email?.trim() || undefined;
 
       if (openSaleResume?.sale) {
-        const pend = openSaleResume.sale;
-        if (!cartMatchesOpenSale(pend, items, precioClienteListaId)) {
-          addToast({
-            type: 'error',
-            message:
-              'El carrito no coincide con la venta abierta. Use «Salir sin cobrar (venta abierta)» o retome desde la lista.',
-          });
-          return;
-        }
-        if (Math.abs(totalVenta - (Number(pend.total) || 0)) > 0.08) {
-          addToast({
-            type: 'error',
-            message: 'El total no coincide con la venta abierta.',
-          });
-          return;
+        let pend = openSaleResume.sale;
+        if (pend.estado === 'pendiente') {
+          const saved = await persistOpenSaleEdits();
+          if (!saved) {
+            addToast({
+              type: 'error',
+              message: 'No se pudo guardar la venta abierta antes de cobrar.',
+            });
+            return;
+          }
+          pend = saved;
         }
         const cambioAbierta = cobroTarjetaPueLocal ? 0 : getCambio();
         const pagosCompletacion: Payment[] = pagosParaVenta.map((p) => ({
@@ -1154,6 +1241,7 @@ export function POS() {
           impuestos: impuestosCobro,
           total: totalCobro,
           cambio: cambioAbierta,
+          adeudoPendiente: adeudoTicket > 0 ? adeudoTicket : undefined,
           sucursalId: effectiveSucursalId,
           folio: pend.folio?.trim() || undefined,
           notas: pend.notas ? String(pend.notas) : undefined,
@@ -1162,7 +1250,13 @@ export function POS() {
         setOpenSaleResume(null);
         clearCart();
         setCheckoutPhase('success');
-        addToast({ type: 'success', message: 'Cobro registrado. Venta completada.' });
+        addToast({
+          type: 'success',
+          message:
+            adeudoTicket > 0.005
+              ? `Cobro registrado. Saldo pendiente del cliente: ${formatMoney(adeudoTicket)} (ver Cuentas por cobrar).`
+              : 'Cobro registrado. Venta completada.',
+        });
         return;
       }
 
@@ -1270,6 +1364,7 @@ export function POS() {
         impuestos: impuestosCobro,
         total: totalCobro,
         cambio: cambioVentaFinal,
+        adeudoPendiente: adeudoTicket > 0 ? adeudoTicket : undefined,
         sucursalId: effectiveSucursalId,
         folio: folioVenta?.trim() || undefined,
         notas: saleData.notas?.trim() ? String(saleData.notas) : undefined,
@@ -1279,7 +1374,13 @@ export function POS() {
       // Mismo portal de diálogo: pasar a "success" evita dos Dialog de Radix a la vez (insertBefore/removeChild).
       setCheckoutPhase('success');
 
-      addToast({ type: 'success', message: 'Venta completada exitosamente' });
+      addToast({
+        type: 'success',
+        message:
+          adeudoTicket > 0.005
+            ? `Venta completada. Saldo a cuenta del cliente: ${formatMoney(adeudoTicket)}. Consulte Cuentas por cobrar.`
+            : 'Venta completada exitosamente',
+      });
     } catch (error: unknown) {
       addToast({
         type: 'error',
@@ -1335,6 +1436,7 @@ export function POS() {
       impuestos: snap.impuestos,
       total: snap.total,
       cambio: snap.cambio,
+      adeudoPendiente: snap.adeudoPendiente,
       notas: snap.notas,
       resumenPagos: snap.resumenPagos,
     });
@@ -1373,8 +1475,8 @@ export function POS() {
             <Clock className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400 sm:mt-0" />
             <p className="text-xs leading-snug text-amber-950 dark:text-amber-100 sm:text-sm">
               Retomando venta abierta{' '}
-              <span className="font-mono font-semibold">{openSaleResume.sale.folio}</span>. Registre el pago y
-              pulse Cobrar. No cambie productos ni cantidades.
+              <span className="font-mono font-semibold">{openSaleResume.sale.folio}</span>. Puede editar líneas; los
+              cambios se guardan al poco tiempo. Registre el pago y pulse Cobrar.
             </p>
           </div>
           <Button
@@ -1733,6 +1835,14 @@ export function POS() {
                     </span>
                   </div>
                 </div>
+                {puedeVentaConSaldoPendiente &&
+                totalCobro > 0 &&
+                totalPagadoVenta + 0.004 < totalCobro ? (
+                  <p className="text-[10px] font-medium text-amber-700 dark:text-amber-400 sm:text-xs">
+                    En Cobrar podrá completar con saldo pendiente:{' '}
+                    {formatMoney(Math.max(0, totalCobro - totalPagadoVenta))}
+                  </p>
+                ) : null}
                 {esTraspasoTienda ? (
                   <p className="text-[10px] text-cyan-500/90 sm:text-xs">
                     Traspaso entre tiendas: cobro $0 (solo administrador). El stock se descuenta en esta
@@ -1953,6 +2063,30 @@ export function POS() {
                   </Select>
                 </div>
 
+                {metodoPago === 'PPD' &&
+                client &&
+                client.id !== 'mostrador' &&
+                !client.isMostrador &&
+                !esTraspasoTienda &&
+                !esFormaDevolucion &&
+                !esFormaCotizacion ? (
+                  <p className="text-[10px] leading-snug text-slate-600 dark:text-slate-400 sm:text-xs">
+                    Con <span className="font-medium">Parcialidades (PPD)</span> puede registrar un pago menor al
+                    total o ninguno: el faltante queda en la cuenta del cliente (Cuentas por cobrar). Use{' '}
+                    <span className="font-medium">Una exhibición (PUE)</span> si cobra el importe completo al
+                    momento.
+                  </p>
+                ) : null}
+                {metodoPago === 'PPD' &&
+                (!client || client.isMostrador || client.id === 'mostrador') &&
+                !esTraspasoTienda &&
+                !esFormaDevolucion &&
+                !esFormaCotizacion ? (
+                  <p className="text-[10px] leading-snug text-amber-700 dark:text-amber-400 sm:text-xs">
+                    Para dejar saldo a cuenta elija un cliente registrado (no Mostrador).
+                  </p>
+                ) : null}
+
                 {!esFormaDevolucion && !esFormaCotizacion ? (
                   <div className="grid gap-3 lg:grid-cols-2 lg:gap-2">
                     <div className="space-y-1 lg:space-y-0.5">
@@ -2172,6 +2306,16 @@ export function POS() {
                   </p>
                 </div>
 
+                {!checkoutDevolucionListo &&
+                puedeVentaConSaldoPendiente &&
+                montoDialogoPrincipal > 0 &&
+                totalPagadoVenta + 0.004 < montoDialogoPrincipal ? (
+                  <p className="text-center text-xs font-medium text-amber-700 dark:text-amber-400">
+                    Quedará a cuenta del cliente:{' '}
+                    {formatMoney(Math.max(0, montoDialogoPrincipal - totalPagadoVenta))}
+                  </p>
+                ) : null}
+
                 {checkoutDevolucionListo ? (
                   <p className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-3 text-center text-xs leading-relaxed text-slate-600 dark:text-slate-400 sm:text-sm">
                     Al confirmar, el ticket original quedará como cancelado por devolución, el inventario se
@@ -2215,8 +2359,10 @@ export function POS() {
                           </SelectContent>
                         </Select>
                         <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-500 sm:text-xs">
-                          Parcialidades: registre cada cobro (varias tarjetas, efectivo + tarjeta, etc.). El total
-                          abonado debe cubrir el importe mostrado arriba.
+                          Parcialidades: registre cada cobro (varias tarjetas, efectivo + tarjeta, etc.).
+                          {puedeVentaConSaldoPendiente ?
+                            ' Con cliente registrado puede dejar saldo pendiente (menos del total o sin pago).'
+                          : ' El total abonado debe cubrir el importe mostrado arriba.'}
                         </p>
                       </div>
                     ) : null}
@@ -2363,7 +2509,9 @@ export function POS() {
                       ? false
                       : cobroTarjetaPue
                         ? digitos4TarjetaPendiente().length !== 4
-                        : totalPagadoVenta < totalCobro)
+                        : puedeVentaConSaldoPendiente
+                          ? false
+                          : totalPagadoVenta < totalCobro)
                   }
                   className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white sm:w-auto"
                 >
@@ -2408,6 +2556,13 @@ export function POS() {
                     Cambio: {formatMoney(ticketSnapshot?.cambio ?? 0)}
                   </p>
                 )}
+                {!ticketSnapshot?.modoDevolucion &&
+                ticketSnapshot?.adeudoPendiente != null &&
+                ticketSnapshot.adeudoPendiente > 0.004 ? (
+                  <p className="mt-2 text-sm font-semibold text-amber-700 dark:text-amber-400">
+                    Saldo pendiente en cuenta: {formatMoney(ticketSnapshot.adeudoPendiente)}
+                  </p>
+                ) : null}
               </div>
 
               <div className="flex flex-col gap-2 sm:flex-row">

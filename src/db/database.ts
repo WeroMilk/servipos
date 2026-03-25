@@ -6,7 +6,8 @@ import type {
   InventoryMovement, 
   PurchaseOrder,
   Client, 
-  Sale, 
+  Sale,
+  SaleItem,
   Quotation, 
   Invoice, 
   SyncLog 
@@ -20,11 +21,14 @@ import {
   getSaleByIdFirestore,
   getSaleByFolioFirestore,
   fetchSalesByClienteIdFirestore,
+  updatePendingOpenSaleFirestore,
 } from '@/lib/firestore/salesFirestore';
 import { fetchInventoryMovementsByProductIdFirestore } from '@/lib/firestore/inventoryMovementsFirestore';
 import { updateClientFirestore } from '@/lib/firestore/clientsFirestore';
 import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
 import { getDefaultSucursalIdForNewData } from '@/lib/sucursales';
+import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
+import { saleItemsQtyByProductId } from '@/lib/posOpenSaleResume';
 
 const MOSTRADOR_CLIENT_ID = 'mostrador';
 
@@ -597,6 +601,10 @@ export async function createSale(
     const { id, folio } = await createSaleFirestore(options.sucursalId, sale);
     if (sale.estado !== 'pendiente') {
       await adjustClientTicketCount(sale.clienteId, 1, { sucursalId: options.sucursalId });
+      const adeudo = computeSaleClienteAdeudo({ ...sale, estado: sale.estado });
+      if (adeudo > 0) {
+        await adjustClientSaldoAdeudado(sale.clienteId, adeudo, { sucursalId: options.sucursalId });
+      }
     }
     return { id, folio };
   }
@@ -627,8 +635,86 @@ export async function createSale(
 
   if (sale.estado !== 'pendiente') {
     await adjustClientTicketCount(sale.clienteId, 1);
+    const adeudo = computeSaleClienteAdeudo({ ...sale, estado: sale.estado });
+    if (adeudo > 0) {
+      await adjustClientSaldoAdeudado(sale.clienteId, adeudo);
+    }
   }
   return { id: id as string, folio };
+}
+
+export type PendingOpenSalePatch = {
+  productos: SaleItem[];
+  subtotal: number;
+  descuento: number;
+  impuestos: number;
+  total: number;
+  clienteId: string;
+  cliente?: Client;
+  posResumeGlobalDiscount: number;
+  posResumeListaPrecios: string;
+};
+
+/** Persiste cambios del carrito en una venta `pendiente` (ajuste de stock por diferencia de cantidades). */
+export async function updatePendingOpenSale(
+  saleId: string,
+  patch: PendingOpenSalePatch,
+  options?: { sucursalId?: string }
+): Promise<void> {
+  const sidCloud = options?.sucursalId?.trim();
+  if (sidCloud) {
+    await updatePendingOpenSaleFirestore(sidCloud, saleId, patch);
+    return;
+  }
+
+  const row = await db.sales.get(saleId);
+  if (!row) throw new Error('Venta no encontrada');
+  if (row.estado !== 'pendiente') throw new Error('Solo se pueden editar ventas abiertas');
+  if (row.facturaId) throw new Error('No se puede editar una venta ya vinculada a factura');
+
+  const oldMap = saleItemsQtyByProductId(row.productos ?? []);
+  const newMap = saleItemsQtyByProductId(patch.productos);
+  const allIds = new Set<string>([...oldMap.keys(), ...newMap.keys()]);
+
+  for (const pid of allIds) {
+    const delta = (newMap.get(pid) ?? 0) - (oldMap.get(pid) ?? 0);
+    if (delta === 0) continue;
+    if (delta > 0) {
+      await updateStockUnified(
+        undefined,
+        pid,
+        delta,
+        'salida',
+        'Ajuste por edición de venta abierta',
+        saleId,
+        row.usuarioId
+      );
+    } else {
+      await updateStockUnified(
+        undefined,
+        pid,
+        -delta,
+        'entrada',
+        'Ajuste por edición de venta abierta',
+        saleId,
+        row.usuarioId
+      );
+    }
+  }
+
+  await db.sales.update(saleId, {
+    productos: patch.productos,
+    subtotal: patch.subtotal,
+    descuento: patch.descuento,
+    impuestos: patch.impuestos,
+    total: patch.total,
+    clienteId: patch.clienteId,
+    cliente: patch.cliente,
+    posResumeGlobalDiscount: patch.posResumeGlobalDiscount,
+    posResumeListaPrecios: patch.posResumeListaPrecios,
+    updatedAt: new Date(),
+    syncStatus: 'pending',
+  });
 }
 
 /** Cierra cobro de venta `pendiente` (inventario ya salió al crearla). */
@@ -653,6 +739,10 @@ export async function completePendingSale(
     const updated = await getSaleByIdFirestore(sucursalId, id);
     if (updated?.clienteId && updated.clienteId !== MOSTRADOR_CLIENT_ID) {
       await adjustClientTicketCount(updated.clienteId, 1, { sucursalId });
+      const adeudo = computeSaleClienteAdeudo(updated);
+      if (adeudo > 0) {
+        await adjustClientSaldoAdeudado(updated.clienteId, adeudo, { sucursalId });
+      }
     }
     return;
   }
@@ -697,6 +787,12 @@ export async function completePendingSale(
     patch.clienteId !== undefined ? patch.clienteId : sale.clienteId;
   if (clienteIdTickets && clienteIdTickets !== MOSTRADOR_CLIENT_ID) {
     await adjustClientTicketCount(clienteIdTickets, 1);
+    const total = Number(sale.total) || 0;
+    const paid = patch.pagos.reduce((s, p) => s + (Number(p.monto) || 0), 0);
+    const adeudo = Math.max(0, Math.round((total - paid) * 100) / 100);
+    if (adeudo > 0) {
+      await adjustClientSaldoAdeudado(clienteIdTickets, adeudo);
+    }
   }
 }
 
@@ -723,6 +819,10 @@ export async function cancelSale(
       prev.clienteId !== MOSTRADOR_CLIENT_ID
     ) {
       await adjustClientTicketCount(prev.clienteId, -1, { sucursalId });
+      const adeudoRev = computeSaleClienteAdeudo(prev);
+      if (adeudoRev > 0) {
+        await adjustClientSaldoAdeudado(prev.clienteId, -adeudoRev, { sucursalId });
+      }
     }
     return;
   }
@@ -731,6 +831,11 @@ export async function cancelSale(
   if (!sale) throw new Error('Venta no encontrada');
   if (sale.estado === 'cancelada') throw new Error('La venta ya está cancelada');
   if (sale.facturaId) throw new Error('No se puede cancelar una venta facturada');
+
+  const adeudoAlCancelar =
+    sale.estado === 'completada' || sale.estado === 'facturada'
+      ? computeSaleClienteAdeudo(sale)
+      : 0;
 
   for (const item of sale.productos) {
     await updateStockUnified(
@@ -764,6 +869,9 @@ export async function cancelSale(
     sale.clienteId !== MOSTRADOR_CLIENT_ID
   ) {
     await adjustClientTicketCount(sale.clienteId, -1);
+    if (adeudoAlCancelar > 0) {
+      await adjustClientSaldoAdeudado(sale.clienteId, -adeudoAlCancelar);
+    }
   }
 }
 
@@ -1055,6 +1163,61 @@ export async function cancelInvoice(
 // FUNCIONES DE CLIENTES
 // ============================================
 
+/** Suma o resta saldo adeudado del cliente (ventas a cuenta / cancelaciones / abonos). No interrumpe el flujo si falla. */
+export async function adjustClientSaldoAdeudado(
+  clienteId: string | undefined,
+  delta: number,
+  options?: { sucursalId?: string | null }
+): Promise<void> {
+  if (!clienteId || clienteId === MOSTRADOR_CLIENT_ID || delta === 0) return;
+  const d = Math.round(Number(delta) * 100) / 100;
+  if (!Number.isFinite(d) || Math.abs(d) < 0.005) return;
+  try {
+    const row = await db.clients.get(clienteId);
+    if (!row || row.isMostrador) return;
+    const base = Math.round((Number(row.saldoAdeudado) || 0) * 100) / 100;
+    const next = Math.max(0, Math.round((base + d) * 100) / 100);
+    const sid = options?.sucursalId?.trim();
+    if (sid) {
+      await updateClientFirestore(sid, clienteId, { saldoAdeudado: next });
+    }
+    await db.clients.update(clienteId, {
+      saldoAdeudado: next,
+      updatedAt: new Date(),
+      syncStatus: sid ? 'synced' : 'pending',
+    });
+  } catch (e) {
+    console.error('adjustClientSaldoAdeudado:', e);
+  }
+}
+
+/** Registra un abono a cuenta del cliente (reduce `saldoAdeudado`). */
+export async function registrarAbonoACuentaCliente(
+  clienteId: string,
+  monto: number,
+  options?: { sucursalId?: string }
+): Promise<void> {
+  const m = Math.round(Number(monto) * 100) / 100;
+  if (!clienteId || clienteId === MOSTRADOR_CLIENT_ID) throw new Error('Cliente no válido');
+  if (!Number.isFinite(m) || m <= 0) throw new Error('Ingrese un monto mayor a cero');
+
+  const row = await db.clients.get(clienteId);
+  if (!row || row.isMostrador) throw new Error('Cliente no encontrado');
+  const current = Math.round((Number(row.saldoAdeudado) || 0) * 100) / 100;
+  if (m > current + 0.001) throw new Error('El abono no puede ser mayor al saldo adeudado');
+
+  const next = Math.max(0, Math.round((current - m) * 100) / 100);
+  const sid = options?.sucursalId?.trim();
+  if (sid) {
+    await updateClientFirestore(sid, clienteId, { saldoAdeudado: next });
+  }
+  await db.clients.update(clienteId, {
+    saldoAdeudado: next,
+    updatedAt: new Date(),
+    syncStatus: sid ? 'synced' : 'pending',
+  });
+}
+
 /** Ajusta el contador de tickets de compra del cliente (Dexie y, si aplica, Firestore). No interrumpe ventas si falla. */
 export async function adjustClientTicketCount(
   clienteId: string | undefined,
@@ -1257,16 +1420,15 @@ export async function getPendingSyncCount(): Promise<number> {
     return 0;
   }
 
-  const [products, sales, quotations, invoices, clients, movements] = await Promise.all([
+  const [products, sales, quotations, invoices, clients] = await Promise.all([
     db.products.where('syncStatus').equals('pending').count(),
     db.sales.where('syncStatus').equals('pending').count(),
     db.quotations.where('syncStatus').equals('pending').count(),
     db.invoices.where('syncStatus').equals('pending').count(),
     db.clients.where('syncStatus').equals('pending').count(),
-    db.inventoryMovements.where('syncStatus').equals('pending').count(),
   ]);
-  
-  return products + sales + quotations + invoices + clients + movements;
+  // `inventoryMovements` no forman cola de subida: en modo local son bitácora; en nube se escriben en Firestore directo.
+  return products + sales + quotations + invoices + clients;
 }
 
 export async function markAsSynced(tableName: keyof POSDatabase, id: string): Promise<void> {

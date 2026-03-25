@@ -8,5 +8,6 @@ export { Inventario } from './Inventario';
 export { Cotizaciones } from './Cotizaciones';
 export { Facturas } from './Facturas';
 export { Clientes } from './Clientes';
+export { CuentasPorCobrar } from './CuentasPorCobrar';
 export { Configuracion } from './Configuracion';
 export { Checador } from './Checador';

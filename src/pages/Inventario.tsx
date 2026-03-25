@@ -78,6 +78,12 @@ import { deleteAllInventoryMovementsFirestore } from '@/lib/firestore/inventoryM
 import { subscribeSucursales } from '@/lib/firestore/sucursalesMetaFirestore';
 import { confirmIncomingStoreTransfer } from '@/lib/firestore/storeTransfersFirestore';
 import { cn, formatMoney } from '@/lib/utils';
+import {
+  SAT_CLAVES_UNIDAD,
+  normalizeClaveProdServ,
+  normalizeClaveUnidadSat,
+  isValidClaveProdServSat,
+} from '@/lib/satCatalog';
 import { PageShell } from '@/components/ui-custom/PageShell';
 import { printThermalLowStockReport } from '@/lib/printTicket';
 import { formatInAppTimezone } from '@/lib/appTimezone';
@@ -236,11 +242,8 @@ export function Inventario() {
   const [clearingMovements, setClearingMovements] = useState(false);
   const [preciosDialogOpen, setPreciosDialogOpen] = useState(false);
   const [preciosDialogProduct, setPreciosDialogProduct] = useState<Product | null>(null);
-  const [preciosListaDialogStr, setPreciosListaDialogStr] = useState(emptyPreciosListaStr);
   const [productEntradasHist, setProductEntradasHist] = useState<InventoryMovement[]>([]);
   const [productEntradasHistLoading, setProductEntradasHistLoading] = useState(false);
-  const [preciosSaveBusy, setPreciosSaveBusy] = useState(false);
-  const [addPreciosSectionOpen, setAddPreciosSectionOpen] = useState(false);
   const [editPreciosSectionOpen, setEditPreciosSectionOpen] = useState(false);
 
   const isAdmin = user?.role === 'admin';
@@ -270,6 +273,7 @@ export function Inventario() {
     categoria: '',
     proveedor: '',
     unidadMedida: 'H87',
+    claveProdServ: '',
   });
 
   const [preciosListaStr, setPreciosListaStr] = useState(emptyPreciosListaStr);
@@ -352,7 +356,14 @@ export function Inventario() {
     }
     const skuTrim = upperTxt((formData.sku ?? '').trim());
     const skuFinal = skuTrim || codigoBarras;
-    const preciosPorListaCliente = parsePreciosListaForm(preciosListaStr);
+    const cps = normalizeClaveProdServ(formData.claveProdServ);
+    if (!isValidClaveProdServSat(cps)) {
+      addToast({
+        type: 'warning',
+        message: 'Indique la clave Producto/Servicio SAT con 8 dígitos (ej. 31171504), según el catálogo del SAT.',
+      });
+      return;
+    }
     const proveedorGuardado = formData.proveedor.trim();
     const descripcionUpper = upperTxt((formData.descripcion ?? '').trim());
     const compraSubSinIva = roundMoney2(
@@ -366,7 +377,8 @@ export function Inventario() {
         sku: skuFinal,
         codigoBarras,
         activo: true,
-        ...(preciosPorListaCliente ? { preciosPorListaCliente } : {}),
+        unidadMedida: normalizeClaveUnidadSat(formData.unidadMedida),
+        claveProdServ: cps,
       } as any);
       addSessionLinesRef.current = [
         ...addSessionLinesRef.current,
@@ -386,9 +398,9 @@ export function Inventario() {
           categoria: '',
           proveedor: proveedorGuardado,
           unidadMedida: 'H87',
+          claveProdServ: '',
         });
         setPreciosListaStr(emptyPreciosListaStr());
-        setAddPreciosSectionOpen(false);
         setAddNumFocus({
           precioVenta: false,
           precioCompra: false,
@@ -416,12 +428,22 @@ export function Inventario() {
     const preciosPorListaCliente = parsePreciosListaForm(preciosListaStr);
 
     try {
+      const cpsEdit = normalizeClaveProdServ(formData.claveProdServ);
+      if (!isValidClaveProdServSat(cpsEdit)) {
+        addToast({
+          type: 'warning',
+          message: 'La clave Producto/Servicio SAT debe tener 8 dígitos (catálogo SAT).',
+        });
+        return;
+      }
       await editProduct(selectedProduct.id, {
         ...formData,
         nombre: upperTxt(formData.nombre.trim()),
         descripcion: upperTxt((formData.descripcion ?? '').trim()),
         sku: upperTxt((formData.sku ?? '').trim()),
         codigoBarras: upperTxt((formData.codigoBarras ?? '').trim()),
+        unidadMedida: normalizeClaveUnidadSat(formData.unidadMedida),
+        claveProdServ: cpsEdit,
         preciosPorListaCliente: preciosPorListaCliente ?? {},
       });
       setShowEditDialog(false);
@@ -516,7 +538,8 @@ export function Inventario() {
       existenciaMinima: product.existenciaMinima,
       categoria: product.categoria || '',
       proveedor: product.proveedor || '',
-      unidadMedida: product.unidadMedida,
+      unidadMedida: normalizeClaveUnidadSat(product.unidadMedida),
+      claveProdServ: product.claveProdServ ?? '',
     });
     const pl = emptyPreciosListaStr();
     for (const id of CLIENT_PRICE_LIST_ORDER) {
@@ -541,35 +564,10 @@ export function Inventario() {
     (product: Product) => {
       const p = productById.get(product.id) ?? product;
       setPreciosDialogProduct(p);
-      const pl = emptyPreciosListaStr();
-      for (const id of CLIENT_PRICE_LIST_ORDER) {
-        const v = p.preciosPorListaCliente?.[id];
-        pl[id] = v != null && Number.isFinite(v) ? String(v) : '';
-      }
-      setPreciosListaDialogStr(pl);
       setPreciosDialogOpen(true);
     },
     [productById]
   );
-
-  const handleSavePreciosDialog = async () => {
-    if (!preciosDialogProduct) return;
-    setPreciosSaveBusy(true);
-    try {
-      const preciosPorListaCliente = parsePreciosListaForm(preciosListaDialogStr) ?? {};
-      await editProduct(preciosDialogProduct.id, { preciosPorListaCliente });
-      addToast({ type: 'success', message: 'Precios por lista de cliente actualizados' });
-      setPreciosDialogOpen(false);
-      setPreciosDialogProduct(null);
-    } catch (error: unknown) {
-      addToast({
-        type: 'error',
-        message: error instanceof Error ? error.message : 'No se pudieron guardar los precios',
-      });
-    } finally {
-      setPreciosSaveBusy(false);
-    }
-  };
 
   useEffect(() => {
     if (!preciosDialogOpen || !preciosDialogProduct) {
@@ -599,6 +597,32 @@ export function Inventario() {
       cancelled = true;
     };
   }, [preciosDialogOpen, preciosDialogProduct?.id, effectiveSucursalId]);
+
+  const ultimoPrecioCompraConIvaInfo = useMemo(() => {
+    if (!preciosDialogProduct) return null;
+    const imp = Number(preciosDialogProduct.impuesto) || 16;
+    const sorted = [...productEntradasHist].sort((a, b) => {
+      const ta = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
+      const tb = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
+      return tb - ta;
+    });
+    for (const m of sorted) {
+      const pu = m.precioUnitarioCompra;
+      if (pu != null && Number.isFinite(pu) && pu >= 0) {
+        return {
+          monto: roundMoney2(pu * (1 + imp / 100)),
+          fecha: m.createdAt instanceof Date ? m.createdAt : new Date(m.createdAt),
+        };
+      }
+    }
+    return null;
+  }, [productEntradasHist, preciosDialogProduct]);
+
+  const precioVentaCatalogoConIva = useMemo(() => {
+    if (!preciosDialogProduct) return null;
+    const imp = Number(preciosDialogProduct.impuesto) || 16;
+    return roundMoney2(preciosDialogProduct.precioVenta * (1 + imp / 100));
+  }, [preciosDialogProduct]);
 
   const valorInventarioTotal = useMemo(
     () => products.reduce((sum, p) => sum + p.precioVenta * p.existencia, 0),
@@ -692,6 +716,7 @@ export function Inventario() {
       categoria: '',
       proveedor: '',
       unidadMedida: 'H87',
+      claveProdServ: '',
     });
     setPreciosListaStr(emptyPreciosListaStr());
   };
@@ -709,7 +734,6 @@ export function Inventario() {
           onClick={() => {
             resetForm();
             addSessionLinesRef.current = [];
-            setAddPreciosSectionOpen(false);
             setShowAddDialog(true);
           }}
           className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
@@ -1125,7 +1149,6 @@ export function Inventario() {
             }
             addSessionLinesRef.current = [];
             resetForm();
-            setAddPreciosSectionOpen(false);
           }
         }}
       >
@@ -1200,6 +1223,49 @@ export function Inventario() {
                 onChange={(e) => setFormData({ ...formData, descripcion: upperTxt(e.target.value) })}
                 className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
+            </div>
+            <div className="col-span-2 space-y-2">
+              <Label>Unidad SAT (CFDI 4.0) *</Label>
+              <Select
+                value={formData.unidadMedida}
+                onValueChange={(v) => setFormData({ ...formData, unidadMedida: v })}
+              >
+                <SelectTrigger className="h-10 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+                  <SelectValue placeholder="Seleccione" />
+                </SelectTrigger>
+                <SelectContent
+                  position="popper"
+                  className="z-[300] max-h-[min(50dvh,18rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
+                >
+                  {SAT_CLAVES_UNIDAD.map((u) => (
+                    <SelectItem key={u.clave} value={u.clave} className="text-slate-900 dark:text-slate-100">
+                      {u.clave} — {u.descripcion}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] leading-snug text-slate-500 dark:text-slate-400">
+                Clave de unidad del catálogo del SAT (misma que usará la factura).
+              </p>
+            </div>
+            <div className="col-span-2 space-y-2">
+              <Label>Clave Producto/Servicio SAT *</Label>
+              <Input
+                inputMode="numeric"
+                maxLength={8}
+                placeholder="Ej. 31171504"
+                value={formData.claveProdServ}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    claveProdServ: normalizeClaveProdServ(e.target.value),
+                  })
+                }
+                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 font-mono text-slate-900 dark:text-slate-100"
+              />
+              <p className="text-[10px] leading-snug text-slate-500 dark:text-slate-400">
+                8 dígitos según catálogo c_ClaveProdServ del SAT (facturación).
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Precio de venta (sin IVA) *</Label>
@@ -1328,50 +1394,6 @@ export function Inventario() {
                 </SelectContent>
               </Select>
             </div>
-          </div>
-
-          <div className="mt-3 border-t border-slate-200 pt-4 dark:border-slate-800">
-            <Button
-              type="button"
-              variant={addPreciosSectionOpen ? 'secondary' : 'outline'}
-              size="sm"
-              className="gap-2 border-slate-300 dark:border-slate-600"
-              aria-expanded={addPreciosSectionOpen}
-              onClick={() => setAddPreciosSectionOpen((v) => !v)}
-            >
-              <CircleDollarSign className="h-4 w-4 shrink-0" />
-              Precios
-            </Button>
-            {addPreciosSectionOpen ? (
-              <div className="mt-3 space-y-3">
-                <p className="text-xs font-medium leading-snug text-slate-600 dark:text-slate-400 [text-wrap:balance]">
-                  Precios opcionales por tipo de cliente (sin IVA)
-                </p>
-                <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-500 [text-wrap:pretty]">
-                  Si deja vacío, en el POS se usa el precio de venta con el % de la lista en Configuración →
-                  Precios{'\u00a0'}por{'\u00a0'}cliente.
-                </p>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {CLIENT_PRICE_LIST_ORDER.map((id) => (
-                    <div key={id} className="space-y-1">
-                      <Label className="text-xs text-slate-600 dark:text-slate-400">
-                        {CLIENT_PRICE_LABELS[id]}
-                      </Label>
-                      <Input
-                        type="text"
-                        inputMode="decimal"
-                        placeholder="—"
-                        value={preciosListaStr[id]}
-                        onChange={(e) =>
-                          setPreciosListaStr((prev) => ({ ...prev, [id]: e.target.value }))
-                        }
-                        className="h-9 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
           </div>
 
           <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
@@ -1529,6 +1551,43 @@ export function Inventario() {
                 value={formData.descripcion}
                 onChange={(e) => setFormData({ ...formData, descripcion: upperTxt(e.target.value) })}
                 className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+              />
+            </div>
+            <div className="col-span-2 space-y-2">
+              <Label>Unidad SAT (CFDI 4.0) *</Label>
+              <Select
+                value={formData.unidadMedida}
+                onValueChange={(v) => setFormData({ ...formData, unidadMedida: v })}
+              >
+                <SelectTrigger className="h-10 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+                  <SelectValue placeholder="Seleccione" />
+                </SelectTrigger>
+                <SelectContent
+                  position="popper"
+                  className="z-[300] max-h-[min(50dvh,18rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
+                >
+                  {SAT_CLAVES_UNIDAD.map((u) => (
+                    <SelectItem key={u.clave} value={u.clave} className="text-slate-900 dark:text-slate-100">
+                      {u.clave} — {u.descripcion}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2 space-y-2">
+              <Label>Clave Producto/Servicio SAT *</Label>
+              <Input
+                inputMode="numeric"
+                maxLength={8}
+                placeholder="Ej. 31171504"
+                value={formData.claveProdServ}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    claveProdServ: normalizeClaveProdServ(e.target.value),
+                  })
+                }
+                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 font-mono text-slate-900 dark:text-slate-100"
               />
             </div>
             <div className="space-y-2">
@@ -1881,34 +1940,54 @@ export function Inventario() {
             ) : null}
           </DialogHeader>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3">
-            <p className="text-xs font-medium leading-snug text-slate-600 dark:text-slate-400 [text-wrap:balance]">
-              Precios opcionales por tipo de cliente (sin IVA)
-            </p>
-            <p className="mb-3 text-[11px] leading-snug text-slate-500 dark:text-slate-500 [text-wrap:pretty]">
-              Si deja vacío, en el POS se usa el precio de venta con el % de la lista en Configuración →
-              Precios{'\u00a0'}por{'\u00a0'}cliente.
-            </p>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {CLIENT_PRICE_LIST_ORDER.map((id) => (
-                <div key={id} className="space-y-1">
-                  <Label className="text-xs text-slate-600 dark:text-slate-400">
-                    {CLIENT_PRICE_LABELS[id]}
-                  </Label>
-                  <Input
-                    type="text"
-                    inputMode="decimal"
-                    placeholder="—"
-                    value={preciosListaDialogStr[id]}
-                    onChange={(e) =>
-                      setPreciosListaDialogStr((prev) => ({ ...prev, [id]: e.target.value }))
-                    }
-                    className="h-9 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                  />
+            <div className="mb-4 space-y-3 rounded-lg border border-cyan-500/25 bg-cyan-500/10 p-3 dark:border-cyan-500/30 dark:bg-cyan-500/10">
+              <p className="text-xs font-semibold uppercase tracking-wide text-cyan-800 dark:text-cyan-200">
+                Referencia de precios (con IVA)
+              </p>
+              {precioVentaCatalogoConIva != null ? (
+                <div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    Precio de venta en catálogo <span className="font-medium">(con IVA)</span>
+                  </p>
+                  <p className="text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100">
+                    {formatMoney(precioVentaCatalogoConIva)}
+                  </p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-500">
+                    Calculado desde el precio sin IVA del producto y su tasa ({preciosDialogProduct?.impuesto ?? 16}%).
+                  </p>
                 </div>
-              ))}
+              ) : null}
+              {ultimoPrecioCompraConIvaInfo ? (
+                <div className="border-t border-cyan-500/20 pt-3 dark:border-cyan-500/25">
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    Último precio de compra registrado en entradas <span className="font-medium">(con IVA)</span>
+                  </p>
+                  <p className="text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100">
+                    {formatMoney(ultimoPrecioCompraConIvaInfo.monto)}
+                  </p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-500">
+                    Según la entrada más reciente con precio unitario de compra (
+                    {formatInAppTimezone(ultimoPrecioCompraConIvaInfo.fecha, {
+                      dateStyle: 'short',
+                      timeStyle: 'short',
+                    })}
+                    ). El unitario en tabla sigue mostrándose sin IVA.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-600 dark:text-slate-400">
+                  No hay entradas con precio de compra capturado; cuando registre una, aquí aparecerá el último importe{' '}
+                  <span className="font-medium">con IVA</span>.
+                </p>
+              )}
+              <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-500">
+                Para precios por lista de cliente (regular, técnico, mayoreo…), use{' '}
+                <span className="font-medium text-slate-700 dark:text-slate-300">Editar producto</span> → sección
+                Precios.
+              </p>
             </div>
 
-            <div className="mt-6 border-t border-slate-200 pt-4 dark:border-slate-800">
+            <div className="mt-2 border-t border-slate-200 pt-4 dark:border-slate-800">
               <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
                 Historial de llegadas (entradas / compras)
               </p>
@@ -1989,14 +2068,6 @@ export function Inventario() {
               className="border-slate-300 dark:border-slate-600"
             >
               Cerrar
-            </Button>
-            <Button
-              type="button"
-              disabled={preciosSaveBusy || !preciosDialogProduct}
-              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
-              onClick={() => void handleSavePreciosDialog()}
-            >
-              {preciosSaveBusy ? 'Guardando…' : 'Guardar precios'}
             </Button>
           </DialogFooter>
         </DialogContent>

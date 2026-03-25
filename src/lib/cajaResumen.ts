@@ -65,6 +65,15 @@ export function computeCajaEfectivoEsperado(
   return { efectivoCobrado, cambioEntregado, esperadoEnCaja };
 }
 
+/** Efectivo esperado tras descontar retiros a bóveda/banco registrados en la sesión. */
+export function efectivoEsperadoMenosRetiros(
+  esperadoBruto: number,
+  retirosEfectivoTotal: number | undefined | null
+): number {
+  const r = Math.max(0, Number(retirosEfectivoTotal) || 0);
+  return Math.round((esperadoBruto - r) * 100) / 100;
+}
+
 export function filterVentasCompletadasSesion(ventas: Sale[]): Sale[] {
   return ventas.filter((s) => s.estado === 'completada');
 }

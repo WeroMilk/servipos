@@ -54,6 +54,10 @@ export function docToClient(sucursalId: string, id: string, d: Record<string, un
       d.ticketsComprados != null && Number.isFinite(Number(d.ticketsComprados))
         ? Number(d.ticketsComprados)
         : undefined,
+    saldoAdeudado:
+      d.saldoAdeudado != null && Number.isFinite(Number(d.saldoAdeudado))
+        ? Math.max(0, Math.round(Number(d.saldoAdeudado) * 100) / 100)
+        : undefined,
     sucursalId,
     createdAt: firestoreTimestampToDate(d.createdAt),
     updatedAt: firestoreTimestampToDate(d.updatedAt),
@@ -77,6 +81,10 @@ function clientToFirestorePayload(
     isMostrador: client.isMostrador === true,
     listaPreciosId: client.listaPreciosId ?? null,
     ticketsComprados: client.ticketsComprados ?? null,
+    saldoAdeudado:
+      client.saldoAdeudado != null && Number.isFinite(Number(client.saldoAdeudado))
+        ? Math.max(0, Math.round(Number(client.saldoAdeudado) * 100) / 100)
+        : null,
     sucursalId: client.sucursalId ?? null,
     updatedAt: serverTimestamp(),
   };
@@ -140,6 +148,11 @@ export async function updateClientFirestore(
   if (updates.isMostrador !== undefined) patch.isMostrador = updates.isMostrador;
   if (updates.listaPreciosId !== undefined) patch.listaPreciosId = updates.listaPreciosId ?? null;
   if (updates.ticketsComprados !== undefined) patch.ticketsComprados = updates.ticketsComprados ?? null;
+  if (updates.saldoAdeudado !== undefined) {
+    const v = Number(updates.saldoAdeudado);
+    patch.saldoAdeudado =
+      Number.isFinite(v) ? Math.max(0, Math.round(v * 100) / 100) : null;
+  }
   await updateDoc(ref, patch);
 }
 

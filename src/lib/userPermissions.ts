@@ -24,7 +24,7 @@ export const ALL_PERMISSIONS: Permission[] = [
 const ALL_SET = new Set<string>(ALL_PERMISSIONS);
 
 export const PERMISSION_LABELS: Record<Permission, string> = {
-  'ventas:ver': 'Panel, historial del día y pantalla Clientes',
+  'ventas:ver': 'Panel, historial del día, Clientes y Cuentas por cobrar',
   'ventas:crear': 'Punto de venta (cobrar)',
   'inventario:ver': 'Ver inventario',
   'inventario:crear': 'Alta de productos',

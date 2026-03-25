@@ -9,6 +9,7 @@ import { getClientById } from '@/db/database';
 import { FORMAS_PAGO, type FiscalConfig, type Quotation, type Sale } from '@/types';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { thermalTicketCancelacionNotas } from '@/lib/saleCancelacion';
+import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
 import { getProductCatalogSnapshot } from '@/lib/firestore/productsFirestore';
 import { labelFormaPagoCaja, resumenGruposMedioPagoCierre, totalesPorFormaPago } from '@/lib/cajaResumen';
 
@@ -37,6 +38,8 @@ export type TicketPayload = {
   impuestos: number;
   total: number;
   cambio?: number;
+  /** Saldo que quedó a cargo del cliente en esta venta (PPD / pago parcial). */
+  adeudoPendiente?: number;
   notas?: string;
   /** Sucursal actual (Firestore `sucursales/{id}`); añade pie de contacto/horario si hay plantilla. */
   sucursalId?: string;
@@ -205,6 +208,11 @@ export function printThermalTicket(payload: TicketPayload): void {
     <div>IVA: ${formatMoney(payload.impuestos)}</div>
     <div><strong>TOTAL ${formatMoney(payload.total)}</strong></div>
     ${payload.cambio != null && payload.cambio > 0 ? `<div>Cambio: ${formatMoney(payload.cambio)}</div>` : ''}
+    ${
+      payload.adeudoPendiente != null && payload.adeudoPendiente > 0.004
+        ? `<div style="margin-top:8px;font-weight:700;color:#92400e;">Saldo pendiente (cuenta cliente): ${formatMoney(payload.adeudoPendiente)}</div>`
+        : ''
+    }
   </div>
   ${payload.resumenPagos?.length
     ? `<div class="ticket-pagos"><div class="tit">Pagos</div>${payload.resumenPagos
@@ -366,6 +374,8 @@ export function printThermalCajaCierre(input: {
   cerradaPor: string;
   aperturaLabel: string;
   cierreLabel: string;
+  /** Suma de retiros a bóveda/banco en la sesión (ya descontada del efectivo esperado). */
+  retirosEfectivoTotal?: number;
   /** `arqueo_previo`: sin conteo físico ni diferencia; título distinto. */
   ticketKind?: 'cierre' | 'arqueo_previo';
 }): void {
@@ -397,6 +407,11 @@ export function printThermalCajaCierre(input: {
     : `<div>Conteo físico: ${formatMoney(input.conteoDeclarado)}</div>
     <div>Diferencia: ${formatMoney(input.diferencia)}</div>`;
 
+  const retiros =
+    (Number(input.retirosEfectivoTotal) || 0) > 0.005
+      ? `<div>Retiros de efectivo (sesión): −${formatMoney(Number(input.retirosEfectivoTotal) || 0)}</div>`
+      : '';
+
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${escapeHtml(titulo)}</title>
 <style>${THERMAL_BASE_STYLES}</style></head><body>
   <h1>${escapeHtml(titulo)}</h1>
@@ -420,6 +435,7 @@ export function printThermalCajaCierre(input: {
   <table>${formaRows || '<tr><td>Sin cobros registrados</td></tr>'}</table>
   <div class="tot">
     <div><strong>Efectivo esperado en caja</strong></div>
+    ${retiros}
     <div style="font-size:26px;"><strong>${formatMoney(input.efectivoEsperado)}</strong></div>
     ${bloqueConteo}
   </div>
@@ -603,6 +619,8 @@ export async function printThermalTicketFromSale(sale: Sale): Promise<void> {
           : undefined,
     })) ?? [];
 
+  const adeudoTicket = computeSaleClienteAdeudo(sale);
+
   printThermalTicket({
     negocio: 'SERVIPARTZ POS',
     sucursalId: sale.sucursalId,
@@ -615,6 +633,7 @@ export async function printThermalTicketFromSale(sale: Sale): Promise<void> {
     impuestos: Number(sale.impuestos) || 0,
     total: Number(sale.total) || 0,
     cambio: sale.cambio,
+    adeudoPendiente: adeudoTicket > 0 ? adeudoTicket : undefined,
     resumenPagos: resumenPagos.length > 0 ? resumenPagos : undefined,
     notas: (() => {
       if (sale.estado === 'cancelada') return thermalTicketCancelacionNotas(sale);
