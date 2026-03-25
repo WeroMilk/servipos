@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Plus,
   Search,
@@ -124,6 +124,8 @@ export function Clientes() {
   
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [addClientSubmitting, setAddClientSubmitting] = useState(false);
+  const addClientLockRef = useRef(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [sortMode, setSortMode] = useState<ClientSortMode>('nombre');
@@ -197,6 +199,10 @@ export function Clientes() {
   };
 
   const handleAddClient = async () => {
+    if (addClientLockRef.current || addClientSubmitting) return;
+    if (!formData.nombre.trim()) return;
+    addClientLockRef.current = true;
+    setAddClientSubmitting(true);
     try {
       await addClient({
         ...formData,
@@ -212,12 +218,15 @@ export function Clientes() {
           pais: 'México',
         },
       } as any);
-      
+
       setShowAddDialog(false);
       resetForm();
       addToast({ type: 'success', message: 'Cliente agregado exitosamente' });
     } catch (error: any) {
       addToast({ type: 'error', message: error.message });
+    } finally {
+      addClientLockRef.current = false;
+      setAddClientSubmitting(false);
     }
   };
 
@@ -653,6 +662,13 @@ export function Clientes() {
             </DialogHeader>
           </div>
 
+          <form
+            className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void handleAddClient();
+            }}
+          >
           <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 md:px-5">
           <div className="grid min-w-0 grid-cols-1 gap-3 gap-y-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-x-4">
             <div className="min-w-0 space-y-2 sm:col-span-2 lg:col-span-3">
@@ -769,17 +785,24 @@ export function Clientes() {
           </div>
 
           <DialogFooter className="shrink-0 gap-2 border-t border-slate-200 dark:border-slate-800/80 px-4 py-3 sm:justify-end">
-            <Button variant="outline" onClick={() => setShowAddDialog(false)} className="border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowAddDialog(false)}
+              disabled={addClientSubmitting}
+              className="border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400"
+            >
               Cancelar
             </Button>
-            <Button 
-              onClick={handleAddClient}
-              disabled={!formData.nombre}
+            <Button
+              type="submit"
+              disabled={!formData.nombre.trim() || addClientSubmitting}
               className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
             >
-              Guardar Cliente
+              {addClientSubmitting ? 'Guardando…' : 'Guardar Cliente'}
             </Button>
           </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
@@ -938,24 +961,39 @@ export function Clientes() {
               </div>
               <div>
                 <p className="text-slate-600 dark:text-slate-500">Tickets de compra</p>
-                <button
-                  type="button"
-                  className="group mt-1 inline-flex flex-wrap items-center gap-1.5 rounded-lg border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-left text-amber-400 transition-colors hover:bg-amber-500/20 hover:text-amber-300"
-                  title="Ver historial de ventas y reimprimir tickets"
-                  onClick={() => {
-                    const c = detailClient;
-                    setDetailClient(null);
-                    openClientVentasDialog(c);
-                  }}
-                >
-                  <Ticket className="h-4 w-4 shrink-0" aria-hidden />
-                  <span className="text-lg font-semibold tabular-nums">
-                    {detailClient.ticketsComprados ?? 0}
-                  </span>
-                  <span className="text-xs font-normal text-slate-600 group-hover:text-slate-500 dark:text-slate-500">
-                    (pulse para ver ventas)
-                  </span>
-                </button>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    className="group inline-flex flex-wrap items-center gap-1.5 rounded-lg border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-left text-amber-400 transition-colors hover:bg-amber-500/20 hover:text-amber-300"
+                    title="Ver historial de ventas y reimprimir tickets"
+                    onClick={() => {
+                      const c = detailClient;
+                      setDetailClient(null);
+                      openClientVentasDialog(c);
+                    }}
+                  >
+                    <Ticket className="h-4 w-4 shrink-0" aria-hidden />
+                    <span className="text-lg font-semibold tabular-nums">
+                      {detailClient.ticketsComprados ?? 0}
+                    </span>
+                    <span className="text-xs font-normal text-slate-600 group-hover:text-slate-500 dark:text-slate-500">
+                      (pulse para ver ventas)
+                    </span>
+                  </button>
+                  {isAdmin && !detailClient.isMostrador && detailClient.id !== 'mostrador' ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9 shrink-0 text-red-600 hover:bg-red-500/15 hover:text-red-500 dark:text-red-400 dark:hover:text-red-300"
+                      title="Eliminar cliente"
+                      aria-label={`Eliminar cliente ${detailClient.nombre}`}
+                      onClick={() => setClientToDelete(detailClient)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  ) : null}
+                </div>
               </div>
               {detailClient.rfc ? (
                 <div>

@@ -1,10 +1,12 @@
 import {
+  addDoc,
   collection,
   getDocs,
   limit,
   onSnapshot,
   orderBy,
   query,
+  serverTimestamp,
   where,
   writeBatch,
   type Unsubscribe,
@@ -31,7 +33,16 @@ function firestoreTimestampToDate(value: unknown): Date {
   return new Date();
 }
 
-const TIPOS: InventoryMovement['tipo'][] = ['entrada', 'salida', 'ajuste', 'venta', 'compra'];
+const TIPOS: InventoryMovement['tipo'][] = [
+  'entrada',
+  'salida',
+  'ajuste',
+  'venta',
+  'compra',
+  'producto_alta',
+  'producto_baja',
+  'producto_edicion',
+];
 
 function parseTipo(raw: unknown): InventoryMovement['tipo'] {
   const s = String(raw ?? '');
@@ -43,6 +54,8 @@ export function movementDocToMovement(id: string, d: Record<string, unknown>): I
   const precioUnitarioCompra =
     typeof pu === 'number' && Number.isFinite(pu) && pu >= 0 ? pu : undefined;
   const prov = d.proveedor != null ? String(d.proveedor).trim() : '';
+  const nr = d.nombreRegistro != null ? String(d.nombreRegistro).trim() : '';
+  const sr = d.skuRegistro != null ? String(d.skuRegistro).trim() : '';
   return {
     id,
     productId: String(d.productId ?? ''),
@@ -54,10 +67,43 @@ export function movementDocToMovement(id: string, d: Record<string, unknown>): I
     referencia: d.referencia != null && String(d.referencia).length > 0 ? String(d.referencia) : undefined,
     proveedor: prov.length > 0 ? prov : undefined,
     precioUnitarioCompra,
+    nombreRegistro: nr.length > 0 ? nr : undefined,
+    skuRegistro: sr.length > 0 ? sr : undefined,
     usuarioId: String(d.usuarioId ?? ''),
     createdAt: firestoreTimestampToDate(d.createdAt),
     syncStatus: 'synced',
   };
+}
+
+export type CatalogInventoryMovementInput = {
+  productId: string;
+  tipo: 'producto_alta' | 'producto_baja' | 'producto_edicion';
+  motivo: string;
+  usuarioId: string;
+  nombreRegistro?: string;
+  skuRegistro?: string;
+};
+
+/** Registro de alta, baja o edición de catálogo (misma colección que movimientos de stock). */
+export async function appendCatalogInventoryMovementFirestore(
+  sucursalId: string,
+  input: CatalogInventoryMovementInput
+): Promise<void> {
+  await addDoc(movementsCol(sucursalId), {
+    productId: input.productId,
+    tipo: input.tipo,
+    cantidad: 0,
+    cantidadAnterior: 0,
+    cantidadNueva: 0,
+    motivo: input.motivo,
+    referencia: null,
+    proveedor: null,
+    precioUnitarioCompra: null,
+    nombreRegistro: input.nombreRegistro?.trim() || null,
+    skuRegistro: input.skuRegistro?.trim() || null,
+    usuarioId: input.usuarioId,
+    createdAt: serverTimestamp(),
+  });
 }
 
 /** Suscripción a los movimientos más recientes (orden descendente por fecha). */

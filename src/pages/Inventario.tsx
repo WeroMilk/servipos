@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { 
   Plus, 
@@ -94,6 +94,10 @@ function isStockBajo(p: { existencia: number; existenciaMinima: number }): boole
   return p.existencia <= p.existenciaMinima;
 }
 
+function isCatalogInventoryMovement(t: InventoryMovement['tipo']): boolean {
+  return t === 'producto_alta' || t === 'producto_baja' || t === 'producto_edicion';
+}
+
 function tipoMovimientoLabel(t: InventoryMovement['tipo']): string {
   const labels: Record<InventoryMovement['tipo'], string> = {
     entrada: 'Entrada',
@@ -101,6 +105,9 @@ function tipoMovimientoLabel(t: InventoryMovement['tipo']): string {
     ajuste: 'Ajuste',
     venta: 'Venta',
     compra: 'Compra',
+    producto_alta: 'Catálogo · Alta',
+    producto_baja: 'Catálogo · Baja',
+    producto_edicion: 'Catálogo · Edición',
   };
   return labels[t];
 }
@@ -142,21 +149,18 @@ function roundMoney2(n: number): number {
   return Math.round((Number(n) || 0) * 100) / 100;
 }
 
-function roundMoney6(n: number): number {
-  return Math.round((Number(n) || 0) * 1e6) / 1e6;
-}
-
-/** Catálogo guarda `precioVenta` sin IVA; en formulario se captura con IVA usando `impuesto` del producto. */
+/** Catálogo guarda `precioVenta` sin IVA; en formulario el usuario captura sin IVA y se muestra el equivalente con IVA. */
 function precioVentaSinIvaToConIva(sinIva: number, impuestoPct: number): number {
   const imp = Number(impuestoPct) || 0;
   return roundMoney2(sinIva * (1 + imp / 100));
 }
 
-function precioVentaConIvaToSinIva(conIva: number, impuestoPct: number): number {
-  const imp = Number(impuestoPct) || 0;
-  if (imp <= -100) return 0;
-  return roundMoney6(conIva / (1 + imp / 100));
+/** Texto de catálogo en mayúsculas aunque el usuario escriba en minúsculas. */
+function upperTxt(s: string): string {
+  return s.toLocaleUpperCase('es');
 }
+
+type AddSessionLine = { nombre: string; sku: string; subtotalSinIva: number };
 
 export function Inventario() {
   const [searchParams] = useSearchParams();
@@ -209,6 +213,10 @@ export function Inventario() {
   });
   const [stockQtyFocus, setStockQtyFocus] = useState(false);
   const [stockPrecioCompraFocus, setStockPrecioCompraFocus] = useState(false);
+  const addCodigoBarrasRef = useRef<HTMLInputElement>(null);
+  const addSessionLinesRef = useRef<AddSessionLine[]>([]);
+  const [addSessionSummaryOpen, setAddSessionSummaryOpen] = useState(false);
+  const [addSessionSummaryLines, setAddSessionSummaryLines] = useState<AddSessionLine[]>([]);
   /** Al enfocar, ocultar 0 para escribir sin borrar; al salir vacío queda 0 en estado. */
   const [addNumFocus, setAddNumFocus] = useState({
     precioVenta: false,
@@ -329,42 +337,71 @@ export function Inventario() {
     setFormData((fd) => ({ ...fd, existencia: fresh.existencia }));
   }, [products, showEditDialog, selectedProduct?.id, selectedProduct?.existencia]);
 
-  const handleAddProduct = async () => {
-    const nombre = formData.nombre.trim();
+  const handleAddProduct = async (andAnother = false) => {
+    const nombre = upperTxt(formData.nombre.trim());
     if (!nombre) {
       addToast({ type: 'warning', message: 'El nombre es obligatorio' });
       return;
     }
-    const codigoBarras = (formData.codigoBarras ?? '').trim();
+    const codigoBarras = upperTxt((formData.codigoBarras ?? '').trim());
     if (!codigoBarras) {
       addToast({ type: 'warning', message: 'El código de barras es obligatorio' });
       return;
     }
-    const skuTrim = (formData.sku ?? '').trim();
+    const skuTrim = upperTxt((formData.sku ?? '').trim());
     const skuFinal = skuTrim || codigoBarras;
-    const lowerSku = skuFinal.toLowerCase();
-    const activos = products.filter((p) => p.activo !== false);
-    if (activos.some((p) => p.sku.toLowerCase() === lowerSku)) {
-      addToast({ type: 'error', message: 'Ya existe un producto con ese SKU' });
-      return;
-    }
-    if (activos.some((p) => (p.codigoBarras ?? '').trim() === codigoBarras)) {
-      addToast({ type: 'error', message: 'Ese código de barras ya está registrado' });
-      return;
-    }
     const preciosPorListaCliente = parsePreciosListaForm(preciosListaStr);
+    const proveedorGuardado = formData.proveedor.trim();
+    const descripcionUpper = upperTxt((formData.descripcion ?? '').trim());
+    const compraSubSinIva = roundMoney2(
+      Math.max(0, Number(formData.precioCompra) || 0) * Math.max(0, Number(formData.existencia) || 0)
+    );
     try {
       await addProduct({
         ...formData,
         nombre,
+        descripcion: descripcionUpper,
         sku: skuFinal,
         codigoBarras,
         activo: true,
         ...(preciosPorListaCliente ? { preciosPorListaCliente } : {}),
       } as any);
-      setShowAddDialog(false);
-      resetForm();
-      addToast({ type: 'success', message: 'Producto agregado exitosamente' });
+      addSessionLinesRef.current = [
+        ...addSessionLinesRef.current,
+        { nombre, sku: skuFinal, subtotalSinIva: compraSubSinIva },
+      ];
+      if (andAnother) {
+        setFormData({
+          sku: '',
+          codigoBarras: '',
+          nombre: '',
+          descripcion: '',
+          precioVenta: 0,
+          precioCompra: 0,
+          impuesto: 16,
+          existencia: 0,
+          existenciaMinima: 0,
+          categoria: '',
+          proveedor: proveedorGuardado,
+          unidadMedida: 'H87',
+        });
+        setPreciosListaStr(emptyPreciosListaStr());
+        setAddNumFocus({
+          precioVenta: false,
+          precioCompra: false,
+          existencia: false,
+          existenciaMinima: false,
+        });
+        addToast({
+          type: 'success',
+          message: 'Producto agregado. El proveedor se mantuvo; capture el siguiente artículo.',
+        });
+        requestAnimationFrame(() => addCodigoBarrasRef.current?.focus());
+      } else {
+        setShowAddDialog(false);
+        resetForm();
+        addToast({ type: 'success', message: 'Producto agregado exitosamente' });
+      }
     } catch (error: any) {
       addToast({ type: 'error', message: error.message });
     }
@@ -378,6 +415,10 @@ export function Inventario() {
     try {
       await editProduct(selectedProduct.id, {
         ...formData,
+        nombre: upperTxt(formData.nombre.trim()),
+        descripcion: upperTxt((formData.descripcion ?? '').trim()),
+        sku: upperTxt((formData.sku ?? '').trim()),
+        codigoBarras: upperTxt((formData.codigoBarras ?? '').trim()),
         preciosPorListaCliente: preciosPorListaCliente ?? {},
       });
       setShowEditDialog(false);
@@ -401,7 +442,9 @@ export function Inventario() {
 
   const handleStockAdjustment = async () => {
     if (!selectedProduct) return;
-    
+    const motivoMovTrim = (stockAdjustment.motivo ?? '').trim();
+    const motivoMov = motivoMovTrim ? upperTxt(motivoMovTrim) : '';
+
     try {
       const entradaMeta =
         stockAdjustment.tipo === 'entrada'
@@ -415,7 +458,7 @@ export function Inventario() {
         selectedProduct.id,
         stockAdjustment.cantidad,
         stockAdjustment.tipo as any,
-        stockAdjustment.motivo,
+        motivoMov,
         undefined,
         'system',
         entradaMeta
@@ -598,23 +641,15 @@ export function Inventario() {
   }, [inventoryMode, products]);
 
   const handleSkuDraftChange = useCallback((id: string, value: string) => {
-    setSkuDrafts((prev) => ({ ...prev, [id]: value }));
+    setSkuDrafts((prev) => ({ ...prev, [id]: upperTxt(value) }));
   }, []);
 
   const commitSkuIfChanged = useCallback(
     async (product: Product) => {
-      const raw = (skuDrafts[product.id] ?? product.sku).trim();
+      const raw = upperTxt((skuDrafts[product.id] ?? product.sku).trim());
       if (raw === product.sku) return;
       if (!raw) {
         addToast({ type: 'error', message: 'El SKU no puede estar vacío' });
-        setSkuDrafts((prev) => ({ ...prev, [product.id]: product.sku }));
-        return;
-      }
-      const taken = products.some(
-        (p) => p.id !== product.id && p.sku.toLowerCase() === raw.toLowerCase()
-      );
-      if (taken) {
-        addToast({ type: 'error', message: 'Ese SKU ya está en uso' });
         setSkuDrafts((prev) => ({ ...prev, [product.id]: product.sku }));
         return;
       }
@@ -667,7 +702,11 @@ export function Inventario() {
       actions={
         <Button
           type="button"
-          onClick={() => setShowAddDialog(true)}
+          onClick={() => {
+            resetForm();
+            addSessionLinesRef.current = [];
+            setShowAddDialog(true);
+          }}
           className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
           size="sm"
         >
@@ -1069,26 +1108,74 @@ export function Inventario() {
     </PageShell>
 
       {/* Add Product Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+      <Dialog
+        open={showAddDialog}
+        onOpenChange={(open) => {
+          setShowAddDialog(open);
+          if (!open) {
+            const snap = addSessionLinesRef.current;
+            if (snap.length > 0) {
+              setAddSessionSummaryLines([...snap]);
+              setAddSessionSummaryOpen(true);
+            }
+            addSessionLinesRef.current = [];
+            resetForm();
+          }
+        }}
+      >
         <DialogContent className="bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-h-[92dvh] overflow-auto md:max-w-[min(92vw,64rem)] lg:max-w-[min(92vw,80rem)]">
           <DialogHeader>
             <DialogTitle>Nuevo Producto</DialogTitle>
+            <DialogDescription className="text-left text-slate-600 dark:text-slate-400">
+              Nombre, SKU, código y descripción se guardan en <span className="font-medium text-slate-800 dark:text-slate-200">MAYÚSCULAS</span> aunque
+              escriba en minúsculas.
+            </DialogDescription>
           </DialogHeader>
           
           <div className="grid grid-cols-2 gap-4 py-4">
+            <div className="col-span-2 space-y-2 rounded-lg border border-slate-200/80 bg-slate-200/35 p-3 dark:border-slate-700/60 dark:bg-slate-800/40">
+              <Label>Proveedor</Label>
+              <Select
+                value={formData.proveedor || '__none__'}
+                onValueChange={(v) => setFormData({ ...formData, proveedor: v === '__none__' ? '' : v })}
+              >
+                <SelectTrigger className="h-10 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+                  <SelectValue placeholder="Sin proveedor" />
+                </SelectTrigger>
+                <SelectContent
+                  position="popper"
+                  className="z-[300] max-h-[min(50dvh,18rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
+                >
+                  <SelectItem value="__none__" className="text-slate-900 dark:text-slate-100">
+                    Sin proveedor
+                  </SelectItem>
+                  {proveedorSelectOptions.map((c) => (
+                    <SelectItem key={c} value={c} className="text-slate-900 dark:text-slate-100">
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs leading-snug text-slate-600 dark:text-slate-400">
+                Varios artículos del mismo proveedor: elija el proveedor aquí una vez y use{' '}
+                <span className="font-medium text-slate-700 dark:text-slate-300">Guardar y otro producto</span> para
+                vaciar solo SKU, código y datos del artículo y seguir capturando.
+              </p>
+            </div>
             <div className="space-y-2">
               <Label>SKU</Label>
               <Input
                 value={formData.sku}
-                onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, sku: upperTxt(e.target.value) })}
                 className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
             </div>
             <div className="space-y-2">
               <Label>Código de Barras *</Label>
               <Input
+                ref={addCodigoBarrasRef}
                 value={formData.codigoBarras}
-                onChange={(e) => setFormData({ ...formData, codigoBarras: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, codigoBarras: upperTxt(e.target.value) })}
                 className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
             </div>
@@ -1096,7 +1183,7 @@ export function Inventario() {
               <Label>Nombre *</Label>
               <Input
                 value={formData.nombre}
-                onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, nombre: upperTxt(e.target.value) })}
                 className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
             </div>
@@ -1104,23 +1191,19 @@ export function Inventario() {
               <Label>Descripción</Label>
               <Input
                 value={formData.descripcion}
-                onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, descripcion: upperTxt(e.target.value) })}
                 className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
             </div>
             <div className="space-y-2">
-              <Label>Precio de Venta (con IVA) *</Label>
+              <Label>Precio de venta (sin IVA) *</Label>
               <InventarioCurrencyInput
                 type="number"
                 inputMode="decimal"
                 min={0}
                 step="any"
                 value={
-                  addNumFocus.precioVenta && formData.precioVenta === 0
-                    ? ''
-                    : formData.precioVenta === 0
-                      ? ''
-                      : precioVentaSinIvaToConIva(formData.precioVenta, formData.impuesto)
+                  addNumFocus.precioVenta && formData.precioVenta === 0 ? '' : formData.precioVenta
                 }
                 onFocus={() => setAddNumFocus((f) => ({ ...f, precioVenta: true }))}
                 onBlur={() => setAddNumFocus((f) => ({ ...f, precioVenta: false }))}
@@ -1128,22 +1211,32 @@ export function Inventario() {
                   const v = e.target.value;
                   if (v === '') setFormData((d) => ({ ...d, precioVenta: 0 }));
                   else {
-                    const conIva = parseFloat(v);
+                    const sinIva = parseFloat(v);
                     setFormData((d) => ({
                       ...d,
                       precioVenta:
-                        Number.isFinite(conIva) && conIva >= 0
-                          ? precioVentaConIvaToSinIva(conIva, d.impuesto)
-                          : 0,
+                        Number.isFinite(sinIva) && sinIva >= 0 ? roundMoney2(sinIva) : 0,
                     }));
                   }
                 }}
                 className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
-              <p className="text-[10px] text-slate-500 dark:text-slate-500">IVA aplicado: {formData.impuesto}%</p>
+              <p className="text-[10px] leading-snug text-slate-500 dark:text-slate-400">
+                {formData.precioVenta > 0 ? (
+                  <>
+                    Con IVA ({formData.impuesto}%):{' '}
+                    <span className="font-medium text-slate-700 dark:text-slate-300">
+                      {formatMoney(precioVentaSinIvaToConIva(formData.precioVenta, formData.impuesto))}
+                    </span>
+                    . Se guarda en catálogo el precio sin IVA.
+                  </>
+                ) : (
+                  <>Ingrese el precio base sin impuesto; el sistema calcula el precio con IVA (tasa {formData.impuesto}%).</>
+                )}
+              </p>
             </div>
             <div className="space-y-2">
-              <Label>Precio de Compra</Label>
+              <Label>Precio de compra (sin IVA)</Label>
               <InventarioCurrencyInput
                 type="number"
                 inputMode="decimal"
@@ -1155,10 +1248,19 @@ export function Inventario() {
                 onChange={(e) => {
                   const v = e.target.value;
                   if (v === '') setFormData((d) => ({ ...d, precioCompra: 0 }));
-                  else setFormData((d) => ({ ...d, precioCompra: parseFloat(v) || 0 }));
+                  else {
+                    const n = parseFloat(v);
+                    setFormData((d) => ({
+                      ...d,
+                      precioCompra: Number.isFinite(n) && n >= 0 ? roundMoney2(n) : 0,
+                    }));
+                  }
                 }}
                 className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
+              <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                Mismo criterio que en la factura de compra (base sin impuesto).
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Stock Inicial</Label>
@@ -1220,30 +1322,6 @@ export function Inventario() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Proveedor</Label>
-              <Select
-                value={formData.proveedor || '__none__'}
-                onValueChange={(v) => setFormData({ ...formData, proveedor: v === '__none__' ? '' : v })}
-              >
-                <SelectTrigger className="h-10 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">
-                  <SelectValue placeholder="Sin proveedor" />
-                </SelectTrigger>
-                <SelectContent
-                  position="popper"
-                  className="z-[300] max-h-[min(50dvh,18rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
-                >
-                  <SelectItem value="__none__" className="text-slate-900 dark:text-slate-100">
-                    Sin proveedor
-                  </SelectItem>
-                  {proveedorSelectOptions.map((c) => (
-                    <SelectItem key={c} value={c} className="text-slate-900 dark:text-slate-100">
-                      {c}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
           </div>
 
           <div className="mt-3 space-y-3 border-t border-slate-200 pt-4 dark:border-slate-800">
@@ -1275,7 +1353,7 @@ export function Inventario() {
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
             <Button
               type="button"
               variant="outline"
@@ -1286,10 +1364,81 @@ export function Inventario() {
             </Button>
             <Button
               type="button"
-              onClick={() => void handleAddProduct()}
+              variant="secondary"
+              onClick={() => void handleAddProduct(true)}
+              className="border border-slate-300 bg-slate-200 text-slate-900 hover:bg-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+            >
+              Guardar y otro producto
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void handleAddProduct(false)}
               className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
             >
-              Guardar Producto
+              Guardar y cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={addSessionSummaryOpen}
+        onOpenChange={(o) => {
+          setAddSessionSummaryOpen(o);
+          if (!o) setAddSessionSummaryLines([]);
+        }}
+      >
+        <DialogContent className="max-h-[92dvh] overflow-y-auto border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 md:max-w-[min(92vw,36rem)]">
+          <DialogHeader>
+            <DialogTitle>Resumen de esta captura</DialogTitle>
+            <DialogDescription className="text-left text-slate-600 dark:text-slate-400">
+              Productos dados de alta en la sesión que cerró. El total es{' '}
+              <span className="font-medium text-slate-800 dark:text-slate-200">precio de compra (sin IVA) × stock inicial</span>{' '}
+              por línea. Compare con el subtotal sin IVA de su factura del proveedor para comprobar que no falte ningún
+              artículo.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[min(50dvh,22rem)] overflow-auto rounded-lg border border-slate-200 dark:border-slate-800">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-slate-200 dark:border-slate-800 hover:bg-transparent">
+                  <TableHead className="text-slate-600 dark:text-slate-400">Artículo</TableHead>
+                  <TableHead className="text-slate-600 dark:text-slate-400">SKU</TableHead>
+                  <TableHead className="text-right text-slate-600 dark:text-slate-400">Subtotal s/IVA</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {addSessionSummaryLines.map((row, i) => (
+                  <TableRow key={`${row.sku}-${i}`} className="border-slate-200/80 dark:border-slate-800/60">
+                    <TableCell className="max-w-[10rem] text-sm text-slate-800 dark:text-slate-200">
+                      <span className="line-clamp-2" title={row.nombre}>
+                        {row.nombre}
+                      </span>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-slate-600 dark:text-slate-400">{row.sku}</TableCell>
+                    <TableCell className="text-right text-sm tabular-nums text-slate-800 dark:text-slate-200">
+                      {formatMoney(row.subtotalSinIva)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="rounded-lg border border-cyan-500/25 bg-cyan-500/10 px-3 py-2.5">
+            <p className="text-xs text-slate-600 dark:text-slate-400">Total compra (sin IVA)</p>
+            <p className="text-xl font-bold tabular-nums text-cyan-700 dark:text-cyan-300">
+              {formatMoney(
+                roundMoney2(addSessionSummaryLines.reduce((s, r) => s + r.subtotalSinIva, 0))
+              )}
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              onClick={() => setAddSessionSummaryOpen(false)}
+              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+            >
+              Entendido
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1316,7 +1465,8 @@ export function Inventario() {
           <DialogHeader>
             <DialogTitle>Editar producto</DialogTitle>
             <DialogDescription className="text-left text-slate-600 dark:text-slate-400">
-              Datos del artículo y movimientos de entrada, salida o ajuste de existencias en el mismo lugar.
+              Datos del artículo y movimientos de entrada, salida o ajuste de existencias en el mismo lugar. Los textos
+              editables se guardan en MAYÚSCULAS.
               {selectedProduct?.nombre ? (
                 <span className="mt-1 block font-medium text-slate-800 dark:text-slate-200">
                   {selectedProduct.nombre}
@@ -1331,7 +1481,7 @@ export function Inventario() {
               <Label>SKU *</Label>
               <Input
                 value={formData.sku}
-                onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, sku: upperTxt(e.target.value) })}
                 className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
             </div>
@@ -1339,7 +1489,7 @@ export function Inventario() {
               <Label>Código de Barras</Label>
               <Input
                 value={formData.codigoBarras}
-                onChange={(e) => setFormData({ ...formData, codigoBarras: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, codigoBarras: upperTxt(e.target.value) })}
                 className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
             </div>
@@ -1347,7 +1497,7 @@ export function Inventario() {
               <Label>Nombre *</Label>
               <Input
                 value={formData.nombre}
-                onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, nombre: upperTxt(e.target.value) })}
                 className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
             </div>
@@ -1355,23 +1505,19 @@ export function Inventario() {
               <Label>Descripción</Label>
               <Input
                 value={formData.descripcion}
-                onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, descripcion: upperTxt(e.target.value) })}
                 className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
             </div>
             <div className="space-y-2">
-              <Label>Precio de Venta (con IVA) *</Label>
+              <Label>Precio de venta (sin IVA) *</Label>
               <InventarioCurrencyInput
                 type="number"
                 inputMode="decimal"
                 min={0}
                 step="any"
                 value={
-                  editNumFocus.precioVenta && formData.precioVenta === 0
-                    ? ''
-                    : formData.precioVenta === 0
-                      ? ''
-                      : precioVentaSinIvaToConIva(formData.precioVenta, formData.impuesto)
+                  editNumFocus.precioVenta && formData.precioVenta === 0 ? '' : formData.precioVenta
                 }
                 onFocus={() => setEditNumFocus((f) => ({ ...f, precioVenta: true }))}
                 onBlur={() => setEditNumFocus((f) => ({ ...f, precioVenta: false }))}
@@ -1379,22 +1525,32 @@ export function Inventario() {
                   const v = e.target.value;
                   if (v === '') setFormData((d) => ({ ...d, precioVenta: 0 }));
                   else {
-                    const conIva = parseFloat(v);
+                    const sinIva = parseFloat(v);
                     setFormData((d) => ({
                       ...d,
                       precioVenta:
-                        Number.isFinite(conIva) && conIva >= 0
-                          ? precioVentaConIvaToSinIva(conIva, d.impuesto)
-                          : 0,
+                        Number.isFinite(sinIva) && sinIva >= 0 ? roundMoney2(sinIva) : 0,
                     }));
                   }
                 }}
                 className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
-              <p className="text-[10px] text-slate-500 dark:text-slate-500">IVA aplicado: {formData.impuesto}%</p>
+              <p className="text-[10px] leading-snug text-slate-500 dark:text-slate-400">
+                {formData.precioVenta > 0 ? (
+                  <>
+                    Con IVA ({formData.impuesto}%):{' '}
+                    <span className="font-medium text-slate-700 dark:text-slate-300">
+                      {formatMoney(precioVentaSinIvaToConIva(formData.precioVenta, formData.impuesto))}
+                    </span>
+                    . Se guarda en catálogo el precio sin IVA.
+                  </>
+                ) : (
+                  <>Ingrese el precio base sin impuesto; el sistema calcula el precio con IVA (tasa {formData.impuesto}%).</>
+                )}
+              </p>
             </div>
             <div className="space-y-2">
-              <Label>Precio de Compra</Label>
+              <Label>Precio de compra (sin IVA)</Label>
               <InventarioCurrencyInput
                 type="number"
                 inputMode="decimal"
@@ -1406,10 +1562,17 @@ export function Inventario() {
                 onChange={(e) => {
                   const v = e.target.value;
                   if (v === '') setFormData((d) => ({ ...d, precioCompra: 0 }));
-                  else setFormData((d) => ({ ...d, precioCompra: parseFloat(v) || 0 }));
+                  else {
+                    const n = parseFloat(v);
+                    setFormData((d) => ({
+                      ...d,
+                      precioCompra: Number.isFinite(n) && n >= 0 ? roundMoney2(n) : 0,
+                    }));
+                  }
                 }}
                 className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
+              <p className="text-[10px] text-slate-500 dark:text-slate-400">Precio unitario de compra sin impuesto.</p>
             </div>
             <div className="space-y-2">
               <Label>Stock Mínimo</Label>
@@ -1556,7 +1719,9 @@ export function Inventario() {
               <Label>Motivo</Label>
               <Input
                 value={stockAdjustment.motivo}
-                onChange={(e) => setStockAdjustment({ ...stockAdjustment, motivo: e.target.value })}
+                onChange={(e) =>
+                  setStockAdjustment({ ...stockAdjustment, motivo: upperTxt(e.target.value) })
+                }
                 placeholder="Ej: Compra a proveedor, merma, inventario físico…"
                 className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               />
@@ -1598,7 +1763,7 @@ export function Inventario() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Precio unitario de compra</Label>
+                  <Label>Precio unitario de compra (sin IVA)</Label>
                   <InventarioCurrencyInput
                     type="number"
                     inputMode="decimal"
@@ -1805,8 +1970,8 @@ export function Inventario() {
           <DialogHeader className="shrink-0 space-y-1 border-b border-slate-200 px-4 pb-3 pt-4 dark:border-slate-800/80">
             <DialogTitle>Historial de movimientos</DialogTitle>
             <DialogDescription className="text-left text-slate-600 dark:text-slate-400">
-              Artículo modificado, cantidad anterior y nueva, fecha, tipo y motivo (hasta 500 movimientos más
-              recientes).
+              Movimientos de existencias (entradas, salidas, ventas) y eventos de catálogo: altas, bajas y cambios de
+              precios o datos del artículo. Hasta 500 registros más recientes.
             </DialogDescription>
           </DialogHeader>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3">
@@ -1847,10 +2012,15 @@ export function Inventario() {
                   <TableBody>
                     {inventoryMovements.map((mov) => {
                       const prod = productById.get(mov.productId);
-                      const nombre = prod?.nombre?.trim() || `Producto (${mov.productId.slice(0, 8)}…)`;
+                      const nombre =
+                        prod?.nombre?.trim() ||
+                        mov.nombreRegistro?.trim() ||
+                        `Producto (${mov.productId.slice(0, 8)}…)`;
+                      const skuShown = prod?.sku || mov.skuRegistro;
                       const when = mov.createdAt instanceof Date ? mov.createdAt : new Date(mov.createdAt);
                       const motivo = mov.motivo?.trim() || '—';
                       const pu = mov.precioUnitarioCompra;
+                      const cat = isCatalogInventoryMovement(mov.tipo);
                       return (
                         <TableRow
                           key={mov.id}
@@ -1860,17 +2030,17 @@ export function Inventario() {
                             <span className="line-clamp-2 text-sm font-medium text-slate-900 dark:text-slate-100">
                               {nombre}
                             </span>
-                            {prod?.sku ? (
+                            {skuShown ? (
                               <span className="block truncate text-[11px] text-slate-500 dark:text-slate-500">
-                                SKU {prod.sku}
+                                SKU {skuShown}
                               </span>
                             ) : null}
                           </TableCell>
                           <TableCell className="whitespace-nowrap text-right tabular-nums text-slate-800 dark:text-slate-200">
-                            {mov.cantidadAnterior}
+                            {cat ? '—' : mov.cantidadAnterior}
                           </TableCell>
                           <TableCell className="whitespace-nowrap text-right tabular-nums font-medium text-cyan-600 dark:text-cyan-400">
-                            {mov.cantidadNueva}
+                            {cat ? '—' : mov.cantidadNueva}
                           </TableCell>
                           <TableCell className="whitespace-nowrap text-xs text-slate-700 dark:text-slate-300">
                             {formatInAppTimezone(when, {
@@ -1882,16 +2052,18 @@ export function Inventario() {
                             {tipoMovimientoLabel(mov.tipo)}
                           </TableCell>
                           <TableCell className="max-w-[6rem] text-xs text-slate-700 dark:text-slate-300">
-                            {mov.proveedor?.trim() || '—'}
+                            {cat ? '—' : mov.proveedor?.trim() || '—'}
                           </TableCell>
                           <TableCell className="whitespace-nowrap text-right text-xs tabular-nums text-slate-700 dark:text-slate-300">
-                            {pu != null && Number.isFinite(pu) ? formatMoney(pu) : '—'}
+                            {cat ? '—' : pu != null && Number.isFinite(pu) ? formatMoney(pu) : '—'}
                           </TableCell>
                           <TableCell
                             className="max-w-[14rem] text-xs text-slate-700 dark:text-slate-300"
                             title={motivo !== '—' ? motivo : undefined}
                           >
-                            <span className="line-clamp-2">{motivo}</span>
+                            <span className={cat ? 'line-clamp-4 whitespace-pre-wrap' : 'line-clamp-2'}>
+                              {motivo}
+                            </span>
                           </TableCell>
                         </TableRow>
                       );
@@ -1932,8 +2104,8 @@ export function Inventario() {
           <AlertDialogHeader>
             <AlertDialogTitle>Vaciar historial de movimientos</AlertDialogTitle>
             <AlertDialogDescription className="text-slate-600 dark:text-slate-400">
-              Se eliminarán todos los registros de movimientos de inventario de esta tienda (o de la base
-              local). No se puede deshacer. El stock actual de los productos no cambia.
+              Se eliminarán todos los registros: movimientos de existencias y el historial de altas, bajas y ediciones
+              de catálogo. No se puede deshacer. El stock actual y los productos no cambian.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -163,10 +163,20 @@ export interface Product {
   lastSyncAt?: Date;
 }
 
+export type InventoryMovementTipo =
+  | 'entrada'
+  | 'salida'
+  | 'ajuste'
+  | 'venta'
+  | 'compra'
+  | 'producto_alta'
+  | 'producto_baja'
+  | 'producto_edicion';
+
 export interface InventoryMovement {
   id: string;
   productId: string;
-  tipo: 'entrada' | 'salida' | 'ajuste' | 'venta' | 'compra';
+  tipo: InventoryMovementTipo;
   cantidad: number;
   cantidadAnterior: number;
   cantidadNueva: number;
@@ -176,6 +186,9 @@ export interface InventoryMovement {
   proveedor?: string;
   /** Precio unitario de compra en esa entrada (sin IVA), si se capturó. */
   precioUnitarioCompra?: number;
+  /** Copia al registrar el evento (p. ej. producto dado de baja y ya no está en catálogo activo). */
+  nombreRegistro?: string;
+  skuRegistro?: string;
   usuarioId: string;
   createdAt: Date;
   syncStatus: SyncStatus;

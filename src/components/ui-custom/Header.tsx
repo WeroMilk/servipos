@@ -88,7 +88,7 @@ export function Header() {
                 }
                 onClick={() => cajaPosHeader.toggleCaja()}
                 className={cn(
-                  'ml-1 hidden h-9 w-9 shrink-0 rounded-xl border-slate-300 dark:border-slate-600 md:flex',
+                  'ml-1 flex h-9 w-9 shrink-0 rounded-xl border-slate-300 dark:border-slate-600',
                   cajaPosHeader.cajaAbierta
                     ? 'border-emerald-500/50 text-emerald-700 hover:bg-emerald-500/10 dark:border-emerald-500/45 dark:text-emerald-300'
                     : 'text-slate-600 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800'

@@ -23,6 +23,7 @@ import {
 } from '@/lib/firestore/salesFirestore';
 import { fetchInventoryMovementsByProductIdFirestore } from '@/lib/firestore/inventoryMovementsFirestore';
 import { updateClientFirestore } from '@/lib/firestore/clientsFirestore';
+import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
 import { getDefaultSucursalIdForNewData } from '@/lib/sucursales';
 
 const MOSTRADOR_CLIENT_ID = 'mostrador';
@@ -503,6 +504,31 @@ export async function getInventoryMovementsByProductId(
 
 export async function clearAllInventoryMovementsLocal(): Promise<void> {
   await db.inventoryMovements.clear();
+}
+
+/** Alta, baja o edición de producto en catálogo (Dexie, modo sin sucursal). */
+export async function appendCatalogInventoryMovementLocal(input: {
+  productId: string;
+  tipo: 'producto_alta' | 'producto_baja' | 'producto_edicion';
+  motivo: string;
+  usuarioId: string;
+  nombreRegistro?: string;
+  skuRegistro?: string;
+}): Promise<void> {
+  await db.inventoryMovements.add({
+    id: crypto.randomUUID(),
+    productId: input.productId,
+    tipo: input.tipo,
+    cantidad: 0,
+    cantidadAnterior: 0,
+    cantidadNueva: 0,
+    motivo: input.motivo,
+    usuarioId: input.usuarioId,
+    nombreRegistro: input.nombreRegistro?.trim() || undefined,
+    skuRegistro: input.skuRegistro?.trim() || undefined,
+    createdAt: new Date(),
+    syncStatus: 'pending',
+  } as InventoryMovement);
 }
 
 // ============================================
@@ -1225,6 +1251,12 @@ export async function reservePruebaNominaFolio(): Promise<{ serie: string; folio
 // ============================================
 
 export async function getPendingSyncCount(): Promise<number> {
+  const cloudSid = getEffectiveSucursalId();
+  if (cloudSid != null && String(cloudSid).trim().length > 0) {
+    // Con sucursal en Firestore el catálogo autoritativo está en la nube; `pending` en Dexie no es cola de subida.
+    return 0;
+  }
+
   const [products, sales, quotations, invoices, clients, movements] = await Promise.all([
     db.products.where('syncStatus').equals('pending').count(),
     db.sales.where('syncStatus').equals('pending').count(),
