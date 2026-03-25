@@ -48,7 +48,8 @@ import { FORMAS_PAGO_UI, USOS_CFDI } from '@/types';
 import { cn, formatMoney } from '@/lib/utils';
 import { PageShell } from '@/components/ui-custom/PageShell';
 import { SendEmailDialog } from '@/components/ui-custom/SendEmailDialog';
-import { AVISO_DOC_FISCAL_PRUEBA, printLetterDocument } from '@/lib/printTicket';
+import { AVISO_DOC_FISCAL_PRUEBA } from '@/lib/printTicket';
+import { printInvoiceCfdiRepresentacion } from '@/lib/cfdiRepresentacionImpresa';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { getDocumentFooterLinesForSucursal } from '@/lib/ticketSucursalFooter';
 import jsPDF from 'jspdf';
@@ -297,10 +298,6 @@ export function Facturas() {
     });
   };
 
-  function escHtml(s: string): string {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  }
-
   function buildInvoiceEmailBody(inv: Invoice): string {
     return [
       'SERVIPARTZ POS — Factura',
@@ -319,31 +316,6 @@ export function Facturas() {
     setEmailSubject(`Factura ${inv.serie}-${inv.folio} — SERVIPARTZ POS`);
     setEmailBody(buildInvoiceEmailBody(inv));
     setEmailOpen(true);
-  };
-
-  const printInvoiceLetter = (inv: Invoice) => {
-    const rows = (inv.productos ?? [])
-      .map(
-        (it) =>
-          `<tr><td>${escHtml(it.descripcion)}</td><td class="right">${it.cantidad}</td><td class="right">${formatMoney(it.precioUnitario)}</td><td class="right">${formatMoney(it.total)}</td></tr>`
-      )
-      .join('');
-    const html = `
-      <p><strong>Receptor:</strong> ${escHtml(inv.cliente?.nombre || 'Público en General')}</p>
-      <p><strong>RFC:</strong> ${escHtml(inv.cliente?.rfc || 'XAXX010101000')}</p>
-      <p><strong>Fecha:</strong> ${escHtml(formatInAppTimezone(inv.fechaEmision, { dateStyle: 'medium', timeStyle: 'short' }))}</p>
-      <table><thead><tr><th>Descripción</th><th class="right">Cant.</th><th class="right">P. unit.</th><th class="right">Total</th></tr></thead>
-      <tbody>${rows}</tbody></table>
-      <div class="tot">
-        <p>Subtotal: ${formatMoney(inv.subtotal)}</p>
-        <p>IVA: ${formatMoney(inv.impuestosTrasladados)}</p>
-        <p><strong>Total: ${formatMoney(inv.total)}</strong></p>
-      </div>
-    `;
-    printLetterDocument(`Factura ${inv.serie}-${inv.folio}`, html, {
-      sucursalId: inv.sucursalId ?? effectiveSucursalId ?? null,
-      avisoPrueba: inv.esPrueba ? AVISO_DOC_FISCAL_PRUEBA : undefined,
-    });
   };
 
   const searchLc = searchQuery.toLowerCase();
@@ -894,7 +866,7 @@ export function Facturas() {
                   type="button"
                   variant="outline"
                   className="border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300"
-                  onClick={() => printInvoiceLetter(selectedInvoice)}
+                  onClick={() => printInvoiceCfdiRepresentacion(selectedInvoice)}
                 >
                   <Printer className="mr-2 h-4 w-4" />
                   Imprimir (carta)

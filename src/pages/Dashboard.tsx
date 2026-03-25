@@ -344,7 +344,7 @@ export function Dashboard() {
         const ms = startOfMonth(m);
         const me = addDays(endOfMonth(m), 1);
         const ventas = salesFetched.reduce((sum, sale) => {
-          if (sale.estado === 'cancelada') return sum;
+          if (sale.estado === 'cancelada' || sale.estado === 'pendiente') return sum;
           const t = sale.createdAt instanceof Date ? sale.createdAt : new Date(sale.createdAt);
           const x = t.getTime();
           if (x >= ms.getTime() && x < me.getTime()) {
@@ -515,7 +515,7 @@ export function Dashboard() {
         />
         <StatCard
           title="Unidades"
-          value={kpiSales
+          value={kpiVentasParaTotales
             .reduce((sum, sale) => sum + (sale.productos?.length ?? 0), 0)
             .toString()}
           description="Líneas vendidas"
@@ -526,8 +526,8 @@ export function Dashboard() {
         />
         <StatCard
           title="Facturas"
-          value={kpiSales.filter((s) => s.facturaId).length.toString()}
-          description="Del total ventas"
+          value={kpiVentasParaTotales.filter((s) => s.facturaId).length.toString()}
+          description="Ventas completadas facturadas"
           icon={Receipt}
           trend="up"
           trendValue="En el periodo"

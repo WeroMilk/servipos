@@ -151,13 +151,13 @@ export function UserPermissionsEditor({ embedded = false }: UserPermissionsEdito
     <div
       className={cn(
         'flex w-full min-w-0 flex-col gap-3',
-        embedded ? 'min-h-0 p-0' : 'h-full min-h-0 flex-1 overflow-hidden'
+        embedded ? 'min-h-0 flex-1 p-0' : 'h-full min-h-0 flex-1 overflow-hidden'
       )}
     >
       <Card
         className={cn(
           'flex min-h-0 min-w-0 w-full flex-col border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50',
-          embedded ? '' : 'h-full flex-1 overflow-hidden'
+          embedded ? 'min-h-0 flex-1 overflow-hidden' : 'h-full flex-1 overflow-hidden'
         )}
       >
         <CardHeader className="shrink-0 space-y-1 px-3 py-2 sm:px-4">
@@ -288,10 +288,8 @@ export function UserPermissionsEditor({ embedded = false }: UserPermissionsEdito
 
               <div
                 className={cn(
-                  'min-h-0 space-y-4 pr-0.5',
-                  embedded
-                    ? 'flex-none overflow-visible'
-                    : 'flex-1 max-h-[min(72dvh,28rem)] overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] sm:max-h-none'
+                  'min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pr-0.5 [-webkit-overflow-scrolling:touch]',
+                  !embedded && 'max-h-[min(72dvh,28rem)] sm:max-h-none'
                 )}
               >
                 {groupsToRender.map((group) => (

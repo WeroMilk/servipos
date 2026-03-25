@@ -16,6 +16,7 @@ import { useProducts } from '@/hooks/useProducts';
 import { useInventoryMovementsHistory } from '@/hooks/useInventoryMovementsHistory';
 import { formatMoney, cn } from '@/lib/utils';
 import { formatInAppTimezone } from '@/lib/appTimezone';
+import { isMovimientoLlegadaMercancia } from '@/lib/inventoryAbasto';
 import type { Product } from '@/types';
 
 type Props = {
@@ -23,7 +24,7 @@ type Props = {
 };
 
 /**
- * Entradas de inventario con proveedor y precio (si se capturaron al dar de alta mercancía).
+ * Solo llegadas de mercancía: entradas/compras donde se capturó proveedor y/o precio unitario de compra.
  * La tabla solo se llena tras elegir un artículo en el buscador.
  */
 export function HistorialAbastoConfig({ enabled }: Props) {
@@ -63,10 +64,7 @@ export function HistorialAbastoConfig({ enabled }: Props) {
     ).slice(0, 50);
   }, [products, query]);
 
-  const entradas = useMemo(
-    () => movements.filter((m) => m.tipo === 'entrada' || m.tipo === 'compra'),
-    [movements]
-  );
+  const entradas = useMemo(() => movements.filter(isMovimientoLlegadaMercancia), [movements]);
 
   const rows = useMemo(() => {
     if (!selectedProduct) return [];
@@ -102,9 +100,9 @@ export function HistorialAbastoConfig({ enabled }: Props) {
           Historial de abasto por producto
         </CardTitle>
         <p className="text-sm font-normal text-slate-600 dark:text-slate-400 sm:text-xs">
-          Muestra entradas de stock donde puede constar proveedor y precio unitario de compra (capturados en
-          Inventario → Ajustar stock → Entrada). Busque por nombre, SKU o código y elija un artículo de la lista;
-          hasta entonces no se muestra ningún movimiento.
+          Solo registros de llegada de mercancía: entradas donde se indicó proveedor y/o precio unitario de compra
+          (Inventario → Ajustar stock → Entrada). No incluye entradas sin esos datos (p. ej. ajustes sueltos).
+          Busque por nombre, SKU o código y elija un artículo; hasta entonces no se muestra la tabla.
         </p>
 
         <div className="space-y-1.5 pt-1">
@@ -194,7 +192,7 @@ export function HistorialAbastoConfig({ enabled }: Props) {
         >
           {!selectedProduct ? (
             <p className="p-6 text-center text-sm text-slate-600 dark:text-slate-500">
-              Busque un artículo y selecciónelo en la lista desplegable para ver aquí las entradas de abasto de
+              Busque un artículo y selecciónelo en la lista desplegable para ver aquí las llegadas de mercancía de
               ese producto.
             </p>
           ) : loading ? (
@@ -205,8 +203,8 @@ export function HistorialAbastoConfig({ enabled }: Props) {
             </div>
           ) : rows.length === 0 ? (
             <p className="p-6 text-center text-sm text-slate-600 dark:text-slate-500">
-              No hay entradas de abasto registradas para este artículo (o aún no se capturaron proveedor/precio
-              en entradas anteriores).
+              No hay llegadas de mercancía registradas para este artículo (entradas con proveedor o precio de
+              compra capturado).
             </p>
           ) : (
             <Table>
@@ -268,8 +266,8 @@ export function HistorialAbastoConfig({ enabled }: Props) {
           )}
         </div>
         <p className="text-xs text-slate-500 dark:text-slate-500 sm:text-[11px]">
-          Hasta 500 movimientos más recientes de la sucursal. Las entradas antiguas pueden no tener proveedor ni
-          precio.
+          Hasta 500 movimientos recientes de la sucursal; de ellos solo se listan aquí los que califican como
+          llegada de mercancía (proveedor y/o precio de compra en la entrada).
         </p>
       </CardContent>
     </Card>

@@ -1,3 +1,4 @@
+import type { NominaPruebaPrintInput } from '@/lib/cfdiRepresentacionImpresa';
 import { formatMoney } from '@/lib/utils';
 import { getThermalTicketSucursalFooterLines } from '@/lib/ticketSucursalFooter';
 import {
@@ -9,7 +10,6 @@ import { getClientById } from '@/db/database';
 import {
   FORMAS_PAGO,
   type CajaRetiroEfectivo,
-  type FiscalConfig,
   type Quotation,
   type Sale,
 } from '@/types';
@@ -517,91 +517,12 @@ ${foot}
   openAndPrintHtml(html, 'width=816,height=1056', 300);
 }
 
-export type NominaPruebaPrintInput = {
-  config: FiscalConfig;
-  serie: string;
-  folio: string;
-  sucursalId?: string | null;
-};
+export type { NominaPruebaPrintInput } from '@/lib/cfdiRepresentacionImpresa';
 
-/**
- * Representación impresa de ejemplo para CFDI de nómina (sin XML ni timbre).
- * Datos del trabajador y montos son ficticios para revisar maquetación.
- */
+/** Recibo de nómina (prueba) — formato compacto carta (`cfdiRepresentacionImpresa`, import dinámico). */
 export function printNominaPruebaLetter(input: NominaPruebaPrintInput): void {
-  const { config, serie, folio } = input;
-  const fecha = formatInAppTimezone(new Date(), { dateStyle: 'long', timeStyle: 'short' });
-  const cp = config.lugarExpedicion || '—';
-  const dir = config.direccion;
-  const domicilioEmisor = [
-    dir?.calle,
-    dir?.numeroExterior,
-    dir?.colonia,
-    dir?.codigoPostal,
-    dir?.ciudad || dir?.municipio,
-    dir?.estado,
-  ]
-    .filter(Boolean)
-    .join(', ');
-
-  const inner = `
-    <p><strong>Serie:</strong> ${escapeHtml(serie)} &nbsp; <strong>Folio:</strong> ${escapeHtml(folio)}</p>
-    <p><strong>Fecha y hora:</strong> ${escapeHtml(fecha)}</p>
-    <p><strong>Tipo:</strong> Nómina (representación impresa de prueba)</p>
-
-    <h2>Emisor</h2>
-    <p><strong>RFC:</strong> ${escapeHtml(config.rfc)}<br/>
-    <strong>Razón social:</strong> ${escapeHtml(config.razonSocial)}<br/>
-    <strong>Régimen fiscal:</strong> ${escapeHtml(config.regimenFiscal)}<br/>
-    <strong>Lugar de expedición:</strong> ${escapeHtml(cp)}<br/>
-    ${domicilioEmisor ? `<strong>Domicilio:</strong> ${escapeHtml(domicilioEmisor)}` : ''}</p>
-
-    <h2>Receptor (ejemplo para maquetación)</h2>
-    <p><strong>Nombre:</strong> MARÍA FICTICIA PÉREZ GARCÍA<br/>
-    <strong>RFC:</strong> XAXX010101000<br/>
-    <strong>Núm. empleado:</strong> 001<br/>
-    <strong>CURP:</strong> XXXX000000HDFXXX00<br/>
-    <strong>Departamento:</strong> Operaciones<br/>
-    <strong>Puesto:</strong> Auxiliar administrativo</p>
-
-    <p><strong>Periodo de pago:</strong> 1 al 15 de marzo 2026 (ejemplo)</p>
-    <p><strong>Días pagados:</strong> 15 &nbsp; <strong>Tipo nómina:</strong> O (ordinaria)</p>
-
-    <h2>Percepciones</h2>
-    <table>
-      <thead><tr><th>Clave</th><th>Concepto</th><th class="right">Importe gravado</th><th class="right">Importe exento</th></tr></thead>
-      <tbody>
-        <tr><td>001</td><td>Sueldos, salarios y jornales</td><td class="right">${formatMoney(8500)}</td><td class="right">${formatMoney(0)}</td></tr>
-        <tr><td>038</td><td>Bono de desempeño (ejemplo)</td><td class="right">${formatMoney(500)}</td><td class="right">${formatMoney(0)}</td></tr>
-      </tbody>
-    </table>
-
-    <h2>Deducciones</h2>
-    <table>
-      <thead><tr><th>Clave</th><th>Concepto</th><th class="right">Importe</th></tr></thead>
-      <tbody>
-        <tr><td>002</td><td>ISR</td><td class="right">${formatMoney(1240)}</td></tr>
-        <tr><td>021</td><td>IMSS</td><td class="right">${formatMoney(285)}</td></tr>
-      </tbody>
-    </table>
-
-    <div class="tot">
-      <p>Total percepciones: ${formatMoney(9000)}</p>
-      <p>Total deducciones: ${formatMoney(1525)}</p>
-      <p><strong>Neto a pagar: ${formatMoney(7475)}</strong></p>
-    </div>
-
-    <p class="muted">
-      Este recibo es solo una vista previa de impresión. Para que una nómina sea válida ante el SAT hace falta
-      generar el XML con complemento de nómina, usar la serie y folio del rango autorizado, sellar con tu CSD y
-      timbrar con un PAC autorizado. Cuando desactives el modo de prueba y guardes los folios oficiales de nómina,
-      el sistema podrá usar esa numeración en la generación real (junto al servicio de timbrado).
-    </p>
-  `;
-
-  printLetterDocument('Recibo de nómina (prueba)', inner, {
-    sucursalId: input.sucursalId,
-    avisoPrueba: AVISO_DOC_FISCAL_PRUEBA,
+  void import('@/lib/cfdiRepresentacionImpresa').then(({ printNominaPruebaCfdiLetter }) => {
+    printNominaPruebaCfdiLetter(input);
   });
 }
 

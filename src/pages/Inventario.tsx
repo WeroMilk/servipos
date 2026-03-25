@@ -88,6 +88,7 @@ import {
 import { PageShell } from '@/components/ui-custom/PageShell';
 import { printThermalLowStockReport } from '@/lib/printTicket';
 import { formatInAppTimezone } from '@/lib/appTimezone';
+import { isMovimientoLlegadaMercancia } from '@/lib/inventoryAbasto';
 
 type InventoryMode = 'productos' | 'stock' | 'valor' | 'codigos';
 
@@ -637,9 +638,7 @@ export function Inventario() {
     void getInventoryMovementsByProductId(pid, { sucursalId: effectiveSucursalId, limit: 200 })
       .then((rows: InventoryMovement[]) => {
         if (cancelled) return;
-        const entradas = rows.filter(
-          (m: InventoryMovement) => (m.tipo === 'entrada' || m.tipo === 'compra') && m.cantidad > 0
-        );
+        const entradas = rows.filter(isMovimientoLlegadaMercancia);
         setProductEntradasHist(entradas);
       })
       .catch(() => {
@@ -2137,8 +2136,8 @@ export function Inventario() {
                 Historial de llegadas (entradas / compras)
               </p>
               <p className="mb-3 text-xs text-slate-500 dark:text-slate-500">
-                Cantidad recibida, precio unitario de compra (sin IVA) y proveedor cuando se registraron al dar de
-                alta mercancía o ajustar stock.
+                Solo filas donde hubo llegada de mercancía (se capturó proveedor y/o precio unitario de compra sin
+                IVA al registrar la entrada).
               </p>
               {productEntradasHistLoading ? (
                 <div className="space-y-2 py-4">
@@ -2148,8 +2147,8 @@ export function Inventario() {
                 </div>
               ) : productEntradasHist.length === 0 ? (
                 <p className="rounded-lg border border-dashed border-slate-300 bg-slate-200/40 px-3 py-6 text-center text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-400">
-                  No hay entradas registradas para este artículo (o aún no se capturó proveedor / precio en las
-                  entradas).
+                  No hay llegadas de mercancía para este artículo (entradas con proveedor o precio de compra
+                  capturado).
                 </p>
               ) : (
                 <div className="min-w-0 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800/70">

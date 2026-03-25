@@ -914,7 +914,9 @@ export function Configuracion() {
             value="permisos"
             className={cn(configuracionTabsPanelClass, 'w-full')}
           >
-            <UserPermissionsEditor embedded />
+            <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
+              <UserPermissionsEditor embedded />
+            </div>
           </TabsContent>
         )}
 
