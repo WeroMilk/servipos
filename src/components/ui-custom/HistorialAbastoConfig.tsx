@@ -89,7 +89,14 @@ export function HistorialAbastoConfig({ enabled }: Props) {
     'h-11 border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 text-base leading-normal text-slate-900 dark:text-slate-100 sm:h-8 sm:text-sm';
 
   return (
-    <Card className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
+    <Card
+      className={cn(
+        'flex w-full min-w-0 flex-col border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50',
+        /* Móvil: altura según contenido; el scroll lo hace la pestaña de Configuración (evita recortes y pie oculto). */
+        'max-xl:flex-none max-xl:overflow-visible',
+        'xl:min-h-0 xl:flex-1 xl:overflow-hidden'
+      )}
+    >
       <CardHeader className="shrink-0 space-y-2 px-3 py-2 sm:px-4">
         <CardTitle className="text-base text-slate-900 dark:text-slate-100 sm:text-base">
           Historial de abasto por producto
@@ -170,8 +177,21 @@ export function HistorialAbastoConfig({ enabled }: Props) {
           )}
         </div>
       </CardHeader>
-      <CardContent className="min-h-0 flex-1 space-y-2 overflow-hidden p-3 pt-0 sm:p-4 sm:pt-0">
-        <div className="min-h-0 max-h-[min(60dvh,28rem)] overflow-auto rounded-lg border border-slate-200 dark:border-slate-800/70">
+      <CardContent
+        className={cn(
+          'space-y-2 p-3 pt-0 sm:p-4 sm:pt-0',
+          'max-xl:overflow-visible',
+          'xl:min-h-0 xl:flex-1 xl:overflow-hidden'
+        )}
+      >
+        <div
+          className={cn(
+            'rounded-lg border border-slate-200 dark:border-slate-800/70',
+            /* Escritorio: caja con scroll interno. Móvil: sin tope; desplazamiento en el panel de la pestaña. */
+            'max-xl:min-h-0 max-xl:overflow-visible',
+            'xl:min-h-0 xl:max-h-[min(60dvh,28rem)] xl:overflow-auto xl:overscroll-y-contain xl:[-webkit-overflow-scrolling:touch]'
+          )}
+        >
           {!selectedProduct ? (
             <p className="p-6 text-center text-sm text-slate-600 dark:text-slate-500">
               Busque un artículo y selecciónelo en la lista desplegable para ver aquí las entradas de abasto de
