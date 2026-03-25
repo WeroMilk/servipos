@@ -150,11 +150,11 @@ export function UserPermissionsEditor({ embedded = false }: UserPermissionsEdito
   return (
     <div
       className={cn(
-        'flex min-h-0 w-full min-w-0 flex-1 flex-col gap-3 overflow-hidden',
+        'flex h-full min-h-0 w-full min-w-0 flex-1 flex-col gap-3 overflow-hidden',
         embedded ? 'p-0' : ''
       )}
     >
-      <Card className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
+      <Card className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
         <CardHeader className="shrink-0 space-y-1 px-3 py-2 sm:px-4">
           <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-slate-100 sm:text-base">
             <Shield className="h-4 w-4 shrink-0 text-cyan-500 sm:h-5 sm:w-5" />
@@ -281,7 +281,7 @@ export function UserPermissionsEditor({ embedded = false }: UserPermissionsEdito
                 ) : null}
               </div>
 
-              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pr-0.5 [-webkit-overflow-scrolling:touch]">
+              <div className="min-h-0 max-h-[min(72dvh,28rem)] flex-1 space-y-4 overflow-y-auto overscroll-contain pr-0.5 [-webkit-overflow-scrolling:touch] sm:max-h-none">
                 {groupsToRender.map((group) => (
                   <div key={group.title}>
                     <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-500">

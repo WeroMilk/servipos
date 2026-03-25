@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Search,
   Plus,
@@ -138,6 +139,8 @@ type PosTicketSnapshot = {
 };
 
 export function POS() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'admin';
   const hasPermission = useAuthStore((s) => s.hasPermission);
@@ -260,6 +263,7 @@ export function POS() {
   );
 
   const [ventasAbiertasDialogOpen, setVentasAbiertasDialogOpen] = useState(false);
+  const [pasarCxcBusyId, setPasarCxcBusyId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!hasPermission('ventas:crear')) {
@@ -480,6 +484,30 @@ export function POS() {
 
   const { results: searchResults, search: searchProducts } = useProductSearch();
   const { clients, refresh: refreshClients } = useClients();
+
+  useEffect(() => {
+    const st = location.state as { posPreselectClienteId?: string } | null | undefined;
+    const cid = st?.posPreselectClienteId?.trim();
+    if (!cid || cid === 'mostrador') return;
+    navigate('.', { replace: true, state: null });
+    void (async () => {
+      try {
+        const row = await getClientById(cid);
+        if (row?.nombre?.trim()) {
+          setClient(row);
+          setMobileTab('cart');
+          addToast({
+            type: 'success',
+            message: 'Cliente cargado desde Cuentas por cobrar. Registre el cobro en el POS.',
+          });
+        } else {
+          addToast({ type: 'warning', message: 'No se encontró el cliente.' });
+        }
+      } catch {
+        addToast({ type: 'error', message: 'No se pudo cargar el cliente.' });
+      }
+    })();
+  }, [location.state, navigate, setClient, addToast, setMobileTab]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -930,6 +958,47 @@ export function POS() {
       });
     } finally {
       setResumeOpenBusy(false);
+    }
+  };
+
+  const pasarVentaACuentasPorCobrar = async (vs: Sale) => {
+    if (vs.estado !== 'pendiente') return;
+    const registrado =
+      Boolean(vs.clienteId) && vs.clienteId !== 'mostrador' && !vs.cliente?.isMostrador;
+    if (!registrado) {
+      addToast({
+        type: 'warning',
+        message: 'Solo las ventas con cliente registrado pueden pasarse a cuentas por cobrar.',
+      });
+      return;
+    }
+    setPasarCxcBusyId(vs.id);
+    try {
+      const cajeroNombre =
+        user?.name?.trim() || user?.username?.trim() || user?.email?.trim() || undefined;
+      await completePendingSale(vs.id, {
+        formaPago: 'PPC',
+        metodoPago: 'PPD',
+        pagos: [],
+        cambio: 0,
+        usuarioNombreCierre: cajeroNombre,
+        cajaSesionId: cajaSesion.activa?.id,
+        clienteId: vs.clienteId!,
+        cliente: vs.cliente ?? null,
+      });
+      setVentasAbiertasDialogOpen(false);
+      addToast({
+        type: 'success',
+        message: `Venta ${vs.folio} registrada como pendiente de pago a cuenta del cliente.`,
+      });
+      navigate('/cuentas-por-cobrar');
+    } catch (e: unknown) {
+      addToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'No se pudo pasar la venta a cuentas por cobrar',
+      });
+    } finally {
+      setPasarCxcBusyId(null);
     }
   };
 
@@ -2280,35 +2349,52 @@ export function POS() {
             </p>
           ) : (
             <ul className="max-h-[min(50dvh,22rem)] space-y-2 overflow-y-auto overscroll-contain pr-1">
-              {ventasAbiertas.map((vs) => (
-                <li key={vs.id}>
-                  <button
-                    type="button"
-                    disabled={resumeOpenBusy || dejarAbiertaBusy}
-                    onClick={() => void resumeOpenSale(vs)}
-                    className={cn(
-                      'flex w-full flex-col gap-0.5 rounded-xl border border-slate-200/90 bg-slate-200/60 px-3 py-2.5 text-left transition-colors hover:border-cyan-500/45 hover:bg-slate-200/90 dark:border-slate-700/90 dark:bg-slate-800/60 dark:hover:border-cyan-500/40 dark:hover:bg-slate-800/90',
-                      (resumeOpenBusy || dejarAbiertaBusy) && 'pointer-events-none opacity-50'
-                    )}
-                  >
-                    <span className="font-mono text-sm font-medium text-slate-800 dark:text-slate-200">
-                      {vs.folio}
-                    </span>
-                    <span className="truncate text-xs text-slate-600 dark:text-slate-400">
-                      {vs.cliente?.nombre?.trim() || vs.clienteId || 'Cliente'}
-                    </span>
-                    <span className="text-sm font-semibold tabular-nums text-cyan-600 dark:text-cyan-400">
-                      {formatMoney(Number(vs.total) || 0)}
-                    </span>
-                    <span className="text-[11px] text-slate-500 dark:text-slate-500">
-                      {formatInAppTimezone(
-                        vs.createdAt instanceof Date ? vs.createdAt : new Date(vs.createdAt),
-                        { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }
+              {ventasAbiertas.map((vs) => {
+                const puedePasarCxc =
+                  Boolean(vs.clienteId) &&
+                  vs.clienteId !== 'mostrador' &&
+                  !vs.cliente?.isMostrador;
+                const filaBusy = resumeOpenBusy || dejarAbiertaBusy || pasarCxcBusyId === vs.id;
+                return (
+                  <li key={vs.id} className="space-y-2">
+                    <button
+                      type="button"
+                      disabled={filaBusy}
+                      onClick={() => void resumeOpenSale(vs)}
+                      className={cn(
+                        'flex w-full flex-col gap-0.5 rounded-xl border border-slate-200/90 bg-slate-200/60 px-3 py-2.5 text-left transition-colors hover:border-cyan-500/45 hover:bg-slate-200/90 dark:border-slate-700/90 dark:bg-slate-800/60 dark:hover:border-cyan-500/40 dark:hover:bg-slate-800/90',
+                        filaBusy && 'pointer-events-none opacity-50'
                       )}
-                    </span>
-                  </button>
-                </li>
-              ))}
+                    >
+                      <span className="font-mono text-sm font-medium text-slate-800 dark:text-slate-200">
+                        {vs.folio}
+                      </span>
+                      <span className="truncate text-xs text-slate-600 dark:text-slate-400">
+                        {vs.cliente?.nombre?.trim() || vs.clienteId || 'Cliente'}
+                      </span>
+                      <span className="text-sm font-semibold tabular-nums text-cyan-600 dark:text-cyan-400">
+                        {formatMoney(Number(vs.total) || 0)}
+                      </span>
+                      <span className="text-[11px] text-slate-500 dark:text-slate-500">
+                        {formatInAppTimezone(
+                          vs.createdAt instanceof Date ? vs.createdAt : new Date(vs.createdAt),
+                          { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }
+                        )}
+                      </span>
+                    </button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={filaBusy || !puedePasarCxc}
+                      className="h-8 w-full border-amber-500/40 text-xs text-amber-900 hover:bg-amber-500/10 dark:border-amber-500/35 dark:text-amber-100"
+                      onClick={() => void pasarVentaACuentasPorCobrar(vs)}
+                    >
+                      {pasarCxcBusyId === vs.id ? 'Procesando…' : 'Pasar a cuentas por cobrar'}
+                    </Button>
+                  </li>
+                );
+              })}
             </ul>
           )}
           <DialogFooter className="sm:justify-end">

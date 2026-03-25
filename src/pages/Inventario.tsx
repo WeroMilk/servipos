@@ -259,6 +259,14 @@ export function Inventario() {
     return m;
   }, [products]);
 
+  const sortedProductsForTemplate = useMemo(
+    () =>
+      [...products].sort((a, b) =>
+        (a.nombre || '').localeCompare(b.nombre || '', 'es', { sensitivity: 'base' })
+      ),
+    [products]
+  );
+
   // Form state
   const [formData, setFormData] = useState({
     sku: '',
@@ -277,6 +285,7 @@ export function Inventario() {
   });
 
   const [preciosListaStr, setPreciosListaStr] = useState(emptyPreciosListaStr);
+  const [addFormTemplateId, setAddFormTemplateId] = useState<string>('__none__');
   const categoriasLista = useInventoryListsStore((s) => s.categorias);
   const proveedoresLista = useInventoryListsStore((s) => s.proveedores);
 
@@ -369,6 +378,7 @@ export function Inventario() {
     const compraSubSinIva = roundMoney2(
       Math.max(0, Number(formData.precioCompra) || 0) * Math.max(0, Number(formData.existencia) || 0)
     );
+    const preciosPorListaCliente = parsePreciosListaForm(preciosListaStr);
     try {
       await addProduct({
         ...formData,
@@ -379,12 +389,14 @@ export function Inventario() {
         activo: true,
         unidadMedida: normalizeClaveUnidadSat(formData.unidadMedida),
         claveProdServ: cps,
+        preciosPorListaCliente: preciosPorListaCliente ?? {},
       } as any);
       addSessionLinesRef.current = [
         ...addSessionLinesRef.current,
         { nombre, sku: skuFinal, subtotalSinIva: compraSubSinIva },
       ];
       if (andAnother) {
+        setAddFormTemplateId('__none__');
         setFormData({
           sku: '',
           codigoBarras: '',
@@ -523,6 +535,34 @@ export function Inventario() {
       setClearingMovements(false);
     }
   }, [effectiveSucursalId, addToast, refreshInventoryMovementsLocal]);
+
+  const applyProductTemplateToAddForm = useCallback(
+    (product: Product) => {
+      const p = productById.get(product.id) ?? product;
+      setFormData({
+        sku: p.sku,
+        codigoBarras: p.codigoBarras || '',
+        nombre: p.nombre,
+        descripcion: p.descripcion || '',
+        precioVenta: p.precioVenta,
+        precioCompra: p.precioCompra || 0,
+        impuesto: p.impuesto,
+        existencia: p.existencia,
+        existenciaMinima: p.existenciaMinima,
+        categoria: p.categoria || '',
+        proveedor: p.proveedor || '',
+        unidadMedida: normalizeClaveUnidadSat(p.unidadMedida),
+        claveProdServ: p.claveProdServ ?? '',
+      });
+      const pl = emptyPreciosListaStr();
+      for (const id of CLIENT_PRICE_LIST_ORDER) {
+        const v = p.preciosPorListaCliente?.[id];
+        pl[id] = v != null && Number.isFinite(v) ? String(v) : '';
+      }
+      setPreciosListaStr(pl);
+    },
+    [productById]
+  );
 
   const openEditDialog = (product: Product) => {
     setSelectedProduct(product);
@@ -703,6 +743,7 @@ export function Inventario() {
   };
 
   const resetForm = () => {
+    setAddFormTemplateId('__none__');
     setFormData({
       sku: '',
       codigoBarras: '',
@@ -1162,6 +1203,39 @@ export function Inventario() {
           </DialogHeader>
           
           <div className="grid grid-cols-2 gap-4 py-4">
+            <div className="col-span-2 space-y-2 rounded-lg border border-cyan-500/25 bg-cyan-500/[0.08] p-3 dark:border-cyan-500/30 dark:bg-cyan-950/25">
+              <Label>Copiar desde producto existente</Label>
+              <Select
+                value={addFormTemplateId}
+                onValueChange={(v) => {
+                  setAddFormTemplateId(v);
+                  if (v === '__none__') return;
+                  const p = productById.get(v);
+                  if (p) applyProductTemplateToAddForm(p);
+                }}
+              >
+                <SelectTrigger className="h-10 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+                  <SelectValue placeholder="Seleccione…" />
+                </SelectTrigger>
+                <SelectContent
+                  position="popper"
+                  className="z-[300] max-h-[min(50dvh,18rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
+                >
+                  <SelectItem value="__none__" className="text-slate-900 dark:text-slate-100">
+                    Ninguno — captura manual
+                  </SelectItem>
+                  {sortedProductsForTemplate.map((p) => (
+                    <SelectItem key={p.id} value={p.id} className="text-slate-900 dark:text-slate-100">
+                      {p.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs leading-snug text-slate-600 dark:text-slate-400">
+                Rellena todos los campos con un artículo del catálogo; cambie SKU, código o existencia si es una
+                variante o entrada nueva y guarde.
+              </p>
+            </div>
             <div className="col-span-2 space-y-2 rounded-lg border border-slate-200/80 bg-slate-200/35 p-3 dark:border-slate-700/60 dark:bg-slate-800/40">
               <Label>Proveedor</Label>
               <Select

@@ -655,7 +655,7 @@ export function Clientes() {
 
       {/* Add Client Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="flex max-h-[92dvh] w-[calc(100%-1.5rem)] max-w-none flex-col gap-0 overflow-hidden border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 p-0 text-slate-900 dark:text-slate-100 sm:w-full md:max-w-[min(92vw,72rem)] lg:max-w-[min(92vw,80rem)]">
+        <DialogContent className="flex max-h-[92dvh] w-[calc(100%-1.5rem)] max-w-none flex-col gap-0 overflow-hidden border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 p-0 text-slate-900 dark:text-slate-100 sm:w-full md:max-h-[min(96dvh,56rem)] md:max-w-[min(94vw,80rem)] lg:max-h-none lg:max-w-[min(96vw,90rem)] lg:overflow-visible">
           <div className="shrink-0 border-b border-slate-200 dark:border-slate-800/80 px-4 pb-3 pt-4 pr-14">
             <DialogHeader className="space-y-0 p-0 text-left">
               <DialogTitle>Nuevo Cliente</DialogTitle>
@@ -663,14 +663,14 @@ export function Clientes() {
           </div>
 
           <form
-            className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+            className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:overflow-visible"
             onSubmit={(e) => {
               e.preventDefault();
               void handleAddClient();
             }}
           >
-          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 md:px-5">
-          <div className="grid min-w-0 grid-cols-1 gap-3 gap-y-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-x-4">
+          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 md:px-5 lg:flex-none lg:overflow-visible lg:py-3">
+          <div className="grid min-w-0 grid-cols-1 gap-3 gap-y-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-x-4 lg:gap-y-3">
             <div className="min-w-0 space-y-2 sm:col-span-2 lg:col-span-3">
               <Label>Nombre *</Label>
               <Input

@@ -23,7 +23,7 @@ import {
   fetchSalesForMexicoDateKey,
 } from '@/lib/firestore/salesFirestore';
 import { registrarRetiroEfectivoFirestore } from '@/lib/firestore/cajaFirestore';
-import { getSalesByDateRange } from '@/db/database';
+import { cancelSale, completePendingSale, getSalesByDateRange } from '@/db/database';
 import {
   computeCajaEfectivoEsperado,
   efectivoEsperadoMenosRetiros,
@@ -337,6 +337,57 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
     }
     setBusy(true);
     try {
+      const pendientesSesion = ventasSesion.filter((s) => s.estado === 'pendiente');
+      if (pendientesSesion.length > 0) {
+        const dbOpt = effectiveSucursalId ? { sucursalId: effectiveSucursalId } : undefined;
+        let pasadasCxc = 0;
+        let canceladasSinCliente = 0;
+        for (const vs of pendientesSesion) {
+          const registrado =
+            Boolean(vs.clienteId) &&
+            vs.clienteId !== 'mostrador' &&
+            !vs.cliente?.isMostrador;
+          if (registrado) {
+            await completePendingSale(
+              vs.id,
+              {
+                formaPago: 'PPC',
+                metodoPago: 'PPD',
+                pagos: [],
+                cambio: 0,
+                usuarioNombreCierre: userNombre,
+                cajaSesionId: activa.id,
+                clienteId: vs.clienteId!,
+                cliente: vs.cliente ?? null,
+              },
+              dbOpt
+            );
+            pasadasCxc += 1;
+          } else {
+            await cancelSale(vs.id, {
+              motivo: 'Cierre de caja: venta abierta sin cliente registrado',
+              sucursalId: effectiveSucursalId ?? undefined,
+              cancelacionMotivo: 'panel',
+            });
+            canceladasSinCliente += 1;
+          }
+        }
+        const partes: string[] = [];
+        if (pasadasCxc > 0) {
+          partes.push(
+            `${pasadasCxc} venta(s) abierta(s) pasada(s) a cuentas por cobrar (pendiente de pago)`
+          );
+        }
+        if (canceladasSinCliente > 0) {
+          partes.push(
+            `${canceladasSinCliente} venta(s) sin cliente registrado cancelada(s); inventario restaurado`
+          );
+        }
+        if (partes.length > 0) {
+          addToast({ type: 'success', message: partes.join('. ') + '.' });
+        }
+      }
+
       let ventasPrint = ventasSesion;
       if (isCloud && effectiveSucursalId) {
         await closeCaja({

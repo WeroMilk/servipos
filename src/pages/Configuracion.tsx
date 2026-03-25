@@ -910,7 +910,10 @@ export function Configuracion() {
         )}
 
         {canManageUsers && (
-          <TabsContent value="permisos" className={cn(configuracionTabsPanelClass, 'w-full')}>
+          <TabsContent
+            value="permisos"
+            className="mt-0 flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden [-webkit-overflow-scrolling:touch]"
+          >
             <UserPermissionsEditor embedded />
           </TabsContent>
         )}
