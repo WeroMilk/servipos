@@ -6,6 +6,7 @@ import {
   runTransaction,
   serverTimestamp,
   onSnapshot,
+  Timestamp,
   type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -289,11 +290,12 @@ export async function registrarRetiroEfectivoFirestore(
   if (monto <= 0) throw new Error('Indique un monto mayor a cero');
 
   const sRef = cajaSesionRef(sucursalId, sid);
+  /** `serverTimestamp()` no es válido dentro de `arrayUnion()`; usar hora concreta. */
   const item = {
     id: crypto.randomUUID(),
     monto,
     notas: input.notas?.trim() || null,
-    createdAt: serverTimestamp(),
+    createdAt: Timestamp.now(),
     usuarioId: input.usuarioId,
     usuarioNombre: input.usuarioNombre.trim() || 'Usuario',
   };

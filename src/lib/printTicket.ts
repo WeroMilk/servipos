@@ -6,7 +6,13 @@ import {
   getBrandLogoAbsoluteUrl,
 } from '@/lib/documentPrintBranding';
 import { getClientById } from '@/db/database';
-import { FORMAS_PAGO, type FiscalConfig, type Quotation, type Sale } from '@/types';
+import {
+  FORMAS_PAGO,
+  type CajaRetiroEfectivo,
+  type FiscalConfig,
+  type Quotation,
+  type Sale,
+} from '@/types';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { thermalTicketCancelacionNotas } from '@/lib/saleCancelacion';
 import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
@@ -376,6 +382,8 @@ export function printThermalCajaCierre(input: {
   cierreLabel: string;
   /** Suma de retiros a bóveda/banco en la sesión (ya descontada del efectivo esperado). */
   retirosEfectivoTotal?: number;
+  /** Detalle de cada retiro (impresión / cuadre). */
+  retirosEfectivo?: CajaRetiroEfectivo[];
   /** `arqueo_previo`: sin conteo físico ni diferencia; título distinto. */
   ticketKind?: 'cierre' | 'arqueo_previo';
 }): void {
@@ -411,6 +419,21 @@ export function printThermalCajaCierre(input: {
     (Number(input.retirosEfectivoTotal) || 0) > 0.005
       ? `<div>Retiros de efectivo (sesión): −${formatMoney(Number(input.retirosEfectivoTotal) || 0)}</div>`
       : '';
+  const retirosLista = (() => {
+    const list = input.retirosEfectivo;
+    if (!list?.length) return '';
+    const sorted = [...list].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+    const rows = sorted
+      .map((r) => {
+        const meta = `${formatInAppTimezone(r.createdAt, { dateStyle: 'short', timeStyle: 'short' })} · ${r.usuarioNombre}`;
+        const notas = r.notas?.trim() ? ` — ${r.notas.trim()}` : '';
+        return `<div style="font-size:18px;margin:3px 0;line-height:1.25;">${escapeHtml(meta)} · −${formatMoney(r.monto)}${escapeHtml(notas)}</div>`;
+      })
+      .join('');
+    return `<div style="font-size:19px;font-weight:600;margin:8px 0 2px;">Detalle retiros</div>${rows}`;
+  })();
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${escapeHtml(titulo)}</title>
 <style>${THERMAL_BASE_STYLES}</style></head><body>
@@ -436,6 +459,7 @@ export function printThermalCajaCierre(input: {
   <div class="tot">
     <div><strong>Efectivo esperado en caja</strong></div>
     ${retiros}
+    ${retirosLista}
     <div style="font-size:26px;"><strong>${formatMoney(input.efectivoEsperado)}</strong></div>
     ${bloqueConteo}
   </div>

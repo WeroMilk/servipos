@@ -391,7 +391,8 @@ export type FormaPago =
   | '99' // Por definir
   | 'TTS' // Transferencia de tienda a tienda (interno; solo admin, total $0)
   | 'DEV' // Devolución: cancela ticket previo y reembolso en mostrador (no es forma SAT)
-  | 'COT'; // Cotización: solo en POS para cargar carrito; no se guarda en venta timbrada
+  | 'COT' // Cotización: solo en POS para cargar carrito; no se guarda en venta timbrada
+  | 'PPC'; // Pendiente de pago: venta completada sin cobro; saldo en cuenta (POS interno)
 
 export type MetodoPago = 'PUE' | 'PPD'; // Pago en una sola exhibición o Parcialidades
 
@@ -660,6 +661,7 @@ export const FORMAS_PAGO: CatalogoSAT[] = [
   { clave: '99', descripcion: 'Por definir' },
   { clave: 'DEV', descripcion: 'Devolución' },
   { clave: 'COT', descripcion: 'Cotización' },
+  { clave: 'PPC', descripcion: 'Pendiente de pago' },
 ];
 
 /** Opciones mostradas en POS y facturación (el catálogo completo sigue en FORMAS_PAGO para tickets e históricos). */

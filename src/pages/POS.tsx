@@ -173,6 +173,7 @@ export function POS() {
   const formasPagoPos = useMemo(() => {
     const base = [
       ...FORMAS_PAGO_UI,
+      { clave: 'PPC' as const, descripcion: 'Pendiente de pago' },
       { clave: 'COT' as const, descripcion: 'Cotización' },
       { clave: 'DEV' as const, descripcion: 'Devolución' },
     ];
@@ -359,11 +360,25 @@ export function POS() {
   const formasPagoPosEffective = useMemo(() => {
     if (openSaleResume) {
       return formasPagoPos.filter(
-        (fp) => fp.clave !== 'DEV' && fp.clave !== 'TTS' && fp.clave !== 'COT'
+        (fp) =>
+          fp.clave !== 'DEV' && fp.clave !== 'TTS' && fp.clave !== 'COT' && fp.clave !== 'PPC'
       );
     }
     return formasPagoPos;
   }, [formasPagoPos, openSaleResume]);
+
+  const formaPagoSelectValue = useMemo(() => {
+    if (formasPagoPosEffective.some((fp) => fp.clave === formaPago)) return formaPago;
+    return formasPagoPosEffective[0]?.clave ?? '01';
+  }, [formasPagoPosEffective, formaPago]);
+
+  const metodoPagoSelectValue: 'PUE' | 'PPD' = metodoPago === 'PPD' ? 'PPD' : 'PUE';
+
+  const precioClienteListaSelectValue = useMemo((): ClientPriceListId => {
+    const id = precioClienteListaId;
+    if ((CLIENT_PRICE_LIST_ORDER as readonly string[]).includes(id)) return id;
+    return 'regular';
+  }, [precioClienteListaId]);
 
   const [devolucionFolioInput, setDevolucionFolioInput] = useState('');
   const [devolucionSaleResuelta, setDevolucionSaleResuelta] = useState<Sale | null>(null);
@@ -375,6 +390,13 @@ export function POS() {
 
   const esFormaDevolucion = formaPago === 'DEV';
   const esFormaCotizacion = formaPago === 'COT';
+  const esFormaPendientePago = formaPago === 'PPC';
+
+  useEffect(() => {
+    if (!esFormaPendientePago) return;
+    setMetodoPago('PPD');
+    useCartStore.setState({ pagos: [] });
+  }, [esFormaPendientePago, setMetodoPago]);
 
   useEffect(() => {
     if (!formasPagoPosEffective.some((fp) => fp.clave === formaPago)) {
@@ -616,6 +638,11 @@ export function POS() {
     const ok = FORMAS_PAGO_UI.some((f) => f.clave === fp);
     setPpdAbonoFormaPago(ok ? fp : '01');
   }, [checkoutOpen, checkoutPhase, metodoPago, checkoutPaymentKey]);
+
+  const ppdAbonoFormaSelectValue = useMemo(() => {
+    if (FORMAS_PAGO_UI.some((f) => f.clave === ppdAbonoFormaPago)) return ppdAbonoFormaPago;
+    return '01';
+  }, [ppdAbonoFormaPago]);
 
   const esFormaTarjeta = (fp: string) => fp === '04' || fp === '28';
   const esFormaEfectivo = (fp: string) => fp === '01';
@@ -1076,7 +1103,7 @@ export function POS() {
     const cobroTarjetaPueLocal =
       !esTraspasoTienda && esFormaTarjeta(formaPago) && metodoPago === 'PUE';
 
-    if (!esTraspasoTienda && !cobroTarjetaPueLocal) {
+    if (formaPago !== 'PPC' && !esTraspasoTienda && !cobroTarjetaPueLocal) {
       if (metodoPago === 'PPD') {
         const fpLinea = ppdAbonoFormaPago;
         const norm = montoRecibidoInput.replace(',', '.').trim();
@@ -1113,7 +1140,17 @@ export function POS() {
       return;
     }
 
-    let pagosParaVenta = pagos;
+    if (formaPago === 'PPC') {
+      if (!client?.id || client.id === 'mostrador' || client.isMostrador) {
+        addToast({
+          type: 'error',
+          message: 'Seleccione un cliente registrado para vender con pendiente de pago.',
+        });
+        return;
+      }
+    }
+
+    let pagosParaVenta = formaPago === 'PPC' ? [] : pagos;
 
     if (cobroTarjetaPueLocal) {
       const d4 = digitos4TarjetaPendiente();
@@ -1126,14 +1163,14 @@ export function POS() {
       }
       pagosParaVenta = [{ formaPago, monto: totalCobro, referencia: d4 }];
     } else if (!esTraspasoTienda) {
-      const permiteDeuda = puedeVentaConSaldoPendiente;
+      const permiteDeuda = puedeVentaConSaldoPendiente || formaPago === 'PPC';
       if (!permiteDeuda && getTotalPagado() < totalCobro) {
         addToast({ type: 'error', message: 'El pago es insuficiente' });
         return;
       }
     }
 
-    if (!esTraspasoTienda) {
+    if (!esTraspasoTienda && formaPago !== 'PPC') {
       for (const p of pagosParaVenta) {
         if (esFormaTarjeta(p.formaPago)) {
           const ref = p.referencia?.trim() ?? '';
@@ -1225,14 +1262,17 @@ export function POS() {
             total: lineTot,
           };
         });
-        const resumenPagosAbierta = pagosParaVenta.map((p) => ({
-          label: labelFormaPago(p.formaPago),
-          monto: p.monto,
-          ultimos4:
-            esFormaTarjeta(p.formaPago) && /^\d{4}$/.test(p.referencia?.trim() ?? '')
-              ? p.referencia!.trim()
-              : undefined,
-        }));
+        const resumenPagosAbierta =
+          formaPago === 'PPC' ?
+            [{ label: 'Pendiente de pago', monto: totalCobro }]
+          : pagosParaVenta.map((p) => ({
+              label: labelFormaPago(p.formaPago),
+              monto: p.monto,
+              ultimos4:
+                esFormaTarjeta(p.formaPago) && /^\d{4}$/.test(p.referencia?.trim() ?? '')
+                  ? p.referencia!.trim()
+                  : undefined,
+            }));
         setTicketSnapshot({
           clienteNombre,
           cajeroNombre,
@@ -1345,7 +1385,9 @@ export function POS() {
         };
       });
       const resumenPagos =
-        !esTraspasoTienda && pagosParaVenta.length > 0
+        formaPago === 'PPC' ?
+          [{ label: 'Pendiente de pago', monto: totalCobro }]
+        : !esTraspasoTienda && pagosParaVenta.length > 0
           ? pagosParaVenta.map((p) => ({
               label: labelFormaPago(p.formaPago),
               monto: p.monto,
@@ -1878,13 +1920,13 @@ export function POS() {
                     Forma de pago
                   </Label>
                   <Select
-                    value={formaPago}
+                    value={formaPagoSelectValue}
                     onValueChange={(v) => {
                       setFormaPago(v);
                       if (v === 'TTS' && isAdmin) {
                         useCartStore.setState({ pagos: [] });
                       }
-                      if (v === 'DEV' || v === 'COT') {
+                      if (v === 'DEV' || v === 'COT' || v === 'PPC') {
                         useCartStore.setState({ pagos: [] });
                       }
                       if (v !== 'TTS') setTransferenciaDestinoSucursalId('');
@@ -2039,29 +2081,37 @@ export function POS() {
                   </div>
                 ) : null}
 
-                <div className="space-y-1 lg:space-y-0.5">
-                  <Label className="text-[10px] text-slate-600 dark:text-slate-400 sm:text-xs lg:text-[10px]">
-                    Método
-                  </Label>
-                  <Select value={metodoPago} onValueChange={setMetodoPago}>
-                    <SelectTrigger className="h-10 w-full min-w-0 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100 md:text-sm lg:h-9 lg:min-h-9 lg:text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent
-                      align="start"
-                      sideOffset={6}
-                      hideScrollButtons
-                      className="z-[300] max-h-[min(50dvh,18rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
-                    >
-                      <SelectItem value="PUE" className="text-slate-900 dark:text-slate-100">
-                        Una exhibición (PUE)
-                      </SelectItem>
-                      <SelectItem value="PPD" className="text-slate-900 dark:text-slate-100">
-                        Parcialidades (PPD)
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                {esFormaPendientePago ? (
+                  <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-[10px] leading-snug text-amber-950 dark:border-amber-500/25 dark:bg-amber-950/30 dark:text-amber-100 sm:text-xs">
+                    <span className="font-semibold">Pendiente de pago:</span> se registrará el total como saldo del
+                    cliente (aparece en Cuentas por cobrar con el folio del ticket). Elija un cliente registrado, no
+                    Mostrador.
+                  </p>
+                ) : (
+                  <div className="space-y-1 lg:space-y-0.5">
+                    <Label className="text-[10px] text-slate-600 dark:text-slate-400 sm:text-xs lg:text-[10px]">
+                      Método
+                    </Label>
+                    <Select value={metodoPagoSelectValue} onValueChange={setMetodoPago}>
+                      <SelectTrigger className="h-10 w-full min-w-0 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100 md:text-sm lg:h-9 lg:min-h-9 lg:text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent
+                        align="start"
+                        sideOffset={6}
+                        hideScrollButtons
+                        className="z-[300] max-h-[min(50dvh,18rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
+                      >
+                        <SelectItem value="PUE" className="text-slate-900 dark:text-slate-100">
+                          Una exhibición (PUE)
+                        </SelectItem>
+                        <SelectItem value="PPD" className="text-slate-900 dark:text-slate-100">
+                          Parcialidades (PPD)
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
 
                 {metodoPago === 'PPD' &&
                 client &&
@@ -2069,7 +2119,8 @@ export function POS() {
                 !client.isMostrador &&
                 !esTraspasoTienda &&
                 !esFormaDevolucion &&
-                !esFormaCotizacion ? (
+                !esFormaCotizacion &&
+                !esFormaPendientePago ? (
                   <p className="text-[10px] leading-snug text-slate-600 dark:text-slate-400 sm:text-xs">
                     Con <span className="font-medium">Parcialidades (PPD)</span> puede registrar un pago menor al
                     total o ninguno: el faltante queda en la cuenta del cliente (Cuentas por cobrar). Use{' '}
@@ -2081,7 +2132,8 @@ export function POS() {
                 (!client || client.isMostrador || client.id === 'mostrador') &&
                 !esTraspasoTienda &&
                 !esFormaDevolucion &&
-                !esFormaCotizacion ? (
+                !esFormaCotizacion &&
+                !esFormaPendientePago ? (
                   <p className="text-[10px] leading-snug text-amber-700 dark:text-amber-400 sm:text-xs">
                     Para dejar saldo a cuenta elija un cliente registrado (no Mostrador).
                   </p>
@@ -2119,7 +2171,7 @@ export function POS() {
                         Precios por cliente
                       </Label>
                       <Select
-                        value={precioClienteListaId}
+                        value={precioClienteListaSelectValue}
                         onValueChange={(v) => setPrecioClienteLista(v as ClientPriceListId)}
                       >
                         <SelectTrigger className="h-10 w-full min-h-10 min-w-0 shrink-0 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100 md:text-sm lg:h-9 lg:min-h-9 lg:text-xs">
@@ -2158,7 +2210,9 @@ export function POS() {
                 : esFormaCotizacion
                   ? true
                   : items.length === 0 ||
-                    (formaPago === 'TTS' && isAdmin && !transferenciaDestinoSucursalId?.trim())
+                    (formaPago === 'TTS' && isAdmin && !transferenciaDestinoSucursalId?.trim()) ||
+                    (formaPago === 'PPC' &&
+                      (!client || client.id === 'mostrador' || client.isMostrador))
               }
               className="h-11 w-full min-w-0 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-base font-bold text-white shadow-lg shadow-cyan-500/25 sm:h-12 md:h-14 md:text-lg"
             >
@@ -2292,7 +2346,7 @@ export function POS() {
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
                   <Receipt className="h-5 w-5 text-cyan-400 sm:h-6 sm:w-6" />
-                  {checkoutDevolucionListo ? 'Confirmar devolución' : 'Procesar pago'}
+                  {checkoutDevolucionListo ? 'Confirmar devolución' : formaPago === 'PPC' ? 'Pendiente de pago' : 'Procesar pago'}
                 </DialogTitle>
               </DialogHeader>
 
@@ -2307,12 +2361,20 @@ export function POS() {
                 </div>
 
                 {!checkoutDevolucionListo &&
+                formaPago !== 'PPC' &&
                 puedeVentaConSaldoPendiente &&
                 montoDialogoPrincipal > 0 &&
                 totalPagadoVenta + 0.004 < montoDialogoPrincipal ? (
                   <p className="text-center text-xs font-medium text-amber-700 dark:text-amber-400">
                     Quedará a cuenta del cliente:{' '}
                     {formatMoney(Math.max(0, montoDialogoPrincipal - totalPagadoVenta))}
+                  </p>
+                ) : null}
+
+                {formaPago === 'PPC' && !checkoutDevolucionListo ? (
+                  <p className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-center text-xs leading-relaxed text-amber-950 dark:border-amber-500/30 dark:bg-amber-950/35 dark:text-amber-100 sm:text-sm">
+                    No se registrará cobro en caja. El importe total quedará como saldo del cliente y el ticket se
+                    listará en <span className="font-semibold">Cuentas por cobrar</span>.
                   </p>
                 ) : null}
 
@@ -2324,7 +2386,7 @@ export function POS() {
                   </p>
                 ) : null}
 
-                {!cobroTarjetaPue && !esTraspasoTienda && !checkoutDevolucionListo ? (
+                {!cobroTarjetaPue && !esTraspasoTienda && !checkoutDevolucionListo && formaPago !== 'PPC' ? (
                   <div className="space-y-2">
                     {metodoPago === 'PPD' ? (
                       <div className="space-y-1.5">
@@ -2332,7 +2394,7 @@ export function POS() {
                           Medio de este abono
                         </Label>
                         <Select
-                          value={ppdAbonoFormaPago}
+                          value={ppdAbonoFormaSelectValue}
                           onValueChange={(v) => {
                             setPpdAbonoFormaPago(v);
                             if (!esFormaTarjeta(v)) setTarjetaUltimos4('');
@@ -2401,7 +2463,10 @@ export function POS() {
                   </div>
                 ) : null}
 
-                {esFormaTarjeta(formaPagoAbono) && !esTraspasoTienda && !checkoutDevolucionListo ? (
+                {esFormaTarjeta(formaPagoAbono) &&
+                !esTraspasoTienda &&
+                !checkoutDevolucionListo &&
+                formaPago !== 'PPC' ? (
                   <div className="space-y-2">
                     <Label>Últimos 4 dígitos (voucher)</Label>
                     <Input
@@ -2433,7 +2498,10 @@ export function POS() {
                   </div>
                 ) : null}
 
-                {esFormaEfectivo(formaPagoAbono) && !esTraspasoTienda && !checkoutDevolucionListo ? (
+                {esFormaEfectivo(formaPagoAbono) &&
+                !esTraspasoTienda &&
+                !checkoutDevolucionListo &&
+                formaPago !== 'PPC' ? (
                   <div className="flex flex-wrap gap-2">
                     {[50, 100, 200, 500, 1000].map((amount) => (
                       <button
@@ -2448,7 +2516,10 @@ export function POS() {
                   </div>
                 ) : null}
 
-                {pagos.length > 0 && !cobroTarjetaPue && !checkoutDevolucionListo && (
+                {pagos.length > 0 &&
+                !cobroTarjetaPue &&
+                !checkoutDevolucionListo &&
+                formaPago !== 'PPC' && (
                   <div className="space-y-2">
                     <Label>Pagos recibidos</Label>
                     <div className="space-y-2">
@@ -2481,7 +2552,10 @@ export function POS() {
                   </div>
                 )}
 
-                {!esTraspasoTienda && !checkoutDevolucionListo && cambioVenta > 0 && (
+                {!esTraspasoTienda &&
+                !checkoutDevolucionListo &&
+                formaPago !== 'PPC' &&
+                cambioVenta > 0 && (
                   <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 sm:p-4">
                     <p className="text-center text-emerald-400">
                       Cambio:{' '}

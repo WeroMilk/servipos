@@ -84,6 +84,14 @@ export function AdminSucursalSwitcher() {
     return first ?? '';
   }, [activeSucursalId, effectiveSucursalId, options]);
 
+  /** Valor siempre alineado con un `SelectItem` para evitar Select controlado ↔ no controlado (Radix). */
+  const selectValue = useMemo(() => {
+    if (orphanOverride && activeSucursalId) return activeSucursalId;
+    const id = resolvedSucursalId;
+    if (id && options.some((s) => s.id === id)) return id;
+    return options[0]?.id ?? '__empty__';
+  }, [orphanOverride, activeSucursalId, resolvedSucursalId, options]);
+
   const triggerLabel = useMemo(() => {
     const id = resolvedSucursalId;
     if (!id) return 'Elija tienda';
@@ -128,10 +136,7 @@ export function AdminSucursalSwitcher() {
     <>
       <div className="flex min-w-0 max-w-full flex-1 items-center gap-0.5 sm:max-w-[20rem] sm:flex-none sm:gap-1 md:max-w-[min(24rem,100%)]">
         <MapPin className="hidden h-4 w-4 shrink-0 text-cyan-500/90 sm:block" aria-hidden />
-        <Select
-          value={resolvedSucursalId || (options[0]?.id ?? '')}
-          onValueChange={(v) => setActiveSucursalId(v)}
-        >
+        <Select value={selectValue} onValueChange={(v) => v !== '__empty__' && setActiveSucursalId(v)}>
           <SelectTrigger
             className={cn(
               'h-9 min-w-0 flex-1 border-slate-300 bg-white text-xs text-slate-900 sm:text-sm dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-100'
@@ -147,6 +152,11 @@ export function AdminSucursalSwitcher() {
             align="start"
             className="z-[140] max-h-[min(85dvh,22rem)] w-[var(--radix-select-trigger-width)] border-slate-200 bg-white data-[side=top]:max-h-[min(85dvh,22rem)] dark:border-slate-800 dark:bg-slate-900"
           >
+            {selectValue === '__empty__' ? (
+              <SelectItem value="__empty__" disabled className="text-slate-500 dark:text-slate-400">
+                Cargando tiendas…
+              </SelectItem>
+            ) : null}
             {orphanOverride && activeSucursalId ? (
               <SelectItem value={activeSucursalId} className="text-slate-900 dark:text-slate-100">
                 Guardada: {activeSucursalId.slice(0, 10)}…

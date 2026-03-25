@@ -60,6 +60,7 @@ function parseFormaPago(v: unknown): FormaPago {
   if (s === 'TTS') return 'TTS';
   if (s === 'DEV') return 'DEV';
   if (s === 'COT') return 'COT';
+  if (s === 'PPC') return 'PPC';
   if (['01', '02', '03', '04', '08', '28', '29', '99'].includes(s)) return s as FormaPago;
   return '01';
 }

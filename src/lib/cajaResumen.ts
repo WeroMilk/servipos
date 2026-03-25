@@ -1,7 +1,7 @@
 import type { FormaPago, Sale } from '@/types';
 import { FORMAS_PAGO } from '@/types';
 
-const FORMAS_SIN_COBRO_CIERRE = new Set<FormaPago>(['TTS', 'DEV', 'COT']);
+const FORMAS_SIN_COBRO_CIERRE = new Set<FormaPago>(['TTS', 'DEV', 'COT', 'PPC']);
 
 function sumaMontosPagosRegistrados(pagos: Sale['pagos'] | undefined): number {
   return (pagos ?? []).reduce((a, p) => a + (Number(p.monto) || 0), 0);
