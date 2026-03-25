@@ -84,6 +84,9 @@ import {
   normalizeClaveProdServ,
   normalizeClaveUnidadSat,
   isValidClaveProdServSat,
+  satUnidadLlegadaLabels,
+  parseCantidadLlegadaSat,
+  parseExistenciaInventarioForm,
 } from '@/lib/satCatalog';
 import { PageShell } from '@/components/ui-custom/PageShell';
 import { printThermalLowStockReport } from '@/lib/printTicket';
@@ -298,6 +301,10 @@ export function Inventario() {
 
   const [preciosListaStr, setPreciosListaStr] = useState(emptyPreciosListaStr);
   const [addFormTemplateId, setAddFormTemplateId] = useState<string>('__none__');
+  const [addProveedorSelectKey, setAddProveedorSelectKey] = useState(0);
+  const [addTemplateLlegadaOpen, setAddTemplateLlegadaOpen] = useState(false);
+  const [addTemplateLlegadaProduct, setAddTemplateLlegadaProduct] = useState<Product | null>(null);
+  const [addTemplateLlegadaQtyStr, setAddTemplateLlegadaQtyStr] = useState('');
   const categoriasLista = useInventoryListsStore((s) => s.categorias);
   const proveedoresLista = useInventoryListsStore((s) => s.proveedores);
 
@@ -348,6 +355,9 @@ export function Inventario() {
       });
       setAddTemplateSearch('');
       setAddTemplateComboOpen(false);
+      setAddTemplateLlegadaOpen(false);
+      setAddTemplateLlegadaProduct(null);
+      setAddTemplateLlegadaQtyStr('');
     }
   }, [showAddDialog]);
 
@@ -387,7 +397,7 @@ export function Inventario() {
       });
       return;
     }
-    const proveedorGuardado = formData.proveedor.trim();
+    const proveedorParaSiguiente = formData.proveedor.trim();
     const descripcionUpper = upperTxt((formData.descripcion ?? '').trim());
     const compraSubSinIva = roundMoney2(
       Math.max(0, Number(formData.precioCompra) || 0) * Math.max(0, Number(formData.existencia) || 0)
@@ -410,6 +420,7 @@ export function Inventario() {
         { nombre, sku: skuFinal, subtotalSinIva: compraSubSinIva },
       ];
       if (andAnother) {
+        setAddProveedorSelectKey((k) => k + 1);
         setAddFormTemplateId('__none__');
         setAddTemplateSearch('');
         setAddTemplateComboOpen(false);
@@ -424,7 +435,7 @@ export function Inventario() {
           existencia: 0,
           existenciaMinima: 0,
           categoria: '',
-          proveedor: proveedorGuardado,
+          proveedor: proveedorParaSiguiente,
           unidadMedida: 'H87',
           claveProdServ: '',
         });
@@ -553,8 +564,10 @@ export function Inventario() {
   }, [effectiveSucursalId, addToast, refreshInventoryMovementsLocal]);
 
   const applyProductTemplateToAddForm = useCallback(
-    (product: Product) => {
+    (product: Product, opts?: { existencia?: number }) => {
       const p = productById.get(product.id) ?? product;
+      const existencia =
+        opts?.existencia !== undefined ? opts.existencia : p.existencia;
       setFormData({
         sku: p.sku,
         codigoBarras: p.codigoBarras || '',
@@ -563,7 +576,7 @@ export function Inventario() {
         precioVenta: p.precioVenta,
         precioCompra: p.precioCompra || 0,
         impuesto: p.impuesto,
-        existencia: p.existencia,
+        existencia,
         existenciaMinima: p.existenciaMinima,
         categoria: p.categoria || '',
         proveedor: p.proveedor || '',
@@ -579,6 +592,31 @@ export function Inventario() {
     },
     [productById]
   );
+
+  const confirmAddTemplateLlegada = useCallback(() => {
+    const p = addTemplateLlegadaProduct;
+    if (!p) return;
+    const meta = satUnidadLlegadaLabels(p.unidadMedida ?? 'H87');
+    const llegada = parseCantidadLlegadaSat(addTemplateLlegadaQtyStr, meta.permitirDecimal);
+    const base = Number(p.existencia) || 0;
+    const u = normalizeClaveUnidadSat(p.unidadMedida);
+    const sum = base + llegada;
+    const existenciaFinal =
+      u === 'MTR' || u === 'CMT'
+        ? Math.round(sum * 1000) / 1000
+        : Math.max(0, Math.round(sum));
+    applyProductTemplateToAddForm(p, { existencia: existenciaFinal });
+    setAddFormTemplateId(p.id);
+    setAddTemplateLlegadaOpen(false);
+    setAddTemplateLlegadaProduct(null);
+    setAddTemplateLlegadaQtyStr('');
+    requestAnimationFrame(() => addCodigoBarrasRef.current?.focus());
+  }, [addTemplateLlegadaProduct, addTemplateLlegadaQtyStr, applyProductTemplateToAddForm]);
+
+  const addTemplateLlegadaMeta = useMemo(() => {
+    if (!addTemplateLlegadaProduct) return null;
+    return satUnidadLlegadaLabels(addTemplateLlegadaProduct.unidadMedida ?? 'H87');
+  }, [addTemplateLlegadaProduct]);
 
   const openEditDialog = (product: Product) => {
     setSelectedProduct(product);
@@ -757,9 +795,13 @@ export function Inventario() {
   };
 
   const resetForm = () => {
+    setAddProveedorSelectKey(0);
     setAddFormTemplateId('__none__');
     setAddTemplateSearch('');
     setAddTemplateComboOpen(false);
+    setAddTemplateLlegadaOpen(false);
+    setAddTemplateLlegadaProduct(null);
+    setAddTemplateLlegadaQtyStr('');
     setFormData({
       sku: '',
       codigoBarras: '',
@@ -1282,8 +1324,9 @@ export function Inventario() {
                               type="button"
                               className="flex w-full flex-col gap-0.5 px-3 py-2 text-left text-sm transition-colors hover:bg-slate-200/90 dark:hover:bg-slate-800/90"
                               onClick={() => {
-                                applyProductTemplateToAddForm(p);
-                                setAddFormTemplateId(p.id);
+                                setAddTemplateLlegadaProduct(p);
+                                setAddTemplateLlegadaQtyStr('');
+                                setAddTemplateLlegadaOpen(true);
                                 setAddTemplateSearch('');
                                 setAddTemplateComboOpen(false);
                               }}
@@ -1302,13 +1345,15 @@ export function Inventario() {
                 </Popover>
               )}
               <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-400 lg:text-[10px] lg:leading-tight">
-                Escriba para buscar; al elegir un artículo se rellenan los campos. Cambie SKU, código o existencia si
-                es una variante o entrada nueva y guarde.
+                Escriba para buscar; al elegir un artículo se abre un paso para indicar cuánto llegó (piezas, metros,
+                etc., según la unidad SAT) y se suma a la existencia copiada. Luego cambie SKU, código o stock si es
+                variante o entrada nueva y guarde.
               </p>
             </div>
             <div className="col-span-2 space-y-1.5 rounded-lg border border-slate-200/80 bg-slate-200/35 p-2.5 dark:border-slate-700/60 dark:bg-slate-800/40 lg:col-span-2 lg:space-y-1 lg:p-2">
               <Label>Proveedor</Label>
               <Select
+                key={addProveedorSelectKey}
                 value={formData.proveedor || '__none__'}
                 onValueChange={(v) => setFormData({ ...formData, proveedor: v === '__none__' ? '' : v })}
               >
@@ -1482,16 +1527,25 @@ export function Inventario() {
               <Label className="text-sm lg:text-xs">Stock Inicial</Label>
               <Input
                 type="number"
-                inputMode="numeric"
+                inputMode="decimal"
                 min={0}
-                step={1}
+                step={
+                  normalizeClaveUnidadSat(formData.unidadMedida) === 'MTR' ||
+                  normalizeClaveUnidadSat(formData.unidadMedida) === 'CMT'
+                    ? 'any'
+                    : 1
+                }
                 value={addNumFocus.existencia && formData.existencia === 0 ? '' : formData.existencia}
                 onFocus={() => setAddNumFocus((f) => ({ ...f, existencia: true }))}
                 onBlur={() => setAddNumFocus((f) => ({ ...f, existencia: false }))}
                 onChange={(e) => {
                   const v = e.target.value;
                   if (v === '') setFormData((d) => ({ ...d, existencia: 0 }));
-                  else setFormData((d) => ({ ...d, existencia: parseInt(v, 10) || 0 }));
+                  else
+                    setFormData((d) => ({
+                      ...d,
+                      existencia: parseExistenciaInventarioForm(v, d.unidadMedida),
+                    }));
                 }}
                 className="h-10 border-slate-300 bg-slate-200 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9"
               />
@@ -1565,6 +1619,84 @@ export function Inventario() {
               Guardar y cerrar
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={addTemplateLlegadaOpen}
+        onOpenChange={(o) => {
+          setAddTemplateLlegadaOpen(o);
+          if (!o) {
+            setAddTemplateLlegadaProduct(null);
+            setAddTemplateLlegadaQtyStr('');
+          }
+        }}
+      >
+        <DialogContent
+          useDialogDescription
+          overlayClassName="z-[130] bg-black/55"
+          className="z-[131] gap-3 border-slate-200 bg-slate-100 py-5 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:max-w-md"
+        >
+          {addTemplateLlegadaProduct && addTemplateLlegadaMeta ? (
+            <>
+              <DialogHeader className="space-y-2 text-left">
+                <DialogTitle className="text-base sm:text-lg">{addTemplateLlegadaMeta.titulo}</DialogTitle>
+                <DialogDescription className="text-left text-sm text-slate-600 dark:text-slate-400">
+                  <span className="font-medium text-slate-800 dark:text-slate-200">
+                    {addTemplateLlegadaProduct.nombre}
+                  </span>
+                  <span className="text-slate-500"> · SKU {addTemplateLlegadaProduct.sku}</span>
+                  <span className="mt-2 block text-xs leading-snug">
+                    Existencia en plantilla:{' '}
+                    <span className="font-medium tabular-nums text-slate-700 dark:text-slate-300">
+                      {addTemplateLlegadaProduct.existencia}
+                    </span>
+                    . {addTemplateLlegadaMeta.descripcionAyuda}
+                  </span>
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-1.5">
+                <Label htmlFor="add-template-llegada-qty" className="text-sm text-slate-700 dark:text-slate-300">
+                  {addTemplateLlegadaMeta.inputLabel}
+                </Label>
+                <Input
+                  id="add-template-llegada-qty"
+                  type="number"
+                  inputMode={addTemplateLlegadaMeta.permitirDecimal ? 'decimal' : 'numeric'}
+                  min={0}
+                  step={addTemplateLlegadaMeta.permitirDecimal ? 'any' : 1}
+                  autoFocus
+                  value={addTemplateLlegadaQtyStr}
+                  onChange={(e) => setAddTemplateLlegadaQtyStr(e.target.value)}
+                  className="h-11 border-slate-300 bg-slate-200 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                />
+                <p className="text-[11px] text-slate-500 dark:text-slate-500">
+                  Deje en blanco o 0 si en esta recepción no suma cantidad (solo copiar datos del artículo).
+                </p>
+              </div>
+              <DialogFooter className="gap-2 sm:justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-slate-300 dark:border-slate-600"
+                  onClick={() => {
+                    setAddTemplateLlegadaOpen(false);
+                    setAddTemplateLlegadaProduct(null);
+                    setAddTemplateLlegadaQtyStr('');
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="button"
+                  className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+                  onClick={() => confirmAddTemplateLlegada()}
+                >
+                  Aplicar plantilla
+                </Button>
+              </DialogFooter>
+            </>
+          ) : null}
         </DialogContent>
       </Dialog>
 
