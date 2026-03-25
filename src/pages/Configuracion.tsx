@@ -223,6 +223,10 @@ export function Configuracion() {
   const configuracionTabsPanelClass =
     'mt-0 flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch] outline-none data-[state=inactive]:hidden';
 
+  /** Datos fiscales: desde lg (escritorio típico) sin scroll del panel; en móvil/tablet estrecha se mantiene scroll. */
+  const configuracionFiscalTabsPanelClass =
+    'mt-0 flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch] outline-none data-[state=inactive]:hidden lg:overflow-hidden lg:overscroll-y-auto';
+
   return (
     <PageShell
       title="Configuración"
@@ -321,253 +325,278 @@ export function Configuracion() {
           </TabsList>
         </div>
 
-        <TabsContent value="fiscal" className={configuracionTabsPanelClass}>
-          <Card className="w-full min-w-0 border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
-            <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
+        <TabsContent value="fiscal" className={configuracionFiscalTabsPanelClass}>
+          <Card className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col border-slate-200/80 bg-slate-50/90 dark:border-slate-800/50 dark:bg-slate-900/50 lg:min-h-0">
+            <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4 lg:py-1.5">
               <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-slate-100 sm:text-base">
                 <Receipt className="h-4 w-4 shrink-0 text-cyan-400 sm:h-5 sm:w-5" />
                 Datos fiscales CFDI 4.0
               </CardTitle>
             </CardHeader>
-            <CardContent className="flex flex-col gap-2 p-3 pt-0 sm:p-4 sm:pt-0">
-              <div className="min-w-0">
-                <div className="grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  <div className="space-y-1">
-                    <Label htmlFor="rfc" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
-                      RFC *
-                    </Label>
-                    <Input
-                      id="rfc"
-                      value={fiscalForm.rfc}
-                      onChange={(e) =>
-                        setFiscalForm({ ...fiscalForm, rfc: e.target.value.toUpperCase() })
-                      }
-                      placeholder="XAXX010101000"
-                      className={fieldClass}
-                    />
-                  </div>
-                  <div className="space-y-1 sm:col-span-2 lg:col-span-2">
-                    <Label htmlFor="razonSocial" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
-                      Razón social *
-                    </Label>
-                    <Input
-                      id="razonSocial"
-                      value={fiscalForm.razonSocial}
-                      onChange={(e) =>
-                        setFiscalForm({ ...fiscalForm, razonSocial: e.target.value })
-                      }
-                      placeholder="Nombre fiscal ante el SAT"
-                      className={fieldClass}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="nombreComercial" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
-                      Nombre comercial
-                    </Label>
-                    <Input
-                      id="nombreComercial"
-                      value={fiscalForm.nombreComercial}
-                      onChange={(e) =>
-                        setFiscalForm({ ...fiscalForm, nombreComercial: e.target.value })
-                      }
-                      className={fieldClass}
-                    />
-                  </div>
-                  <div className="space-y-1 sm:col-span-2 lg:col-span-2">
-                    <Label htmlFor="regimenFiscal" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
-                      Régimen fiscal *
-                    </Label>
-                    <select
-                      id="regimenFiscal"
-                      value={fiscalForm.regimenFiscal}
-                      onChange={(e) =>
-                        setFiscalForm({ ...fiscalForm, regimenFiscal: e.target.value })
-                      }
-                      className={selectClass}
-                    >
-                      <option value="">Seleccione…</option>
-                      {REGIMENES_FISCALES.map((r) => (
-                        <option key={r.clave} value={r.clave}>
-                          {r.clave} - {r.descripcion}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="serie" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
-                      Serie *
-                    </Label>
-                    <Input
-                      id="serie"
-                      value={fiscalForm.serie}
-                      onChange={(e) =>
-                        setFiscalForm({ ...fiscalForm, serie: e.target.value.toUpperCase() })
-                      }
-                      placeholder="A"
-                      className={fieldClass}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="folioActual" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
-                      Folio actual *
-                    </Label>
-                    <Input
-                      id="folioActual"
-                      type="number"
-                      value={fiscalForm.folioActual}
-                      onChange={(e) =>
-                        setFiscalForm({
-                          ...fiscalForm,
-                          folioActual: parseInt(e.target.value, 10) || 1,
-                        })
-                      }
-                      className={fieldClass}
-                      disabled={fiscalForm.modoPruebaFiscal}
-                      title={
-                        fiscalForm.modoPruebaFiscal
-                          ? 'En modo prueba las facturas no usan este folio'
-                          : undefined
-                      }
-                    />
-                  </div>
-                  <div className="col-span-full flex flex-col gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100/70 dark:bg-slate-900/35 p-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0 space-y-1">
-                      <Label htmlFor="modoPruebaFiscal" className="text-sm font-medium text-slate-700 dark:text-slate-300 sm:text-xs">
-                        Modo prueba (facturas y vistas de nómina)
-                      </Label>
-                      <p className="text-sm leading-snug text-slate-600 dark:text-slate-400 sm:text-xs">
-                        Las facturas nuevas llevan serie PRUEBA y no avanzan el folio oficial. Las impresiones de recibo
-                        de nómina de prueba usan PRUEBA-N y no tocan el folio de nómina SAT. Para producción: desactiva
-                        esta opción, guarda aquí tu serie y folio autorizados y timbra con tu PAC; el solo hecho de
-                        ingresar folios no sustituye el timbrado.
-                      </p>
+            <CardContent className="flex min-h-0 flex-1 flex-col gap-2 p-3 pt-0 sm:p-4 sm:pt-0 lg:min-h-0 lg:gap-1.5 lg:overflow-hidden lg:pb-2 lg:pt-0">
+              <div className="min-h-0 min-w-0 flex-1 lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden">
+                <div className="flex min-h-0 flex-col gap-3 lg:min-h-0 lg:flex-1 lg:flex-row lg:items-stretch lg:gap-5 lg:overflow-hidden">
+                  {/* Columna principal (CFDI); en lg+ comparte fila con dirección */}
+                  <div className="min-w-0 flex-1 space-y-2 lg:min-h-0 lg:flex-1 lg:overflow-visible">
+                    <div className="grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2 lg:grid-cols-2 lg:gap-y-1.5">
+                      <div className="space-y-1">
+                        <Label htmlFor="rfc" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
+                          RFC *
+                        </Label>
+                        <Input
+                          id="rfc"
+                          value={fiscalForm.rfc}
+                          onChange={(e) =>
+                            setFiscalForm({ ...fiscalForm, rfc: e.target.value.toUpperCase() })
+                          }
+                          placeholder="XAXX010101000"
+                          className={fieldClass}
+                        />
+                      </div>
+                      <div className="space-y-1 sm:col-span-2 lg:col-span-2">
+                        <Label htmlFor="razonSocial" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
+                          Razón social *
+                        </Label>
+                        <Input
+                          id="razonSocial"
+                          value={fiscalForm.razonSocial}
+                          onChange={(e) =>
+                            setFiscalForm({ ...fiscalForm, razonSocial: e.target.value })
+                          }
+                          placeholder="Nombre fiscal ante el SAT"
+                          className={fieldClass}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label
+                          htmlFor="nombreComercial"
+                          className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs"
+                        >
+                          Nombre comercial
+                        </Label>
+                        <Input
+                          id="nombreComercial"
+                          value={fiscalForm.nombreComercial}
+                          onChange={(e) =>
+                            setFiscalForm({ ...fiscalForm, nombreComercial: e.target.value })
+                          }
+                          className={fieldClass}
+                        />
+                      </div>
+                      <div className="space-y-1 sm:col-span-2 lg:col-span-2">
+                        <Label htmlFor="regimenFiscal" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
+                          Régimen fiscal *
+                        </Label>
+                        <select
+                          id="regimenFiscal"
+                          value={fiscalForm.regimenFiscal}
+                          onChange={(e) =>
+                            setFiscalForm({ ...fiscalForm, regimenFiscal: e.target.value })
+                          }
+                          className={selectClass}
+                        >
+                          <option value="">Seleccione…</option>
+                          {REGIMENES_FISCALES.map((r) => (
+                            <option key={r.clave} value={r.clave}>
+                              {r.clave} - {r.descripcion}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="serie" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
+                          Serie *
+                        </Label>
+                        <Input
+                          id="serie"
+                          value={fiscalForm.serie}
+                          onChange={(e) =>
+                            setFiscalForm({ ...fiscalForm, serie: e.target.value.toUpperCase() })
+                          }
+                          placeholder="A"
+                          className={fieldClass}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="folioActual" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
+                          Folio actual *
+                        </Label>
+                        <Input
+                          id="folioActual"
+                          type="number"
+                          value={fiscalForm.folioActual}
+                          onChange={(e) =>
+                            setFiscalForm({
+                              ...fiscalForm,
+                              folioActual: parseInt(e.target.value, 10) || 1,
+                            })
+                          }
+                          className={fieldClass}
+                          disabled={fiscalForm.modoPruebaFiscal}
+                          title={
+                            fiscalForm.modoPruebaFiscal
+                              ? 'En modo prueba las facturas no usan este folio'
+                              : undefined
+                          }
+                        />
+                      </div>
+                      <div className="col-span-full flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-100/70 p-2 dark:border-slate-700 dark:bg-slate-900/35 sm:flex-row sm:items-center sm:justify-between sm:p-3 lg:py-2">
+                        <div className="min-w-0 space-y-1">
+                          <Label
+                            htmlFor="modoPruebaFiscal"
+                            className="text-sm font-medium text-slate-700 dark:text-slate-300 sm:text-xs"
+                          >
+                            Modo prueba (facturas y vistas de nómina)
+                          </Label>
+                          <p className="text-sm leading-snug text-slate-600 dark:text-slate-400 sm:text-xs lg:hidden">
+                            Las facturas nuevas llevan serie PRUEBA y no avanzan el folio oficial. Las impresiones de
+                            recibo de nómina de prueba usan PRUEBA-N y no tocan el folio de nómina SAT. Para
+                            producción: desactiva esta opción, guarda aquí tu serie y folio autorizados y timbra con tu
+                            PAC; el solo hecho de ingresar folios no sustituye el timbrado.
+                          </p>
+                          <p
+                            className="hidden text-[11px] leading-snug text-slate-500 dark:text-slate-400 lg:block"
+                            title="Las facturas nuevas llevan serie PRUEBA y no avanzan el folio oficial. Nómina de prueba: PRUEBA-N. Para producción desactive, guarde serie/folio y timbre con su PAC."
+                          >
+                            Serie/folio PRUEBA y PRUEBA-N; no sustituye timbrado con PAC. Pase el cursor para más
+                            detalle.
+                          </p>
+                        </div>
+                        <Switch
+                          id="modoPruebaFiscal"
+                          checked={fiscalForm.modoPruebaFiscal}
+                          onCheckedChange={(checked) =>
+                            setFiscalForm({ ...fiscalForm, modoPruebaFiscal: checked })
+                          }
+                          className="shrink-0 sm:ml-2"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label
+                          htmlFor="lugarExpedicion"
+                          className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs"
+                        >
+                          Lugar expedición (CP) *
+                        </Label>
+                        <Input
+                          id="lugarExpedicion"
+                          value={fiscalForm.lugarExpedicion}
+                          onChange={(e) =>
+                            setFiscalForm({ ...fiscalForm, lugarExpedicion: e.target.value })
+                          }
+                          placeholder="00000"
+                          maxLength={5}
+                          className={fieldClass}
+                        />
+                      </div>
+                      <div className="space-y-1 sm:col-span-2 lg:col-span-2">
+                        <Label htmlFor="codigoUsoCfdi" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
+                          Uso CFDI predeterminado
+                        </Label>
+                        <select
+                          id="codigoUsoCfdi"
+                          value={fiscalForm.codigoUsoCfdi}
+                          onChange={(e) =>
+                            setFiscalForm({ ...fiscalForm, codigoUsoCfdi: e.target.value })
+                          }
+                          className={selectClass}
+                        >
+                          {USOS_CFDI.map((u) => (
+                            <option key={u.clave} value={u.clave}>
+                              {u.clave} - {u.descripcion}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
-                    <Switch
-                      id="modoPruebaFiscal"
-                      checked={fiscalForm.modoPruebaFiscal}
-                      onCheckedChange={(checked) =>
-                        setFiscalForm({ ...fiscalForm, modoPruebaFiscal: checked })
-                      }
-                      className="shrink-0 sm:ml-2"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="lugarExpedicion" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
-                      Lugar expedición (CP) *
-                    </Label>
-                    <Input
-                      id="lugarExpedicion"
-                      value={fiscalForm.lugarExpedicion}
-                      onChange={(e) =>
-                        setFiscalForm({ ...fiscalForm, lugarExpedicion: e.target.value })
-                      }
-                      placeholder="00000"
-                      maxLength={5}
-                      className={fieldClass}
-                    />
-                  </div>
-                  <div className="space-y-1 sm:col-span-2 lg:col-span-2">
-                    <Label htmlFor="codigoUsoCfdi" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
-                      Uso CFDI predeterminado
-                    </Label>
-                    <select
-                      id="codigoUsoCfdi"
-                      value={fiscalForm.codigoUsoCfdi}
-                      onChange={(e) =>
-                        setFiscalForm({ ...fiscalForm, codigoUsoCfdi: e.target.value })
-                      }
-                      className={selectClass}
-                    >
-                      {USOS_CFDI.map((u) => (
-                        <option key={u.clave} value={u.clave}>
-                          {u.clave} - {u.descripcion}
-                        </option>
-                      ))}
-                    </select>
                   </div>
 
-                  <div className="col-span-full mt-1 border-t border-slate-200 dark:border-slate-800/80 pt-2">
-                    <p className="text-sm font-medium text-slate-600 dark:text-slate-500 sm:text-xs">Dirección fiscal</p>
-                  </div>
-
-                  <div className="space-y-1 sm:col-span-2 xl:col-span-2">
-                    <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">Calle</Label>
-                    <Input
-                      value={fiscalForm.calle}
-                      onChange={(e) => setFiscalForm({ ...fiscalForm, calle: e.target.value })}
-                      className={fieldClass}
-                    />
-                  </div>
-                  <div className="space-y-1 sm:col-span-2 xl:col-span-2">
-                    <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">Colonia</Label>
-                    <Input
-                      value={fiscalForm.colonia}
-                      onChange={(e) => setFiscalForm({ ...fiscalForm, colonia: e.target.value })}
-                      className={fieldClass}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 sm:col-span-2 xl:col-span-2">
-                    <div className="space-y-1">
-                      <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">No. ext.</Label>
-                      <Input
-                        value={fiscalForm.numeroExterior}
-                        onChange={(e) =>
-                          setFiscalForm({ ...fiscalForm, numeroExterior: e.target.value })
-                        }
-                        className={fieldClass}
-                      />
+                  {/* Dirección fiscal: debajo en móvil; columna derecha en lg+ */}
+                  <div className="min-w-0 flex-1 space-y-2 border-t border-slate-200 pt-2 dark:border-slate-800/80 lg:w-[min(100%,20rem)] lg:flex-none lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0 lg:overflow-visible xl:w-[min(100%,22rem)] xl:pl-5">
+                    <p className="text-sm font-medium text-slate-600 dark:text-slate-500 sm:text-xs">
+                      Dirección fiscal
+                    </p>
+                    <div className="grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2 lg:gap-y-1.5">
+                      <div className="space-y-1 sm:col-span-2">
+                        <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">Calle</Label>
+                        <Input
+                          value={fiscalForm.calle}
+                          onChange={(e) => setFiscalForm({ ...fiscalForm, calle: e.target.value })}
+                          className={fieldClass}
+                        />
+                      </div>
+                      <div className="space-y-1 sm:col-span-2">
+                        <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">Colonia</Label>
+                        <Input
+                          value={fiscalForm.colonia}
+                          onChange={(e) => setFiscalForm({ ...fiscalForm, colonia: e.target.value })}
+                          className={fieldClass}
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 sm:col-span-2">
+                        <div className="space-y-1">
+                          <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">No. ext.</Label>
+                          <Input
+                            value={fiscalForm.numeroExterior}
+                            onChange={(e) =>
+                              setFiscalForm({ ...fiscalForm, numeroExterior: e.target.value })
+                            }
+                            className={fieldClass}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">No. int.</Label>
+                          <Input
+                            value={fiscalForm.numeroInterior}
+                            onChange={(e) =>
+                              setFiscalForm({ ...fiscalForm, numeroInterior: e.target.value })
+                            }
+                            className={fieldClass}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">C.P.</Label>
+                        <Input
+                          value={fiscalForm.codigoPostal}
+                          onChange={(e) =>
+                            setFiscalForm({ ...fiscalForm, codigoPostal: e.target.value })
+                          }
+                          className={fieldClass}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">Ciudad</Label>
+                        <Input
+                          value={fiscalForm.ciudad}
+                          onChange={(e) => setFiscalForm({ ...fiscalForm, ciudad: e.target.value })}
+                          className={fieldClass}
+                        />
+                      </div>
+                      <div className="space-y-1 sm:col-span-2">
+                        <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">Municipio</Label>
+                        <Input
+                          value={fiscalForm.municipio}
+                          onChange={(e) =>
+                            setFiscalForm({ ...fiscalForm, municipio: e.target.value })
+                          }
+                          className={fieldClass}
+                        />
+                      </div>
+                      <div className="space-y-1 sm:col-span-2">
+                        <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">Estado</Label>
+                        <Input
+                          value={fiscalForm.estado}
+                          onChange={(e) => setFiscalForm({ ...fiscalForm, estado: e.target.value })}
+                          className={fieldClass}
+                        />
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">No. int.</Label>
-                      <Input
-                        value={fiscalForm.numeroInterior}
-                        onChange={(e) =>
-                          setFiscalForm({ ...fiscalForm, numeroInterior: e.target.value })
-                        }
-                        className={fieldClass}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">C.P.</Label>
-                    <Input
-                      value={fiscalForm.codigoPostal}
-                      onChange={(e) =>
-                        setFiscalForm({ ...fiscalForm, codigoPostal: e.target.value })
-                      }
-                      className={fieldClass}
-                    />
-                  </div>
-                  <div className="space-y-1 sm:col-span-2 lg:col-span-2 xl:col-span-1">
-                    <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">Ciudad</Label>
-                    <Input
-                      value={fiscalForm.ciudad}
-                      onChange={(e) => setFiscalForm({ ...fiscalForm, ciudad: e.target.value })}
-                      className={fieldClass}
-                    />
-                  </div>
-                  <div className="space-y-1 sm:col-span-2 lg:col-span-2 xl:col-span-1">
-                    <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">Municipio</Label>
-                    <Input
-                      value={fiscalForm.municipio}
-                      onChange={(e) =>
-                        setFiscalForm({ ...fiscalForm, municipio: e.target.value })
-                      }
-                      className={fieldClass}
-                    />
-                  </div>
-                  <div className="space-y-1 sm:col-span-2">
-                    <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">Estado</Label>
-                    <Input
-                      value={fiscalForm.estado}
-                      onChange={(e) => setFiscalForm({ ...fiscalForm, estado: e.target.value })}
-                      className={fieldClass}
-                    />
                   </div>
                 </div>
               </div>
 
-              <div className="flex shrink-0 justify-end border-t border-slate-200/80 dark:border-slate-800/60 pt-2">
+              <div className="flex shrink-0 justify-end border-t border-slate-200/80 pt-2 dark:border-slate-800/60 lg:pt-1.5">
                 <Button
                   type="button"
                   size="sm"

@@ -240,6 +240,8 @@ export function Inventario() {
   const [productEntradasHist, setProductEntradasHist] = useState<InventoryMovement[]>([]);
   const [productEntradasHistLoading, setProductEntradasHistLoading] = useState(false);
   const [preciosSaveBusy, setPreciosSaveBusy] = useState(false);
+  const [addPreciosSectionOpen, setAddPreciosSectionOpen] = useState(false);
+  const [editPreciosSectionOpen, setEditPreciosSectionOpen] = useState(false);
 
   const isAdmin = user?.role === 'admin';
   const {
@@ -386,6 +388,7 @@ export function Inventario() {
           unidadMedida: 'H87',
         });
         setPreciosListaStr(emptyPreciosListaStr());
+        setAddPreciosSectionOpen(false);
         setAddNumFocus({
           precioVenta: false,
           precioCompra: false,
@@ -530,6 +533,7 @@ export function Inventario() {
     });
     setStockQtyFocus(false);
     setStockPrecioCompraFocus(false);
+    setEditPreciosSectionOpen(false);
     setShowEditDialog(true);
   };
 
@@ -705,6 +709,7 @@ export function Inventario() {
           onClick={() => {
             resetForm();
             addSessionLinesRef.current = [];
+            setAddPreciosSectionOpen(false);
             setShowAddDialog(true);
           }}
           className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
@@ -1120,6 +1125,7 @@ export function Inventario() {
             }
             addSessionLinesRef.current = [];
             resetForm();
+            setAddPreciosSectionOpen(false);
           }
         }}
       >
@@ -1324,33 +1330,48 @@ export function Inventario() {
             </div>
           </div>
 
-          <div className="mt-3 space-y-3 border-t border-slate-200 pt-4 dark:border-slate-800">
-            <p className="text-xs font-medium leading-snug text-slate-600 dark:text-slate-400 [text-wrap:balance]">
-              Precios opcionales por tipo de cliente (sin IVA)
-            </p>
-            <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-500 [text-wrap:pretty]">
-              Si deja vacío, en el POS se usa el precio de venta con el % de la lista en Configuración →
-              Precios{'\u00a0'}por{'\u00a0'}cliente.
-            </p>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {CLIENT_PRICE_LIST_ORDER.map((id) => (
-                <div key={id} className="space-y-1">
-                  <Label className="text-xs text-slate-600 dark:text-slate-400">
-                    {CLIENT_PRICE_LABELS[id]}
-                  </Label>
-                  <Input
-                    type="text"
-                    inputMode="decimal"
-                    placeholder="—"
-                    value={preciosListaStr[id]}
-                    onChange={(e) =>
-                      setPreciosListaStr((prev) => ({ ...prev, [id]: e.target.value }))
-                    }
-                    className="h-9 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                  />
+          <div className="mt-3 border-t border-slate-200 pt-4 dark:border-slate-800">
+            <Button
+              type="button"
+              variant={addPreciosSectionOpen ? 'secondary' : 'outline'}
+              size="sm"
+              className="gap-2 border-slate-300 dark:border-slate-600"
+              aria-expanded={addPreciosSectionOpen}
+              onClick={() => setAddPreciosSectionOpen((v) => !v)}
+            >
+              <CircleDollarSign className="h-4 w-4 shrink-0" />
+              Precios
+            </Button>
+            {addPreciosSectionOpen ? (
+              <div className="mt-3 space-y-3">
+                <p className="text-xs font-medium leading-snug text-slate-600 dark:text-slate-400 [text-wrap:balance]">
+                  Precios opcionales por tipo de cliente (sin IVA)
+                </p>
+                <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-500 [text-wrap:pretty]">
+                  Si deja vacío, en el POS se usa el precio de venta con el % de la lista en Configuración →
+                  Precios{'\u00a0'}por{'\u00a0'}cliente.
+                </p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {CLIENT_PRICE_LIST_ORDER.map((id) => (
+                    <div key={id} className="space-y-1">
+                      <Label className="text-xs text-slate-600 dark:text-slate-400">
+                        {CLIENT_PRICE_LABELS[id]}
+                      </Label>
+                      <Input
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="—"
+                        value={preciosListaStr[id]}
+                        onChange={(e) =>
+                          setPreciosListaStr((prev) => ({ ...prev, [id]: e.target.value }))
+                        }
+                        className="h-9 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                      />
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </div>
+            ) : null}
           </div>
 
           <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
@@ -1451,6 +1472,7 @@ export function Inventario() {
           setShowEditDialog(open);
           if (!open) {
             setSelectedProduct(null);
+            setEditPreciosSectionOpen(false);
             setStockAdjustment({
               tipo: 'entrada',
               cantidad: 0,
@@ -1644,33 +1666,48 @@ export function Inventario() {
             </div>
           </div>
 
-          <div className="mt-3 space-y-3 border-t border-slate-200 pt-4 dark:border-slate-800">
-            <p className="text-xs font-medium leading-snug text-slate-600 dark:text-slate-400 [text-wrap:balance]">
-              Precios opcionales por tipo de cliente (sin IVA)
-            </p>
-            <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-500 [text-wrap:pretty]">
-              Si deja vacío, en el POS se usa el precio de venta con el % de la lista en Configuración →
-              Precios{'\u00a0'}por{'\u00a0'}cliente.
-            </p>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {CLIENT_PRICE_LIST_ORDER.map((id) => (
-                <div key={id} className="space-y-1">
-                  <Label className="text-xs text-slate-600 dark:text-slate-400">
-                    {CLIENT_PRICE_LABELS[id]}
-                  </Label>
-                  <Input
-                    type="text"
-                    inputMode="decimal"
-                    placeholder="—"
-                    value={preciosListaStr[id]}
-                    onChange={(e) =>
-                      setPreciosListaStr((prev) => ({ ...prev, [id]: e.target.value }))
-                    }
-                    className="h-9 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                  />
+          <div className="mt-3 border-t border-slate-200 pt-4 dark:border-slate-800">
+            <Button
+              type="button"
+              variant={editPreciosSectionOpen ? 'secondary' : 'outline'}
+              size="sm"
+              className="gap-2 border-slate-300 dark:border-slate-600"
+              aria-expanded={editPreciosSectionOpen}
+              onClick={() => setEditPreciosSectionOpen((v) => !v)}
+            >
+              <CircleDollarSign className="h-4 w-4 shrink-0" />
+              Precios
+            </Button>
+            {editPreciosSectionOpen ? (
+              <div className="mt-3 space-y-3">
+                <p className="text-xs font-medium leading-snug text-slate-600 dark:text-slate-400 [text-wrap:balance]">
+                  Precios opcionales por tipo de cliente (sin IVA)
+                </p>
+                <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-500 [text-wrap:pretty]">
+                  Si deja vacío, en el POS se usa el precio de venta con el % de la lista en Configuración →
+                  Precios{'\u00a0'}por{'\u00a0'}cliente.
+                </p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {CLIENT_PRICE_LIST_ORDER.map((id) => (
+                    <div key={id} className="space-y-1">
+                      <Label className="text-xs text-slate-600 dark:text-slate-400">
+                        {CLIENT_PRICE_LABELS[id]}
+                      </Label>
+                      <Input
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="—"
+                        value={preciosListaStr[id]}
+                        onChange={(e) =>
+                          setPreciosListaStr((prev) => ({ ...prev, [id]: e.target.value }))
+                        }
+                        className="h-9 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                      />
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </div>
+            ) : null}
           </div>
 
           <div className="mt-3 space-y-4 border-t border-slate-200 pt-4 dark:border-slate-800">
