@@ -54,7 +54,7 @@ import {
 } from '@/stores/ventasAbiertasPosHeaderStore';
 import { useProductSearch, useSales, useClients, useEffectiveSucursalId, useCajaSesion } from '@/hooks';
 import { CajaPosToolbar, type CajaPosToolbarHandle } from '@/components/caja/CajaPosToolbar';
-import type { Product, FormaPago, Payment, Sale, Sucursal, CartItem } from '@/types';
+import type { Client, Product, FormaPago, Payment, Sale, Sucursal, CartItem } from '@/types';
 import { FORMAS_PAGO_UI } from '@/types';
 import {
   getSaleByFolio,
@@ -266,6 +266,12 @@ export function POS() {
 
   const [ventasAbiertasDialogOpen, setVentasAbiertasDialogOpen] = useState(false);
   const [pasarCxcBusyId, setPasarCxcBusyId] = useState<string | null>(null);
+  const [pasarCxcClientePickerSale, setPasarCxcClientePickerSale] = useState<Sale | null>(null);
+  const [pasarCxcClienteSearch, setPasarCxcClienteSearch] = useState('');
+
+  useEffect(() => {
+    if (pasarCxcClientePickerSale) setPasarCxcClienteSearch('');
+  }, [pasarCxcClientePickerSale]);
 
   useEffect(() => {
     if (!hasPermission('ventas:crear')) {
@@ -486,6 +492,18 @@ export function POS() {
 
   const { results: searchResults, search: searchProducts } = useProductSearch();
   const { clients, refresh: refreshClients } = useClients();
+
+  const clientesFiltradosParaCxc = useMemo(() => {
+    const q = pasarCxcClienteSearch.trim().toLowerCase();
+    return clients.filter((c) => {
+      if (c.isMostrador || c.id === 'mostrador') return false;
+      if (!q) return true;
+      return (
+        c.nombre.toLowerCase().includes(q) ||
+        (c.rfc?.toLowerCase().includes(q) ?? false)
+      );
+    });
+  }, [clients, pasarCxcClienteSearch]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -1009,17 +1027,7 @@ export function POS() {
     })();
   }, [location.state, navigate, salesCatalog, effectiveSucursalId, setClient, addToast, setMobileTab]);
 
-  const pasarVentaACuentasPorCobrar = async (vs: Sale) => {
-    if (vs.estado !== 'pendiente') return;
-    const registrado =
-      Boolean(vs.clienteId) && vs.clienteId !== 'mostrador' && !vs.cliente?.isMostrador;
-    if (!registrado) {
-      addToast({
-        type: 'warning',
-        message: 'Solo las ventas con cliente registrado pueden pasarse a cuentas por cobrar.',
-      });
-      return;
-    }
+  const ejecutarPasarCxcConCliente = async (vs: Sale, clienteRow: Client) => {
     setPasarCxcBusyId(vs.id);
     try {
       const cajeroNombre =
@@ -1031,13 +1039,14 @@ export function POS() {
         cambio: 0,
         usuarioNombreCierre: cajeroNombre,
         cajaSesionId: cajaSesion.activa?.id,
-        clienteId: vs.clienteId!,
-        cliente: vs.cliente ?? null,
+        clienteId: clienteRow.id,
+        cliente: clienteRow,
       });
       setVentasAbiertasDialogOpen(false);
+      setPasarCxcClientePickerSale(null);
       addToast({
         type: 'success',
-        message: `Venta ${vs.folio} registrada como pendiente de pago a cuenta del cliente.`,
+        message: `Venta ${vs.folio} pasada a cuentas por cobrar (${clienteRow.nombre}).`,
       });
       navigate('/cuentas-por-cobrar');
     } catch (e: unknown) {
@@ -1048,6 +1057,25 @@ export function POS() {
     } finally {
       setPasarCxcBusyId(null);
     }
+  };
+
+  const pasarVentaACuentasPorCobrar = async (vs: Sale) => {
+    if (vs.estado !== 'pendiente') return;
+    const tieneClienteRegistrado =
+      Boolean(vs.clienteId) && vs.clienteId !== 'mostrador' && !vs.cliente?.isMostrador;
+    if (tieneClienteRegistrado) {
+      let row: Client | undefined =
+        vs.cliente && vs.cliente.id && !vs.cliente.isMostrador ? (vs.cliente as Client) : undefined;
+      if (!row?.nombre?.trim() && vs.clienteId && vs.clienteId !== 'mostrador') {
+        row = await getClientById(vs.clienteId);
+      }
+      if (row?.nombre?.trim()) {
+        await ejecutarPasarCxcConCliente(vs, row);
+        return;
+      }
+    }
+    setVentasAbiertasDialogOpen(false);
+    setPasarCxcClientePickerSale(vs);
   };
 
   const abandonarVentaAbiertaRetomada = () => {
@@ -2388,7 +2416,10 @@ export function POS() {
               Ventas abiertas
             </DialogTitle>
             <p className="text-left text-xs font-normal text-slate-600 dark:text-slate-400">
-              Pendiente de pago. Toque una fila para cargarla en el carrito y cobrar.
+              Pendiente de pago. Toque una fila para cargarla en el carrito y cobrar.{' '}
+              <span className="text-slate-500 dark:text-slate-500">
+                «Pasar a cuentas por cobrar» en mostrador pedirá elegir el cliente deudor.
+              </span>
             </p>
           </DialogHeader>
           {ventasAbiertas.length === 0 ? (
@@ -2398,10 +2429,6 @@ export function POS() {
           ) : (
             <ul className="max-h-[min(50dvh,22rem)] space-y-2 overflow-y-auto overscroll-contain pr-1">
               {ventasAbiertas.map((vs) => {
-                const puedePasarCxc =
-                  Boolean(vs.clienteId) &&
-                  vs.clienteId !== 'mostrador' &&
-                  !vs.cliente?.isMostrador;
                 const filaBusy = resumeOpenBusy || dejarAbiertaBusy || pasarCxcBusyId === vs.id;
                 return (
                   <li key={vs.id} className="space-y-2">
@@ -2434,8 +2461,13 @@ export function POS() {
                       type="button"
                       variant="outline"
                       size="sm"
-                      disabled={filaBusy || !puedePasarCxc}
-                      className="h-8 w-full border-amber-500/40 text-xs text-amber-900 hover:bg-amber-500/10 dark:border-amber-500/35 dark:text-amber-100"
+                      disabled={filaBusy}
+                      title={
+                        vs.clienteId === 'mostrador' || vs.cliente?.isMostrador
+                          ? 'Elegir cliente deudor para registrar el adeudo'
+                          : 'Completar como pendiente de pago y abrir Cuentas por cobrar'
+                      }
+                      className="h-8 w-full border-amber-500/40 text-xs text-amber-900 hover:bg-amber-500/10 dark:border-amber-500/35 dark:text-amber-100 disabled:opacity-40"
                       onClick={() => void pasarVentaACuentasPorCobrar(vs)}
                     >
                       {pasarCxcBusyId === vs.id ? 'Procesando…' : 'Pasar a cuentas por cobrar'}
@@ -2453,6 +2485,71 @@ export function POS() {
               onClick={() => setVentasAbiertasDialogOpen(false)}
             >
               Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={pasarCxcClientePickerSale != null}
+        onOpenChange={(o) => {
+          if (!o) setPasarCxcClientePickerSale(null);
+        }}
+      >
+        <DialogContent className="flex max-h-[min(88dvh,32rem)] w-[min(calc(100vw-1.5rem),24rem)] flex-col gap-0 overflow-hidden border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-900 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base">Cliente para cuentas por cobrar</DialogTitle>
+            <p className="text-left text-xs font-normal text-slate-600 dark:text-slate-400">
+              Venta{' '}
+              <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
+                {pasarCxcClientePickerSale?.folio}
+              </span>
+              . Elija a quién se cargará el adeudo.
+            </p>
+          </DialogHeader>
+          <div className="shrink-0 px-1 pb-2">
+            <Input
+              placeholder="Buscar nombre o RFC…"
+              value={pasarCxcClienteSearch}
+              onChange={(e) => setPasarCxcClienteSearch(e.target.value)}
+              className="border-slate-300 bg-slate-200 dark:border-slate-700 dark:bg-slate-800"
+            />
+          </div>
+          <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto overscroll-contain px-1 pb-2">
+            {clientesFiltradosParaCxc.length === 0 ? (
+              <p className="py-4 text-center text-sm text-slate-600 dark:text-slate-400">
+                Ningún cliente coincide. Registre clientes en Clientes o ajuste la búsqueda.
+              </p>
+            ) : (
+              clientesFiltradosParaCxc.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  disabled={pasarCxcBusyId != null}
+                  onClick={() => {
+                    const vs = pasarCxcClientePickerSale;
+                    if (!vs) return;
+                    void ejecutarPasarCxcConCliente(vs, c);
+                  }}
+                  className="w-full rounded-lg border border-slate-200 bg-slate-200/80 p-3 text-left transition-colors hover:bg-slate-200 dark:border-slate-700/80 dark:bg-slate-800/50 dark:hover:bg-slate-800 disabled:opacity-50"
+                >
+                  <p className="font-medium text-slate-800 dark:text-slate-200">{c.nombre}</p>
+                  {c.rfc ? (
+                    <p className="text-xs text-slate-600 dark:text-slate-500">RFC: {c.rfc}</p>
+                  ) : null}
+                </button>
+              ))
+            )}
+          </div>
+          <DialogFooter className="shrink-0 border-t border-slate-200 pt-3 dark:border-slate-800">
+            <Button
+              type="button"
+              variant="outline"
+              className="border-slate-300 dark:border-slate-600"
+              onClick={() => setPasarCxcClientePickerSale(null)}
+              disabled={pasarCxcBusyId != null}
+            >
+              Cancelar
             </Button>
           </DialogFooter>
         </DialogContent>
