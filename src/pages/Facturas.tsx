@@ -130,7 +130,7 @@ export function Facturas() {
         cliente: client,
         emisor: fiscalConfig,
         ventaId: selectedSale.id,
-        productos: selectedSale.productos.map((item) => {
+        productos: (selectedSale.productos ?? []).map((item) => {
           const cps = normalizeClaveProdServ(item.producto?.claveProdServ);
           return {
           id: crypto.randomUUID(),
@@ -205,6 +205,11 @@ export function Facturas() {
   };
 
   const handleGeneratePDF = (invoice: Invoice) => {
+    if (!invoice.emisor) {
+      addToast({ type: 'error', message: 'La factura no tiene datos del emisor' });
+      return;
+    }
+    const productosPdf = invoice.productos ?? [];
     const doc = new jsPDF();
     const sucForFooter = invoice.sucursalId ?? effectiveSucursalId ?? null;
 
@@ -251,7 +256,7 @@ export function Facturas() {
     doc.text('CONCEPTOS', 20, yConceptos);
 
     y = yConceptos + 10;
-    invoice.productos.forEach(item => {
+    productosPdf.forEach((item) => {
       doc.setFontSize(9);
       doc.text(`${item.descripcion} - ${item.cantidad} x ${formatMoney(item.precioUnitario)}`, 20, y);
       doc.text(formatMoney(item.total), 180, y, { align: 'right' });
@@ -317,7 +322,7 @@ export function Facturas() {
   };
 
   const printInvoiceLetter = (inv: Invoice) => {
-    const rows = inv.productos
+    const rows = (inv.productos ?? [])
       .map(
         (it) =>
           `<tr><td>${escHtml(it.descripcion)}</td><td class="right">${it.cantidad}</td><td class="right">${formatMoney(it.precioUnitario)}</td><td class="right">${formatMoney(it.total)}</td></tr>`
@@ -341,11 +346,15 @@ export function Facturas() {
     });
   };
 
-  const filteredInvoices = invoices.filter(i =>
-    i.folio.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    i.serie.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    i.cliente?.nombre.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const searchLc = searchQuery.toLowerCase();
+  const filteredInvoices = invoices.filter((i) => {
+    const folio = String(i.folio ?? '').toLowerCase();
+    const serie = String(i.serie ?? '').toLowerCase();
+    const nombreCliente = String(i.cliente?.nombre ?? '').toLowerCase();
+    return (
+      folio.includes(searchLc) || serie.includes(searchLc) || nombreCliente.includes(searchLc)
+    );
+  });
 
   // Filtrar ventas que no tienen factura
   const salesWithoutInvoice = sales.filter(s => !s.facturaId && s.estado === 'completada');
@@ -465,8 +474,13 @@ export function Facturas() {
                       <span className="text-xs text-slate-600 dark:text-slate-500">
                         {new Date(invoice.fechaEmision).toLocaleDateString('es-MX')}
                       </span>
-                      <Badge className={cn('border text-[10px]', statusColors[invoice.estado])}>
-                        {statusLabels[invoice.estado]}
+                      <Badge
+                        className={cn(
+                          'border text-[10px]',
+                          statusColors[invoice.estado] ?? statusColors.error
+                        )}
+                      >
+                        {statusLabels[invoice.estado] ?? invoice.estado}
                       </Badge>
                     </div>
                     <p className="mt-2 text-center text-xs text-cyan-500/80">Ver detalle…</p>
@@ -553,8 +567,13 @@ export function Facturas() {
                         {formatMoney(invoice.total)}
                       </TableCell>
                       <TableCell>
-                        <Badge className={cn('border', statusColors[invoice.estado])}>
-                          {statusLabels[invoice.estado]}
+                        <Badge
+                          className={cn(
+                            'border',
+                            statusColors[invoice.estado] ?? statusColors.error
+                          )}
+                        >
+                          {statusLabels[invoice.estado] ?? invoice.estado}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">

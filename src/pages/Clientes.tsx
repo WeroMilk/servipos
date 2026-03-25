@@ -697,10 +697,10 @@ export function Clientes() {
 
       {/* Add Client Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="flex max-h-[92dvh] w-[calc(100%-1.5rem)] max-w-none flex-col gap-0 overflow-hidden border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 p-0 text-slate-900 dark:text-slate-100 sm:w-full md:max-h-[min(96dvh,56rem)] md:max-w-[min(94vw,80rem)] lg:max-h-none lg:max-w-[min(96vw,90rem)] lg:overflow-visible">
-          <div className="shrink-0 border-b border-slate-200 dark:border-slate-800/80 px-4 pb-3 pt-4 pr-14">
+        <DialogContent className="flex max-h-[92dvh] w-[calc(100%-1.5rem)] max-w-none flex-col gap-0 overflow-y-auto border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:w-full md:max-h-[min(96dvh,56rem)] md:max-w-[min(94vw,80rem)] lg:max-h-none lg:max-w-[min(96vw,90rem)] lg:overflow-visible xl:max-w-[min(98vw,104rem)]">
+          <div className="shrink-0 border-b border-slate-200 px-4 pb-2 pt-3 pr-14 dark:border-slate-800/80 lg:pb-1.5 lg:pt-2.5">
             <DialogHeader className="space-y-0 p-0 text-left">
-              <DialogTitle>Nuevo Cliente</DialogTitle>
+              <DialogTitle className="text-lg lg:text-base">Nuevo Cliente</DialogTitle>
             </DialogHeader>
           </div>
 
@@ -711,60 +711,60 @@ export function Clientes() {
               void handleAddClient();
             }}
           >
-          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 md:px-5 lg:flex-none lg:overflow-visible lg:py-3">
-          <div className="grid min-w-0 grid-cols-1 gap-3 gap-y-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-x-4 lg:gap-y-3">
-            <div className="min-w-0 space-y-2 sm:col-span-2 lg:col-span-3">
-              <Label>Nombre *</Label>
+          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 md:px-5 lg:flex-none lg:overflow-visible lg:py-2.5">
+          <div className="grid min-w-0 grid-cols-1 gap-3 gap-y-3 sm:grid-cols-2 lg:grid-cols-4 lg:gap-x-4 lg:gap-y-2">
+            <div className="min-w-0 space-y-1.5 sm:col-span-2 lg:col-span-4 lg:space-y-1">
+              <Label className="text-sm lg:text-xs">Nombre *</Label>
               <Input
                 value={formData.nombre}
                 onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                className="h-10 border-slate-300 bg-slate-200 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9"
               />
             </div>
 
-            <div className="min-w-0 space-y-2">
-              <Label>RFC</Label>
+            <div className="min-w-0 space-y-1.5 lg:space-y-1">
+              <Label className="text-sm lg:text-xs">RFC</Label>
               <Input
                 value={formData.rfc}
                 onChange={(e) => setFormData({ ...formData, rfc: e.target.value.toUpperCase() })}
                 placeholder="XAXX010101000"
-                className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                className="h-10 border-slate-300 bg-slate-200 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9"
               />
             </div>
 
-            <div className="min-w-0 space-y-2">
-              <Label>Razón Social</Label>
+            <div className="min-w-0 space-y-1.5 lg:space-y-1">
+              <Label className="text-sm lg:text-xs">Razón Social</Label>
               <Input
                 value={formData.razonSocial}
                 onChange={(e) => setFormData({ ...formData, razonSocial: e.target.value })}
-                className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                className="h-10 border-slate-300 bg-slate-200 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9"
               />
             </div>
 
-            <div className="min-w-0 space-y-2">
-              <Label>Email</Label>
+            <div className="min-w-0 space-y-1.5 lg:space-y-1">
+              <Label className="text-sm lg:text-xs">Email</Label>
               <Input
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                className="h-10 border-slate-300 bg-slate-200 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9"
               />
             </div>
 
-            <div className="min-w-0 space-y-2">
-              <Label>Teléfono</Label>
+            <div className="min-w-0 space-y-1.5 lg:space-y-1">
+              <Label className="text-sm lg:text-xs">Teléfono</Label>
               <Input
                 type="tel"
                 inputMode="tel"
                 autoComplete="tel"
                 value={formData.telefono}
                 onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
-                className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                className="h-10 border-slate-300 bg-slate-200 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9"
               />
             </div>
 
-            <div className="min-w-0 space-y-2 sm:col-span-2 lg:col-span-1">
-              <Label>Lista de precios (POS)</Label>
+            <div className="min-w-0 space-y-1.5 sm:col-span-2 lg:col-span-2 lg:space-y-1">
+              <Label className="text-sm lg:text-xs">Lista de precios (POS)</Label>
               <select
                 value={formData.listaPreciosId}
                 onChange={(e) =>
@@ -773,7 +773,7 @@ export function Clientes() {
                     listaPreciosId: e.target.value as ClientPriceListId,
                   })
                 }
-                className="h-10 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 px-3 text-slate-900 dark:text-slate-100"
+                className="h-10 w-full rounded-md border border-slate-300 bg-slate-200 px-3 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9"
               >
                 {CLIENT_PRICE_LIST_ORDER.map((id) => (
                   <option key={id} value={id}>
@@ -781,17 +781,17 @@ export function Clientes() {
                   </option>
                 ))}
               </select>
-              <p className="text-[11px] text-slate-500 dark:text-slate-500">
+              <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-500 lg:text-[10px] lg:leading-tight">
                 Precios que verá este cliente al elegirlo en punto de venta (regular, técnico, mayoreo, etc.).
               </p>
             </div>
 
-            <div className="min-w-0 space-y-2">
-              <Label>Régimen Fiscal</Label>
+            <div className="min-w-0 space-y-1.5 lg:col-span-2 lg:space-y-1">
+              <Label className="text-sm lg:text-xs">Régimen Fiscal</Label>
               <select
                 value={formData.regimenFiscal}
                 onChange={(e) => setFormData({ ...formData, regimenFiscal: e.target.value })}
-                className="h-10 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 px-3 text-slate-900 dark:text-slate-100"
+                className="h-10 w-full rounded-md border border-slate-300 bg-slate-200 px-3 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9"
               >
                 <option value="">Seleccione...</option>
                 {REGIMENES_FISCALES.map((r) => (
@@ -802,12 +802,12 @@ export function Clientes() {
               </select>
             </div>
 
-            <div className="min-w-0 space-y-2 sm:col-span-2 lg:col-span-3">
-              <Label>Uso CFDI Predeterminado</Label>
+            <div className="min-w-0 space-y-1.5 sm:col-span-2 lg:col-span-4 lg:space-y-1">
+              <Label className="text-sm lg:text-xs">Uso CFDI Predeterminado</Label>
               <select
                 value={formData.usoCfdi}
                 onChange={(e) => setFormData({ ...formData, usoCfdi: e.target.value })}
-                className="h-10 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 px-3 text-slate-900 dark:text-slate-100"
+                className="h-10 w-full rounded-md border border-slate-300 bg-slate-200 px-3 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9"
               >
                 {USOS_CFDI.map((u) => (
                   <option key={u.clave} value={u.clave}>
@@ -822,11 +822,12 @@ export function Clientes() {
               setFormData={setFormData}
               municipio={municipioSonora}
               setMunicipio={setMunicipioSonora}
+              dense
             />
           </div>
           </div>
 
-          <DialogFooter className="shrink-0 gap-2 border-t border-slate-200 dark:border-slate-800/80 px-4 py-3 sm:justify-end">
+          <DialogFooter className="flex shrink-0 gap-2 border-t border-slate-200/80 px-4 py-2.5 dark:border-slate-800/80 sm:justify-end lg:py-2">
             <Button
               type="button"
               variant="outline"

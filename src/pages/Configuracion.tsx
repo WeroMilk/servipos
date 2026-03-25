@@ -206,9 +206,9 @@ export function Configuracion() {
   };
 
   const fieldClass =
-    'h-11 border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 text-base leading-normal text-slate-900 dark:text-slate-100 sm:h-8 sm:text-sm';
+    'h-11 border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 text-base leading-normal text-slate-900 dark:text-slate-100 sm:h-8 sm:text-sm lg:h-7 lg:py-1 lg:text-xs';
   const selectClass =
-    'h-11 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 px-3 py-2 text-base leading-normal text-slate-900 dark:text-slate-100 sm:h-8 sm:py-1 sm:text-sm';
+    'h-11 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 px-3 py-2 text-base leading-normal text-slate-900 dark:text-slate-100 sm:h-8 sm:py-1 sm:text-sm lg:h-7 lg:py-1 lg:text-xs';
 
   /** Pestañas tipo subrayado (activa = borde inferior cyan), sin bloque de fondo. */
   const configuracionTabTriggerClass = cn(
@@ -323,18 +323,18 @@ export function Configuracion() {
 
         <TabsContent value="fiscal" className={configuracionTabsPanelClass}>
           <Card className="w-full min-w-0 shrink-0 border-slate-200/80 bg-slate-50/90 dark:border-slate-800/50 dark:bg-slate-900/50">
-            <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
-              <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-slate-100 sm:text-base">
-                <Receipt className="h-4 w-4 shrink-0 text-cyan-400 sm:h-5 sm:w-5" />
+            <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4 lg:px-3 lg:py-1.5">
+              <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-slate-100 sm:text-base lg:text-sm">
+                <Receipt className="h-4 w-4 shrink-0 text-cyan-400 sm:h-5 sm:w-5 lg:h-4 lg:w-4" />
                 Datos fiscales CFDI 4.0
               </CardTitle>
             </CardHeader>
-            <CardContent className="flex flex-col gap-2 p-3 pt-0 sm:p-4 sm:pt-0 sm:pb-4">
+            <CardContent className="flex flex-col gap-2 p-3 pt-0 sm:p-4 sm:pt-0 sm:pb-4 lg:gap-1.5 lg:p-2 lg:pt-0 lg:pb-3">
               <div className="min-w-0 w-full">
-                <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:gap-6">
-                  {/* Columna principal (CFDI); en xl+ comparte fila con dirección */}
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <div className="grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2 lg:grid-cols-2 lg:gap-y-1.5">
+                <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:gap-4 xl:gap-6">
+                  {/* Columna principal (CFDI); en lg+ comparte fila con dirección */}
+                  <div className="min-w-0 flex-1 space-y-2 lg:space-y-1">
+                    <div className="grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2 lg:grid-cols-2 lg:gap-y-1">
                       <div className="space-y-1">
                         <Label htmlFor="rfc" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
                           RFC *
@@ -436,7 +436,7 @@ export function Configuracion() {
                           }
                         />
                       </div>
-                      <div className="col-span-full flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-100/70 p-2 dark:border-slate-700 dark:bg-slate-900/35 sm:flex-row sm:items-center sm:justify-between sm:p-3 lg:py-2">
+                      <div className="col-span-full flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-100/70 p-2 dark:border-slate-700 dark:bg-slate-900/35 sm:flex-row sm:items-center sm:justify-between sm:p-3 lg:gap-1.5 lg:py-1.5 lg:pl-2 lg:pr-2">
                         <div className="min-w-0 space-y-1">
                           <Label
                             htmlFor="modoPruebaFiscal"
@@ -507,12 +507,12 @@ export function Configuracion() {
                     </div>
                   </div>
 
-                  {/* Dirección fiscal: debajo en móvil; columna derecha en xl+ */}
-                  <div className="min-w-0 flex-1 space-y-2 border-t border-slate-200 pt-2 dark:border-slate-800/80 xl:w-[min(100%,22rem)] xl:flex-none xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-                    <p className="text-sm font-medium text-slate-600 dark:text-slate-500 sm:text-xs">
+                  {/* Dirección fiscal: debajo en móvil; columna derecha en lg+ */}
+                  <div className="min-w-0 flex-1 space-y-2 border-t border-slate-200 pt-2 dark:border-slate-800/80 lg:w-[min(100%,20rem)] lg:flex-none lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0 xl:w-[min(100%,22rem)] xl:pl-5">
+                    <p className="text-sm font-medium text-slate-600 dark:text-slate-500 sm:text-xs lg:text-[11px]">
                       Dirección fiscal
                     </p>
-                    <div className="grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2 lg:gap-y-1.5">
+                    <div className="grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2 lg:gap-y-1">
                       <div className="space-y-1 sm:col-span-2">
                         <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">Calle</Label>
                         <Input
@@ -592,7 +592,7 @@ export function Configuracion() {
                 </div>
               </div>
 
-              <div className="flex shrink-0 justify-end border-t border-slate-200/80 pt-3 dark:border-slate-800/60">
+              <div className="flex shrink-0 justify-end border-t border-slate-200/80 pt-3 dark:border-slate-800/60 lg:pt-2">
                 <Button
                   type="button"
                   size="sm"
@@ -912,7 +912,7 @@ export function Configuracion() {
         {canManageUsers && (
           <TabsContent
             value="permisos"
-            className="mt-0 flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden [-webkit-overflow-scrolling:touch]"
+            className={cn(configuracionTabsPanelClass, 'w-full')}
           >
             <UserPermissionsEditor embedded />
           </TabsContent>

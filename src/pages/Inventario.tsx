@@ -73,6 +73,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover';
 import { clearAllInventoryMovementsLocal, getInventoryMovementsByProductId } from '@/db/database';
 import { deleteAllInventoryMovementsFirestore } from '@/lib/firestore/inventoryMovementsFirestore';
 import { subscribeSucursales } from '@/lib/firestore/sucursalesMetaFirestore';
@@ -259,13 +260,23 @@ export function Inventario() {
     return m;
   }, [products]);
 
-  const sortedProductsForTemplate = useMemo(
-    () =>
-      [...products].sort((a, b) =>
-        (a.nombre || '').localeCompare(b.nombre || '', 'es', { sensitivity: 'base' })
-      ),
-    [products]
-  );
+  const [addTemplateComboOpen, setAddTemplateComboOpen] = useState(false);
+  const [addTemplateSearch, setAddTemplateSearch] = useState('');
+
+  const addTemplateMatches = useMemo(() => {
+    const q = addTemplateSearch.trim().toLowerCase();
+    if (q.length < 1) return [];
+    const rows = products.filter((p) => {
+      const n = (p.nombre || '').toLowerCase();
+      const s = (p.sku || '').toLowerCase();
+      const cb = (p.codigoBarras || '').toLowerCase();
+      return n.includes(q) || s.includes(q) || cb.includes(q);
+    });
+    rows.sort((a, b) =>
+      (a.nombre || '').localeCompare(b.nombre || '', 'es', { sensitivity: 'base' })
+    );
+    return rows.slice(0, 100);
+  }, [products, addTemplateSearch]);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -334,6 +345,8 @@ export function Inventario() {
         existencia: false,
         existenciaMinima: false,
       });
+      setAddTemplateSearch('');
+      setAddTemplateComboOpen(false);
     }
   }, [showAddDialog]);
 
@@ -397,6 +410,8 @@ export function Inventario() {
       ];
       if (andAnother) {
         setAddFormTemplateId('__none__');
+        setAddTemplateSearch('');
+        setAddTemplateComboOpen(false);
         setFormData({
           sku: '',
           codigoBarras: '',
@@ -744,6 +759,8 @@ export function Inventario() {
 
   const resetForm = () => {
     setAddFormTemplateId('__none__');
+    setAddTemplateSearch('');
+    setAddTemplateComboOpen(false);
     setFormData({
       sku: '',
       codigoBarras: '',
@@ -1193,56 +1210,110 @@ export function Inventario() {
           }
         }}
       >
-        <DialogContent className="bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-h-[92dvh] overflow-auto md:max-w-[min(92vw,64rem)] lg:max-w-[min(92vw,80rem)]">
-          <DialogHeader>
-            <DialogTitle>Nuevo Producto</DialogTitle>
-            <DialogDescription className="text-left text-slate-600 dark:text-slate-400">
+        <DialogContent className="flex max-h-[92dvh] flex-col overflow-y-auto border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 md:max-w-[min(92vw,64rem)] lg:max-h-none lg:max-w-[min(96vw,90rem)] lg:overflow-visible xl:max-w-[min(98vw,104rem)]">
+          <DialogHeader className="shrink-0 space-y-0.5 pb-1 text-left sm:text-left">
+            <DialogTitle className="text-lg lg:text-base">Nuevo Producto</DialogTitle>
+            <DialogDescription className="text-left text-xs text-slate-600 dark:text-slate-400 lg:text-[11px] lg:leading-snug">
               Nombre, SKU, código y descripción se guardan en <span className="font-medium text-slate-800 dark:text-slate-200">MAYÚSCULAS</span> aunque
               escriba en minúsculas.
             </DialogDescription>
           </DialogHeader>
-          
-          <div className="grid grid-cols-2 gap-4 py-4">
-            <div className="col-span-2 space-y-2 rounded-lg border border-cyan-500/25 bg-cyan-500/[0.08] p-3 dark:border-cyan-500/30 dark:bg-cyan-950/25">
+
+          <div className="grid grid-cols-2 gap-3 py-2 sm:gap-3 lg:grid-cols-4 lg:gap-x-4 lg:gap-y-2 lg:py-2">
+            <div className="col-span-2 space-y-1.5 rounded-lg border border-cyan-500/25 bg-cyan-500/[0.08] p-2.5 dark:border-cyan-500/30 dark:bg-cyan-950/25 lg:col-span-2 lg:space-y-1 lg:p-2">
               <Label>Copiar desde producto existente</Label>
-              <Select
-                value={addFormTemplateId}
-                onValueChange={(v) => {
-                  setAddFormTemplateId(v);
-                  if (v === '__none__') return;
-                  const p = productById.get(v);
-                  if (p) applyProductTemplateToAddForm(p);
-                }}
-              >
-                <SelectTrigger className="h-10 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">
-                  <SelectValue placeholder="Seleccione…" />
-                </SelectTrigger>
-                <SelectContent
-                  position="popper"
-                  className="z-[300] max-h-[min(50dvh,18rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
-                >
-                  <SelectItem value="__none__" className="text-slate-900 dark:text-slate-100">
-                    Ninguno — captura manual
-                  </SelectItem>
-                  {sortedProductsForTemplate.map((p) => (
-                    <SelectItem key={p.id} value={p.id} className="text-slate-900 dark:text-slate-100">
-                      {p.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs leading-snug text-slate-600 dark:text-slate-400">
-                Rellena todos los campos con un artículo del catálogo; cambie SKU, código o existencia si es una
-                variante o entrada nueva y guarde.
+              {addFormTemplateId !== '__none__' ? (
+                <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-300 bg-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-800">
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900 dark:text-slate-100">
+                    Plantilla: {productById.get(addFormTemplateId)?.nombre ?? addFormTemplateId}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 shrink-0 border-slate-400 text-xs dark:border-slate-600"
+                    onClick={() => {
+                      setAddFormTemplateId('__none__');
+                      setAddTemplateSearch('');
+                      setAddTemplateComboOpen(false);
+                    }}
+                  >
+                    Quitar plantilla
+                  </Button>
+                </div>
+              ) : (
+                <Popover modal={false} open={addTemplateComboOpen} onOpenChange={setAddTemplateComboOpen}>
+                  <PopoverAnchor asChild>
+                    <div className="w-full">
+                      <Input
+                        value={addTemplateSearch}
+                        onChange={(e) => {
+                          setAddTemplateSearch(e.target.value);
+                          setAddTemplateComboOpen(true);
+                        }}
+                        onFocus={() => setAddTemplateComboOpen(true)}
+                        placeholder="Escriba nombre, SKU o código de barras…"
+                        autoComplete="off"
+                        className="h-10 border-slate-300 bg-slate-200 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                      />
+                    </div>
+                  </PopoverAnchor>
+                  <PopoverContent
+                    align="start"
+                    sideOffset={6}
+                    onOpenAutoFocus={(e) => e.preventDefault()}
+                    className={cn(
+                      'z-[300] w-[var(--radix-popover-anchor-width)] border-slate-200 bg-slate-100 p-0 shadow-lg dark:border-slate-800 dark:bg-slate-900',
+                      'max-h-[min(50dvh,18rem)] overflow-hidden'
+                    )}
+                  >
+                    {addTemplateSearch.trim().length < 1 ? (
+                      <p className="px-3 py-3 text-xs leading-snug text-slate-600 dark:text-slate-400">
+                        Escriba al menos un carácter para buscar en el catálogo. No se muestra la lista completa.
+                      </p>
+                    ) : addTemplateMatches.length === 0 ? (
+                      <p className="px-3 py-3 text-xs text-slate-600 dark:text-slate-400">
+                        Sin coincidencias.
+                      </p>
+                    ) : (
+                      <ul className="max-h-[min(50dvh,18rem)] overflow-y-auto overscroll-contain py-1">
+                        {addTemplateMatches.map((p) => (
+                          <li key={p.id}>
+                            <button
+                              type="button"
+                              className="flex w-full flex-col gap-0.5 px-3 py-2 text-left text-sm transition-colors hover:bg-slate-200/90 dark:hover:bg-slate-800/90"
+                              onClick={() => {
+                                applyProductTemplateToAddForm(p);
+                                setAddFormTemplateId(p.id);
+                                setAddTemplateSearch('');
+                                setAddTemplateComboOpen(false);
+                              }}
+                            >
+                              <span className="font-medium text-slate-900 dark:text-slate-100">{p.nombre}</span>
+                              <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                                SKU {p.sku}
+                                {p.codigoBarras?.trim() ? ` · ${p.codigoBarras.trim()}` : ''}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </PopoverContent>
+                </Popover>
+              )}
+              <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-400 lg:text-[10px] lg:leading-tight">
+                Escriba para buscar; al elegir un artículo se rellenan los campos. Cambie SKU, código o existencia si
+                es una variante o entrada nueva y guarde.
               </p>
             </div>
-            <div className="col-span-2 space-y-2 rounded-lg border border-slate-200/80 bg-slate-200/35 p-3 dark:border-slate-700/60 dark:bg-slate-800/40">
+            <div className="col-span-2 space-y-1.5 rounded-lg border border-slate-200/80 bg-slate-200/35 p-2.5 dark:border-slate-700/60 dark:bg-slate-800/40 lg:col-span-2 lg:space-y-1 lg:p-2">
               <Label>Proveedor</Label>
               <Select
                 value={formData.proveedor || '__none__'}
                 onValueChange={(v) => setFormData({ ...formData, proveedor: v === '__none__' ? '' : v })}
               >
-                <SelectTrigger className="h-10 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+                <SelectTrigger className="h-10 border-slate-300 bg-slate-200 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9">
                   <SelectValue placeholder="Sin proveedor" />
                 </SelectTrigger>
                 <SelectContent
@@ -1259,52 +1330,52 @@ export function Inventario() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs leading-snug text-slate-600 dark:text-slate-400">
+              <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-400 lg:text-[10px] lg:leading-tight">
                 Varios artículos del mismo proveedor: elija el proveedor aquí una vez y use{' '}
                 <span className="font-medium text-slate-700 dark:text-slate-300">Guardar y otro producto</span> para
                 vaciar solo SKU, código y datos del artículo y seguir capturando.
               </p>
             </div>
-            <div className="space-y-2">
-              <Label>SKU</Label>
+            <div className="space-y-1.5 lg:col-span-2 lg:space-y-1">
+              <Label className="text-sm lg:text-xs">SKU</Label>
               <Input
                 value={formData.sku}
                 onChange={(e) => setFormData({ ...formData, sku: upperTxt(e.target.value) })}
-                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                className="h-10 border-slate-300 bg-slate-200 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Código de Barras *</Label>
+            <div className="space-y-1.5 lg:col-span-2 lg:space-y-1">
+              <Label className="text-sm lg:text-xs">Código de Barras *</Label>
               <Input
                 ref={addCodigoBarrasRef}
                 value={formData.codigoBarras}
                 onChange={(e) => setFormData({ ...formData, codigoBarras: upperTxt(e.target.value) })}
-                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                className="h-10 border-slate-300 bg-slate-200 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9"
               />
             </div>
-            <div className="col-span-2 space-y-2">
-              <Label>Nombre *</Label>
+            <div className="col-span-2 space-y-1.5 lg:col-span-2 lg:space-y-1">
+              <Label className="text-sm lg:text-xs">Nombre *</Label>
               <Input
                 value={formData.nombre}
                 onChange={(e) => setFormData({ ...formData, nombre: upperTxt(e.target.value) })}
-                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                className="h-10 border-slate-300 bg-slate-200 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9"
               />
             </div>
-            <div className="col-span-2 space-y-2">
-              <Label>Descripción</Label>
+            <div className="col-span-2 space-y-1.5 lg:col-span-2 lg:space-y-1">
+              <Label className="text-sm lg:text-xs">Descripción</Label>
               <Input
                 value={formData.descripcion}
                 onChange={(e) => setFormData({ ...formData, descripcion: upperTxt(e.target.value) })}
-                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                className="h-10 border-slate-300 bg-slate-200 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9"
               />
             </div>
-            <div className="col-span-2 space-y-2">
-              <Label>Unidad SAT (CFDI 4.0) *</Label>
+            <div className="col-span-2 space-y-1.5 lg:col-span-2 lg:space-y-1">
+              <Label className="text-sm lg:text-xs">Unidad SAT (CFDI 4.0) *</Label>
               <Select
                 value={formData.unidadMedida}
                 onValueChange={(v) => setFormData({ ...formData, unidadMedida: v })}
               >
-                <SelectTrigger className="h-10 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+                <SelectTrigger className="h-10 border-slate-300 bg-slate-200 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9">
                   <SelectValue placeholder="Seleccione" />
                 </SelectTrigger>
                 <SelectContent
@@ -1318,12 +1389,12 @@ export function Inventario() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-[10px] leading-snug text-slate-500 dark:text-slate-400">
+              <p className="text-[10px] leading-snug text-slate-500 dark:text-slate-400 lg:leading-tight">
                 Clave de unidad del catálogo del SAT (misma que usará la factura).
               </p>
             </div>
-            <div className="col-span-2 space-y-2">
-              <Label>Clave Producto/Servicio SAT *</Label>
+            <div className="col-span-2 space-y-1.5 lg:col-span-2 lg:space-y-1">
+              <Label className="text-sm lg:text-xs">Clave Producto/Servicio SAT *</Label>
               <Input
                 inputMode="numeric"
                 maxLength={8}
@@ -1335,14 +1406,14 @@ export function Inventario() {
                     claveProdServ: normalizeClaveProdServ(e.target.value),
                   })
                 }
-                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 font-mono text-slate-900 dark:text-slate-100"
+                className="h-10 border-slate-300 bg-slate-200 font-mono text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9"
               />
-              <p className="text-[10px] leading-snug text-slate-500 dark:text-slate-400">
+              <p className="text-[10px] leading-snug text-slate-500 dark:text-slate-400 lg:leading-tight">
                 8 dígitos según catálogo c_ClaveProdServ del SAT (facturación).
               </p>
             </div>
-            <div className="space-y-2">
-              <Label>Precio de venta (sin IVA) *</Label>
+            <div className="space-y-1.5 lg:col-span-1 lg:space-y-1">
+              <Label className="text-sm lg:text-xs">Precio de venta (sin IVA) *</Label>
               <InventarioCurrencyInput
                 type="number"
                 inputMode="decimal"
@@ -1365,9 +1436,9 @@ export function Inventario() {
                     }));
                   }
                 }}
-                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                className="h-10 border-slate-300 bg-slate-200 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9"
               />
-              <p className="text-[10px] leading-snug text-slate-500 dark:text-slate-400">
+              <p className="text-[10px] leading-snug text-slate-500 dark:text-slate-400 lg:line-clamp-2">
                 {formData.precioVenta > 0 ? (
                   <>
                     Con IVA ({formData.impuesto}%):{' '}
@@ -1381,8 +1452,8 @@ export function Inventario() {
                 )}
               </p>
             </div>
-            <div className="space-y-2">
-              <Label>Precio de compra (sin IVA)</Label>
+            <div className="space-y-1.5 lg:col-span-1 lg:space-y-1">
+              <Label className="text-sm lg:text-xs">Precio de compra (sin IVA)</Label>
               <InventarioCurrencyInput
                 type="number"
                 inputMode="decimal"
@@ -1402,14 +1473,14 @@ export function Inventario() {
                     }));
                   }
                 }}
-                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                className="h-10 border-slate-300 bg-slate-200 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9"
               />
-              <p className="text-[10px] text-slate-500 dark:text-slate-400">
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 lg:leading-tight">
                 Mismo criterio que en la factura de compra (base sin impuesto).
               </p>
             </div>
-            <div className="space-y-2">
-              <Label>Stock Inicial</Label>
+            <div className="space-y-1.5 lg:col-span-1 lg:space-y-1">
+              <Label className="text-sm lg:text-xs">Stock Inicial</Label>
               <Input
                 type="number"
                 inputMode="numeric"
@@ -1423,11 +1494,11 @@ export function Inventario() {
                   if (v === '') setFormData((d) => ({ ...d, existencia: 0 }));
                   else setFormData((d) => ({ ...d, existencia: parseInt(v, 10) || 0 }));
                 }}
-                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                className="h-10 border-slate-300 bg-slate-200 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Stock Mínimo</Label>
+            <div className="space-y-1.5 lg:col-span-1 lg:space-y-1">
+              <Label className="text-sm lg:text-xs">Stock Mínimo</Label>
               <Input
                 type="number"
                 inputMode="numeric"
@@ -1441,16 +1512,16 @@ export function Inventario() {
                   if (v === '') setFormData((d) => ({ ...d, existenciaMinima: 0 }));
                   else setFormData((d) => ({ ...d, existenciaMinima: parseInt(v, 10) || 0 }));
                 }}
-                className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                className="h-10 border-slate-300 bg-slate-200 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Categoría</Label>
+            <div className="col-span-2 space-y-1.5 lg:col-span-4 lg:space-y-1">
+              <Label className="text-sm lg:text-xs">Categoría</Label>
               <Select
                 value={formData.categoria || '__none__'}
                 onValueChange={(v) => setFormData({ ...formData, categoria: v === '__none__' ? '' : v })}
               >
-                <SelectTrigger className="h-10 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+                <SelectTrigger className="h-10 border-slate-300 bg-slate-200 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9">
                   <SelectValue placeholder="Sin categoría" />
                 </SelectTrigger>
                 <SelectContent
@@ -1470,7 +1541,7 @@ export function Inventario() {
             </div>
           </div>
 
-          <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+          <DialogFooter className="flex shrink-0 flex-col gap-2 border-t border-slate-200/80 pt-3 dark:border-slate-700/80 sm:flex-row sm:flex-wrap sm:justify-end lg:pt-2">
             <Button
               type="button"
               variant="outline"
