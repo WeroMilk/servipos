@@ -260,7 +260,7 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
               contraseña de usuarios existentes se gestiona desde Firebase o recuperación de
               correo.
             </p>
-            <div className="overflow-x-auto rounded-lg border border-slate-200/80 dark:border-slate-800/60">
+            <div className="overflow-x-auto overscroll-x-contain rounded-lg border border-slate-200/80 dark:border-slate-800/60 [-webkit-overflow-scrolling:touch] touch-pan-x">
               <Table className={embedded ? 'text-sm' : undefined}>
                 <TableHeader>
                   <TableRow className="border-slate-200 dark:border-slate-800 hover:bg-transparent">

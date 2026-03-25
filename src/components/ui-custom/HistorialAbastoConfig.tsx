@@ -86,22 +86,22 @@ export function HistorialAbastoConfig({ enabled }: Props) {
   };
 
   const fieldClass =
-    'h-10 border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 text-base text-slate-900 dark:text-slate-100 sm:h-8 sm:text-sm';
+    'h-11 border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 text-base leading-normal text-slate-900 dark:text-slate-100 sm:h-8 sm:text-sm';
 
   return (
     <Card className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
       <CardHeader className="shrink-0 space-y-2 px-3 py-2 sm:px-4">
-        <CardTitle className="text-sm text-slate-900 dark:text-slate-100 sm:text-base">
+        <CardTitle className="text-base text-slate-900 dark:text-slate-100 sm:text-base">
           Historial de abasto por producto
         </CardTitle>
-        <p className="text-xs font-normal text-slate-600 dark:text-slate-400">
+        <p className="text-sm font-normal text-slate-600 dark:text-slate-400 sm:text-xs">
           Muestra entradas de stock donde puede constar proveedor y precio unitario de compra (capturados en
           Inventario → Ajustar stock → Entrada). Busque por nombre, SKU o código y elija un artículo de la lista;
           hasta entonces no se muestra ningún movimiento.
         </p>
 
         <div className="space-y-1.5 pt-1">
-          <Label htmlFor="abasto-product-search" className="text-xs text-slate-600 dark:text-slate-400">
+          <Label htmlFor="abasto-product-search" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
             Artículo
           </Label>
           {selectedProduct ? (
@@ -110,7 +110,7 @@ export function HistorialAbastoConfig({ enabled }: Props) {
                 <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">
                   {selectedProduct.nombre}
                 </p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-500">SKU {selectedProduct.sku}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-500 sm:text-[11px]">SKU {selectedProduct.sku}</p>
               </div>
               <Button
                 type="button"
@@ -225,7 +225,7 @@ export function HistorialAbastoConfig({ enabled }: Props) {
                           {nombre}
                         </span>
                         {p?.sku ? (
-                          <span className="block text-[11px] text-slate-500 dark:text-slate-500">SKU {p.sku}</span>
+                          <span className="block text-xs text-slate-500 dark:text-slate-500 sm:text-[11px]">SKU {p.sku}</span>
                         ) : null}
                       </TableCell>
                       <TableCell className="whitespace-nowrap tabular-nums text-slate-800 dark:text-slate-200">
@@ -247,7 +247,7 @@ export function HistorialAbastoConfig({ enabled }: Props) {
             </Table>
           )}
         </div>
-        <p className="text-[11px] text-slate-500 dark:text-slate-500">
+        <p className="text-xs text-slate-500 dark:text-slate-500 sm:text-[11px]">
           Hasta 500 movimientos más recientes de la sucursal. Las entradas antiguas pueden no tener proveedor ni
           precio.
         </p>

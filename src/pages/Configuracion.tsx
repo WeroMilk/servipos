@@ -206,13 +206,13 @@ export function Configuracion() {
   };
 
   const fieldClass =
-    'h-10 border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 text-base text-slate-900 dark:text-slate-100 sm:h-8 sm:text-sm';
+    'h-11 border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 text-base leading-normal text-slate-900 dark:text-slate-100 sm:h-8 sm:text-sm';
   const selectClass =
-    'h-10 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 px-2 text-base text-slate-900 dark:text-slate-100 sm:h-8 sm:text-sm';
+    'h-11 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 px-3 py-2 text-base leading-normal text-slate-900 dark:text-slate-100 sm:h-8 sm:py-1 sm:text-sm';
 
   /** Pestañas tipo subrayado (activa = borde inferior cyan), sin bloque de fondo. */
   const configuracionTabTriggerClass = cn(
-    'h-auto min-h-10 shrink-0 flex-none justify-center rounded-none border-0 border-b-2 border-transparent bg-transparent px-2 py-2 text-center text-xs leading-tight text-slate-600 shadow-none ring-offset-0 sm:min-h-11 sm:px-3 sm:text-sm',
+    'h-auto min-h-11 shrink-0 flex-none justify-center rounded-none border-0 border-b-2 border-transparent bg-transparent px-2.5 py-2.5 text-center text-sm leading-snug text-slate-600 shadow-none ring-offset-0 sm:min-h-11 sm:px-3',
     'whitespace-normal [text-wrap:balance]',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/35 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-100 dark:focus-visible:ring-offset-slate-950',
     'data-[state=active]:border-cyan-500 data-[state=active]:bg-transparent data-[state=active]:text-cyan-700 data-[state=active]:shadow-none',
@@ -229,7 +229,7 @@ export function Configuracion() {
         {!isConfigured ? (
           <div className="flex shrink-0 items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 sm:px-3">
             <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400 sm:h-5 sm:w-5" />
-            <p className="min-w-0 text-[11px] leading-snug text-amber-400/90 sm:text-xs">
+            <p className="min-w-0 text-xs leading-snug text-amber-400/90 sm:text-sm">
               <span className="font-medium text-amber-400">Incompleta.</span>{' '}
               Complete datos fiscales para facturar.
             </p>
@@ -237,7 +237,7 @@ export function Configuracion() {
         ) : (
           <div className="flex shrink-0 items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 sm:px-3">
             <Check className="h-4 w-4 shrink-0 text-emerald-400 sm:h-5 sm:w-5" />
-            <p className="min-w-0 text-[11px] leading-snug text-emerald-400/90 sm:text-xs">
+            <p className="min-w-0 text-xs leading-snug text-emerald-400/90 sm:text-sm">
               <span className="font-medium text-emerald-400">Listo</span> para generar facturas.
             </p>
           </div>
@@ -248,67 +248,74 @@ export function Configuracion() {
           onValueChange={setActiveTab}
           className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-1.5 overflow-hidden sm:gap-2"
         >
-        <TabsList
+        {/*
+          Scroll horizontal en un wrapper dedicado + touch-pan-x: en varios móviles el swipe en la fila de pestañas
+          no funcionaba bien con overflow solo en TabsList (Radix/shrink). En xl la rejilla ocupa todo el ancho.
+        */}
+        <div
           data-wheel-scroll-x="strip"
-          className={cn(
-            /* justify-start: evita justify-center del TabsList base, que en móvil centra la fila y oculta «Datos fiscales» a la izquierda del scroll. */
-            'flex h-auto w-full min-w-0 shrink-0 flex-nowrap items-center justify-start gap-0 overflow-x-auto overflow-y-hidden overscroll-x-contain border-b border-slate-200/80 bg-transparent p-0 dark:border-slate-800/60 dark:bg-transparent [-webkit-overflow-scrolling:touch]',
-            'xl:grid xl:w-full xl:justify-normal xl:overflow-x-visible',
-            totalTabs <= 4 && 'xl:grid-cols-4',
-            totalTabs === 5 && 'xl:grid-cols-5',
-            totalTabs === 6 && 'xl:grid-cols-6',
-            totalTabs === 7 && 'xl:grid-cols-7',
-            totalTabs === 8 && 'xl:grid-cols-8',
-            totalTabs >= 9 && 'xl:grid-cols-9'
-          )}
+          className="min-w-0 w-full shrink-0 overflow-x-auto overflow-y-hidden overscroll-x-contain [-webkit-overflow-scrolling:touch] touch-pan-x xl:overflow-x-visible"
         >
+          <TabsList
+            className={cn(
+              'flex h-auto w-max min-w-full flex-nowrap items-center justify-start gap-0 border-b border-slate-200/80 bg-transparent p-0 dark:border-slate-800/60 dark:bg-transparent',
+              'xl:grid xl:w-full xl:min-w-0 xl:justify-normal',
+              totalTabs <= 4 && 'xl:grid-cols-4',
+              totalTabs === 5 && 'xl:grid-cols-5',
+              totalTabs === 6 && 'xl:grid-cols-6',
+              totalTabs === 7 && 'xl:grid-cols-7',
+              totalTabs === 8 && 'xl:grid-cols-8',
+              totalTabs >= 9 && 'xl:grid-cols-9'
+            )}
+          >
           <TabsTrigger value="fiscal" className={configuracionTabTriggerClass}>
-            <Receipt className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
+            <Receipt className="mr-1.5 h-4 w-4 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
             Datos fiscales
           </TabsTrigger>
           <TabsTrigger value="empresa" className={configuracionTabTriggerClass}>
-            <Building2 className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
+            <Building2 className="mr-1.5 h-4 w-4 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
             Empresa
           </TabsTrigger>
           <TabsTrigger value="certificados" className={configuracionTabTriggerClass}>
-            <FileKey className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
+            <FileKey className="mr-1.5 h-4 w-4 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
             Certificados
           </TabsTrigger>
           <TabsTrigger value="nominas" className={configuracionTabTriggerClass}>
-            <Wallet className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
+            <Wallet className="mr-1.5 h-4 w-4 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
             Nominas
           </TabsTrigger>
           {canManageSucursales && (
             <TabsTrigger value="sucursales" className={configuracionTabTriggerClass}>
-              <MapPin className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
+              <MapPin className="mr-1.5 h-4 w-4 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
               Sucursales
             </TabsTrigger>
           )}
           {canManageUsers && (
             <TabsTrigger value="usuarios" className={configuracionTabTriggerClass}>
-              <Users className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
+              <Users className="mr-1.5 h-4 w-4 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
               Usuarios
             </TabsTrigger>
           )}
           {canManageUsers && (
             <TabsTrigger value="permisos" className={configuracionTabTriggerClass}>
-              <Shield className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
+              <Shield className="mr-1.5 h-4 w-4 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
               Permisos
             </TabsTrigger>
           )}
           {canEditListaPreciosCliente && (
             <TabsTrigger value="inventario-listas" className={configuracionTabTriggerClass}>
-              <Package className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
+              <Package className="mr-1.5 h-4 w-4 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
               Inventario
             </TabsTrigger>
           )}
           {canVerHistorialAbasto && (
             <TabsTrigger value="historial-abasto" className={configuracionTabTriggerClass}>
-              <Truck className="mr-1.5 h-3.5 w-3.5 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
+              <Truck className="mr-1.5 h-4 w-4 shrink-0 sm:mr-2 sm:h-4 sm:w-4" />
               Abasto
             </TabsTrigger>
           )}
-        </TabsList>
+          </TabsList>
+        </div>
 
         {/* Fiscal: rejilla densa; scroll solo si el viewport es bajo */}
         <TabsContent
@@ -317,7 +324,7 @@ export function Configuracion() {
         >
           <Card className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
             <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
-              <CardTitle className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100 sm:text-base">
+              <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-slate-100 sm:text-base">
                 <Receipt className="h-4 w-4 shrink-0 text-cyan-400 sm:h-5 sm:w-5" />
                 Datos fiscales CFDI 4.0
               </CardTitle>
@@ -326,7 +333,7 @@ export function Configuracion() {
               <div className="min-h-0 flex-1 overflow-visible xl:overflow-visible">
                 <div className="grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   <div className="space-y-1">
-                    <Label htmlFor="rfc" className="text-xs text-slate-600 dark:text-slate-400">
+                    <Label htmlFor="rfc" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
                       RFC *
                     </Label>
                     <Input
@@ -340,7 +347,7 @@ export function Configuracion() {
                     />
                   </div>
                   <div className="space-y-1 sm:col-span-2 lg:col-span-2">
-                    <Label htmlFor="razonSocial" className="text-xs text-slate-600 dark:text-slate-400">
+                    <Label htmlFor="razonSocial" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
                       Razón social *
                     </Label>
                     <Input
@@ -354,7 +361,7 @@ export function Configuracion() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor="nombreComercial" className="text-xs text-slate-600 dark:text-slate-400">
+                    <Label htmlFor="nombreComercial" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
                       Nombre comercial
                     </Label>
                     <Input
@@ -367,7 +374,7 @@ export function Configuracion() {
                     />
                   </div>
                   <div className="space-y-1 sm:col-span-2 lg:col-span-2">
-                    <Label htmlFor="regimenFiscal" className="text-xs text-slate-600 dark:text-slate-400">
+                    <Label htmlFor="regimenFiscal" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
                       Régimen fiscal *
                     </Label>
                     <select
@@ -387,7 +394,7 @@ export function Configuracion() {
                     </select>
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor="serie" className="text-xs text-slate-600 dark:text-slate-400">
+                    <Label htmlFor="serie" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
                       Serie *
                     </Label>
                     <Input
@@ -401,7 +408,7 @@ export function Configuracion() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor="folioActual" className="text-xs text-slate-600 dark:text-slate-400">
+                    <Label htmlFor="folioActual" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
                       Folio actual *
                     </Label>
                     <Input
@@ -425,10 +432,10 @@ export function Configuracion() {
                   </div>
                   <div className="col-span-full flex flex-col gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100/70 dark:bg-slate-900/35 p-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0 space-y-1">
-                      <Label htmlFor="modoPruebaFiscal" className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                      <Label htmlFor="modoPruebaFiscal" className="text-sm font-medium text-slate-700 dark:text-slate-300 sm:text-xs">
                         Modo prueba (facturas y vistas de nómina)
                       </Label>
-                      <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-400 sm:text-xs">
+                      <p className="text-sm leading-snug text-slate-600 dark:text-slate-400 sm:text-xs">
                         Las facturas nuevas llevan serie PRUEBA y no avanzan el folio oficial. Las impresiones de recibo
                         de nómina de prueba usan PRUEBA-N y no tocan el folio de nómina SAT. Para producción: desactiva
                         esta opción, guarda aquí tu serie y folio autorizados y timbra con tu PAC; el solo hecho de
@@ -445,7 +452,7 @@ export function Configuracion() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor="lugarExpedicion" className="text-xs text-slate-600 dark:text-slate-400">
+                    <Label htmlFor="lugarExpedicion" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
                       Lugar expedición (CP) *
                     </Label>
                     <Input
@@ -460,7 +467,7 @@ export function Configuracion() {
                     />
                   </div>
                   <div className="space-y-1 sm:col-span-2 lg:col-span-2">
-                    <Label htmlFor="codigoUsoCfdi" className="text-xs text-slate-600 dark:text-slate-400">
+                    <Label htmlFor="codigoUsoCfdi" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
                       Uso CFDI predeterminado
                     </Label>
                     <select
@@ -480,11 +487,11 @@ export function Configuracion() {
                   </div>
 
                   <div className="col-span-full mt-1 border-t border-slate-200 dark:border-slate-800/80 pt-2">
-                    <p className="text-xs font-medium text-slate-600 dark:text-slate-500">Dirección fiscal</p>
+                    <p className="text-sm font-medium text-slate-600 dark:text-slate-500 sm:text-xs">Dirección fiscal</p>
                   </div>
 
                   <div className="space-y-1 sm:col-span-2 xl:col-span-2">
-                    <Label className="text-xs text-slate-600 dark:text-slate-400">Calle</Label>
+                    <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">Calle</Label>
                     <Input
                       value={fiscalForm.calle}
                       onChange={(e) => setFiscalForm({ ...fiscalForm, calle: e.target.value })}
@@ -492,7 +499,7 @@ export function Configuracion() {
                     />
                   </div>
                   <div className="space-y-1 sm:col-span-2 xl:col-span-2">
-                    <Label className="text-xs text-slate-600 dark:text-slate-400">Colonia</Label>
+                    <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">Colonia</Label>
                     <Input
                       value={fiscalForm.colonia}
                       onChange={(e) => setFiscalForm({ ...fiscalForm, colonia: e.target.value })}
@@ -501,7 +508,7 @@ export function Configuracion() {
                   </div>
                   <div className="grid grid-cols-2 gap-2 sm:col-span-2 xl:col-span-2">
                     <div className="space-y-1">
-                      <Label className="text-xs text-slate-600 dark:text-slate-400">No. ext.</Label>
+                      <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">No. ext.</Label>
                       <Input
                         value={fiscalForm.numeroExterior}
                         onChange={(e) =>
@@ -511,7 +518,7 @@ export function Configuracion() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs text-slate-600 dark:text-slate-400">No. int.</Label>
+                      <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">No. int.</Label>
                       <Input
                         value={fiscalForm.numeroInterior}
                         onChange={(e) =>
@@ -522,7 +529,7 @@ export function Configuracion() {
                     </div>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs text-slate-600 dark:text-slate-400">C.P.</Label>
+                    <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">C.P.</Label>
                     <Input
                       value={fiscalForm.codigoPostal}
                       onChange={(e) =>
@@ -532,7 +539,7 @@ export function Configuracion() {
                     />
                   </div>
                   <div className="space-y-1 sm:col-span-2 lg:col-span-2 xl:col-span-1">
-                    <Label className="text-xs text-slate-600 dark:text-slate-400">Ciudad</Label>
+                    <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">Ciudad</Label>
                     <Input
                       value={fiscalForm.ciudad}
                       onChange={(e) => setFiscalForm({ ...fiscalForm, ciudad: e.target.value })}
@@ -540,7 +547,7 @@ export function Configuracion() {
                     />
                   </div>
                   <div className="space-y-1 sm:col-span-2 lg:col-span-2 xl:col-span-1">
-                    <Label className="text-xs text-slate-600 dark:text-slate-400">Municipio</Label>
+                    <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">Municipio</Label>
                     <Input
                       value={fiscalForm.municipio}
                       onChange={(e) =>
@@ -550,7 +557,7 @@ export function Configuracion() {
                     />
                   </div>
                   <div className="space-y-1 sm:col-span-2">
-                    <Label className="text-xs text-slate-600 dark:text-slate-400">Estado</Label>
+                    <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">Estado</Label>
                     <Input
                       value={fiscalForm.estado}
                       onChange={(e) => setFiscalForm({ ...fiscalForm, estado: e.target.value })}
@@ -585,7 +592,7 @@ export function Configuracion() {
         >
           <Card className="w-full shrink-0 border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
             <CardHeader className="shrink-0 space-y-0 border-b border-slate-200/70 px-3 py-2.5 dark:border-slate-800/50 sm:px-4">
-              <CardTitle className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100 sm:text-base">
+              <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-slate-100 sm:text-base">
                 <Building2 className="h-4 w-4 shrink-0 text-cyan-400 sm:h-5 sm:w-5" />
                 Información de la empresa
               </CardTitle>
@@ -593,7 +600,7 @@ export function Configuracion() {
             <CardContent className="flex flex-col gap-4 p-3 sm:p-4">
               <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
                 <div className="space-y-1">
-                  <Label htmlFor="empresa-telefono" className="text-xs text-slate-600 dark:text-slate-400">
+                  <Label htmlFor="empresa-telefono" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
                     Teléfono
                   </Label>
                   <Input
@@ -605,7 +612,7 @@ export function Configuracion() {
                   />
                 </div>
                 <div className="space-y-1 sm:col-span-2 lg:col-span-2">
-                  <Label htmlFor="empresa-email" className="text-xs text-slate-600 dark:text-slate-400">
+                  <Label htmlFor="empresa-email" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
                     Email de contacto
                   </Label>
                   <Input
@@ -640,22 +647,22 @@ export function Configuracion() {
           <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain xl:grid xl:grid-cols-2 xl:gap-3 xl:overflow-hidden">
             <Card className="flex min-h-0 min-w-0 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
               <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
-                <CardTitle className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100 sm:text-base">
+                <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-slate-100 sm:text-base">
                   <FileKey className="h-4 w-4 text-cyan-400 sm:h-5 sm:w-5" />
                   CSD (sello digital)
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-y-contain p-3 sm:p-4">
-                <div className="flex gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-2">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
-                  <p className="text-[11px] leading-snug text-amber-400/85 sm:text-xs">
+                <div className="flex gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400 sm:h-5 sm:w-5" />
+                  <p className="text-sm leading-snug text-amber-400/90 sm:text-xs">
                     CSD del SAT para timbrar en producción. En esta demo el XML se genera sin
                     timbrar.
                   </p>
                 </div>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <div className="space-y-1">
-                    <Label className="text-xs text-slate-600 dark:text-slate-400">Certificado (.cer)</Label>
+                    <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">Certificado (.cer)</Label>
                     <Input
                       type="file"
                       accept=".cer"
@@ -664,7 +671,7 @@ export function Configuracion() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs text-slate-600 dark:text-slate-400">Llave (.key)</Label>
+                    <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">Llave (.key)</Label>
                     <Input
                       type="file"
                       accept=".key"
@@ -673,7 +680,7 @@ export function Configuracion() {
                     />
                   </div>
                   <div className="space-y-1 sm:col-span-2">
-                    <Label className="text-xs text-slate-600 dark:text-slate-400">Contraseña de la llave</Label>
+                    <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">Contraseña de la llave</Label>
                     <Input
                       type="password"
                       disabled
@@ -698,18 +705,18 @@ export function Configuracion() {
 
             <Card className="flex min-h-0 min-w-0 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
               <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
-                <CardTitle className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100 sm:text-base">
+                <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-slate-100 sm:text-base">
                   <Key className="h-4 w-4 text-cyan-400 sm:h-5 sm:w-5" />
                   Soporte (timbrado)
                 </CardTitle>
               </CardHeader>
               <CardContent className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-3 sm:p-4">
-                <div className="rounded-lg bg-slate-200/60 dark:bg-slate-800/30 p-2 sm:p-3">
-                  <p className="text-xs text-slate-600 dark:text-slate-400 sm:text-sm">
+                <div className="rounded-lg bg-slate-200/60 dark:bg-slate-800/30 p-3 sm:p-3">
+                  <p className="text-sm text-slate-600 dark:text-slate-400 sm:text-sm">
                     Para timbrar ante el SAT contacte a Soporte:
                   </p>
-                  <div className="mt-2 flex gap-1.5 text-xs text-slate-700 dark:text-slate-300 sm:text-sm">
-                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" />
+                  <div className="mt-2 flex gap-2 text-sm text-slate-700 dark:text-slate-300 sm:text-sm">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400 sm:h-3.5 sm:w-3.5" />
                     <div className="min-w-0 space-y-1.5">
                       <p>Luis Alfonso Silvas Madrid</p>
                       <p>
@@ -741,17 +748,17 @@ export function Configuracion() {
           className="mt-0 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
         >
           <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain xl:grid xl:grid-cols-2 xl:gap-3 xl:overflow-hidden">
-            <Card className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 lg:min-h-0 lg:flex-none">
+            <Card className="flex min-h-0 min-w-0 flex-none flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 xl:min-h-0 xl:flex-1">
               <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
-                <CardTitle className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100 sm:text-base">
+                <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-slate-100 sm:text-base">
                   <Wallet className="h-4 w-4 shrink-0 text-cyan-400 sm:h-5 sm:w-5" />
                   Nómina electrónica (CFDI)
                 </CardTitle>
               </CardHeader>
-              <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain p-3 sm:p-4">
-                <div className="flex gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/10 p-2">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
-                  <p className="text-[11px] leading-snug text-emerald-400/90 sm:text-xs">
+              <CardContent className="flex min-h-0 flex-col gap-3 overflow-y-auto overscroll-y-contain p-3 sm:p-4 xl:flex-1">
+                <div className="flex gap-2.5 rounded-lg border border-emerald-500/25 bg-emerald-500/10 p-3">
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400 sm:h-5 sm:w-5" />
+                  <p className="text-sm leading-snug text-emerald-400/95 sm:text-xs">
                     Con <span className="font-medium text-emerald-300">serie y folio autorizados por el SAT</span>, el
                     mismo <span className="font-medium text-emerald-300">CSD</span> y un{' '}
                     <span className="font-medium text-emerald-300">PAC</span> autorizado para timbrado de nómina, el
@@ -759,7 +766,7 @@ export function Configuracion() {
                   </p>
                 </div>
                 <div className="rounded-lg border border-slate-200/90 dark:border-slate-700/80 bg-slate-200/40 dark:bg-slate-800/40 p-3">
-                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                  <p className="text-sm leading-snug text-slate-600 dark:text-slate-400 sm:text-xs sm:leading-normal">
                     <span className="font-medium text-slate-700 dark:text-slate-300">Impresión de prueba:</span> usa la
                     serie fija PRUEBA-N y un folio local (siguiente:{' '}
                     <span className="font-mono text-cyan-600 dark:text-cyan-400">
@@ -777,38 +784,38 @@ export function Configuracion() {
                     Imprimir recibo de nómina (prueba)
                   </Button>
                 </div>
-                <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-400 sm:text-sm">
+                <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400 sm:text-sm">
                   Solicita con Soporte los folios para el tipo de comprobante de nómina que uses. Aquí defines la serie y
                   el folio consecutivo que se aplicarán al generar cada recibo; deben coincidir con el rango autorizado.
                 </p>
-                <ul className="space-y-1.5 text-xs text-slate-700 dark:text-slate-300 sm:text-sm">
+                <ul className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:text-sm">
                   <li className="flex gap-2">
-                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-400" />
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-cyan-400 sm:h-3.5 sm:w-3.5" />
                     Datos fiscales del emisor completos (misma pestaña &quot;Datos fiscales&quot;).
                   </li>
                   <li className="flex gap-2">
-                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-400" />
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-cyan-400 sm:h-3.5 sm:w-3.5" />
                     Certificado (.cer) y llave (.key) configurados en &quot;Certificados&quot;.
                   </li>
                   <li className="flex gap-2">
-                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-400" />
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-cyan-400 sm:h-3.5 sm:w-3.5" />
                     PAC otorgado por Soporte con servicio de timbrado de nómina (mismo criterio que facturas).
                   </li>
                 </ul>
               </CardContent>
             </Card>
 
-            <Card className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 lg:min-h-0 lg:flex-none">
+            <Card className="flex min-h-0 min-w-0 flex-none flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 xl:min-h-0 xl:flex-1">
               <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
-                <CardTitle className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100 sm:text-base">
+                <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-slate-100 sm:text-base">
                   <Receipt className="h-4 w-4 shrink-0 text-cyan-400 sm:h-5 sm:w-5" />
                   Folios de nómina
                 </CardTitle>
               </CardHeader>
-              <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain p-3 sm:p-4">
+              <CardContent className="flex min-h-0 flex-col gap-3 overflow-y-auto overscroll-y-contain p-3 sm:p-4 xl:flex-1">
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <div className="space-y-1">
-                    <Label htmlFor="serieNomina" className="text-xs text-slate-600 dark:text-slate-400">
+                    <Label htmlFor="serieNomina" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
                       Serie nómina *
                     </Label>
                     <Input
@@ -825,7 +832,7 @@ export function Configuracion() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor="folioNominaActual" className="text-xs text-slate-600 dark:text-slate-400">
+                    <Label htmlFor="folioNominaActual" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
                       Folio actual nómina *
                     </Label>
                     <Input
@@ -842,9 +849,9 @@ export function Configuracion() {
                     />
                   </div>
                 </div>
-                <div className="flex gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-2">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
-                  <p className="text-[11px] leading-snug text-amber-400/85 sm:text-xs">
+                <div className="flex gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400 sm:h-5 sm:w-5" />
+                  <p className="text-sm leading-snug text-amber-400/90 sm:text-xs">
                     No reutilices folios ni saltes números dentro del rango autorizado; el SAT puede rechazar
                     comprobantes duplicados o fuera de secuencia.
                   </p>
@@ -917,10 +924,10 @@ export function Configuracion() {
           >
             <Card className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
               <CardHeader className="shrink-0 space-y-1 px-3 py-2 sm:px-4">
-                <CardTitle className="text-sm text-slate-900 dark:text-slate-100 sm:text-base">
+                <CardTitle className="text-base text-slate-900 dark:text-slate-100 sm:text-base">
                   Categorías y proveedores (inventario)
                 </CardTitle>
-                <p className="text-xs font-normal text-slate-600 dark:text-slate-400">
+                <p className="text-sm font-normal text-slate-600 dark:text-slate-400 sm:text-xs">
                   Una línea por categoría o por proveedor. Se usan en los desplegables al crear o editar productos.
                   Valores iniciales orientados a refaccionaria de electrodomésticos; puede adaptarlos aquí.
                 </p>
@@ -928,26 +935,26 @@ export function Configuracion() {
               <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3 pt-0 sm:p-4 sm:pt-0">
                 <div className="flex min-h-0 flex-1 flex-col gap-4 xl:flex-row xl:gap-4">
                   <div className="flex min-h-[12rem] flex-1 flex-col gap-2 xl:min-h-0">
-                    <Label className="shrink-0 text-xs text-slate-600 dark:text-slate-400">
+                    <Label className="shrink-0 text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
                       Categorías
                     </Label>
                     <textarea
                       value={draftCategorias}
                       onChange={(e) => setDraftCategorias(e.target.value)}
                       rows={4}
-                      className="min-h-0 w-full flex-1 resize-none overflow-y-auto overscroll-y-contain rounded-md border border-slate-300 bg-slate-200/80 p-2 font-mono text-sm text-slate-900 [-webkit-overflow-scrolling:touch] dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-100"
+                      className="min-h-0 w-full flex-1 resize-none overflow-y-auto overscroll-y-contain rounded-md border border-slate-300 bg-slate-200/80 p-3 font-mono text-base leading-normal text-slate-900 [-webkit-overflow-scrolling:touch] dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-100 sm:p-2 sm:text-sm"
                       spellCheck={false}
                     />
                   </div>
                   <div className="flex min-h-[10rem] flex-1 flex-col gap-2 xl:min-h-0">
-                    <Label className="shrink-0 text-xs text-slate-600 dark:text-slate-400">
+                    <Label className="shrink-0 text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
                       Proveedores
                     </Label>
                     <textarea
                       value={draftProveedores}
                       onChange={(e) => setDraftProveedores(e.target.value)}
                       rows={4}
-                      className="min-h-0 w-full flex-1 resize-none overflow-y-auto overscroll-y-contain rounded-md border border-slate-300 bg-slate-200/80 p-2 font-mono text-sm text-slate-900 [-webkit-overflow-scrolling:touch] dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-100"
+                      className="min-h-0 w-full flex-1 resize-none overflow-y-auto overscroll-y-contain rounded-md border border-slate-300 bg-slate-200/80 p-3 font-mono text-base leading-normal text-slate-900 [-webkit-overflow-scrolling:touch] dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-100 sm:p-2 sm:text-sm"
                       spellCheck={false}
                     />
                   </div>

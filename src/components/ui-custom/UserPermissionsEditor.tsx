@@ -156,11 +156,11 @@ export function UserPermissionsEditor({ embedded = false }: UserPermissionsEdito
     >
       <Card className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
         <CardHeader className="shrink-0 space-y-1 px-3 py-2 sm:px-4">
-          <CardTitle className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100 sm:text-base">
+          <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-slate-100 sm:text-base">
             <Shield className="h-4 w-4 shrink-0 text-cyan-500 sm:h-5 sm:w-5" />
             Permisos por usuario
           </CardTitle>
-          <p className="text-xs font-normal text-slate-600 dark:text-slate-400">
+          <p className="text-sm font-normal text-slate-600 dark:text-slate-400 sm:text-xs">
             Elija un usuario, asigne rol (Administrador, Gerente o Cajero) y, si lo necesita, active permisos
             personalizados para marcar pantallas y acciones una a una. Dos cajeros pueden tener listas distintas.
           </p>
@@ -168,7 +168,7 @@ export function UserPermissionsEditor({ embedded = false }: UserPermissionsEdito
         <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3 pt-0 sm:p-4 sm:pt-0">
           <div className="grid shrink-0 gap-2 sm:grid-cols-2">
             <div className="space-y-1">
-              <Label className="text-xs text-slate-600 dark:text-slate-400">Usuario</Label>
+              <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">Usuario</Label>
               <Select
                 value={selectedId ?? ''}
                 onValueChange={(v) => setSelectedId(v || null)}
@@ -187,7 +187,7 @@ export function UserPermissionsEditor({ embedded = false }: UserPermissionsEdito
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-slate-600 dark:text-slate-400">Rol base</Label>
+              <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">Rol base</Label>
               <Select
                 value={draftRole}
                 onValueChange={(v) => {
