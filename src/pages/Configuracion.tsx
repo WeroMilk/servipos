@@ -219,6 +219,10 @@ export function Configuracion() {
     'dark:text-slate-400 dark:data-[state=active]:text-cyan-400 xl:w-full xl:flex-1'
   );
 
+  /** Un solo scroll vertical por pestaña (móvil); evita tarjetas flex-1 con scroll interno y huecos vacíos. */
+  const configuracionTabsPanelClass =
+    'mt-0 flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch] outline-none data-[state=inactive]:hidden';
+
   return (
     <PageShell
       title="Configuración"
@@ -317,20 +321,16 @@ export function Configuracion() {
           </TabsList>
         </div>
 
-        {/* Fiscal: rejilla densa; scroll solo si el viewport es bajo */}
-        <TabsContent
-          value="fiscal"
-          className="mt-0 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
-        >
-          <Card className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
+        <TabsContent value="fiscal" className={configuracionTabsPanelClass}>
+          <Card className="w-full min-w-0 border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
             <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
               <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-slate-100 sm:text-base">
                 <Receipt className="h-4 w-4 shrink-0 text-cyan-400 sm:h-5 sm:w-5" />
                 Datos fiscales CFDI 4.0
               </CardTitle>
             </CardHeader>
-            <CardContent className="flex min-h-0 flex-1 flex-col gap-2 overflow-visible p-3 pt-0 sm:p-4 sm:pt-0">
-              <div className="min-h-0 flex-1 overflow-visible xl:overflow-visible">
+            <CardContent className="flex flex-col gap-2 p-3 pt-0 sm:p-4 sm:pt-0">
+              <div className="min-w-0">
                 <div className="grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   <div className="space-y-1">
                     <Label htmlFor="rfc" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
@@ -586,10 +586,7 @@ export function Configuracion() {
           </Card>
         </TabsContent>
 
-        <TabsContent
-          value="empresa"
-          className="mt-0 flex min-h-0 min-w-0 flex-1 flex-col justify-start overflow-auto outline-none data-[state=inactive]:hidden"
-        >
+        <TabsContent value="empresa" className={cn(configuracionTabsPanelClass, 'justify-start')}>
           <Card className="w-full shrink-0 border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
             <CardHeader className="shrink-0 space-y-0 border-b border-slate-200/70 px-3 py-2.5 dark:border-slate-800/50 sm:px-4">
               <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-slate-100 sm:text-base">
@@ -640,19 +637,16 @@ export function Configuracion() {
           </Card>
         </TabsContent>
 
-        <TabsContent
-          value="certificados"
-          className="mt-0 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
-        >
-          <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain xl:grid xl:grid-cols-2 xl:gap-3 xl:overflow-hidden">
-            <Card className="flex min-h-0 min-w-0 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
+        <TabsContent value="certificados" className={configuracionTabsPanelClass}>
+          <div className="flex w-full min-w-0 flex-col gap-3 xl:grid xl:min-h-0 xl:grid-cols-2 xl:gap-3 xl:overflow-hidden">
+            <Card className="w-full shrink-0 border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 xl:min-h-0 xl:shrink xl:flex xl:flex-col xl:overflow-hidden">
               <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
                 <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-slate-100 sm:text-base">
                   <FileKey className="h-4 w-4 text-cyan-400 sm:h-5 sm:w-5" />
                   CSD (sello digital)
                 </CardTitle>
               </CardHeader>
-              <CardContent className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-y-contain p-3 sm:p-4">
+              <CardContent className="flex flex-col gap-2 p-3 sm:p-4 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:overscroll-y-contain">
                 <div className="flex gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400 sm:h-5 sm:w-5" />
                   <p className="text-sm leading-snug text-amber-400/90 sm:text-xs">
@@ -689,7 +683,7 @@ export function Configuracion() {
                     />
                   </div>
                 </div>
-                <div className="mt-auto flex justify-end pt-1">
+                <div className="flex justify-end pt-1 xl:mt-auto">
                   <Button
                     type="button"
                     size="sm"
@@ -703,14 +697,14 @@ export function Configuracion() {
               </CardContent>
             </Card>
 
-            <Card className="flex min-h-0 min-w-0 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
+            <Card className="w-full shrink-0 border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 xl:min-h-0 xl:shrink xl:flex xl:flex-col xl:overflow-hidden">
               <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
                 <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-slate-100 sm:text-base">
                   <Key className="h-4 w-4 text-cyan-400 sm:h-5 sm:w-5" />
                   Soporte (timbrado)
                 </CardTitle>
               </CardHeader>
-              <CardContent className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-3 sm:p-4">
+              <CardContent className="p-3 sm:p-4 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:overscroll-y-contain">
                 <div className="rounded-lg bg-slate-200/60 dark:bg-slate-800/30 p-3 sm:p-3">
                   <p className="text-sm text-slate-600 dark:text-slate-400 sm:text-sm">
                     Para timbrar ante el SAT contacte a Soporte:
@@ -743,19 +737,16 @@ export function Configuracion() {
           </div>
         </TabsContent>
 
-        <TabsContent
-          value="nominas"
-          className="mt-0 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
-        >
-          <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain xl:grid xl:grid-cols-2 xl:gap-3 xl:overflow-hidden">
-            <Card className="flex min-h-0 min-w-0 flex-none flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 xl:min-h-0 xl:flex-1">
+        <TabsContent value="nominas" className={configuracionTabsPanelClass}>
+          <div className="flex w-full min-w-0 flex-col gap-3 xl:grid xl:min-h-0 xl:grid-cols-2 xl:gap-3 xl:overflow-hidden">
+            <Card className="w-full shrink-0 border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 xl:min-h-0 xl:flex xl:flex-1 xl:flex-col xl:overflow-hidden">
               <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
                 <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-slate-100 sm:text-base">
                   <Wallet className="h-4 w-4 shrink-0 text-cyan-400 sm:h-5 sm:w-5" />
                   Nómina electrónica (CFDI)
                 </CardTitle>
               </CardHeader>
-              <CardContent className="flex min-h-0 flex-col gap-3 overflow-y-auto overscroll-y-contain p-3 sm:p-4 xl:flex-1">
+              <CardContent className="flex flex-col gap-3 p-3 sm:p-4 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:overscroll-y-contain">
                 <div className="flex gap-2.5 rounded-lg border border-emerald-500/25 bg-emerald-500/10 p-3">
                   <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400 sm:h-5 sm:w-5" />
                   <p className="text-sm leading-snug text-emerald-400/95 sm:text-xs">
@@ -805,14 +796,14 @@ export function Configuracion() {
               </CardContent>
             </Card>
 
-            <Card className="flex min-h-0 min-w-0 flex-none flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 xl:min-h-0 xl:flex-1">
+            <Card className="w-full shrink-0 border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 xl:min-h-0 xl:flex xl:flex-1 xl:flex-col xl:overflow-hidden">
               <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
                 <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-slate-100 sm:text-base">
                   <Receipt className="h-4 w-4 shrink-0 text-cyan-400 sm:h-5 sm:w-5" />
                   Folios de nómina
                 </CardTitle>
               </CardHeader>
-              <CardContent className="flex min-h-0 flex-col gap-3 overflow-y-auto overscroll-y-contain p-3 sm:p-4 xl:flex-1">
+              <CardContent className="flex flex-col gap-3 p-3 sm:p-4 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:overscroll-y-contain">
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <div className="space-y-1">
                     <Label htmlFor="serieNomina" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
@@ -856,7 +847,7 @@ export function Configuracion() {
                     comprobantes duplicados o fuera de secuencia.
                   </p>
                 </div>
-                <div className="mt-auto flex justify-end pt-1">
+                <div className="flex justify-end pt-1 xl:mt-auto">
                   <Button
                     type="button"
                     size="sm"
@@ -878,51 +869,36 @@ export function Configuracion() {
         </TabsContent>
 
         {canManageSucursales && (
-          <TabsContent
-            value="sucursales"
-            className="mt-0 flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
-          >
-            <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
+          <TabsContent value="sucursales" className={cn(configuracionTabsPanelClass, 'w-full')}>
+            <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
               <SucursalManagement embedded />
             </div>
           </TabsContent>
         )}
 
         {canManageUsers && (
-          <TabsContent
-            value="usuarios"
-            className="mt-0 flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
-          >
-            <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
+          <TabsContent value="usuarios" className={cn(configuracionTabsPanelClass, 'w-full')}>
+            <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
               <UserManagement embedded />
             </div>
           </TabsContent>
         )}
 
         {canManageUsers && (
-          <TabsContent
-            value="permisos"
-            className="mt-0 flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
-          >
+          <TabsContent value="permisos" className={cn(configuracionTabsPanelClass, 'w-full')}>
             <UserPermissionsEditor embedded />
           </TabsContent>
         )}
 
         {canVerHistorialAbasto && (
-          <TabsContent
-            value="historial-abasto"
-            className="mt-0 flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
-          >
+          <TabsContent value="historial-abasto" className={cn(configuracionTabsPanelClass, 'w-full')}>
             <HistorialAbastoConfig enabled={activeTab === 'historial-abasto'} />
           </TabsContent>
         )}
 
         {canEditListaPreciosCliente && (
-          <TabsContent
-            value="inventario-listas"
-            className="mt-0 flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
-          >
-            <Card className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
+          <TabsContent value="inventario-listas" className={cn(configuracionTabsPanelClass, 'w-full')}>
+            <Card className="w-full min-w-0 border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 xl:flex xl:min-h-0 xl:flex-1 xl:flex-col xl:overflow-hidden">
               <CardHeader className="shrink-0 space-y-1 px-3 py-2 sm:px-4">
                 <CardTitle className="text-base text-slate-900 dark:text-slate-100 sm:text-base">
                   Categorías y proveedores (inventario)
@@ -932,9 +908,9 @@ export function Configuracion() {
                   Valores iniciales orientados a refaccionaria de electrodomésticos; puede adaptarlos aquí.
                 </p>
               </CardHeader>
-              <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3 pt-0 sm:p-4 sm:pt-0">
-                <div className="flex min-h-0 flex-1 flex-col gap-4 xl:flex-row xl:gap-4">
-                  <div className="flex min-h-[12rem] flex-1 flex-col gap-2 xl:min-h-0">
+              <CardContent className="flex flex-col gap-3 p-3 pt-0 sm:p-4 sm:pt-0 xl:min-h-0 xl:flex-1 xl:overflow-hidden">
+                <div className="flex flex-col gap-4 xl:min-h-0 xl:flex-1 xl:flex-row xl:gap-4">
+                  <div className="flex min-h-[12rem] flex-col gap-2 xl:min-h-0 xl:flex-1">
                     <Label className="shrink-0 text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
                       Categorías
                     </Label>
@@ -946,7 +922,7 @@ export function Configuracion() {
                       spellCheck={false}
                     />
                   </div>
-                  <div className="flex min-h-[10rem] flex-1 flex-col gap-2 xl:min-h-0">
+                  <div className="flex min-h-[10rem] flex-col gap-2 xl:min-h-0 xl:flex-1">
                     <Label className="shrink-0 text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
                       Proveedores
                     </Label>
