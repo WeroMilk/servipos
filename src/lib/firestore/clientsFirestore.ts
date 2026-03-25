@@ -54,6 +54,10 @@ export function docToClient(sucursalId: string, id: string, d: Record<string, un
       d.ticketsComprados != null && Number.isFinite(Number(d.ticketsComprados))
         ? Number(d.ticketsComprados)
         : undefined,
+    ventasHistorial:
+      d.ventasHistorial != null && Number.isFinite(Number(d.ventasHistorial))
+        ? Math.max(0, Math.floor(Number(d.ventasHistorial)))
+        : undefined,
     saldoAdeudado:
       d.saldoAdeudado != null && Number.isFinite(Number(d.saldoAdeudado))
         ? Math.max(0, Math.round(Number(d.saldoAdeudado) * 100) / 100)
@@ -148,6 +152,11 @@ export async function updateClientFirestore(
   if (updates.isMostrador !== undefined) patch.isMostrador = updates.isMostrador;
   if (updates.listaPreciosId !== undefined) patch.listaPreciosId = updates.listaPreciosId ?? null;
   if (updates.ticketsComprados !== undefined) patch.ticketsComprados = updates.ticketsComprados ?? null;
+  if (updates.ventasHistorial !== undefined) {
+    const vh = updates.ventasHistorial;
+    patch.ventasHistorial =
+      vh != null && Number.isFinite(Number(vh)) ? Math.max(0, Math.floor(Number(vh))) : null;
+  }
   if (updates.saldoAdeudado !== undefined) {
     const v = Number(updates.saldoAdeudado);
     patch.saldoAdeudado =

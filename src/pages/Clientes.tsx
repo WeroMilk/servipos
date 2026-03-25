@@ -74,6 +74,13 @@ import {
 
 type ClientSortMode = 'nombre' | 'rfc' | 'email' | 'tickets';
 
+/** Número para el ícono de ticket: historial completo si existe contador; si no, solo compras completadas netas. */
+function ticketsHistorialUI(c: Client): number {
+  const v = c.ventasHistorial;
+  if (v != null && Number.isFinite(v)) return Math.max(0, Math.floor(Number(v)));
+  return c.ticketsComprados ?? 0;
+}
+
 function sortClients(list: Client[], mode: ClientSortMode): Client[] {
   const next = [...list];
   const cmp = (a: string, b: string) => a.localeCompare(b, 'es', { sensitivity: 'base' });
@@ -81,8 +88,8 @@ function sortClients(list: Client[], mode: ClientSortMode): Client[] {
     next.sort((x, y) => cmp(x.nombre || '', y.nombre || ''));
   } else if (mode === 'tickets') {
     next.sort((x, y) => {
-      const a = x.ticketsComprados ?? 0;
-      const b = y.ticketsComprados ?? 0;
+      const a = ticketsHistorialUI(x);
+      const b = ticketsHistorialUI(y);
       if (b !== a) return b - a;
       return cmp(x.nombre || '', y.nombre || '');
     });
@@ -116,7 +123,7 @@ function saleEstadoEtiqueta(s: Sale): string {
 }
 
 export function Clientes() {
-  const { clients, loading, addClient, editClient, removeClient } = useClients();
+  const { clients, loading, addClient, editClient, removeClient, refresh } = useClients();
   const { effectiveSucursalId } = useEffectiveSucursalId();
   const { addToast } = useAppStore();
   const user = useAuthStore((s) => s.user);
@@ -138,6 +145,7 @@ export function Clientes() {
   const [clientVentasSale, setClientVentasSale] = useState<Sale | null>(null);
   const [clientVentasList, setClientVentasList] = useState<Sale[]>([]);
   const [clientVentasLoading, setClientVentasLoading] = useState(false);
+  const ventasHistorialSyncKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!clientVentasCliente) {
@@ -161,12 +169,41 @@ export function Clientes() {
     };
   }, [clientVentasCliente, effectiveSucursalId]);
 
+  useEffect(() => {
+    if (!clientVentasCliente || clientVentasCliente.isMostrador || clientVentasLoading) return;
+    const correctCount = clientVentasList.length;
+    const fresh = clients.find((x) => x.id === clientVentasCliente.id);
+    if (fresh?.ventasHistorial === correctCount) return;
+
+    const syncKey = `${clientVentasCliente.id}:${correctCount}`;
+    if (ventasHistorialSyncKeyRef.current === syncKey) return;
+    ventasHistorialSyncKeyRef.current = syncKey;
+
+    void (async () => {
+      try {
+        await editClient(clientVentasCliente.id, { ventasHistorial: correctCount });
+        if (!effectiveSucursalId) await refresh();
+      } catch {
+        ventasHistorialSyncKeyRef.current = null;
+      }
+    })();
+  }, [
+    clientVentasCliente,
+    clientVentasLoading,
+    clientVentasList,
+    clients,
+    editClient,
+    refresh,
+    effectiveSucursalId,
+  ]);
+
   const openClientVentasDialog = (client: Client) => {
     setClientVentasSale(null);
     setClientVentasCliente(client);
   };
 
   const closeClientVentasDialog = () => {
+    ventasHistorialSyncKeyRef.current = null;
     setClientVentasCliente(null);
     setClientVentasSale(null);
     setClientVentasList([]);
@@ -481,11 +518,11 @@ export function Clientes() {
                     <button
                       type="button"
                       className="flex shrink-0 items-center gap-1 rounded-lg border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-amber-400 transition-colors hover:bg-amber-500/20 hover:text-amber-300"
-                      title="Ver todas las ventas de este cliente"
+                      title="Ventas en historial (incluye pendientes, completadas y canceladas)"
                       onClick={() => openClientVentasDialog(client)}
                     >
                       <Ticket className="h-3 w-3" aria-hidden />
-                      {client.ticketsComprados ?? 0}
+                      {ticketsHistorialUI(client)}
                     </button>
                     {isAdmin ? (
                       <Button
@@ -526,7 +563,12 @@ export function Clientes() {
               <TableHeader>
                 <TableRow className="border-slate-200 dark:border-slate-800">
                   <TableHead className="text-slate-600 dark:text-slate-400">Cliente</TableHead>
-                  <TableHead className="w-[5.5rem] text-center text-slate-600 dark:text-slate-400">Compras</TableHead>
+                  <TableHead
+                    className="w-[5.5rem] text-center text-slate-600 dark:text-slate-400"
+                    title="Ventas en historial (incluye canceladas y pendientes de cobro)"
+                  >
+                    Compras
+                  </TableHead>
                   <TableHead className="text-slate-600 dark:text-slate-400">RFC</TableHead>
                   <TableHead className="text-slate-600 dark:text-slate-400">Contacto</TableHead>
                   <TableHead className="text-slate-600 dark:text-slate-400">Dirección</TableHead>
@@ -565,11 +607,11 @@ export function Clientes() {
                         <button
                           type="button"
                           className="inline-flex items-center justify-center gap-1 rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold tabular-nums text-amber-400 transition-colors hover:bg-amber-500/20 hover:text-amber-300"
-                          title="Ver todas las ventas de este cliente"
+                          title="Ventas en historial (incluye pendientes, completadas y canceladas)"
                           onClick={() => openClientVentasDialog(client)}
                         >
                           <Ticket className="h-3.5 w-3.5" aria-hidden />
-                          {client.ticketsComprados ?? 0}
+                          {ticketsHistorialUI(client)}
                         </button>
                       </TableCell>
                       <TableCell className="align-top">
@@ -960,12 +1002,12 @@ export function Clientes() {
                 </p>
               </div>
               <div>
-                <p className="text-slate-600 dark:text-slate-500">Tickets de compra</p>
+                <p className="text-slate-600 dark:text-slate-500">Ventas en historial</p>
                 <div className="mt-1 flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     className="group inline-flex flex-wrap items-center gap-1.5 rounded-lg border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-left text-amber-400 transition-colors hover:bg-amber-500/20 hover:text-amber-300"
-                    title="Ver historial de ventas y reimprimir tickets"
+                    title="Historial de ventas (incluye canceladas) y reimprimir tickets"
                     onClick={() => {
                       const c = detailClient;
                       setDetailClient(null);
@@ -974,7 +1016,7 @@ export function Clientes() {
                   >
                     <Ticket className="h-4 w-4 shrink-0" aria-hidden />
                     <span className="text-lg font-semibold tabular-nums">
-                      {detailClient.ticketsComprados ?? 0}
+                      {ticketsHistorialUI(detailClient)}
                     </span>
                     <span className="text-xs font-normal text-slate-600 group-hover:text-slate-500 dark:text-slate-500">
                       (pulse para ver ventas)

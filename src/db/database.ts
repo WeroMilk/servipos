@@ -599,6 +599,11 @@ export async function createSale(
 ): Promise<{ id: string; folio: string }> {
   if (options?.sucursalId) {
     const { id, folio } = await createSaleFirestore(options.sucursalId, sale);
+    if (sale.clienteId && sale.clienteId !== MOSTRADOR_CLIENT_ID) {
+      await adjustClientVentasHistorialCount(sale.clienteId, 1, {
+        sucursalId: options.sucursalId,
+      });
+    }
     if (sale.estado !== 'pendiente') {
       await adjustClientTicketCount(sale.clienteId, 1, { sucursalId: options.sucursalId });
       const adeudo = computeSaleClienteAdeudo({ ...sale, estado: sale.estado });
@@ -631,6 +636,10 @@ export async function createSale(
       id as string,
       sale.usuarioId
     );
+  }
+
+  if (sale.clienteId && sale.clienteId !== MOSTRADOR_CLIENT_ID) {
+    await adjustClientVentasHistorialCount(sale.clienteId, 1);
   }
 
   if (sale.estado !== 'pendiente') {
@@ -1240,6 +1249,31 @@ export async function adjustClientTicketCount(
     });
   } catch (e) {
     console.error('adjustClientTicketCount:', e);
+  }
+}
+
+/** Suma ventas al historial del cliente (cualquier estado; no baja al cancelar). */
+export async function adjustClientVentasHistorialCount(
+  clienteId: string | undefined,
+  delta: number,
+  options?: { sucursalId?: string | null }
+): Promise<void> {
+  if (!clienteId || clienteId === MOSTRADOR_CLIENT_ID || delta === 0) return;
+  try {
+    const row = await db.clients.get(clienteId);
+    if (!row || row.isMostrador) return;
+    const next = Math.max(0, (row.ventasHistorial ?? 0) + delta);
+    const sid = options?.sucursalId?.trim();
+    if (sid) {
+      await updateClientFirestore(sid, clienteId, { ventasHistorial: next });
+    }
+    await db.clients.update(clienteId, {
+      ventasHistorial: next,
+      updatedAt: new Date(),
+      syncStatus: sid ? 'synced' : 'pending',
+    });
+  } catch (e) {
+    console.error('adjustClientVentasHistorialCount:', e);
   }
 }
 

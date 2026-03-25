@@ -242,6 +242,11 @@ export interface Client {
   /** Número de tickets de compra completados (ventas) asociados a este cliente. */
   ticketsComprados?: number;
   /**
+   * Total de ventas registradas en historial (pendiente, completada, cancelada, facturada).
+   * Puede corregirse al abrir «Ventas del cliente». Si no existe, la UI usa `ticketsComprados`.
+   */
+  ventasHistorial?: number;
+  /**
    * Saldo que el cliente debe a la tienda (ventas PPD con pago parcial o sin pago).
    * Se incrementa al cobrar con adeudo y puede reducirse con abonos en Cuentas por cobrar.
    */
