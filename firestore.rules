@@ -145,6 +145,11 @@ service cloud.firestore {
       match /clients/{clientId} {
         allow read, write: if canAccessSucursal(sucursalId);
       }
+
+      // Configuración fiscal CFDI (misma sucursal en todos los dispositivos)
+      match /config/{docId} {
+        allow read, write: if canAccessSucursal(sucursalId);
+      }
     }
 
     // Auditoría / panel de eventos (append-only para usuarios autenticados; vaciar solo admin).

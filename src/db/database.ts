@@ -26,6 +26,7 @@ import {
 import { fetchInventoryMovementsByProductIdFirestore } from '@/lib/firestore/inventoryMovementsFirestore';
 import { updateClientFirestore } from '@/lib/firestore/clientsFirestore';
 import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
+import { SERIE_FACTURA_PRUEBA, SERIE_NOMINA_PRUEBA } from '@/lib/fiscalConstants';
 import { getDefaultSucursalIdForNewData } from '@/lib/sucursales';
 import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
 import { saleItemsQtyByProductId } from '@/lib/posOpenSaleResume';
@@ -1339,27 +1340,42 @@ export async function deleteClient(id: string): Promise<void> {
 // FUNCIONES DE CONFIGURACIÓN
 // ============================================
 
+async function getFiscalConfigDexieOnly(): Promise<FiscalConfig | undefined> {
+  return db.fiscalConfig.toCollection().first();
+}
+
+/** Con sucursal en la nube: lee `sucursales/{id}/config/fiscal`. Sin sucursal: solo IndexedDB del dispositivo. */
 export async function getFiscalConfig(): Promise<FiscalConfig | undefined> {
-  return await db.fiscalConfig.toCollection().first();
+  const sid = getEffectiveSucursalId()?.trim();
+  if (sid) {
+    const { getFiscalConfigFirestoreOnce } = await import('@/lib/firestore/fiscalConfigFirestore');
+    return getFiscalConfigFirestoreOnce(sid);
+  }
+  return getFiscalConfigDexieOnly();
 }
 
 export async function saveFiscalConfig(config: Omit<FiscalConfig, 'id' | 'updatedAt'>): Promise<string> {
+  const sid = getEffectiveSucursalId()?.trim();
+  if (sid) {
+    const { saveFiscalConfigFirestore } = await import('@/lib/firestore/fiscalConfigFirestore');
+    return saveFiscalConfigFirestore(sid, config);
+  }
+
   const existing = await db.fiscalConfig.toCollection().first();
-  
+
   if (existing) {
     await db.fiscalConfig.update(existing.id, {
       ...config,
       updatedAt: new Date(),
     });
     return existing.id;
-  } else {
-    const id = await db.fiscalConfig.add({
-      ...config,
-      id: crypto.randomUUID(),
-      updatedAt: new Date(),
-    } as FiscalConfig);
-    return id as string;
   }
+  const id = await db.fiscalConfig.add({
+    ...config,
+    id: crypto.randomUUID(),
+    updatedAt: new Date(),
+  } as FiscalConfig);
+  return id as string;
 }
 
 // ============================================
@@ -1389,36 +1405,69 @@ export async function generateQuotationFolio(sucursalId?: string): Promise<strin
   return `${prefix}-${String(count + 1).padStart(4, '0')}`;
 }
 
-// Obtener siguiente folio fiscal
+// Obtener siguiente folio fiscal (solo lectura; no avanza el contador)
 export async function getNextInvoiceFolio(): Promise<{ serie: string; folio: number }> {
+  const sid = getEffectiveSucursalId()?.trim();
+  if (sid) {
+    const { getFiscalConfigFirestoreOnce } = await import('@/lib/firestore/fiscalConfigFirestore');
+    const c = await getFiscalConfigFirestoreOnce(sid);
+    if (!c) throw new Error('No hay configuración fiscal');
+    return { serie: c.serie, folio: c.folioActual };
+  }
   const config = await db.fiscalConfig.toCollection().first();
   if (!config) throw new Error('No hay configuración fiscal');
-  
   return {
     serie: config.serie,
     folio: config.folioActual,
   };
 }
 
-// Incrementar folio fiscal
-export async function incrementInvoiceFolio(): Promise<void> {
+/**
+ * Reserva el folio actual y avanza `folioActual` de forma atómica (Firestore con sucursal).
+ * Preferir esto a `getNextInvoiceFolio` + `incrementInvoiceFolio` para evitar colisiones entre dispositivos.
+ */
+export async function allocateNextInvoiceFolio(): Promise<{ serie: string; folio: number }> {
+  const sid = getEffectiveSucursalId()?.trim();
+  if (sid) {
+    const { allocateNextInvoiceFolioFirestore } = await import('@/lib/firestore/fiscalConfigFirestore');
+    return allocateNextInvoiceFolioFirestore(sid);
+  }
   const config = await db.fiscalConfig.toCollection().first();
   if (!config) throw new Error('No hay configuración fiscal');
-  
+  const folio = config.folioActual;
+  await db.fiscalConfig.update(config.id, {
+    folioActual: folio + 1,
+    updatedAt: new Date(),
+  });
+  return { serie: config.serie, folio };
+}
+
+/** Incrementa `folioActual` en 1 (modo local o si ya consumió el folio por otro flujo). */
+export async function incrementInvoiceFolio(): Promise<void> {
+  const sid = getEffectiveSucursalId()?.trim();
+  if (sid) {
+    const { incrementFolioActualOnlyFirestore } = await import('@/lib/firestore/fiscalConfigFirestore');
+    await incrementFolioActualOnlyFirestore(sid);
+    return;
+  }
+  const config = await db.fiscalConfig.toCollection().first();
+  if (!config) throw new Error('No hay configuración fiscal');
+
   await db.fiscalConfig.update(config.id, {
     folioActual: config.folioActual + 1,
     updatedAt: new Date(),
   });
 }
 
-/** Serie fija para facturas en modo prueba (no es folio autorizado ante el SAT). */
-export const SERIE_FACTURA_PRUEBA = 'PRUEBA';
-
-/** Serie fija para recibos de nómina impresos solo como prueba. */
-export const SERIE_NOMINA_PRUEBA = 'PRUEBA-N';
+export { SERIE_FACTURA_PRUEBA, SERIE_NOMINA_PRUEBA } from '@/lib/fiscalConstants';
 
 /** Reserva folio de factura de prueba sin tocar `folioActual`. */
 export async function reservePruebaInvoiceFolio(): Promise<{ serie: string; folio: string }> {
+  const sid = getEffectiveSucursalId()?.trim();
+  if (sid) {
+    const { reservePruebaInvoiceFolioFirestore } = await import('@/lib/firestore/fiscalConfigFirestore');
+    return reservePruebaInvoiceFolioFirestore(sid);
+  }
   const config = await db.fiscalConfig.toCollection().first();
   if (!config) throw new Error('No hay configuración fiscal');
 
@@ -1432,6 +1481,11 @@ export async function reservePruebaInvoiceFolio(): Promise<{ serie: string; foli
 
 /** Reserva folio para una impresión de recibo de nómina de prueba sin tocar `folioNominaActual`. */
 export async function reservePruebaNominaFolio(): Promise<{ serie: string; folio: string }> {
+  const sid = getEffectiveSucursalId()?.trim();
+  if (sid) {
+    const { reservePruebaNominaFolioFirestore } = await import('@/lib/firestore/fiscalConfigFirestore');
+    return reservePruebaNominaFolioFirestore(sid);
+  }
   const config = await db.fiscalConfig.toCollection().first();
   if (!config) throw new Error('No hay configuración fiscal');
 

@@ -2,12 +2,14 @@ import { useState, useEffect, useCallback } from 'react';
 import type { FiscalConfig } from '@/types';
 import { getFiscalConfig, saveFiscalConfig } from '@/db/database';
 import { reportHookFailure } from '@/lib/appEventLog';
+import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 
 // ============================================
 // HOOK DE CONFIGURACIÓN FISCAL
 // ============================================
 
 export function useFiscalConfig() {
+  const { effectiveSucursalId } = useEffectiveSucursalId();
   const [config, setConfig] = useState<FiscalConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -17,7 +19,7 @@ export function useFiscalConfig() {
     try {
       setLoading(true);
       const data = await getFiscalConfig();
-      setConfig(data || null);
+      setConfig(data ?? null);
       setIsConfigured(!!data && !!data.rfc && !!data.serie);
       setError(null);
     } catch (err) {
@@ -29,13 +31,51 @@ export function useFiscalConfig() {
   }, []);
 
   useEffect(() => {
-    loadConfig();
-  }, [loadConfig]);
+    let cancelled = false;
+    let unsub: (() => void) | undefined;
+
+    const sid = effectiveSucursalId?.trim();
+
+    if (sid) {
+      setLoading(true);
+      setError(null);
+      void import('@/lib/firestore/fiscalConfigFirestore')
+        .then(({ subscribeFiscalConfigForSucursal }) => {
+          if (cancelled) return;
+          unsub = subscribeFiscalConfigForSucursal(sid, (data) => {
+            if (cancelled) return;
+            setConfig(data ?? null);
+            setIsConfigured(!!data && !!data.rfc && !!data.serie);
+            setError(null);
+            setLoading(false);
+          });
+        })
+        .catch((err) => {
+          if (!cancelled) {
+            console.error(err);
+            setError('Error al cargar configuración fiscal');
+            setLoading(false);
+          }
+        });
+
+      return () => {
+        cancelled = true;
+        unsub?.();
+      };
+    }
+
+    void loadConfig();
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveSucursalId, loadConfig]);
 
   const saveConfig = async (newConfig: Omit<FiscalConfig, 'id' | 'updatedAt'>) => {
     try {
       const id = await saveFiscalConfig(newConfig);
-      await loadConfig();
+      if (!effectiveSucursalId?.trim()) {
+        await loadConfig();
+      }
       return id;
     } catch (err) {
       reportHookFailure('hook:useFiscalConfig', 'Guardar configuración fiscal', err);
@@ -50,7 +90,9 @@ export function useFiscalConfig() {
         throw new Error('No hay configuración para actualizar');
       }
       const id = await saveFiscalConfig({ ...config, ...updates });
-      await loadConfig();
+      if (!effectiveSucursalId?.trim()) {
+        await loadConfig();
+      }
       return id;
     } catch (err) {
       reportHookFailure('hook:useFiscalConfig', 'Actualizar configuración fiscal', err);

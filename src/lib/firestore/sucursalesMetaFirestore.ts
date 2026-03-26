@@ -203,6 +203,7 @@ const BRANCH_SUBCOLLECTIONS = [
   'products',
   'counters',
   'clients',
+  'config',
 ] as const;
 
 async function wipeChecadorBySucursalId(sucursalId: string): Promise<void> {

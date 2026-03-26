@@ -5,8 +5,8 @@ import {
   getInvoiceById,
   createInvoice,
   cancelInvoice,
+  allocateNextInvoiceFolio,
   getNextInvoiceFolio,
-  incrementInvoiceFolio,
   getFiscalConfig,
   deleteInvoiceRecord,
   reservePruebaInvoiceFolio,
@@ -68,7 +68,7 @@ export function useInvoices() {
         return id;
       }
 
-      const { serie, folio } = await getNextInvoiceFolio();
+      const { serie, folio } = await allocateNextInvoiceFolio();
       const id = await createInvoice(
         {
           ...invoice,
@@ -78,7 +78,6 @@ export function useInvoices() {
         },
         { sucursalId }
       );
-      await incrementInvoiceFolio();
       await loadInvoices();
       return id;
     } catch (err) {
@@ -151,6 +150,7 @@ export function useInvoiceDetails(invoiceId: string | null) {
 }
 
 export function useNextFolio() {
+  const { effectiveSucursalId } = useEffectiveSucursalId();
   const [nextFolio, setNextFolio] = useState<{ serie: string; folio: number } | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -165,7 +165,7 @@ export function useNextFolio() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [effectiveSucursalId]);
 
   useEffect(() => {
     loadNextFolio();

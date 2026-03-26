@@ -323,11 +323,17 @@ export function Configuracion() {
 
         <TabsContent value="fiscal" className={configuracionTabsPanelClass}>
           <Card className="w-full min-w-0 shrink-0 border-slate-200/80 bg-slate-50/90 dark:border-slate-800/50 dark:bg-slate-900/50">
-            <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4 lg:px-3 lg:py-1.5">
+            <CardHeader className="shrink-0 space-y-1 px-3 py-2 sm:px-4 lg:px-3 lg:py-1.5">
               <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-slate-100 sm:text-base lg:text-sm">
                 <Receipt className="h-4 w-4 shrink-0 text-cyan-400 sm:h-5 sm:w-5 lg:h-4 lg:w-4" />
                 Datos fiscales CFDI 4.0
               </CardTitle>
+              {effectiveSucursalId?.trim() ? (
+                <p className="text-xs leading-snug text-slate-600 dark:text-slate-400 lg:text-[11px]">
+                  Se guardan en la nube por tienda (sucursal activa): los mismos datos se muestran en todos los
+                  dispositivos con acceso a esta sucursal.
+                </p>
+              ) : null}
             </CardHeader>
             <CardContent className="flex flex-col gap-2 p-3 pt-0 sm:p-4 sm:pt-0 sm:pb-4 lg:gap-1.5 lg:p-2 lg:pt-0 lg:pb-3">
               <div className="min-w-0 w-full">
