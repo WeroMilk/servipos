@@ -289,13 +289,113 @@ export function printInvoiceCfdiRepresentacion(inv: Invoice): void {
   })();
 }
 
+/** Datos del trabajador en el recibo de nómina (prueba / representación impresa). */
+export type NominaPruebaReceptor = {
+  nombre: string;
+  rfc: string;
+  numeroEmpleado: string;
+  curp: string;
+  departamento: string;
+  puesto: string;
+};
+
+export type NominaPruebaPeriodo = {
+  /** Texto libre, p. ej. «1 al 15 de marzo 2026». */
+  descripcion: string;
+  diasPagados: string;
+  /** p. ej. «O (ordinaria)». */
+  tipoNomina: string;
+};
+
+export type NominaPruebaLineaPercepcion = {
+  clave: string;
+  concepto: string;
+  gravado: number;
+  exento: number;
+};
+
+export type NominaPruebaLineaDeduccion = {
+  clave: string;
+  concepto: string;
+  importe: number;
+};
+
+/** Borrador completo editable desde Configuración (recibo de prueba). */
+export type NominaPruebaDraftForm = {
+  receptor: NominaPruebaReceptor;
+  periodo: NominaPruebaPeriodo;
+  percepciones: NominaPruebaLineaPercepcion[];
+  deducciones: NominaPruebaLineaDeduccion[];
+};
+
+export const NOMINA_PRUEBA_DEFAULTS: NominaPruebaDraftForm = {
+  receptor: {
+    nombre: 'MARÍA FICTICIA PÉREZ GARCÍA',
+    rfc: 'XAXX010101000',
+    numeroEmpleado: '001',
+    curp: 'XXXX000000HDFXXX00',
+    departamento: 'Operaciones',
+    puesto: 'Auxiliar administrativo',
+  },
+  periodo: {
+    descripcion: '1 al 15 de marzo 2026',
+    diasPagados: '15',
+    tipoNomina: 'O (ordinaria)',
+  },
+  percepciones: [
+    { clave: '001', concepto: 'Sueldos, salarios y jornales', gravado: 8500, exento: 0 },
+    { clave: '038', concepto: 'Bono de desempeño', gravado: 500, exento: 0 },
+  ],
+  deducciones: [
+    { clave: '002', concepto: 'ISR', importe: 1240 },
+    { clave: '021', concepto: 'IMSS', importe: 285 },
+  ],
+};
+
+export function getNominaPruebaDraftDefaults(): NominaPruebaDraftForm {
+  return {
+    receptor: { ...NOMINA_PRUEBA_DEFAULTS.receptor },
+    periodo: { ...NOMINA_PRUEBA_DEFAULTS.periodo },
+    percepciones: NOMINA_PRUEBA_DEFAULTS.percepciones.map((r) => ({ ...r })),
+    deducciones: NOMINA_PRUEBA_DEFAULTS.deducciones.map((r) => ({ ...r })),
+  };
+}
+
 /** Entrada para impresión de recibo de nómina (vista previa / prueba). */
 export type NominaPruebaPrintInput = {
   config: FiscalConfig;
   serie: string;
   folio: string;
   sucursalId?: string | null;
+  receptor?: Partial<NominaPruebaReceptor>;
+  periodo?: Partial<NominaPruebaPeriodo>;
+  percepciones?: NominaPruebaLineaPercepcion[];
+  deducciones?: NominaPruebaLineaDeduccion[];
 };
+
+function mergeNominaPruebaInput(input: NominaPruebaPrintInput): NominaPruebaDraftForm {
+  const base = getNominaPruebaDraftDefaults();
+  const receptor = { ...base.receptor, ...input.receptor };
+  const periodo = { ...base.periodo, ...input.periodo };
+  const percepciones =
+    input.percepciones && input.percepciones.length > 0
+      ? input.percepciones.map((r) => ({
+          clave: r.clave ?? '',
+          concepto: r.concepto ?? '',
+          gravado: Number(r.gravado) || 0,
+          exento: Number(r.exento) || 0,
+        }))
+      : base.percepciones;
+  const deducciones =
+    input.deducciones && input.deducciones.length > 0
+      ? input.deducciones.map((r) => ({
+          clave: r.clave ?? '',
+          concepto: r.concepto ?? '',
+          importe: Number(r.importe) || 0,
+        }))
+      : base.deducciones;
+  return { receptor, periodo, percepciones, deducciones };
+}
 
 const NOMINA_ONE_PAGE_STYLES = `
 @page { size: letter; margin: 5mm 7mm; }
@@ -332,6 +432,16 @@ table.mini th { background: #eef2f7; }
 
 export function buildNominaPruebaPrintDocumentHtml(input: NominaPruebaPrintInput): string {
   const { config, serie, folio } = input;
+  const draft = mergeNominaPruebaInput(input);
+  const { receptor, periodo, percepciones, deducciones } = draft;
+
+  const totalPercepciones = percepciones.reduce(
+    (s, p) => s + (Number(p.gravado) || 0) + (Number(p.exento) || 0),
+    0
+  );
+  const totalDeducciones = deducciones.reduce((s, d) => s + (Number(d.importe) || 0), 0);
+  const neto = totalPercepciones - totalDeducciones;
+
   const fecha = formatInAppTimezone(new Date(), { dateStyle: 'long', timeStyle: 'short' });
   const cp = config.lugarExpedicion || '—';
   const dir = config.direccion;
@@ -348,6 +458,20 @@ export function buildNominaPruebaPrintDocumentHtml(input: NominaPruebaPrintInput
 
   const foot = buildLetterFooterHtml(input.sucursalId ?? null);
 
+  const rowsPercep = percepciones
+    .map(
+      (p) =>
+        `<tr><td>${escHtml(p.clave)}</td><td>${escHtml(p.concepto)}</td><td class="num">${formatMoney(p.gravado)}</td><td class="num">${formatMoney(p.exento)}</td></tr>`
+    )
+    .join('');
+
+  const rowsDed = deducciones
+    .map(
+      (d) =>
+        `<tr><td>${escHtml(d.clave)}</td><td>${escHtml(d.concepto)}</td><td class="num">${formatMoney(d.importe)}</td></tr>`
+    )
+    .join('');
+
   const inner = `
 <div class="aviso-prueba">${escHtml(AVISO_FISCAL_PRUEBA)}</div>
 <h1>Recibo de nómina</h1>
@@ -363,15 +487,15 @@ export function buildNominaPruebaPrintDocumentHtml(input: NominaPruebaPrintInput
     ${domicilioEmisor ? `<div><strong>Domicilio:</strong> ${escHtml(domicilioEmisor)}</div>` : ''}
   </div>
   <div class="box">
-    <h3>Receptor (ejemplo)</h3>
-    <div><strong>Nombre:</strong> MARÍA FICTICIA PÉREZ GARCÍA</div>
-    <div><strong>RFC:</strong> XAXX010101000</div>
-    <div><strong>Núm. empleado:</strong> 001 · <strong>CURP:</strong> XXXX000000HDFXXX00</div>
-    <div><strong>Depto. / Puesto:</strong> Operaciones · Auxiliar administrativo</div>
+    <h3>Receptor (trabajador)</h3>
+    <div><strong>Nombre:</strong> ${escHtml(receptor.nombre)}</div>
+    <div><strong>RFC:</strong> ${escHtml(receptor.rfc)}</div>
+    <div><strong>Núm. empleado:</strong> ${escHtml(receptor.numeroEmpleado)} · <strong>CURP:</strong> ${escHtml(receptor.curp)}</div>
+    <div><strong>Depto. / Puesto:</strong> ${escHtml(receptor.departamento)} · ${escHtml(receptor.puesto)}</div>
   </div>
 </div>
 
-<p class="periodo"><strong>Periodo de pago:</strong> 1 al 15 de marzo 2026 (ejemplo) &nbsp;|&nbsp; <strong>Días pagados:</strong> 15 &nbsp;|&nbsp; <strong>Tipo:</strong> O (ordinaria)</p>
+<p class="periodo"><strong>Periodo de pago:</strong> ${escHtml(periodo.descripcion)} &nbsp;|&nbsp; <strong>Días pagados:</strong> ${escHtml(periodo.diasPagados)} &nbsp;|&nbsp; <strong>Tipo:</strong> ${escHtml(periodo.tipoNomina)}</p>
 
 <div class="tables-2">
   <div>
@@ -379,8 +503,7 @@ export function buildNominaPruebaPrintDocumentHtml(input: NominaPruebaPrintInput
     <table class="mini">
       <thead><tr><th>Clave</th><th>Concepto</th><th class="num">Gravado</th><th class="num">Exento</th></tr></thead>
       <tbody>
-        <tr><td>001</td><td>Sueldos, salarios y jornales</td><td class="num">${formatMoney(8500)}</td><td class="num">${formatMoney(0)}</td></tr>
-        <tr><td>038</td><td>Bono de desempeño</td><td class="num">${formatMoney(500)}</td><td class="num">${formatMoney(0)}</td></tr>
+        ${rowsPercep || `<tr><td colspan="4">—</td></tr>`}
       </tbody>
     </table>
   </div>
@@ -389,17 +512,16 @@ export function buildNominaPruebaPrintDocumentHtml(input: NominaPruebaPrintInput
     <table class="mini">
       <thead><tr><th>Clave</th><th>Concepto</th><th class="num">Importe</th></tr></thead>
       <tbody>
-        <tr><td>002</td><td>ISR</td><td class="num">${formatMoney(1240)}</td></tr>
-        <tr><td>021</td><td>IMSS</td><td class="num">${formatMoney(285)}</td></tr>
+        ${rowsDed || `<tr><td colspan="3">—</td></tr>`}
       </tbody>
     </table>
   </div>
 </div>
 
 <div class="tot">
-  <div>Total percepciones: ${formatMoney(9000)}</div>
-  <div>Total deducciones: ${formatMoney(1525)}</div>
-  <div><strong>Neto a pagar: ${formatMoney(7475)}</strong></div>
+  <div>Total percepciones: ${formatMoney(totalPercepciones)}</div>
+  <div>Total deducciones: ${formatMoney(totalDeducciones)}</div>
+  <div><strong>Neto a pagar: ${formatMoney(neto)}</strong></div>
 </div>
 
 <p class="muted">

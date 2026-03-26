@@ -15,6 +15,9 @@ import {
   Truck,
   Shield,
   Printer,
+  Plus,
+  Minus,
+  RotateCcw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,7 +35,47 @@ import { SucursalManagement } from '@/components/ui-custom/SucursalManagement';
 import { PageShell } from '@/components/ui-custom/PageShell';
 import { HistorialAbastoConfig } from '@/components/ui-custom/HistorialAbastoConfig';
 import { REGIMENES_FISCALES, USOS_CFDI } from '@/types';
-import { cn } from '@/lib/utils';
+import { cn, formatMoney } from '@/lib/utils';
+import {
+  getNominaPruebaDraftDefaults,
+  type NominaPruebaDraftForm,
+} from '@/lib/cfdiRepresentacionImpresa';
+
+const NOMINA_STORAGE_KEY = 'servipartz-nomina-prueba-draft';
+
+function loadNominaDraftFromStorage(): NominaPruebaDraftForm {
+  try {
+    const raw = localStorage.getItem(NOMINA_STORAGE_KEY);
+    if (raw) {
+      const p = JSON.parse(raw) as Partial<NominaPruebaDraftForm>;
+      const d = getNominaPruebaDraftDefaults();
+      return {
+        receptor: { ...d.receptor, ...p.receptor },
+        periodo: { ...d.periodo, ...p.periodo },
+        percepciones:
+          Array.isArray(p.percepciones) && p.percepciones.length > 0
+            ? p.percepciones.map((r) => ({
+                clave: String(r.clave ?? ''),
+                concepto: String(r.concepto ?? ''),
+                gravado: Number(r.gravado) || 0,
+                exento: Number(r.exento) || 0,
+              }))
+            : d.percepciones,
+        deducciones:
+          Array.isArray(p.deducciones) && p.deducciones.length > 0
+            ? p.deducciones.map((r) => ({
+                clave: String(r.clave ?? ''),
+                concepto: String(r.concepto ?? ''),
+                importe: Number(r.importe) || 0,
+              }))
+            : d.deducciones,
+      };
+    }
+  } catch {
+    /* noop */
+  }
+  return getNominaPruebaDraftDefaults();
+}
 
 export function Configuracion() {
   const { config, isConfigured, saveConfig, updateConfig, refresh } = useFiscalConfig();
@@ -57,7 +100,11 @@ export function Configuracion() {
   const totalTabs = 4 + adminExtraTabs;
   
   const [activeTab, setActiveTab] = useState('fiscal');
-  
+
+  const [nominaPruebaForm, setNominaPruebaForm] = useState<NominaPruebaDraftForm>(() =>
+    loadNominaDraftFromStorage()
+  );
+
   // Fiscal form state
   const [fiscalForm, setFiscalForm] = useState({
     rfc: '',
@@ -111,6 +158,14 @@ export function Configuracion() {
       });
     }
   }, [config]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(NOMINA_STORAGE_KEY, JSON.stringify(nominaPruebaForm));
+    } catch {
+      /* noop */
+    }
+  }, [nominaPruebaForm]);
 
   const handleSaveFiscal = async () => {
     try {
@@ -172,6 +227,10 @@ export function Configuracion() {
         serie,
         folio,
         sucursalId: effectiveSucursalId,
+        receptor: nominaPruebaForm.receptor,
+        periodo: nominaPruebaForm.periodo,
+        percepciones: nominaPruebaForm.percepciones,
+        deducciones: nominaPruebaForm.deducciones,
       });
       await refresh();
       addToast({ type: 'success', message: 'Vista de impresión del recibo de prueba abierta.' });
@@ -222,6 +281,16 @@ export function Configuracion() {
   /** Un solo scroll vertical por pestaña para que en escritorio se vea todo el formulario (incl. datos fiscales). */
   const configuracionTabsPanelClass =
     'mt-0 flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch] outline-none data-[state=inactive]:hidden';
+
+  const totalPercepcionesNomina = nominaPruebaForm.percepciones.reduce(
+    (s, p) => s + (Number(p.gravado) || 0) + (Number(p.exento) || 0),
+    0
+  );
+  const totalDeduccionesNomina = nominaPruebaForm.deducciones.reduce(
+    (s, d) => s + (Number(d.importe) || 0),
+    0
+  );
+  const netoNominaPreview = totalPercepcionesNomina - totalDeduccionesNomina;
 
   return (
     <PageShell
@@ -787,6 +856,392 @@ export function Configuracion() {
                     CFDI cumple el esquema oficial y es válido ante el SAT.
                   </p>
                 </div>
+
+                <div className="rounded-lg border border-slate-300/80 dark:border-slate-600/80 bg-slate-100/60 dark:bg-slate-800/40 p-3 sm:p-3.5">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                      Personalizar recibo de prueba
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 border-slate-400/60 text-xs"
+                      onClick={() => {
+                        setNominaPruebaForm(getNominaPruebaDraftDefaults());
+                        addToast({ type: 'success', message: 'Valores restaurados al ejemplo.' });
+                      }}
+                    >
+                      <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                      Restaurar ejemplo
+                    </Button>
+                  </div>
+                  <p className="mb-3 text-xs leading-snug text-slate-600 dark:text-slate-400">
+                    Edita nombre, RFC, CURP, periodo, días pagados, percepciones y deducciones. Los totales y el neto se
+                    calculan al imprimir. Se guarda en este equipo (local).
+                  </p>
+
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      Trabajador (receptor)
+                    </p>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <div className="space-y-1 sm:col-span-2">
+                        <Label className="text-xs text-slate-600 dark:text-slate-400">Nombre completo</Label>
+                        <Input
+                          value={nominaPruebaForm.receptor.nombre}
+                          onChange={(e) =>
+                            setNominaPruebaForm((f) => ({
+                              ...f,
+                              receptor: { ...f.receptor, nombre: e.target.value },
+                            }))
+                          }
+                          className={fieldClass}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-slate-600 dark:text-slate-400">RFC</Label>
+                        <Input
+                          value={nominaPruebaForm.receptor.rfc}
+                          onChange={(e) =>
+                            setNominaPruebaForm((f) => ({
+                              ...f,
+                              receptor: { ...f.receptor, rfc: e.target.value.toUpperCase() },
+                            }))
+                          }
+                          className={fieldClass}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-slate-600 dark:text-slate-400">CURP</Label>
+                        <Input
+                          value={nominaPruebaForm.receptor.curp}
+                          onChange={(e) =>
+                            setNominaPruebaForm((f) => ({
+                              ...f,
+                              receptor: { ...f.receptor, curp: e.target.value.toUpperCase() },
+                            }))
+                          }
+                          className={fieldClass}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-slate-600 dark:text-slate-400">Núm. empleado</Label>
+                        <Input
+                          value={nominaPruebaForm.receptor.numeroEmpleado}
+                          onChange={(e) =>
+                            setNominaPruebaForm((f) => ({
+                              ...f,
+                              receptor: { ...f.receptor, numeroEmpleado: e.target.value },
+                            }))
+                          }
+                          className={fieldClass}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-slate-600 dark:text-slate-400">Departamento</Label>
+                        <Input
+                          value={nominaPruebaForm.receptor.departamento}
+                          onChange={(e) =>
+                            setNominaPruebaForm((f) => ({
+                              ...f,
+                              receptor: { ...f.receptor, departamento: e.target.value },
+                            }))
+                          }
+                          className={fieldClass}
+                        />
+                      </div>
+                      <div className="space-y-1 sm:col-span-2">
+                        <Label className="text-xs text-slate-600 dark:text-slate-400">Puesto</Label>
+                        <Input
+                          value={nominaPruebaForm.receptor.puesto}
+                          onChange={(e) =>
+                            setNominaPruebaForm((f) => ({
+                              ...f,
+                              receptor: { ...f.receptor, puesto: e.target.value },
+                            }))
+                          }
+                          className={fieldClass}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 space-y-2">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      Periodo de pago
+                    </p>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                      <div className="space-y-1 sm:col-span-3">
+                        <Label className="text-xs text-slate-600 dark:text-slate-400">Descripción del periodo</Label>
+                        <Input
+                          value={nominaPruebaForm.periodo.descripcion}
+                          onChange={(e) =>
+                            setNominaPruebaForm((f) => ({
+                              ...f,
+                              periodo: { ...f.periodo, descripcion: e.target.value },
+                            }))
+                          }
+                          placeholder="Ej. 1 al 15 de marzo 2026"
+                          className={fieldClass}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-slate-600 dark:text-slate-400">Días pagados</Label>
+                        <Input
+                          value={nominaPruebaForm.periodo.diasPagados}
+                          onChange={(e) =>
+                            setNominaPruebaForm((f) => ({
+                              ...f,
+                              periodo: { ...f.periodo, diasPagados: e.target.value },
+                            }))
+                          }
+                          placeholder="15"
+                          className={fieldClass}
+                        />
+                      </div>
+                      <div className="space-y-1 sm:col-span-2">
+                        <Label className="text-xs text-slate-600 dark:text-slate-400">Tipo de nómina</Label>
+                        <Input
+                          value={nominaPruebaForm.periodo.tipoNomina}
+                          onChange={(e) =>
+                            setNominaPruebaForm((f) => ({
+                              ...f,
+                              periodo: { ...f.periodo, tipoNomina: e.target.value },
+                            }))
+                          }
+                          placeholder="Ej. O (ordinaria)"
+                          className={fieldClass}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                        Percepciones
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() =>
+                          setNominaPruebaForm((f) => ({
+                            ...f,
+                            percepciones: [
+                              ...f.percepciones,
+                              { clave: '', concepto: '', gravado: 0, exento: 0 },
+                            ],
+                          }))
+                        }
+                      >
+                        <Plus className="mr-1 h-3.5 w-3.5" />
+                        Fila
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      {nominaPruebaForm.percepciones.map((row, idx) => (
+                        <div
+                          key={`p-${idx}`}
+                          className="grid grid-cols-1 gap-1.5 rounded-lg border border-slate-200/90 bg-slate-50/80 p-2 dark:border-slate-700/80 dark:bg-slate-900/40 sm:grid-cols-12 sm:items-end"
+                        >
+                          <div className="space-y-0.5 sm:col-span-2">
+                            <Label className="text-[10px] text-slate-500">Clave</Label>
+                            <Input
+                              value={row.clave}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setNominaPruebaForm((f) => {
+                                  const next = [...f.percepciones];
+                                  next[idx] = { ...next[idx], clave: v };
+                                  return { ...f, percepciones: next };
+                                });
+                              }}
+                              className={cn(fieldClass, 'h-9 sm:h-7')}
+                            />
+                          </div>
+                          <div className="space-y-0.5 sm:col-span-5">
+                            <Label className="text-[10px] text-slate-500">Concepto</Label>
+                            <Input
+                              value={row.concepto}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setNominaPruebaForm((f) => {
+                                  const next = [...f.percepciones];
+                                  next[idx] = { ...next[idx], concepto: v };
+                                  return { ...f, percepciones: next };
+                                });
+                              }}
+                              className={cn(fieldClass, 'h-9 sm:h-7')}
+                            />
+                          </div>
+                          <div className="space-y-0.5 sm:col-span-2">
+                            <Label className="text-[10px] text-slate-500">Gravado</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={Number.isFinite(row.gravado) ? row.gravado : 0}
+                              onChange={(e) => {
+                                const v = parseFloat(e.target.value) || 0;
+                                setNominaPruebaForm((f) => {
+                                  const next = [...f.percepciones];
+                                  next[idx] = { ...next[idx], gravado: v };
+                                  return { ...f, percepciones: next };
+                                });
+                              }}
+                              className={cn(fieldClass, 'h-9 sm:h-7')}
+                            />
+                          </div>
+                          <div className="space-y-0.5 sm:col-span-2">
+                            <Label className="text-[10px] text-slate-500">Exento</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={Number.isFinite(row.exento) ? row.exento : 0}
+                              onChange={(e) => {
+                                const v = parseFloat(e.target.value) || 0;
+                                setNominaPruebaForm((f) => {
+                                  const next = [...f.percepciones];
+                                  next[idx] = { ...next[idx], exento: v };
+                                  return { ...f, percepciones: next };
+                                });
+                              }}
+                              className={cn(fieldClass, 'h-9 sm:h-7')}
+                            />
+                          </div>
+                          <div className="flex justify-end sm:col-span-1">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-9 w-9 shrink-0 text-red-500 hover:text-red-600"
+                              disabled={nominaPruebaForm.percepciones.length <= 1}
+                              onClick={() =>
+                                setNominaPruebaForm((f) => ({
+                                  ...f,
+                                  percepciones: f.percepciones.filter((_, i) => i !== idx),
+                                }))
+                              }
+                              aria-label="Quitar percepción"
+                            >
+                              <Minus className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                        Deducciones
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() =>
+                          setNominaPruebaForm((f) => ({
+                            ...f,
+                            deducciones: [...f.deducciones, { clave: '', concepto: '', importe: 0 }],
+                          }))
+                        }
+                      >
+                        <Plus className="mr-1 h-3.5 w-3.5" />
+                        Fila
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      {nominaPruebaForm.deducciones.map((row, idx) => (
+                        <div
+                          key={`d-${idx}`}
+                          className="grid grid-cols-1 gap-1.5 rounded-lg border border-slate-200/90 bg-slate-50/80 p-2 dark:border-slate-700/80 dark:bg-slate-900/40 sm:grid-cols-12 sm:items-end"
+                        >
+                          <div className="space-y-0.5 sm:col-span-2">
+                            <Label className="text-[10px] text-slate-500">Clave</Label>
+                            <Input
+                              value={row.clave}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setNominaPruebaForm((f) => {
+                                  const next = [...f.deducciones];
+                                  next[idx] = { ...next[idx], clave: v };
+                                  return { ...f, deducciones: next };
+                                });
+                              }}
+                              className={cn(fieldClass, 'h-9 sm:h-7')}
+                            />
+                          </div>
+                          <div className="space-y-0.5 sm:col-span-7">
+                            <Label className="text-[10px] text-slate-500">Concepto</Label>
+                            <Input
+                              value={row.concepto}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setNominaPruebaForm((f) => {
+                                  const next = [...f.deducciones];
+                                  next[idx] = { ...next[idx], concepto: v };
+                                  return { ...f, deducciones: next };
+                                });
+                              }}
+                              className={cn(fieldClass, 'h-9 sm:h-7')}
+                            />
+                          </div>
+                          <div className="space-y-0.5 sm:col-span-2">
+                            <Label className="text-[10px] text-slate-500">Importe</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={Number.isFinite(row.importe) ? row.importe : 0}
+                              onChange={(e) => {
+                                const v = parseFloat(e.target.value) || 0;
+                                setNominaPruebaForm((f) => {
+                                  const next = [...f.deducciones];
+                                  next[idx] = { ...next[idx], importe: v };
+                                  return { ...f, deducciones: next };
+                                });
+                              }}
+                              className={cn(fieldClass, 'h-9 sm:h-7')}
+                            />
+                          </div>
+                          <div className="flex justify-end sm:col-span-1">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-9 w-9 shrink-0 text-red-500 hover:text-red-600"
+                              disabled={nominaPruebaForm.deducciones.length <= 1}
+                              onClick={() =>
+                                setNominaPruebaForm((f) => ({
+                                  ...f,
+                                  deducciones: f.deducciones.filter((_, i) => i !== idx),
+                                }))
+                              }
+                              aria-label="Quitar deducción"
+                            >
+                              <Minus className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 rounded-md border border-slate-300/80 bg-white/80 px-3 py-2 text-xs dark:border-slate-600 dark:bg-slate-900/50">
+                    <div className="flex flex-wrap justify-between gap-x-4 gap-y-1 text-slate-700 dark:text-slate-300">
+                      <span>Total percepciones: {formatMoney(totalPercepcionesNomina)}</span>
+                      <span>Total deducciones: {formatMoney(totalDeduccionesNomina)}</span>
+                    </div>
+                    <div className="mt-1 font-semibold text-slate-900 dark:text-slate-100">
+                      Neto a pagar: {formatMoney(netoNominaPreview)}
+                    </div>
+                  </div>
+                </div>
+
                 <div className="rounded-lg border border-slate-200/90 dark:border-slate-700/80 bg-slate-200/40 dark:bg-slate-800/40 p-3">
                   <p className="text-sm leading-snug text-slate-600 dark:text-slate-400 sm:text-xs sm:leading-normal">
                     <span className="font-medium text-slate-700 dark:text-slate-300">Impresión de prueba:</span> usa la

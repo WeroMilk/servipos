@@ -542,7 +542,10 @@ ${foot}
   openCfdiLetterPrint(html, { printDelayMs: 300 });
 }
 
-export type { NominaPruebaPrintInput } from '@/lib/cfdiRepresentacionImpresa';
+export type {
+  NominaPruebaPrintInput,
+  NominaPruebaDraftForm,
+} from '@/lib/cfdiRepresentacionImpresa';
 
 /** Recibo de nómina (prueba) — formato compacto carta (`cfdiRepresentacionImpresa`, import dinámico). */
 export function printNominaPruebaLetter(input: NominaPruebaPrintInput): void {
