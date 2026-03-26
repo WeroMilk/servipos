@@ -28,6 +28,14 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+/** Parseo de input de dinero (coma o punto decimal). Vacío → 0. */
+export function parseNominaMoneyInput(raw: string): number {
+  const t = raw.trim().replace(',', '.');
+  if (t === '' || t === '-') return 0;
+  const v = parseFloat(t);
+  return Number.isFinite(v) ? v : 0;
+}
+
 export function estimarIsrImssDesdePercepciones(
   percepciones: NominaPruebaLineaPercepcion[]
 ): { isr: number; imss: number; base: number } {

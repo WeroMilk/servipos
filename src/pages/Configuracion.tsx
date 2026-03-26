@@ -40,7 +40,11 @@ import {
   getNominaPruebaDraftDefaults,
   type NominaPruebaDraftForm,
 } from '@/lib/cfdiRepresentacionImpresa';
-import { estimarIsrImssDesdePercepciones, normClaveNomina } from '@/lib/nominaDeduccionesEstimadas';
+import {
+  estimarIsrImssDesdePercepciones,
+  normClaveNomina,
+  parseNominaMoneyInput,
+} from '@/lib/nominaDeduccionesEstimadas';
 
 const NOMINA_STORAGE_KEY = 'servipartz-nomina-prueba-draft';
 
@@ -105,6 +109,9 @@ export function Configuracion() {
   const [nominaPruebaForm, setNominaPruebaForm] = useState<NominaPruebaDraftForm>(() =>
     loadNominaDraftFromStorage()
   );
+
+  /** Texto en edición para Gravado/Exento (evita que el 0 bloquee borrar y escribir). */
+  const [nominaPercDraft, setNominaPercDraft] = useState<Record<string, string>>({});
 
   // Fiscal form state
   const [fiscalForm, setFiscalForm] = useState({
@@ -188,6 +195,10 @@ export function Configuracion() {
       return { ...f, deducciones: nextDed };
     });
   }, [nominaPruebaForm.percepciones]);
+
+  useEffect(() => {
+    setNominaPercDraft({});
+  }, [nominaPruebaForm.percepciones.length]);
 
   const handleSaveFiscal = async () => {
     try {
@@ -891,6 +902,7 @@ export function Configuracion() {
                       className="h-8 border-slate-400/60 text-xs"
                       onClick={() => {
                         setNominaPruebaForm(getNominaPruebaDraftDefaults());
+                        setNominaPercDraft({});
                         addToast({ type: 'success', message: 'Valores restaurados al ejemplo.' });
                       }}
                     >
@@ -1102,11 +1114,53 @@ export function Configuracion() {
                           <div className="space-y-0.5 sm:col-span-2">
                             <Label className="text-[10px] text-slate-500">Gravado</Label>
                             <Input
-                              type="number"
-                              step="0.01"
-                              value={Number.isFinite(row.gravado) ? row.gravado : 0}
+                              type="text"
+                              inputMode="decimal"
+                              autoComplete="off"
+                              value={
+                                nominaPercDraft[`p-${idx}-g`] !== undefined
+                                  ? nominaPercDraft[`p-${idx}-g`]
+                                  : String(Number.isFinite(row.gravado) ? row.gravado : 0)
+                              }
+                              onFocus={() => {
+                                const gKey = `p-${idx}-g`;
+                                setNominaPercDraft((d) => ({
+                                  ...d,
+                                  [gKey]:
+                                    row.gravado === 0
+                                      ? ''
+                                      : String(Number.isFinite(row.gravado) ? row.gravado : 0),
+                                }));
+                              }}
                               onChange={(e) => {
-                                const v = parseFloat(e.target.value) || 0;
+                                const raw = e.target.value;
+                                const gKey = `p-${idx}-g`;
+                                setNominaPercDraft((d) => ({ ...d, [gKey]: raw }));
+                                const t = raw.trim();
+                                if (t === '' || t === '-') {
+                                  setNominaPruebaForm((f) => {
+                                    const next = [...f.percepciones];
+                                    next[idx] = { ...next[idx], gravado: 0 };
+                                    return { ...f, percepciones: next };
+                                  });
+                                  return;
+                                }
+                                const v = parseNominaMoneyInput(raw);
+                                setNominaPruebaForm((f) => {
+                                  const next = [...f.percepciones];
+                                  next[idx] = { ...next[idx], gravado: v };
+                                  return { ...f, percepciones: next };
+                                });
+                              }}
+                              onBlur={(e) => {
+                                const raw = e.target.value;
+                                const gKey = `p-${idx}-g`;
+                                setNominaPercDraft((d) => {
+                                  const next = { ...d };
+                                  delete next[gKey];
+                                  return next;
+                                });
+                                const v = parseNominaMoneyInput(raw);
                                 setNominaPruebaForm((f) => {
                                   const next = [...f.percepciones];
                                   next[idx] = { ...next[idx], gravado: v };
@@ -1119,11 +1173,53 @@ export function Configuracion() {
                           <div className="space-y-0.5 sm:col-span-2">
                             <Label className="text-[10px] text-slate-500">Exento</Label>
                             <Input
-                              type="number"
-                              step="0.01"
-                              value={Number.isFinite(row.exento) ? row.exento : 0}
+                              type="text"
+                              inputMode="decimal"
+                              autoComplete="off"
+                              value={
+                                nominaPercDraft[`p-${idx}-e`] !== undefined
+                                  ? nominaPercDraft[`p-${idx}-e`]
+                                  : String(Number.isFinite(row.exento) ? row.exento : 0)
+                              }
+                              onFocus={() => {
+                                const eKey = `p-${idx}-e`;
+                                setNominaPercDraft((d) => ({
+                                  ...d,
+                                  [eKey]:
+                                    row.exento === 0
+                                      ? ''
+                                      : String(Number.isFinite(row.exento) ? row.exento : 0),
+                                }));
+                              }}
                               onChange={(e) => {
-                                const v = parseFloat(e.target.value) || 0;
+                                const raw = e.target.value;
+                                const eKey = `p-${idx}-e`;
+                                setNominaPercDraft((d) => ({ ...d, [eKey]: raw }));
+                                const t = raw.trim();
+                                if (t === '' || t === '-') {
+                                  setNominaPruebaForm((f) => {
+                                    const next = [...f.percepciones];
+                                    next[idx] = { ...next[idx], exento: 0 };
+                                    return { ...f, percepciones: next };
+                                  });
+                                  return;
+                                }
+                                const v = parseNominaMoneyInput(raw);
+                                setNominaPruebaForm((f) => {
+                                  const next = [...f.percepciones];
+                                  next[idx] = { ...next[idx], exento: v };
+                                  return { ...f, percepciones: next };
+                                });
+                              }}
+                              onBlur={(e) => {
+                                const raw = e.target.value;
+                                const eKey = `p-${idx}-e`;
+                                setNominaPercDraft((d) => {
+                                  const next = { ...d };
+                                  delete next[eKey];
+                                  return next;
+                                });
+                                const v = parseNominaMoneyInput(raw);
                                 setNominaPruebaForm((f) => {
                                   const next = [...f.percepciones];
                                   next[idx] = { ...next[idx], exento: v };
