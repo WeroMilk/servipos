@@ -70,6 +70,29 @@ const THERMAL_BASE_STYLES = `@page { size: 80mm auto; margin: 4mm; }
   * { box-sizing: border-box; }
   body { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 22px; color: #111; width: 72mm; margin: 0 auto; padding: 4px; }
   h1 { font-size: 28px; text-align: center; margin: 0 0 10px; line-height: 1.15; }
+  /* Encabezado marca: título arriba, logo debajo; ambos centrados en el ancho del ticket */
+  .ticket-brand-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    margin: 0 0 12px 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  .ticket-brand-block h1 {
+    margin: 0 0 8px 0 !important;
+    width: 100%;
+    text-align: center !important;
+    line-height: 1.15;
+  }
+  .ticket-brand-block .logo-ticket {
+    display: block;
+    margin: 0 auto 0 auto;
+    max-width: 30mm;
+    width: auto;
+    height: auto;
+  }
   .meta { font-size: 18px; margin-bottom: 10px; border-bottom: 1px dashed #333; padding-bottom: 8px; }
   table { width: 100%; border-collapse: collapse; }
   td { padding: 4px 0; vertical-align: top; font-size: 20px; }
@@ -194,14 +217,15 @@ export function printThermalTicket(payload: TicketPayload): void {
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Ticket</title>
 <style>${THERMAL_BASE_STYLES}
-  .logo-ticket { display: block; margin: 0 0 10px 0; margin-right: auto; max-width: 30mm; height: auto; }
   .ticket-pagos { margin-top: 12px; padding-top: 10px; border-top: 1px dashed #333; font-size: 19px; line-height: 1.5; }
   .ticket-pagos .tit { font-weight: 600; margin-bottom: 6px; }
   .ticket-notas { margin-top: 12px; font-size: 20px; line-height: 1.45; text-align: center; white-space: pre-line; }
   .ticket-gracias { margin-top: 16px; text-align: center; font-size: 22px; font-weight: 600; line-height: 1.4; }
 </style></head><body>
-  <img class="logo-ticket" src="${escapeHtml(getBrandLogoAbsoluteUrl())}" alt="" width="96" height="96" />
-  <h1>${escapeHtml(negocio)}</h1>
+  <div class="ticket-brand-block">
+    <h1>${escapeHtml(negocio)}</h1>
+    <img class="logo-ticket" src="${escapeHtml(getBrandLogoAbsoluteUrl())}" alt="" width="96" height="96" />
+  </div>
   <div class="meta">
     ${payload.folio ? `<div>Folio: ${escapeHtml(payload.folio)}</div>` : ''}
     <div>${escapeHtml(payload.fecha)}</div>
