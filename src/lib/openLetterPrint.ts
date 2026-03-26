@@ -1,9 +1,15 @@
 /**
- * Abre ventana carta para impresión de representación CFDI (misma mecánica que tickets).
- * Extraído para evitar dependencia circular con `cfdiRepresentacionImpresa`.
+ * Impresión tamaño carta (CFDI, cotizaciones carta, etc.).
+ * Usa URL `blob:` en lugar de `about:blank` + `document.write` para que el navegador
+ * no muestre "about:blank" en cabecera/pie o marca al imprimir.
  */
-function attachLetterPrintHandlers(win: Window): void {
+function attachLetterPrintHandlers(win: Window, onAfterPrint?: () => void): void {
   const safeClose = () => {
+    try {
+      onAfterPrint?.();
+    } catch {
+      /* noop */
+    }
     try {
       if (win && !win.closed) win.close();
     } catch {
@@ -21,27 +27,24 @@ function attachLetterPrintHandlers(win: Window): void {
   );
 }
 
-function printFromHiddenIframe(html: string, printDelayMs: number): void {
+function printFromHiddenIframeBlob(blobUrl: string, printDelayMs: number, revoke: () => void): void {
   const iframe = document.createElement('iframe');
   iframe.setAttribute('title', 'Impresión');
   iframe.style.cssText =
     'position:absolute;width:1px;height:1px;left:-9999px;top:0;border:0;opacity:0;pointer-events:none';
 
   const tearDown = () => {
+    try {
+      revoke();
+    } catch {
+      /* noop */
+    }
     if (iframe.parentNode) document.body.removeChild(iframe);
   };
 
   iframe.onload = () => {
     const cw = iframe.contentWindow;
     if (!cw) {
-      tearDown();
-      return;
-    }
-    try {
-      cw.document.open();
-      cw.document.write(html);
-      cw.document.close();
-    } catch {
       tearDown();
       return;
     }
@@ -57,13 +60,28 @@ function printFromHiddenIframe(html: string, printDelayMs: number): void {
     }, printDelayMs);
   };
 
-  iframe.src = 'about:blank';
+  iframe.src = blobUrl;
   document.body.appendChild(iframe);
 }
 
-/** Documento tamaño carta (CFDI / nómina) — misma lógica que `printTicket` interno. */
-export function openCfdiLetterPrint(html: string): void {
-  const printDelayMs = 380;
+export type OpenCfdiLetterPrintOptions = {
+  /** Retraso antes de `print()` (ms). Por defecto 380. */
+  printDelayMs?: number;
+};
+
+/** Documento tamaño carta (CFDI / nómina / carta desde `printLetterDocument`). */
+export function openCfdiLetterPrint(html: string, options?: OpenCfdiLetterPrintOptions): void {
+  const printDelayMs = options?.printDelayMs ?? 380;
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const revoke = () => {
+    try {
+      URL.revokeObjectURL(url);
+    } catch {
+      /* noop */
+    }
+  };
+
   const runPrint = (target: Window) => {
     target.focus();
     setTimeout(() => {
@@ -75,28 +93,14 @@ export function openCfdiLetterPrint(html: string): void {
     }, printDelayMs);
   };
 
-  const w = window.open('about:blank', '_blank', 'width=816,height=1056');
+  const w = window.open(url, '_blank', 'width=816,height=1056');
   if (w) {
-    try {
-      w.document.open();
-      w.document.write(html);
-      w.document.close();
-    } catch {
-      try {
-        w.close();
-      } catch {
-        /* noop */
-      }
-      printFromHiddenIframe(html, printDelayMs);
-      return;
-    }
-
-    attachLetterPrintHandlers(w);
+    attachLetterPrintHandlers(w, revoke);
     const start = () => runPrint(w);
     if (w.document.readyState === 'complete') start();
     else w.addEventListener('load', start, { once: true });
     return;
   }
 
-  printFromHiddenIframe(html, printDelayMs);
+  printFromHiddenIframeBlob(url, printDelayMs, revoke);
 }

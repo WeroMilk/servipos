@@ -18,6 +18,7 @@ import { thermalTicketCancelacionNotas } from '@/lib/saleCancelacion';
 import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
 import { getProductCatalogSnapshot } from '@/lib/firestore/productsFirestore';
 import { labelFormaPagoCaja, resumenGruposMedioPagoCierre, totalesPorFormaPago } from '@/lib/cajaResumen';
+import { openCfdiLetterPrint } from '@/lib/openLetterPrint';
 
 async function resolveClienteTicketLabel(sale: Sale): Promise<string> {
   const embedded = sale.cliente?.nombre?.trim();
@@ -70,7 +71,7 @@ const THERMAL_BASE_STYLES = `@page { size: 80mm auto; margin: 4mm; }
   * { box-sizing: border-box; }
   body { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 22px; color: #111; width: 72mm; margin: 0 auto; padding: 4px; }
   h1 { font-size: 28px; text-align: center; margin: 0 0 10px; line-height: 1.15; }
-  /* Encabezado marca: título arriba, logo debajo; ambos centrados en el ancho del ticket */
+  /* Encabezado marca: logo arriba, título debajo; ambos centrados en el ancho del ticket */
   .ticket-brand-block {
     display: flex;
     flex-direction: column;
@@ -81,14 +82,14 @@ const THERMAL_BASE_STYLES = `@page { size: 80mm auto; margin: 4mm; }
     box-sizing: border-box;
   }
   .ticket-brand-block h1 {
-    margin: 0 0 8px 0 !important;
+    margin: 8px 0 0 0 !important;
     width: 100%;
     text-align: center !important;
     line-height: 1.15;
   }
   .ticket-brand-block .logo-ticket {
     display: block;
-    margin: 0 auto 0 auto;
+    margin: 0 auto;
     max-width: 30mm;
     width: auto;
     height: auto;
@@ -223,8 +224,8 @@ export function printThermalTicket(payload: TicketPayload): void {
   .ticket-gracias { margin-top: 16px; text-align: center; font-size: 22px; font-weight: 600; line-height: 1.4; }
 </style></head><body>
   <div class="ticket-brand-block">
-    <h1>${escapeHtml(negocio)}</h1>
     <img class="logo-ticket" src="${escapeHtml(getBrandLogoAbsoluteUrl())}" alt="" width="96" height="96" />
+    <h1>${escapeHtml(negocio)}</h1>
   </div>
   <div class="meta">
     ${payload.folio ? `<div>Folio: ${escapeHtml(payload.folio)}</div>` : ''}
@@ -538,7 +539,7 @@ ${innerHtml}
 ${foot}
 </body></html>`;
 
-  openAndPrintHtml(html, 'width=816,height=1056', 300);
+  openCfdiLetterPrint(html, { printDelayMs: 300 });
 }
 
 export type { NominaPruebaPrintInput } from '@/lib/cfdiRepresentacionImpresa';
