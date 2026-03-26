@@ -40,6 +40,7 @@ import {
   getNominaPruebaDraftDefaults,
   type NominaPruebaDraftForm,
 } from '@/lib/cfdiRepresentacionImpresa';
+import { estimarIsrImssDesdePercepciones, normClaveNomina } from '@/lib/nominaDeduccionesEstimadas';
 
 const NOMINA_STORAGE_KEY = 'servipartz-nomina-prueba-draft';
 
@@ -166,6 +167,27 @@ export function Configuracion() {
       /* noop */
     }
   }, [nominaPruebaForm]);
+
+  useEffect(() => {
+    setNominaPruebaForm((f) => {
+      const { isr, imss } = estimarIsrImssDesdePercepciones(f.percepciones);
+      let changed = false;
+      const nextDed = f.deducciones.map((row) => {
+        const k = normClaveNomina(row.clave);
+        if (k === '002') {
+          if (row.importe !== isr) changed = true;
+          return { ...row, importe: isr };
+        }
+        if (k === '021') {
+          if (row.importe !== imss) changed = true;
+          return { ...row, importe: imss };
+        }
+        return row;
+      });
+      if (!changed) return f;
+      return { ...f, deducciones: nextDed };
+    });
+  }, [nominaPruebaForm.percepciones]);
 
   const handleSaveFiscal = async () => {
     try {
@@ -1155,8 +1177,16 @@ export function Configuracion() {
                         Fila
                       </Button>
                     </div>
+                    <p className="text-[10px] leading-snug text-slate-500 dark:text-slate-400">
+                      Las claves <span className="font-mono">002</span> (ISR) y <span className="font-mono">021</span>{' '}
+                      (IMSS) calculan el importe en automático a partir del total gravado + exento de percepciones
+                      (estimación proporcional al mismo criterio del ejemplo 9,000 → 1,240 / 285).
+                    </p>
                     <div className="space-y-2">
-                      {nominaPruebaForm.deducciones.map((row, idx) => (
+                      {nominaPruebaForm.deducciones.map((row, idx) => {
+                        const ckDed = normClaveNomina(row.clave);
+                        const importeDeduccionAuto = ckDed === '002' || ckDed === '021';
+                        return (
                         <div
                           key={`d-${idx}`}
                           className="grid grid-cols-1 gap-1.5 rounded-lg border border-slate-200/90 bg-slate-50/80 p-2 dark:border-slate-700/80 dark:bg-slate-900/40 sm:grid-cols-12 sm:items-end"
@@ -1169,7 +1199,12 @@ export function Configuracion() {
                                 const v = e.target.value;
                                 setNominaPruebaForm((f) => {
                                   const next = [...f.deducciones];
-                                  next[idx] = { ...next[idx], clave: v };
+                                  const { isr, imss } = estimarIsrImssDesdePercepciones(f.percepciones);
+                                  const nk = normClaveNomina(v);
+                                  let rowNext = { ...next[idx], clave: v };
+                                  if (nk === '002') rowNext = { ...rowNext, importe: isr };
+                                  else if (nk === '021') rowNext = { ...rowNext, importe: imss };
+                                  next[idx] = rowNext;
                                   return { ...f, deducciones: next };
                                 });
                               }}
@@ -1197,6 +1232,12 @@ export function Configuracion() {
                               type="number"
                               step="0.01"
                               value={Number.isFinite(row.importe) ? row.importe : 0}
+                              readOnly={importeDeduccionAuto}
+                              title={
+                                importeDeduccionAuto
+                                  ? 'Calculado automáticamente desde percepciones (gravado + exento)'
+                                  : undefined
+                              }
                               onChange={(e) => {
                                 const v = parseFloat(e.target.value) || 0;
                                 setNominaPruebaForm((f) => {
@@ -1205,7 +1246,11 @@ export function Configuracion() {
                                   return { ...f, deducciones: next };
                                 });
                               }}
-                              className={cn(fieldClass, 'h-9 sm:h-7')}
+                              className={cn(
+                                fieldClass,
+                                'h-9 sm:h-7',
+                                importeDeduccionAuto && 'cursor-not-allowed bg-slate-200/90 dark:bg-slate-800/70'
+                              )}
                             />
                           </div>
                           <div className="flex justify-end sm:col-span-1">
@@ -1227,7 +1272,8 @@ export function Configuracion() {
                             </Button>
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
 
