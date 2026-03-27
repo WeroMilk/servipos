@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Plus,
   Search,
@@ -68,6 +68,42 @@ const statusLabels: Record<string, string> = {
   error: 'Error',
 };
 
+/** Parseo laxo de monto en búsqueda (coma/punto decimal). */
+function parseMoneyQuery(raw: string): number | null {
+  const t = raw.trim().replace(/\$/g, '').replace(/\s/g, '').replace(',', '.');
+  if (!t) return null;
+  const n = parseFloat(t);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Filtra ventas facturables según folio (incl. últimos 4 dígitos), total o nombre de cliente. */
+function saleMatchesInvoicePickerQuery(sale: Sale, raw: string): boolean {
+  const q = raw.trim();
+  if (!q) return true;
+  const ql = q.toLowerCase();
+  const folio = String(sale.folio ?? '');
+  if (folio.toLowerCase().includes(ql)) return true;
+
+  const nombre = (sale.cliente?.nombre || 'Mostrador').toLowerCase();
+  if (nombre.includes(ql)) return true;
+
+  const folioDigits = folio.replace(/\D/g, '');
+  const qDigits = q.replace(/\D/g, '');
+  if (qDigits.length >= 1 && folioDigits.length > 0) {
+    if (folioDigits.endsWith(qDigits)) return true;
+    if (qDigits.length >= 4 && folioDigits.includes(qDigits)) return true;
+  }
+
+  const total = Number(sale.total) || 0;
+  const qNum = parseMoneyQuery(q);
+  if (qNum != null && Math.abs(qNum - total) < 0.02) return true;
+
+  const moneyFmt = formatMoney(total).toLowerCase().replace(/\s/g, '');
+  if (moneyFmt.includes(ql.replace(/\s/g, ''))) return true;
+
+  return false;
+}
+
 export function Facturas() {
   const { invoices, loading, addInvoice, cancelInvoice, removeInvoice } = useInvoices();
   const { sales } = useSales(100);
@@ -112,6 +148,7 @@ export function Facturas() {
     metodoPago: 'PUE',
     usoCfdi: 'G03',
   });
+  const [salePickerQuery, setSalePickerQuery] = useState('');
 
   const handleGenerateInvoice = async () => {
     if (!selectedSale) {
@@ -293,6 +330,7 @@ export function Facturas() {
   const resetForm = () => {
     setSelectedSale(null);
     setSelectedClient(null);
+    setSalePickerQuery('');
     setFormData({
       formaPago: '01',
       metodoPago: 'PUE',
@@ -331,7 +369,19 @@ export function Facturas() {
   });
 
   // Filtrar ventas que no tienen factura
-  const salesWithoutInvoice = sales.filter(s => !s.facturaId && s.estado === 'completada');
+  const salesWithoutInvoice = useMemo(
+    () => sales.filter((s) => !s.facturaId && s.estado === 'completada'),
+    [sales]
+  );
+
+  const filteredSalesForPicker = useMemo(
+    () => salesWithoutInvoice.filter((s) => saleMatchesInvoicePickerQuery(s, salePickerQuery)),
+    [salesWithoutInvoice, salePickerQuery]
+  );
+
+  useEffect(() => {
+    if (showAddDialog) setSalePickerQuery('');
+  }, [showAddDialog]);
 
   return (
     <>
@@ -646,22 +696,64 @@ export function Facturas() {
                   </div>
                 ) : null}
                 <div className="space-y-2">
-                  <Label>Seleccionar Venta *</Label>
-                  <select
-                    value={selectedSale?.id || ''}
-                    onChange={(e) => {
-                      const sale = salesWithoutInvoice.find(s => s.id === e.target.value);
-                      setSelectedSale(sale || null);
-                    }}
-                    className="w-full h-10 px-3 rounded-md bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
-                  >
-                    <option value="">Seleccione una venta</option>
-                    {salesWithoutInvoice.map(sale => (
-                      <option key={sale.id} value={sale.id}>
-                        {sale.folio} - {sale.cliente?.nombre || 'Mostrador'} - {formatMoney(sale.total)}
-                      </option>
-                    ))}
-                  </select>
+                  <Label>Seleccionar venta *</Label>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-500">
+                    Escriba los últimos dígitos del folio, el monto o el nombre del cliente para acotar la lista.
+                  </p>
+                  <Input
+                    value={salePickerQuery}
+                    onChange={(e) => setSalePickerQuery(e.target.value)}
+                    placeholder="Ej. 0007, 1500.50 o Juan Pérez…"
+                    className="h-10 w-full border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                  />
+                  <div className="max-h-52 overflow-y-auto rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200/60 dark:bg-slate-800/60">
+                    {filteredSalesForPicker.length === 0 ? (
+                      <p className="px-3 py-3 text-center text-sm text-slate-600 dark:text-slate-500">
+                        {salesWithoutInvoice.length === 0
+                          ? 'No hay ventas completadas sin factura.'
+                          : 'Ninguna venta coincide con la búsqueda.'}
+                      </p>
+                    ) : (
+                      filteredSalesForPicker.map((sale) => (
+                        <button
+                          key={sale.id}
+                          type="button"
+                          onClick={() => setSelectedSale(sale)}
+                          className={cn(
+                            'flex w-full flex-wrap items-center justify-between gap-x-2 gap-y-1 border-b border-slate-300/80 px-3 py-2.5 text-left text-sm last:border-b-0 dark:border-slate-700/80',
+                            'hover:bg-slate-300/50 dark:hover:bg-slate-700/50',
+                            selectedSale?.id === sale.id &&
+                              'bg-cyan-500/15 ring-1 ring-inset ring-cyan-500/40 dark:bg-cyan-500/10'
+                          )}
+                        >
+                          <span className="min-w-0 font-mono text-slate-900 dark:text-slate-100">{sale.folio}</span>
+                          <span className="min-w-0 flex-1 truncate text-slate-700 dark:text-slate-300">
+                            {sale.cliente?.nombre || 'Mostrador'}
+                          </span>
+                          <span className="shrink-0 font-medium text-cyan-600 dark:text-cyan-400">
+                            {formatMoney(sale.total)}
+                          </span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                  {selectedSale ? (
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
+                      <span>
+                        Seleccionada: <strong className="text-slate-800 dark:text-slate-200">{selectedSale.folio}</strong>
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-slate-600 dark:text-slate-500"
+                        onClick={() => setSelectedSale(null)}
+                      >
+                        <X className="mr-1 h-3.5 w-3.5" />
+                        Quitar
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
 
                 {selectedSale && (

@@ -404,11 +404,19 @@ export function POS() {
   const esFormaCotizacion = formaPago === 'COT';
   const esFormaPendientePago = formaPago === 'PPC';
 
+  /** Valor anterior de forma de pago: al salir de PPC se restablece PUE para no dejar PPD heredado (saldo en CxC sin querer). */
+  const formaPagoPrevRef = useRef(formaPago);
   useEffect(() => {
-    if (!esFormaPendientePago) return;
-    setMetodoPago('PPD');
-    useCartStore.setState({ pagos: [] });
-  }, [esFormaPendientePago, setMetodoPago]);
+    const prev = formaPagoPrevRef.current;
+    formaPagoPrevRef.current = formaPago;
+
+    if (formaPago === 'PPC') {
+      setMetodoPago('PPD');
+      useCartStore.setState({ pagos: [] });
+    } else if (prev === 'PPC') {
+      setMetodoPago('PUE');
+    }
+  }, [formaPago, setMetodoPago]);
 
   useEffect(() => {
     if (!formasPagoPosEffective.some((fp) => fp.clave === formaPago)) {

@@ -161,7 +161,7 @@ export function CuentasPorCobrar() {
   return (
     <PageShell
       title="Cuentas por cobrar"
-      subtitle="Tickets con saldo pendiente (pendiente de pago o parcialidades PPD) y abonos a la cuenta del cliente."
+      subtitle="Aquí aparecen el saldo global por cliente y los tickets cuyo cobro no cubrió el total (PPD con abonos parciales o venta en «Pendiente de pago»). Las ventas al contado completas no generan fila con saldo."
     >
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200/80 bg-slate-50/90 px-3 py-2.5 dark:border-slate-800/50 dark:bg-slate-900/50 sm:px-4">
