@@ -371,6 +371,23 @@ export function printThermalDailySalesReport(input: {
   const bruto = list
     .filter((v) => v.estado !== 'cancelada' && v.estado !== 'pendiente')
     .reduce((s, v) => s + (Number(v.total) || 0), 0);
+
+  const grupos = resumenGruposMedioPagoCierre(input.ventas);
+  const porForma = totalesPorFormaPago(input.ventas);
+  const formaRows = Object.entries(porForma)
+    .filter(([, m]) => (Number(m) || 0) > 0)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(
+      ([clave, m]) =>
+        `<tr><td>${escapeHtml(labelFormaPagoCaja(clave))}</td><td class="right">${formatMoney(Number(m) || 0)}</td></tr>`
+    )
+    .join('');
+
+  const completadasDia = list.filter((v) => v.estado === 'completada');
+  const totalAdeudoDia = completadasDia.reduce((s, v) => s + computeSaleClienteAdeudo(v), 0);
+  const adeudoRedondeado = Math.round(totalAdeudoDia * 100) / 100;
+  const adeudoStyle = adeudoRedondeado > 0.004 ? 'color:#92400e;' : '';
+
   const lines = getThermalTicketSucursalFooterLines(input.sucursalId);
   const pie =
     lines?.length ?
@@ -384,7 +401,20 @@ export function printThermalDailySalesReport(input: {
   <h1>REPORTE VENTAS</h1>
   <div class="meta">${escapeHtml(input.fechaLabel)}<br/>${list.length} ticket(s)</div>
   <table>${rows || '<tr><td>Sin ventas.</td></tr>'}</table>
+  <div class="tot" style="border-top:none;padding-top:8px;font-size:20px;">
+    <div><strong>Resumen medios</strong> <span style="font-size:14px;">(cobros en ventas completadas)</span></div>
+    <div>Efectivo: ${formatMoney(grupos.efectivoCobros)}</div>
+    <div>Tarjetas: ${formatMoney(grupos.tarjetas)}</div>
+    <div>Otros: ${formatMoney(grupos.otros)}</div>
+  </div>
+  <p style="font-size:19px;font-weight:600;margin:10px 0 4px;">Cobros por forma de pago</p>
+  <table>${formaRows || '<tr><td>Sin cobros registrados</td></tr>'}</table>
   <div class="tot"><strong>Total día: ${formatMoney(bruto)}</strong><br/><span style="font-size:14px;">Sin canceladas ni ventas abiertas</span></div>
+  <div class="tot" style="border-top:none;padding-top:8px;">
+    <div style="font-size:20px;"><strong>Saldo pendiente por cobrar (día)</strong></div>
+    <div style="font-size:26px;font-weight:700;${adeudoStyle}">${formatMoney(adeudoRedondeado)}</div>
+    <span style="font-size:14px;">Lo que quedó por cobrar en ventas completadas del día (parciales / crédito). Si es $0.00, no hubo adeudos.</span>
+  </div>
   ${pie}
 </body></html>`;
   openAndPrintHtml(html, 'width=360,height=720', 250);
