@@ -2,8 +2,6 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { SyncState } from '@/types';
 import { getPendingSyncCount } from '@/db/database';
-import { reportAppEvent } from '@/lib/appEventLog';
-import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
 
 // ============================================
 // STORE DE SINCRONIZACIÓN (ONLINE/OFFLINE)
@@ -53,23 +51,9 @@ export const useSyncStore = create<SyncStore>()(
             isSyncing: false,
             lastSyncAt: new Date(),
           });
-          reportAppEvent({
-            kind: 'success',
-            source: 'sync',
-            title: 'Estado de sincronización revisado',
-            detail: getEffectiveSucursalId()
-              ? 'Modo sucursal en la nube: el dato autoritativo es Firestore. La cola «pending» de IndexedDB no se muestra en la barra.'
-              : 'Suma de filas en IndexedDB con syncStatus «pending». No implica subida automática a Firebase.',
-          });
         } catch (error) {
           console.error('Error en sincronización:', error);
           set({ isSyncing: false });
-          reportAppEvent({
-            kind: 'error',
-            source: 'sync',
-            title: 'Error al actualizar estado',
-            detail: error instanceof Error ? error.message : String(error),
-          });
         }
       },
 

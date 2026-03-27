@@ -65,22 +65,25 @@ export const useAppStore = create<AppState>()(
         set({ sidebarCollapsed: !get().sidebarCollapsed });
       },
 
-      addToast: (toast: Omit<Toast, 'id'>) => {
+      addToast: (toast: Omit<Toast, 'id'> & { logToAppEvents?: boolean }) => {
+        const { logToAppEvents, ...rest } = toast;
         const id = Math.random().toString(36).substring(2, 9);
         const newToast: Toast = {
-          ...toast,
+          ...rest,
           id,
-          duration: toast.duration || 3000,
+          duration: rest.duration || 3000,
         };
 
         set({ toasts: [...get().toasts, newToast] });
 
-        reportAppEvent({
-          kind: toast.type,
-          source: 'toast',
-          title: toast.message.slice(0, 500),
-          meta: { toastType: toast.type },
-        });
+        if (logToAppEvents) {
+          reportAppEvent({
+            kind: rest.type,
+            source: 'toast',
+            title: rest.message.slice(0, 500),
+            meta: { toastType: rest.type },
+          });
+        }
 
         setTimeout(() => {
           get().removeToast(id);

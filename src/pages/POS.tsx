@@ -581,12 +581,14 @@ export function POS() {
         addToast({
           type: 'success',
           message: `Venta ${resumed.sale.folio} cancelada; el inventario se reintegró y ya no aparece en pendientes.`,
+          logToAppEvents: true,
         });
         resetPuntoVenta();
       } catch (e: unknown) {
         addToast({
           type: 'error',
           message: e instanceof Error ? e.message : 'No se pudo cancelar la venta abierta',
+          logToAppEvents: true,
         });
       } finally {
         setVentaResetBusy(false);
@@ -636,7 +638,7 @@ export function POS() {
     }
     const sinIva = precioConIvaToUnitBaseSinIva(v, it.product.impuesto);
     updateLineUnitPrice(unitPriceEditProductId, sinIva);
-    addToast({ type: 'success', message: 'Precio unitario actualizado' });
+    addToast({ type: 'success', message: 'Precio unitario actualizado', logToAppEvents: true });
     closeUnitPriceDialog();
   };
 
@@ -1224,11 +1226,13 @@ export function POS() {
         addToast({
           type: 'success',
           message: `Devolución registrada. Reembolso al cliente: ${formatMoney(monto)}`,
+          logToAppEvents: true,
         });
       } catch (error: unknown) {
         addToast({
           type: 'error',
           message: error instanceof Error ? error.message : 'Error al procesar la devolución',
+          logToAppEvents: true,
         });
       } finally {
         setProcessingSale(false);
@@ -1441,6 +1445,7 @@ export function POS() {
             adeudoTicket > 0.005
               ? `Cobro registrado. Saldo pendiente del cliente: ${formatMoney(adeudoTicket)} (ver Cuentas por cobrar).`
               : 'Cobro registrado. Venta completada.',
+          logToAppEvents: true,
         });
         return;
       }
@@ -1567,11 +1572,13 @@ export function POS() {
           adeudoTicket > 0.005
             ? `Venta completada. Saldo a cuenta del cliente: ${formatMoney(adeudoTicket)}. Consulte Cuentas por cobrar.`
             : 'Venta completada exitosamente',
+        logToAppEvents: true,
       });
     } catch (error: unknown) {
       addToast({
         type: 'error',
         message: error instanceof Error ? error.message : 'Error al procesar la venta',
+        logToAppEvents: true,
       });
     } finally {
       setProcessingSale(false);

@@ -295,6 +295,7 @@ export function Dashboard() {
       addToast({
         type: 'success',
         message: 'Venta cancelada. Inventario restaurado; el importe ya no cuenta en totales.',
+        logToAppEvents: true,
       });
       setSaleCancelOpen(false);
       setSaleToCancel(null);
@@ -302,6 +303,7 @@ export function Dashboard() {
       addToast({
         type: 'error',
         message: err instanceof Error ? err.message : 'No se pudo cancelar la venta',
+        logToAppEvents: true,
       });
     } finally {
       setSaleCancelBusy(false);

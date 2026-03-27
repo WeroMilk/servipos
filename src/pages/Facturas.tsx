@@ -94,11 +94,12 @@ export function Facturas() {
     if (!ok) return;
     try {
       await removeInvoice(inv.id);
-      addToast({ type: 'success', message: 'Factura eliminada del historial local' });
+      addToast({ type: 'success', message: 'Factura eliminada del historial local', logToAppEvents: true });
     } catch (e) {
       addToast({
         type: 'error',
         message: e instanceof Error ? e.message : 'No se pudo eliminar',
+        logToAppEvents: true,
       });
     }
   };
@@ -176,9 +177,10 @@ export function Facturas() {
         message: fiscalConfig.modoPruebaFiscal
           ? 'Factura de prueba creada (serie PRUEBA, sin validez fiscal)'
           : 'Factura generada exitosamente',
+        logToAppEvents: true,
       });
     } catch (error: any) {
-      addToast({ type: 'error', message: error.message });
+      addToast({ type: 'error', message: error.message, logToAppEvents: true });
     }
   };
 

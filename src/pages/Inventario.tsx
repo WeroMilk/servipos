@@ -198,11 +198,16 @@ export function Inventario() {
       setConfirmingTransferId(transferId);
       try {
         await confirmIncomingStoreTransfer(effectiveSucursalId, transferId, user.id, actor);
-        addToast({ type: 'success', message: 'Traspaso recibido; el stock de esta tienda se actualizó.' });
+        addToast({
+          type: 'success',
+          message: 'Traspaso recibido; el stock de esta tienda se actualizó.',
+          logToAppEvents: true,
+        });
       } catch (err) {
         addToast({
           type: 'error',
           message: err instanceof Error ? err.message : 'No se pudo confirmar el traspaso',
+          logToAppEvents: true,
         });
       } finally {
         setConfirmingTransferId(null);
@@ -449,15 +454,16 @@ export function Inventario() {
         addToast({
           type: 'success',
           message: 'Producto agregado. El proveedor se mantuvo; capture el siguiente artículo.',
+          logToAppEvents: true,
         });
         requestAnimationFrame(() => addCodigoBarrasRef.current?.focus());
       } else {
         setShowAddDialog(false);
         resetForm();
-        addToast({ type: 'success', message: 'Producto agregado exitosamente' });
+        addToast({ type: 'success', message: 'Producto agregado exitosamente', logToAppEvents: true });
       }
     } catch (error: any) {
-      addToast({ type: 'error', message: error.message });
+      addToast({ type: 'error', message: error.message, logToAppEvents: true });
     }
   };
 
@@ -487,9 +493,9 @@ export function Inventario() {
       });
       setShowEditDialog(false);
       setSelectedProduct(null);
-      addToast({ type: 'success', message: 'Producto actualizado exitosamente' });
+      addToast({ type: 'success', message: 'Producto actualizado exitosamente', logToAppEvents: true });
     } catch (error: any) {
-      addToast({ type: 'error', message: error.message });
+      addToast({ type: 'error', message: error.message, logToAppEvents: true });
     }
   };
 
@@ -498,9 +504,9 @@ export function Inventario() {
     
     try {
       await removeProduct(product.id);
-      addToast({ type: 'success', message: 'Producto eliminado exitosamente' });
+      addToast({ type: 'success', message: 'Producto eliminado exitosamente', logToAppEvents: true });
     } catch (error: any) {
-      addToast({ type: 'error', message: error.message });
+      addToast({ type: 'error', message: error.message, logToAppEvents: true });
     }
   };
 
@@ -536,9 +542,9 @@ export function Inventario() {
       });
       setStockQtyFocus(false);
       setStockPrecioCompraFocus(false);
-      addToast({ type: 'success', message: 'Stock ajustado exitosamente' });
+      addToast({ type: 'success', message: 'Stock ajustado exitosamente', logToAppEvents: true });
     } catch (error: any) {
-      addToast({ type: 'error', message: error.message });
+      addToast({ type: 'error', message: error.message, logToAppEvents: true });
     }
   };
 
@@ -550,13 +556,14 @@ export function Inventario() {
       } else {
         await clearAllInventoryMovementsLocal();
       }
-      addToast({ type: 'success', message: 'Historial de movimientos vaciado.' });
+      addToast({ type: 'success', message: 'Historial de movimientos vaciado.', logToAppEvents: true });
       setClearMovementsConfirmOpen(false);
       if (!effectiveSucursalId) await refreshInventoryMovementsLocal();
     } catch (err) {
       addToast({
         type: 'error',
         message: err instanceof Error ? err.message : 'No se pudo vaciar el historial',
+        logToAppEvents: true,
       });
     } finally {
       setClearingMovements(false);
@@ -775,11 +782,12 @@ export function Inventario() {
       }
       try {
         await editProduct(product.id, { sku: raw });
-        addToast({ type: 'success', message: 'SKU actualizado' });
+        addToast({ type: 'success', message: 'SKU actualizado', logToAppEvents: true });
       } catch (e: unknown) {
         addToast({
           type: 'error',
           message: e instanceof Error ? e.message : 'No se pudo guardar el SKU',
+          logToAppEvents: true,
         });
         setSkuDrafts((prev) => ({ ...prev, [product.id]: product.sku }));
       }

@@ -262,19 +262,24 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
   const handleOpen = async () => {
     const fondo = parseFloat(fondoInput.replace(',', '.')) || 0;
     if (fondo < 0) {
-      addToast({ type: 'error', message: 'El fondo inicial no puede ser negativo' });
+      addToast({ type: 'error', message: 'El fondo inicial no puede ser negativo', logToAppEvents: true });
       return;
     }
     setBusy(true);
     try {
       await openCaja({ fondoInicial: fondo, openedByUserId: userId, openedByNombre: userNombre });
-      addToast({ type: 'success', message: 'Caja abierta. Ya puede registrar ventas.' });
+      addToast({
+        type: 'success',
+        message: 'Caja abierta. Ya puede registrar ventas.',
+        logToAppEvents: true,
+      });
       setOpenDialog(false);
       setFondoInput('0');
     } catch (e: unknown) {
       addToast({
         type: 'error',
         message: cajaFirestoreUserMessage(e),
+        logToAppEvents: true,
       });
     } finally {
       setBusy(false);
@@ -294,6 +299,7 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
       addToast({
         type: 'error',
         message: `No puede retirar más del efectivo disponible en caja (${formatMoney(disponible)}).`,
+        logToAppEvents: true,
       });
       return;
     }
@@ -314,7 +320,11 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
           usuarioNombre: userNombre,
         });
       }
-      addToast({ type: 'success', message: `Retiro registrado: ${formatMoney(mRounded)}` });
+      addToast({
+        type: 'success',
+        message: `Retiro registrado: ${formatMoney(mRounded)}`,
+        logToAppEvents: true,
+      });
       setRetiroDialog(false);
       setRetiroMontoInput('');
       setRetiroNotas('');
@@ -322,6 +332,7 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
       addToast({
         type: 'error',
         message: cajaFirestoreUserMessage(e),
+        logToAppEvents: true,
       });
     } finally {
       setBusy(false);
@@ -332,7 +343,7 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
     if (!activa) return;
     const declarado = parseFloat(conteoInput.replace(',', '.'));
     if (!Number.isFinite(declarado) || declarado < 0) {
-      addToast({ type: 'error', message: 'Ingrese el efectivo contado en caja' });
+      addToast({ type: 'error', message: 'Ingrese el efectivo contado en caja', logToAppEvents: true });
       return;
     }
     setBusy(true);
@@ -384,7 +395,7 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
           );
         }
         if (partes.length > 0) {
-          addToast({ type: 'success', message: partes.join('. ') + '.' });
+          addToast({ type: 'success', message: partes.join('. ') + '.', logToAppEvents: true });
         }
       }
 
@@ -441,7 +452,11 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
         ventas: ventasDia,
       });
 
-      addToast({ type: 'success', message: 'Caja cerrada. Comprobante y reporte del día listos para imprimir.' });
+      addToast({
+        type: 'success',
+        message: 'Caja cerrada. Comprobante y reporte del día listos para imprimir.',
+        logToAppEvents: true,
+      });
       setCloseDialog(false);
       setConteoInput('');
       setNotasCierre('');
@@ -449,6 +464,7 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
       addToast({
         type: 'error',
         message: cajaFirestoreUserMessage(e),
+        logToAppEvents: true,
       });
     } finally {
       setBusy(false);
@@ -487,7 +503,11 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
       sucursalId: effectiveSucursalId ?? undefined,
       ventas: ventasDia,
     });
-    addToast({ type: 'success', message: 'Arqueo previo y reporte del día listos para imprimir.' });
+    addToast({
+      type: 'success',
+      message: 'Arqueo previo y reporte del día listos para imprimir.',
+      logToAppEvents: true,
+    });
     setArqueoDialog(false);
   };
 

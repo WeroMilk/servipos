@@ -22,7 +22,8 @@ import { subscribeAppEvents, deleteAllAppEvents } from '@/lib/firestore/appEvent
 import type { AppEventLogRecord } from '@/types';
 import { cn } from '@/lib/utils';
 
-const EVENTS_LIMIT = 250;
+/** Menos documentos en Firestore; el panel muestra solo eventos explícitos (pocos). */
+const EVENTS_LIMIT = 80;
 
 function formatEventTime(d: Date): string {
   try {
@@ -111,8 +112,8 @@ export function AppEventsNotificationPanel({ dock = 'header' }: AppEventsNotific
   const subtitle = useMemo(
     () =>
       events.length >= EVENTS_LIMIT
-        ? `Últimos ${EVENTS_LIMIT} eventos (los más recientes).`
-        : 'Historial de actividad de todos los usuarios.',
+        ? `Últimos ${EVENTS_LIMIT} eventos relevantes (los más recientes).`
+        : 'Solo se registran acciones importantes (caja, ventas, inventario, facturación, etc.).',
     [events.length]
   );
 

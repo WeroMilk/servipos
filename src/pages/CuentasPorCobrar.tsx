@@ -119,12 +119,13 @@ export function CuentasPorCobrar() {
     setAbonoBusy(true);
     try {
       await registrarAbonoCuenta(abonoCliente.id, m);
-      addToast({ type: 'success', message: `Abono registrado: ${formatMoney(m)}` });
+      addToast({ type: 'success', message: `Abono registrado: ${formatMoney(m)}`, logToAppEvents: true });
       cerrarAbono();
     } catch (e: unknown) {
       addToast({
         type: 'error',
         message: e instanceof Error ? e.message : 'No se pudo registrar el abono',
+        logToAppEvents: true,
       });
     } finally {
       setAbonoBusy(false);
@@ -139,13 +140,18 @@ export function CuentasPorCobrar() {
         motivo: 'Cancelación desde cuentas por cobrar',
         cancelacionMotivo: 'panel',
       });
-      addToast({ type: 'success', message: `Venta ${ticketSeleccionado.sale.folio} cancelada; inventario reintegrado.` });
+      addToast({
+        type: 'success',
+        message: `Venta ${ticketSeleccionado.sale.folio} cancelada; inventario reintegrado.`,
+        logToAppEvents: true,
+      });
       setCancelTicketConfirmOpen(false);
       setTicketSeleccionado(null);
     } catch (e: unknown) {
       addToast({
         type: 'error',
         message: e instanceof Error ? e.message : 'No se pudo cancelar la venta',
+        logToAppEvents: true,
       });
     } finally {
       setCancelTicketBusy(false);

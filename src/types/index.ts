@@ -745,7 +745,8 @@ export interface AppState {
   
   // Toast notifications
   toasts: Toast[];
-  addToast: (toast: Omit<Toast, 'id'>) => void;
+  /** `logToAppEvents`: solo si true se guarda en Firestore (panel de eventos). Por defecto no se registra. */
+  addToast: (toast: Omit<Toast, 'id'> & { logToAppEvents?: boolean }) => void;
   removeToast: (id: string) => void;
   
   // Loading states
