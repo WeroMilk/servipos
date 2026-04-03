@@ -30,6 +30,9 @@ service cloud.firestore {
           userData().role == 'admin'
           || userData().role == 'Admin'
           || userData().role == 'ADMIN'
+          || userData().role == 'administrador'
+          || userData().role == 'Administrador'
+          || userData().role == 'ADMINISTRADOR'
         );
     }
 
@@ -42,7 +45,12 @@ service cloud.firestore {
     }
 
     function validUserRole(r) {
-      return r == 'admin' || r == 'gerente' || r == 'cashier';
+      return r == 'admin'
+        || r == 'gerente'
+        || r == 'cashier'
+        || r == 'Administrador'
+        || r == 'administrador'
+        || r == 'ADMINISTRADOR';
     }
 
     // Perfil: lectura propia o admin. Alta/edición de perfiles solo admin (app: UserManagement + REST signUp).

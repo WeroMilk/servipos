@@ -53,3 +53,17 @@ El checador por `sucursalId` y el legado conviene hacerlo con el script o desde 
 
 - Tienda **Olivares**: sin ventas, sin productos en Firestore hasta volver a cargar catálogo, checador limpio para esa sucursal.
 - **Matriz**: intacta si solo se usó `sucursales/olivares/...` y consultas de checador filtradas a Olivares.
+
+## Volver a llenar el inventario de Olivares
+
+La app **no** sube sola los Excel del escritorio: hay que ejecutar el script (con cuenta de servicio) **sin** `--dry-run`. El ID de sucursal en el comando debe ser **exactamente** el ID del documento en Firestore (ej. `olivares` o `Olivares`, según lo que creaste).
+
+```powershell
+$env:GOOGLE_APPLICATION_CREDENTIALS="C:\ruta\service-account.json"
+cd ruta\al\repo\servipos
+node scripts/import-olivares-inventory.mjs --dir="C:\Users\...\inventario abril 2026 servipartz olivares" --precios="C:\ruta\precios.xlsx" --sucursal=olivares
+```
+
+Primero conviene `--dry-run` y revisar totales. Si en consola Firebase la ruta es `sucursales/Olivares/products` (mayúscula), usa `--sucursal=Olivares`.
+
+**Si la pantalla muestra 0 productos pero en consola sí hay documentos:** abre F12 → Consola y busca errores `permission-denied`; el perfil `users/{uid}` debe tener `role: admin` (o `gerente` solo para su propia `sucursalId`) y las reglas desplegadas (`firebase deploy --only firestore:rules`).
