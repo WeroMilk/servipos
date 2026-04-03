@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import { MAIN_NAV_ITEMS } from '@/lib/mainNavItems';
 import { SHOW_CHECADOR_NAV } from '@/lib/featureFlags';
 import { BRAND_LOGO_URL } from '@/lib/branding';
-import { ROLE_LABELS } from '@/lib/userPermissions';
+import { ROLE_LABELS, userCanSeeInventoryMissions } from '@/lib/userPermissions';
 interface NavItemProps {
   to: string;
   icon: LucideIcon;
@@ -89,6 +89,11 @@ export function Sidebar() {
       <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-y-contain p-2 pt-2 xl:p-3">
         {MAIN_NAV_ITEMS.map((item) => {
           if (item.to === '/checador' && !SHOW_CHECADOR_NAV) return null;
+          if (item.to === '/mision-inventario') {
+            return userCanSeeInventoryMissions(user) ? (
+              <NavItem key={item.to} to={item.to} icon={item.icon} label={item.label} />
+            ) : null;
+          }
           return hasPermission(item.permission) ? (
             <NavItem key={item.to} to={item.to} icon={item.icon} label={item.label} />
           ) : null;

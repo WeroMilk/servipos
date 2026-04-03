@@ -1,5 +1,8 @@
 import type { Permission, User, UserRole } from '@/types';
 
+/** Usuarios que no deben ver misiones de inventario aunque tengan el permiso (p. ej. gerentes con usuario cajero). */
+const INVENTORY_MISSIONS_EXCLUDED_USERNAMES = new Set(['julian']);
+
 /** Todos los permisos conocidos (orden estable para UI). */
 export const ALL_PERMISSIONS: Permission[] = [
   'ventas:ver',
@@ -31,7 +34,8 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'inventario:crear': 'Alta de productos',
   'inventario:editar': 'Editar productos y existencias',
   'inventario:eliminar': 'Eliminar productos',
-  'inventario:mision_diaria': 'Misiones de inventario diario (revisar artículos del día)',
+  'inventario:mision_diaria':
+    'Misiones de inventario (solo cajeros con esta marca; ciclo bimestral cubre el catálogo)',
   'cotizaciones:ver': 'Ver cotizaciones',
   'cotizaciones:crear': 'Crear y editar cotizaciones',
   'facturas:ver': 'Facturación (ver)',
@@ -91,6 +95,19 @@ export function getEffectivePermissions(user: User | null | undefined): Permissi
 
 export function userHasPermission(user: User | null | undefined, permission: Permission): boolean {
   return getEffectivePermissions(user).includes(permission);
+}
+
+/**
+ * Misiones de inventario: solo rol **cajero**, permiso `inventario:mision_diaria`, y no usuarios excluidos por nombre.
+ * (Admin/gerente no ven la entrada aunque tengan todos los permisos.)
+ */
+export function userCanSeeInventoryMissions(user: User | null | undefined): boolean {
+  if (!user?.isActive) return false;
+  if (user.role !== 'cashier') return false;
+  if (!userHasPermission(user, 'inventario:mision_diaria')) return false;
+  const u = (user.username ?? '').trim().toLowerCase();
+  if (INVENTORY_MISSIONS_EXCLUDED_USERNAMES.has(u)) return false;
+  return true;
 }
 
 export function permissionsFromRoleTemplate(role: UserRole): Permission[] {

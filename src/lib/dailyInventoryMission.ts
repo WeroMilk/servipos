@@ -1,7 +1,9 @@
 import type { Product } from '@/types';
-
-/** Cantidad fija de artículos a revisar por día y por usuario. */
-export const MISION_INVENTARIO_DIARIO = 45;
+import {
+  addDaysToMexicoDateKey,
+  effectiveDateKeyForMissionPartition,
+  getBimonthCycleInfo,
+} from '@/lib/quincenaMx';
 
 const STORAGE_PREFIX = 'servipos_mision_inv_v1';
 
@@ -9,8 +11,30 @@ function storageKey(userId: string, dateKey: string): string {
   return `${STORAGE_PREFIX}_${userId}_${dateKey}`;
 }
 
+function listKey(userId: string, dateKey: string): string {
+  return `${STORAGE_PREFIX}_list_v2_${userId}_${dateKey}`;
+}
+
+function usedKey(userId: string, dateKey: string): string {
+  return `${STORAGE_PREFIX}_used_v2_${userId}_${dateKey}`;
+}
+
+/** Misión por defecto: 45 artículos aleatorios. */
+export const DEFAULT_MISSION_SIZE = 45;
+export const MIN_MISSION_SIZE = 5;
+export const MAX_MISSION_SIZE = 50;
+
+function hashStringToSeed(str: string): number {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h >>> 0;
+}
+
 function mulberry32(seed: number) {
-  return function next() {
+  return function () {
     let t = (seed += 0x6d2b79f5);
     t = Math.imul(t ^ (t >>> 15), t | 1);
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
@@ -18,61 +42,88 @@ function mulberry32(seed: number) {
   };
 }
 
-function hashStringToSeed(s: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
+/** Baraja determinística (misma semilla = mismo orden). */
+export function shuffleIdsWithSeed(ids: string[], seed: string): string[] {
+  const arr = [...ids];
+  const rng = mulberry32(hashStringToSeed(seed));
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
   }
-  return h >>> 0;
+  return arr;
 }
 
 /**
- * Elige de forma determinista `count` IDs entre los dados (misma lista el mismo día para el mismo usuario).
+ * Elige hasta `count` artículos aleatorios sin repetir dentro de la selección.
+ * `exclude`: IDs ya incluidos en misiones anteriores del mismo día; si el conjunto agota el catálogo, se vuelve a elegir entre todos los activos.
  */
-export function pickDailyMissionProductIds(
-  productIds: string[],
-  userId: string,
-  dateKey: string,
-  count: number
+export function pickRandomMissionIdsFromProducts(
+  products: Product[],
+  count: number,
+  exclude: Set<string>,
+  seed: string
 ): string[] {
-  const sorted = [...new Set(productIds)].sort((a, b) => a.localeCompare(b));
-  if (sorted.length === 0) return [];
-  const n = Math.min(count, sorted.length);
-  if (sorted.length <= n) return sorted;
-
-  const rng = mulberry32(hashStringToSeed(`${dateKey}|${userId}|mision-inv-v1`));
-  const idx = sorted.map((_, i) => i);
-  for (let i = idx.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    const t = idx[i]!;
-    idx[i] = idx[j]!;
-    idx[j] = t;
+  const active = products.filter((p) => p.activo !== false);
+  let pool = active.map((p) => p.id).filter((id) => !exclude.has(id));
+  if (pool.length === 0) {
+    pool = active.map((p) => p.id);
   }
-  return idx
-    .slice(0, n)
-    .sort((a, b) => a - b)
-    .map((i) => sorted[i]!);
+  if (pool.length === 0) return [];
+  const n = Math.min(Math.max(1, count), pool.length);
+  const shuffled = shuffleIdsWithSeed(pool, seed);
+  return shuffled.slice(0, n);
 }
 
-export function pickDailyMissionProducts(
-  products: Product[],
-  userId: string,
-  dateKey: string,
-  count: number
-): Product[] {
-  const active = products.filter((p) => p.activo !== false);
-  const ids = pickDailyMissionProductIds(
-    active.map((p) => p.id),
-    userId,
-    dateKey,
-    count
-  );
-  const map = new Map(active.map((p) => [p.id, p]));
-  return ids
-    .map((id) => map.get(id))
-    .filter((p): p is Product => p != null)
-    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+export function loadMissionProductIds(userId: string, dateKey: string): string[] | null {
+  if (typeof localStorage === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(listKey(userId, dateKey));
+    if (!raw) return null;
+    const arr = JSON.parse(raw) as unknown;
+    if (!Array.isArray(arr)) return null;
+    const ids = arr.filter((x): x is string => typeof x === 'string');
+    return ids.length > 0 ? ids : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveMissionProductIds(userId: string, dateKey: string, ids: string[]): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(listKey(userId, dateKey), JSON.stringify(ids));
+  } catch {
+    /* quota */
+  }
+}
+
+export function loadUsedIdsInDay(userId: string, dateKey: string): Set<string> {
+  if (typeof localStorage === 'undefined') return new Set();
+  try {
+    const raw = localStorage.getItem(usedKey(userId, dateKey));
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw) as unknown;
+    if (!Array.isArray(arr)) return new Set();
+    return new Set(arr.filter((x): x is string => typeof x === 'string'));
+  } catch {
+    return new Set();
+  }
+}
+
+export function saveUsedIdsInDay(userId: string, dateKey: string, used: Set<string>): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(usedKey(userId, dateKey), JSON.stringify([...used]));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** IDs ya sorteados en listas anteriores del mismo día (para no repetir artículos entre misiones). */
+export function addUsedIdsToDay(userId: string, dateKey: string, ids: string[]): void {
+  const set = loadUsedIdsInDay(userId, dateKey);
+  ids.forEach((id) => set.add(id));
+  saveUsedIdsInDay(userId, dateKey, set);
 }
 
 export function loadMissionDoneIds(userId: string, dateKey: string): Set<string> {
@@ -95,4 +146,20 @@ export function saveMissionDoneIds(userId: string, dateKey: string, done: Set<st
   } catch {
     /* ignore quota */
   }
+}
+
+/** IDs marcados como revisados en cualquier día del ciclo bimestral actual (misma clave de fecha). */
+export function mergeMissionDoneIdsInCycle(userId: string, dateKey: string): Set<string> {
+  const { periodStartKey, periodEndKey } = getBimonthCycleInfo(dateKey);
+  const merged = new Set<string>();
+  let d = periodStartKey;
+  let guard = 0;
+  while (d <= periodEndKey && guard < 400) {
+    guard++;
+    const storageKey = effectiveDateKeyForMissionPartition(d);
+    loadMissionDoneIds(userId, storageKey).forEach((id) => merged.add(id));
+    if (d >= periodEndKey) break;
+    d = addDaysToMexicoDateKey(d, 1);
+  }
+  return merged;
 }

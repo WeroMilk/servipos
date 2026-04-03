@@ -1,16 +1,17 @@
 import Dexie, { type Table } from 'dexie';
-import type { 
-  User, 
-  FiscalConfig, 
-  Product, 
-  InventoryMovement, 
+import type {
+  User,
+  FiscalConfig,
+  Product,
+  InventoryMovement,
   PurchaseOrder,
-  Client, 
+  Client,
   Sale,
   SaleItem,
-  Quotation, 
-  Invoice, 
-  SyncLog 
+  Quotation,
+  Invoice,
+  SyncLog,
+  Permission,
 } from '@/types';
 import { updateStockUnified } from '@/data/stockBridge';
 import {
@@ -317,16 +318,26 @@ export async function syncServipartzSeedUsers(): Promise<void> {
       password: 'veneno123+',
       name: 'Gabriel',
       email: 'gabriel@servipartz.local',
-      role: 'admin',
-      sucursalId: getDefaultSucursalIdForNewData(),
+      role: 'cashier',
+      sucursalId: 'olivares',
       isActive: true,
+      useCustomPermissions: true,
+      customPermissions: [
+        'ventas:ver',
+        'ventas:crear',
+        'cotizaciones:ver',
+        'cotizaciones:crear',
+        'checador:registrar',
+        'inventario:mision_diaria',
+        'inventario:editar',
+      ] satisfies Permission[],
     },
   ];
 
   for (const u of seeds) {
     const existing = await db.users.where('username').equals(u.username).first();
     if (existing) {
-      await db.users.update(existing.id, {
+      const patch: Partial<User> = {
         password: u.password,
         name: u.name,
         email: u.email,
@@ -334,7 +345,14 @@ export async function syncServipartzSeedUsers(): Promise<void> {
         isActive: u.isActive,
         sucursalId: u.sucursalId,
         updatedAt: new Date(),
-      });
+      };
+      if ('useCustomPermissions' in u && u.useCustomPermissions !== undefined) {
+        patch.useCustomPermissions = u.useCustomPermissions;
+      }
+      if ('customPermissions' in u && u.customPermissions !== undefined) {
+        patch.customPermissions = u.customPermissions;
+      }
+      await db.users.update(existing.id, patch);
     } else {
       await db.users.add({
         ...u,

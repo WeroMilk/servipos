@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { 
   Plus, 
   Search, 
@@ -15,6 +15,8 @@ import {
   Clock,
   CircleDollarSign,
   Download,
+  ArrowDown,
+  ArrowUp,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -91,6 +93,8 @@ import {
 } from '@/lib/satCatalog';
 import { PageShell } from '@/components/ui-custom/PageShell';
 import { printThermalLowStockReport } from '@/lib/printTicket';
+import { reportAppEvent } from '@/lib/appEventLog';
+import { tipoMovimientoLabel } from '@/lib/inventoryMovementLabels';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { isMovimientoLlegadaMercancia } from '@/lib/inventoryAbasto';
 import { downloadInventarioCompleto } from '@/lib/inventoryExport';
@@ -104,6 +108,29 @@ import {
 
 type InventoryMode = 'productos' | 'stock' | 'valor' | 'codigos';
 
+type InventorySortKey = 'nombre' | 'sku' | 'categoria';
+
+function compareInventoryProducts(
+  a: Product,
+  b: Product,
+  key: InventorySortKey,
+  dir: 'asc' | 'desc'
+): number {
+  const mul = dir === 'asc' ? 1 : -1;
+  let cmp = 0;
+  if (key === 'nombre') {
+    cmp = String(a.nombre ?? '').localeCompare(String(b.nombre ?? ''), 'es', { sensitivity: 'base' });
+  } else if (key === 'sku') {
+    cmp = String(a.sku ?? '').localeCompare(String(b.sku ?? ''), 'es', { sensitivity: 'base', numeric: true });
+  } else {
+    const ca = (a.categoria ?? '').trim() || 'Sin categoría';
+    const cb = (b.categoria ?? '').trim() || 'Sin categoría';
+    cmp = ca.localeCompare(cb, 'es', { sensitivity: 'base' });
+  }
+  if (cmp !== 0) return mul * cmp;
+  return mul * String(a.nombre ?? '').localeCompare(String(b.nombre ?? ''), 'es', { sensitivity: 'base' });
+}
+
 /**
  * Stock bajo: sin existencia; existencia &lt; 15% del mínimo (si hay mínimo &gt; 0);
  * o existencia en o por debajo del mínimo configurado.
@@ -116,20 +143,6 @@ function isStockBajo(p: { existencia: number; existenciaMinima: number }): boole
 
 function isCatalogInventoryMovement(t: InventoryMovement['tipo']): boolean {
   return t === 'producto_alta' || t === 'producto_baja' || t === 'producto_edicion';
-}
-
-function tipoMovimientoLabel(t: InventoryMovement['tipo']): string {
-  const labels: Record<InventoryMovement['tipo'], string> = {
-    entrada: 'Entrada',
-    salida: 'Salida',
-    ajuste: 'Ajuste',
-    venta: 'Venta',
-    compra: 'Compra',
-    producto_alta: 'Catálogo · Alta',
-    producto_baja: 'Catálogo · Baja',
-    producto_edicion: 'Catálogo · Edición',
-  };
-  return labels[t];
 }
 
 function InventarioCurrencyInput({ className, ...props }: ComponentProps<typeof Input>) {
@@ -184,6 +197,9 @@ type AddSessionLine = { nombre: string; sku: string; subtotalSinIva: number };
 
 export function Inventario() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const consumedEditFromMissions = useRef<string | null>(null);
   const { products, loading, error: productsError, addProduct, editProduct, removeProduct, adjustStock } =
     useProducts();
   const { effectiveSucursalId } = useEffectiveSucursalId();
@@ -227,6 +243,10 @@ export function Inventario() {
   );
   
   const [searchQuery, setSearchQuery] = useState('');
+  const [inventorySort, setInventorySort] = useState<{ key: InventorySortKey; dir: 'asc' | 'desc' }>({
+    key: 'nombre',
+    dir: 'asc',
+  });
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -541,10 +561,16 @@ export function Inventario() {
           existencia: false,
           existenciaMinima: false,
         });
+        reportAppEvent({
+          kind: 'success',
+          source: 'inventario:producto',
+          title: `Producto nuevo · ${nombre}`,
+          detail: `SKU ${skuFinal}`,
+        });
         addToast({
           type: 'success',
           message: 'Producto agregado. El proveedor se mantuvo; capture el siguiente artículo.',
-          logToAppEvents: true,
+          logToAppEvents: false,
         });
         requestAnimationFrame(() => addCodigoBarrasRef.current?.focus());
       } else {
@@ -584,7 +610,15 @@ export function Inventario() {
       });
       setShowEditDialog(false);
       setSelectedProduct(null);
-      addToast({ type: 'success', message: 'Producto actualizado exitosamente', logToAppEvents: true });
+      const nombreEdit = upperTxt(formData.nombre.trim());
+      const skuEdit = upperTxt((formData.sku ?? '').trim());
+      reportAppEvent({
+        kind: 'success',
+        source: 'inventario:producto',
+        title: `Producto actualizado · ${nombreEdit}`,
+        detail: `SKU ${skuEdit}`,
+      });
+      addToast({ type: 'success', message: 'Producto actualizado exitosamente', logToAppEvents: false });
     } catch (error: any) {
       addToast({ type: 'error', message: error.message, logToAppEvents: true });
     }
@@ -595,7 +629,13 @@ export function Inventario() {
     
     try {
       await removeProduct(product.id);
-      addToast({ type: 'success', message: 'Producto eliminado exitosamente', logToAppEvents: true });
+      reportAppEvent({
+        kind: 'warning',
+        source: 'inventario:producto',
+        title: `Producto dado de baja · ${product.nombre}`,
+        detail: `SKU ${product.sku}`,
+      });
+      addToast({ type: 'success', message: 'Producto eliminado exitosamente', logToAppEvents: false });
     } catch (error: any) {
       addToast({ type: 'error', message: error.message, logToAppEvents: true });
     }
@@ -627,7 +667,7 @@ export function Inventario() {
         stockAdjustment.tipo as any,
         motivoMov,
         undefined,
-        'system',
+        user?.id ?? 'system',
         entradaMeta
       );
       setStockAdjustment({
@@ -639,7 +679,14 @@ export function Inventario() {
       });
       setStockQtyFocus(false);
       setStockPrecioCompraFocus(false);
-      addToast({ type: 'success', message: 'Stock ajustado exitosamente', logToAppEvents: true });
+      const tipoLbl = tipoMovimientoLabel(stockAdjustment.tipo as InventoryMovement['tipo']);
+      reportAppEvent({
+        kind: 'success',
+        source: 'inventario:stock',
+        title: `Stock · ${tipoLbl} · ${selectedProduct.nombre}`,
+        detail: `${stockAdjustment.cantidad} u · ${motivoMov || '—'} · SKU ${selectedProduct.sku}`,
+      });
+      addToast({ type: 'success', message: 'Stock ajustado exitosamente', logToAppEvents: false });
     } catch (error: any) {
       addToast({ type: 'error', message: error.message, logToAppEvents: true });
     }
@@ -653,7 +700,13 @@ export function Inventario() {
       } else {
         await clearAllInventoryMovementsLocal();
       }
-      addToast({ type: 'success', message: 'Historial de movimientos vaciado.', logToAppEvents: true });
+      reportAppEvent({
+        kind: 'warning',
+        source: 'inventario:movimientos',
+        title: 'Historial de movimientos vaciado',
+        detail: effectiveSucursalId ? `Sucursal ${effectiveSucursalId}` : 'Almacenamiento local',
+      });
+      addToast({ type: 'success', message: 'Historial de movimientos vaciado.', logToAppEvents: false });
       setClearMovementsConfirmOpen(false);
       if (!effectiveSucursalId) await refreshInventoryMovementsLocal();
     } catch (err) {
@@ -758,6 +811,29 @@ export function Inventario() {
     setShowEditDialog(true);
   };
 
+  /** Abrir edición desde Misiones de inventario (`navigate` con `state.editProductId`). */
+  useEffect(() => {
+    const st = location.state as { editProductId?: string } | null;
+    const id = st?.editProductId?.trim();
+    if (!id) {
+      consumedEditFromMissions.current = null;
+      return;
+    }
+    if (loading) return;
+    if (consumedEditFromMissions.current === id) return;
+    const p = products.find((x) => x.id === id);
+    navigate('.', { replace: true, state: {} });
+    if (!p) {
+      addToast({ type: 'warning', message: 'El producto no está en el catálogo de esta sucursal.' });
+      consumedEditFromMissions.current = id;
+      return;
+    }
+    consumedEditFromMissions.current = id;
+    openEditDialog(p);
+    // openEditDialog es estable en intención; dependencias explícitas evitarían bucles con setState interno.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- abrir diálogo una vez por state.editProductId
+  }, [location.state, products, loading, navigate, addToast]);
+
   const openPreciosDialog = useCallback(
     (product: Product) => {
       const p = productById.get(product.id) ?? product;
@@ -834,24 +910,20 @@ export function Inventario() {
     return searchQuery.trim() ? searchResults : products;
   }, [searchQuery, searchResults, products]);
 
+  const handleInventorySortClick = useCallback((key: InventorySortKey) => {
+    setInventorySort((prev) =>
+      prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }
+    );
+  }, []);
+
   const displayProducts = useMemo(() => {
     let list = [...pool];
     if (inventoryMode === 'stock') {
       list = list.filter(isStockBajo);
     }
-    if (inventoryMode === 'productos' || inventoryMode === 'stock' || inventoryMode === 'codigos') {
-      list.sort((a, b) =>
-        String(a.nombre ?? '').localeCompare(String(b.nombre ?? ''), 'es', { sensitivity: 'base' })
-      );
-    } else if (inventoryMode === 'valor') {
-      list.sort(
-        (a, b) =>
-          b.precioVenta - a.precioVenta ||
-          String(a.nombre ?? '').localeCompare(String(b.nombre ?? ''), 'es')
-      );
-    }
+    list.sort((a, b) => compareInventoryProducts(a, b, inventorySort.key, inventorySort.dir));
     return list;
-  }, [pool, inventoryMode]);
+  }, [pool, inventoryMode, inventorySort]);
 
   useEffect(() => {
     if (inventoryMode !== 'codigos') return;
@@ -1214,9 +1286,10 @@ export function Inventario() {
               >
                 {inventoryMode === 'codigos' ? (
                   <colgroup>
-                    <col style={{ width: '44%' }} />
-                    <col style={{ width: '44%' }} />
-                    <col style={{ width: '12%' }} />
+                    <col style={{ width: '34%' }} />
+                    <col style={{ width: '28%' }} />
+                    <col style={{ width: '22%' }} />
+                    <col style={{ width: '16%' }} />
                   </colgroup>
                 ) : (
                   <colgroup>
@@ -1233,10 +1306,67 @@ export function Inventario() {
                     {inventoryMode === 'codigos' ? (
                       <>
                         <TableHead className="sticky top-0 z-10 min-w-0 bg-white/95 dark:bg-slate-950/95 text-slate-600 dark:text-slate-400 backdrop-blur-sm whitespace-normal">
-                          Producto
+                          <button
+                            type="button"
+                            onClick={() => handleInventorySortClick('nombre')}
+                            className="inline-flex max-w-full items-center gap-1 rounded px-0.5 text-left font-medium hover:text-slate-900 dark:hover:text-slate-100"
+                            aria-sort={
+                              inventorySort.key === 'nombre' ?
+                                inventorySort.dir === 'asc' ?
+                                  'ascending'
+                                : 'descending'
+                              : 'none'
+                            }
+                          >
+                            Producto
+                            {inventorySort.key === 'nombre' ?
+                              inventorySort.dir === 'asc' ?
+                                <ArrowUp className="h-3.5 w-3.5 shrink-0 opacity-90" aria-hidden />
+                              : <ArrowDown className="h-3.5 w-3.5 shrink-0 opacity-90" aria-hidden />
+                            : null}
+                          </button>
                         </TableHead>
                         <TableHead className="sticky top-0 z-10 bg-white/95 dark:bg-slate-950/95 text-slate-600 dark:text-slate-400 backdrop-blur-sm">
-                          SKU
+                          <button
+                            type="button"
+                            onClick={() => handleInventorySortClick('sku')}
+                            className="inline-flex items-center gap-1 rounded px-0.5 font-medium hover:text-slate-900 dark:hover:text-slate-100"
+                            aria-sort={
+                              inventorySort.key === 'sku' ?
+                                inventorySort.dir === 'asc' ?
+                                  'ascending'
+                                : 'descending'
+                              : 'none'
+                            }
+                          >
+                            SKU
+                            {inventorySort.key === 'sku' ?
+                              inventorySort.dir === 'asc' ?
+                                <ArrowUp className="h-3.5 w-3.5 shrink-0 opacity-90" aria-hidden />
+                              : <ArrowDown className="h-3.5 w-3.5 shrink-0 opacity-90" aria-hidden />
+                            : null}
+                          </button>
+                        </TableHead>
+                        <TableHead className="sticky top-0 z-10 min-w-0 bg-white/95 dark:bg-slate-950/95 text-slate-600 dark:text-slate-400 backdrop-blur-sm whitespace-normal">
+                          <button
+                            type="button"
+                            onClick={() => handleInventorySortClick('categoria')}
+                            className="inline-flex max-w-full items-center gap-1 rounded px-0.5 text-left font-medium hover:text-slate-900 dark:hover:text-slate-100"
+                            aria-sort={
+                              inventorySort.key === 'categoria' ?
+                                inventorySort.dir === 'asc' ?
+                                  'ascending'
+                                : 'descending'
+                              : 'none'
+                            }
+                          >
+                            Categoría
+                            {inventorySort.key === 'categoria' ?
+                              inventorySort.dir === 'asc' ?
+                                <ArrowUp className="h-3.5 w-3.5 shrink-0 opacity-90" aria-hidden />
+                              : <ArrowDown className="h-3.5 w-3.5 shrink-0 opacity-90" aria-hidden />
+                            : null}
+                          </button>
                         </TableHead>
                         <TableHead className="sticky top-0 z-10 w-24 bg-white/95 dark:bg-slate-950/95 text-right text-slate-600 dark:text-slate-400 backdrop-blur-sm">
                           Acciones
@@ -1245,10 +1375,46 @@ export function Inventario() {
                     ) : (
                       <>
                         <TableHead className="sticky top-0 z-10 min-w-0 bg-white/95 dark:bg-slate-950/95 text-slate-600 dark:text-slate-400 backdrop-blur-sm whitespace-normal">
-                          Producto
+                          <button
+                            type="button"
+                            onClick={() => handleInventorySortClick('nombre')}
+                            className="inline-flex max-w-full items-center gap-1 rounded px-0.5 text-left font-medium hover:text-slate-900 dark:hover:text-slate-100"
+                            aria-sort={
+                              inventorySort.key === 'nombre' ?
+                                inventorySort.dir === 'asc' ?
+                                  'ascending'
+                                : 'descending'
+                              : 'none'
+                            }
+                          >
+                            Producto
+                            {inventorySort.key === 'nombre' ?
+                              inventorySort.dir === 'asc' ?
+                                <ArrowUp className="h-3.5 w-3.5 shrink-0 opacity-90" aria-hidden />
+                              : <ArrowDown className="h-3.5 w-3.5 shrink-0 opacity-90" aria-hidden />
+                            : null}
+                          </button>
                         </TableHead>
                         <TableHead className="sticky top-0 z-10 bg-white/95 dark:bg-slate-950/95 text-slate-600 dark:text-slate-400 backdrop-blur-sm">
-                          SKU
+                          <button
+                            type="button"
+                            onClick={() => handleInventorySortClick('sku')}
+                            className="inline-flex items-center gap-1 rounded px-0.5 font-medium hover:text-slate-900 dark:hover:text-slate-100"
+                            aria-sort={
+                              inventorySort.key === 'sku' ?
+                                inventorySort.dir === 'asc' ?
+                                  'ascending'
+                                : 'descending'
+                              : 'none'
+                            }
+                          >
+                            SKU
+                            {inventorySort.key === 'sku' ?
+                              inventorySort.dir === 'asc' ?
+                                <ArrowUp className="h-3.5 w-3.5 shrink-0 opacity-90" aria-hidden />
+                              : <ArrowDown className="h-3.5 w-3.5 shrink-0 opacity-90" aria-hidden />
+                            : null}
+                          </button>
                         </TableHead>
                         <TableHead className="sticky top-0 z-10 bg-white/95 dark:bg-slate-950/95 text-slate-600 dark:text-slate-400 backdrop-blur-sm">
                           Precio
@@ -1257,7 +1423,25 @@ export function Inventario() {
                           Stock
                         </TableHead>
                         <TableHead className="sticky top-0 z-10 min-w-0 bg-white/95 dark:bg-slate-950/95 text-slate-600 dark:text-slate-400 backdrop-blur-sm whitespace-normal">
-                          Categoría
+                          <button
+                            type="button"
+                            onClick={() => handleInventorySortClick('categoria')}
+                            className="inline-flex max-w-full items-center gap-1 rounded px-0.5 text-left font-medium hover:text-slate-900 dark:hover:text-slate-100"
+                            aria-sort={
+                              inventorySort.key === 'categoria' ?
+                                inventorySort.dir === 'asc' ?
+                                  'ascending'
+                                : 'descending'
+                              : 'none'
+                            }
+                          >
+                            Categoría
+                            {inventorySort.key === 'categoria' ?
+                              inventorySort.dir === 'asc' ?
+                                <ArrowUp className="h-3.5 w-3.5 shrink-0 opacity-90" aria-hidden />
+                              : <ArrowDown className="h-3.5 w-3.5 shrink-0 opacity-90" aria-hidden />
+                            : null}
+                          </button>
                         </TableHead>
                         <TableHead className="sticky top-0 z-10 w-14 min-w-[3.5rem] bg-white/95 dark:bg-slate-950/95 text-right text-slate-600 dark:text-slate-400 backdrop-blur-sm">
                           Acciones
@@ -1270,7 +1454,7 @@ export function Inventario() {
                   {loading ? (
                     <TableRow>
                       <TableCell
-                        colSpan={inventoryMode === 'codigos' ? 3 : 6}
+                        colSpan={inventoryMode === 'codigos' ? 4 : 6}
                         className="py-8 text-center"
                       >
                         <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-cyan-500/30 border-t-cyan-500" />
@@ -1279,7 +1463,7 @@ export function Inventario() {
                   ) : displayProducts.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={inventoryMode === 'codigos' ? 3 : 6}
+                        colSpan={inventoryMode === 'codigos' ? 4 : 6}
                         className="py-8 text-center text-slate-600 dark:text-slate-500"
                       >
                         {productsError
@@ -1303,6 +1487,14 @@ export function Inventario() {
                             className="h-9 w-full max-w-full border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800/80 font-mono text-sm text-slate-900 dark:text-slate-100"
                             aria-label={`SKU de ${product.nombre}`}
                           />
+                        </TableCell>
+                        <TableCell className="min-w-0 max-w-[10rem] align-top whitespace-normal">
+                          <Badge
+                            variant="secondary"
+                            className="max-w-full whitespace-normal break-words bg-slate-200 dark:bg-slate-800 text-left text-xs text-slate-700 dark:text-slate-300"
+                          >
+                            {product.categoria || 'Sin categoría'}
+                          </Badge>
                         </TableCell>
                         <TableCell className="text-right">
                           <DropdownMenu>

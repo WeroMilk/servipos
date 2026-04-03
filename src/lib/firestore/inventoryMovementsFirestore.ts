@@ -128,6 +128,18 @@ export async function fetchInventoryMovementsByProductIdFirestore(
   return list;
 }
 
+/** Lectura única de los movimientos más recientes (misma ventana que la suscripción). */
+export async function fetchRecentInventoryMovementsOnce(
+  sucursalId: string,
+  maxDocs = DEFAULT_LIMIT
+): Promise<InventoryMovement[]> {
+  const q = query(movementsCol(sucursalId), orderBy('createdAt', 'desc'), limit(maxDocs));
+  const snap = await getDocs(q);
+  return snap.docs.map((doc) =>
+    movementDocToMovement(doc.id, doc.data() as Record<string, unknown>)
+  );
+}
+
 export function subscribeInventoryMovements(
   sucursalId: string,
   onUpdate: (movements: InventoryMovement[]) => void,

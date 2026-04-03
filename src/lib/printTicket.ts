@@ -348,6 +348,75 @@ export function printThermalLowStockReport(input: {
   openAndPrintHtml(html, 'width=360,height=720', 250);
 }
 
+/** Confirmación de misión de inventario completada (80 mm). */
+export function printThermalMissionComplete(input: {
+  fechaLabel: string;
+  sucursalId?: string;
+  cajeroNombre?: string;
+  articulosRevisados: number;
+  totalEnMision: number;
+}): void {
+  const lines = getThermalTicketSucursalFooterLines(input.sucursalId);
+  const pie =
+    lines?.length ?
+      `<div class="pie-sucursal"><div class="titulo-suc">${escapeHtml(lines[0]!)}</div>${lines
+        .slice(1)
+        .map((ln) => `<div>${escapeHtml(ln)}</div>`)
+        .join('')}</div>`
+    : '';
+  const cajero = input.cajeroNombre?.trim() ? escapeHtml(input.cajeroNombre.trim()) : '—';
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Misión completada</title>
+<style>${THERMAL_BASE_STYLES}</style></head><body>
+  <h1>MISIÓN COMPLETADA</h1>
+  <div class="meta">${escapeHtml(input.fechaLabel)}<br/>Cajero: ${cajero}</div>
+  <p style="font-size:22px;font-weight:600;margin:12px 0;line-height:1.35;">
+    Revisados en esta misión: <strong>${input.articulosRevisados}</strong> / ${input.totalEnMision}
+  </p>
+  <p style="font-size:19px;line-height:1.45;">Comprobante de que terminó la tarea de conteo o verificación asignada.</p>
+  ${pie}
+</body></html>`;
+  openAndPrintHtml(html, 'width=360,height=720', 250);
+}
+
+/** Movimientos de inventario del día (usuario cajero) al cerrar misión o bajo demanda (80 mm). */
+export function printThermalMissionInventoryReport(input: {
+  fechaLabel: string;
+  sucursalId?: string;
+  cajeroNombre?: string;
+  movimientos: { tipoLabel: string; linea1: string; linea2: string }[];
+}): void {
+  const rows =
+    input.movimientos.length > 0 ?
+      input.movimientos
+        .map(
+          (it) =>
+            `<div style="border-top:1px dashed #bbb;padding-top:8px;margin-top:8px;">
+  <div style="font-weight:700;font-size:21px;">${escapeHtml(it.tipoLabel)}</div>
+  <div style="font-weight:600;">${escapeHtml(it.linea1.slice(0, 48))}</div>
+  <div style="font-size:18px;line-height:1.35;">${escapeHtml(it.linea2)}</div>
+</div>`
+        )
+        .join('')
+    : '<p style="font-size:20px;margin:8px 0;">Sin movimientos de inventario este día (para este usuario).</p>';
+  const lines = getThermalTicketSucursalFooterLines(input.sucursalId);
+  const pie =
+    lines?.length ?
+      `<div class="pie-sucursal"><div class="titulo-suc">${escapeHtml(lines[0]!)}</div>${lines
+        .slice(1)
+        .map((ln) => `<div>${escapeHtml(ln)}</div>`)
+        .join('')}</div>`
+    : '';
+  const cajero = input.cajeroNombre?.trim() ? escapeHtml(input.cajeroNombre.trim()) : '—';
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Movimientos inventario</title>
+<style>${THERMAL_BASE_STYLES}</style></head><body>
+  <h1>INVENTARIO · DÍA</h1>
+  <div class="meta">${escapeHtml(input.fechaLabel)}<br/>Cajero: ${cajero}<br/>${input.movimientos.length} movimiento(s)</div>
+  ${rows}
+  ${pie}
+</body></html>`;
+  openAndPrintHtml(html, 'width=360,height=720', 250);
+}
+
 /** Resumen del día para cierre de caja (80 mm). */
 export function printThermalDailySalesReport(input: {
   fechaLabel: string;
