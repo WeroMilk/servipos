@@ -42,7 +42,7 @@ export function getProductUnitSinIvaForClienteList(
   listaId: ClientPriceListId
 ): number {
   const explicit = normalizeListaPrecioValue(product.preciosPorListaCliente?.[listaId]);
-  if (explicit !== undefined) {
+  if (explicit !== undefined && explicit > 0) {
     if (effectiveListaPreciosIncluyenIva(product)) {
       const imp = impuestoPct(product);
       return explicit / (1 + imp / 100);

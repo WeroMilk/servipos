@@ -70,6 +70,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, readonly Permission[]> =
     'ventas:ver',
     'ventas:crear',
     'inventario:ver',
+    'inventario:mision_diaria',
     'cotizaciones:ver',
     'cotizaciones:crear',
     'checador:registrar',
@@ -104,17 +105,21 @@ export function userHasPermission(user: User | null | undefined, permission: Per
 }
 
 /**
- * Misiones de inventario: permiso `inventario:mision_diaria`, rol cajero (por defecto ya lo incluye) o usuario
- * explícito en `INVENTORY_MISSIONS_ALLOW_USERNAME`, y no estar en la lista excluida.
- * Admin/gerente sin ese permiso o sin estar en la lista de cajero explícito no ven la entrada.
+ * Misiones: requiere permiso `inventario:mision_diaria` (cajero lo trae por defecto).
+ * Admin/gerente con ese permiso ven la entrada; cajero también; listas allow/exclude por
+ * `username` o parte local del correo (p. ej. `gabriel` en `gabriel@…`).
  */
 export function userCanSeeInventoryMissions(user: User | null | undefined): boolean {
   if (!user?.isActive) return false;
   if (!userHasPermission(user, 'inventario:mision_diaria')) return false;
   const u = (user.username ?? '').trim().toLowerCase();
+  const emailLocal = (user.email ?? '').split('@')[0]?.trim().toLowerCase() ?? '';
   if (INVENTORY_MISSIONS_EXCLUDED_USERNAMES.has(u)) return false;
+  if (emailLocal && INVENTORY_MISSIONS_EXCLUDED_USERNAMES.has(emailLocal)) return false;
+  if (user.role === 'admin' || user.role === 'gerente') return true;
   if (user.role === 'cashier') return true;
   if (INVENTORY_MISSIONS_ALLOW_USERNAME.has(u)) return true;
+  if (emailLocal && INVENTORY_MISSIONS_ALLOW_USERNAME.has(emailLocal)) return true;
   return false;
 }
 
