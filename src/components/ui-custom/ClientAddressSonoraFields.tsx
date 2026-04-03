@@ -18,6 +18,8 @@ export type AddressFormSlice = {
   calle: string;
   numeroExterior: string;
   numeroInterior: string;
+  /** Solo uso interno (no factura / cliente). */
+  notasInternas: string;
 };
 
 type Props<T extends AddressFormSlice> = {
@@ -244,7 +246,7 @@ export function ClientAddressSonoraFields<T extends AddressFormSlice>({
           </div>
         )}
 
-        <div className={cn(fieldGap, dense && 'lg:col-span-2')}>
+        <div className={cn(fieldGap, dense ? 'lg:col-span-1' : 'lg:col-span-1')}>
           <Label className={dense ? 'text-sm lg:text-xs' : undefined}>Número exterior</Label>
           <Input
             inputMode="numeric"
@@ -254,13 +256,37 @@ export function ClientAddressSonoraFields<T extends AddressFormSlice>({
           />
         </div>
 
-        <div className={cn(fieldGap, dense && 'lg:col-span-2')}>
+        <div className={cn(fieldGap, dense ? 'lg:col-span-1' : 'lg:col-span-1')}>
           <Label className={dense ? 'text-sm lg:text-xs' : undefined}>Número interior</Label>
           <Input
             inputMode="numeric"
             value={formData.numeroInterior}
             onChange={(e) => setFormData((f) => ({ ...f, numeroInterior: e.target.value }))}
             className={cn('h-10', inputClass)}
+          />
+        </div>
+
+        <div className={cn(fieldGap, 'sm:col-span-2', dense ? 'lg:col-span-2' : 'lg:col-span-1')}>
+          <Label className={dense ? 'text-sm lg:text-xs' : undefined}>Comentarios</Label>
+          <p
+            className={cn(
+              'text-slate-500 dark:text-slate-500',
+              dense ? 'text-[11px] leading-snug lg:text-[10px]' : 'text-xs'
+            )}
+          >
+            Breve nota solo para el equipo; no se muestra al cliente ni en facturas.
+          </p>
+          <textarea
+            value={formData.notasInternas}
+            onChange={(e) => setFormData((f) => ({ ...f, notasInternas: e.target.value }))}
+            rows={dense ? 3 : 4}
+            placeholder="Ej. referencia de cobro, crédito, preferencias…"
+            className={cn(
+              'min-h-[4.5rem] w-full resize-y rounded-md border px-3 py-2 text-slate-900 dark:text-slate-100',
+              dense ? 'text-sm lg:min-h-[5rem] lg:text-xs' : 'text-sm',
+              inputClass
+            )}
+            aria-label="Comentarios internos del cliente"
           />
         </div>
       </div>

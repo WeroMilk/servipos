@@ -256,6 +256,8 @@ export interface Client {
    * Se incrementa al cobrar con adeudo y puede reducirse con abonos en Cuentas por cobrar.
    */
   saldoAdeudado?: number;
+  /** Notas solo para el equipo (no se muestran al cliente ni en CFDI). */
+  notasInternas?: string;
   /** Aislamiento por tienda en datos locales (Dexie). */
   sucursalId?: string;
   createdAt: Date;

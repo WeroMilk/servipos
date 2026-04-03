@@ -223,6 +223,7 @@ export function Clientes() {
     calle: '',
     numeroExterior: '',
     numeroInterior: '',
+    notasInternas: '',
     colonia: '',
     ciudad: '',
     estado: ESTADO_SONORA,
@@ -243,6 +244,7 @@ export function Clientes() {
     try {
       await addClient({
         ...formData,
+        notasInternas: formData.notasInternas.trim() || undefined,
         isMostrador: false,
         direccion: {
           calle: formData.calle,
@@ -291,6 +293,7 @@ export function Clientes() {
     try {
       await editClient(selectedClient.id, {
         ...formData,
+        notasInternas: formData.notasInternas.trim() || undefined,
         direccion: {
           calle: formData.calle,
           numeroExterior: formData.numeroExterior,
@@ -329,6 +332,7 @@ export function Clientes() {
       calle: client.direccion?.calle || '',
       numeroExterior: client.direccion?.numeroExterior || '',
       numeroInterior: client.direccion?.numeroInterior || '',
+      notasInternas: client.notasInternas ?? '',
       colonia: client.direccion?.colonia || '',
       ciudad: client.direccion?.ciudad || '',
       estado: est,
@@ -355,6 +359,7 @@ export function Clientes() {
       calle: '',
       numeroExterior: '',
       numeroInterior: '',
+      notasInternas: '',
       colonia: '',
       ciudad: '',
       estado: ESTADO_SONORA,
@@ -1054,6 +1059,14 @@ export function Clientes() {
                 <div>
                   <p className="text-slate-600 dark:text-slate-500">Teléfono</p>
                   <p className="text-slate-700 dark:text-slate-300">{detailClient.telefono}</p>
+                </div>
+              ) : null}
+              {detailClient.notasInternas?.trim() ? (
+                <div>
+                  <p className="text-slate-600 dark:text-slate-500">Comentarios (solo tienda)</p>
+                  <p className="whitespace-pre-wrap rounded-md border border-slate-200/80 bg-slate-200/40 px-2 py-1.5 text-slate-800 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-200">
+                    {detailClient.notasInternas.trim()}
+                  </p>
                 </div>
               ) : null}
               {detailClient.direccion ? (

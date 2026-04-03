@@ -6,3 +6,6 @@ dist
 *.local
 *-firebase-adminsdk-*.json
 .DS_Store
+
+# Extracción masiva de lista de precios (generar con striprtf + script)
+lista_precios_extracted.txt

@@ -62,6 +62,10 @@ export function docToClient(sucursalId: string, id: string, d: Record<string, un
       d.saldoAdeudado != null && Number.isFinite(Number(d.saldoAdeudado))
         ? Math.max(0, Math.round(Number(d.saldoAdeudado) * 100) / 100)
         : undefined,
+    notasInternas:
+      d.notasInternas != null && String(d.notasInternas).trim() !== ''
+        ? String(d.notasInternas)
+        : undefined,
     sucursalId,
     createdAt: firestoreTimestampToDate(d.createdAt),
     updatedAt: firestoreTimestampToDate(d.updatedAt),
@@ -161,6 +165,10 @@ export async function updateClientFirestore(
     const v = Number(updates.saldoAdeudado);
     patch.saldoAdeudado =
       Number.isFinite(v) ? Math.max(0, Math.round(v * 100) / 100) : null;
+  }
+  if (updates.notasInternas !== undefined) {
+    const t = updates.notasInternas?.trim();
+    patch.notasInternas = t ? t : null;
   }
   await updateDoc(ref, patch);
 }
