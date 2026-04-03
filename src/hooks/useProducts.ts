@@ -30,6 +30,7 @@ import {
 import { productCatalogConflictMessage } from '@/lib/productCatalogUniqueness';
 import { reportHookFailure } from '@/lib/appEventLog';
 import { useAuthStore } from '@/stores';
+import type { FirestoreError } from 'firebase/firestore';
 
 // ============================================
 // HOOK DE PRODUCTOS (Dexie local o Firestore por sucursal)
@@ -42,6 +43,19 @@ export function useProducts() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const onCatalogFirestoreError = useCallback((err: FirestoreError) => {
+    reportHookFailure('hook:useProducts', 'Catálogo Firestore (products)', err);
+    if (err.code === 'permission-denied') {
+      setError(
+        'Sin permiso para leer el inventario de esta sucursal. Compruebe en Firestore que users/{su UID} tenga role admin o sucursalId igual al id de la tienda, y despliegue las reglas: npx firebase deploy --only firestore:rules'
+      );
+    } else {
+      setError(err.message || 'Error al sincronizar inventario con la nube');
+    }
+    setProducts([]);
+    setLoading(false);
+  }, []);
 
   const loadProductsLocal = useCallback(async () => {
     try {
@@ -61,11 +75,16 @@ export function useProducts() {
   useEffect(() => {
     if (sucursalId) {
       setLoading(true);
-      const unsub = subscribeProductCatalog(sucursalId, (p) => {
-        setProducts(coerceProductList(p));
-        setError(null);
-        setLoading(false);
-      });
+      setError(null);
+      const unsub = subscribeProductCatalog(
+        sucursalId,
+        (p) => {
+          setProducts(coerceProductList(p));
+          setError(null);
+          setLoading(false);
+        },
+        onCatalogFirestoreError
+      );
       return unsub;
     }
 
@@ -91,7 +110,7 @@ export function useProducts() {
     return () => {
       cancelled = true;
     };
-  }, [sucursalId]);
+  }, [sucursalId, onCatalogFirestoreError]);
 
   const refresh = useCallback(async () => {
     if (sucursalId) {

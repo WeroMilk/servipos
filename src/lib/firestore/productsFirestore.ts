@@ -11,6 +11,7 @@ import {
   onSnapshot,
   runTransaction,
   serverTimestamp,
+  type FirestoreError,
   type QueryDocumentSnapshot,
   type Unsubscribe,
 } from 'firebase/firestore';
@@ -118,6 +119,7 @@ function productToFirestorePayload(
 
 let lastProducts: Product[] = [];
 const catalogListeners = new Set<(products: Product[]) => void>();
+const catalogErrorListeners = new Set<(err: FirestoreError) => void>();
 let catalogUnsub: Unsubscribe | null = null;
 let catalogSucursalId: string | null = null;
 
@@ -127,7 +129,8 @@ export function getProductCatalogSnapshot(): Product[] {
 
 export function subscribeProductCatalog(
   sucursalId: string,
-  onProducts: (products: Product[]) => void
+  onProducts: (products: Product[]) => void,
+  onError?: (err: FirestoreError) => void
 ): () => void {
   try {
     onProducts([...lastProducts]);
@@ -135,6 +138,7 @@ export function subscribeProductCatalog(
     console.error('subscribeProductCatalog (initial):', e);
   }
   catalogListeners.add(onProducts);
+  if (onError) catalogErrorListeners.add(onError);
 
   if (catalogSucursalId !== sucursalId) {
     catalogUnsub?.();
@@ -159,17 +163,26 @@ export function subscribeProductCatalog(
         console.error('Firestore products:', err);
         lastProducts = [];
         catalogListeners.forEach((l) => l([]));
+        catalogErrorListeners.forEach((fn) => {
+          try {
+            fn(err);
+          } catch (e) {
+            console.error('subscribeProductCatalog onError:', e);
+          }
+        });
       }
     );
   }
 
   return () => {
     catalogListeners.delete(onProducts);
+    if (onError) catalogErrorListeners.delete(onError);
     if (catalogListeners.size === 0) {
       catalogUnsub?.();
       catalogUnsub = null;
       catalogSucursalId = null;
       lastProducts = [];
+      catalogErrorListeners.clear();
     }
   };
 }

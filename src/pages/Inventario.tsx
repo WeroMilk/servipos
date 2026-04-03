@@ -177,7 +177,8 @@ type AddSessionLine = { nombre: string; sku: string; subtotalSinIva: number };
 
 export function Inventario() {
   const [searchParams] = useSearchParams();
-  const { products, loading, addProduct, editProduct, removeProduct, adjustStock } = useProducts();
+  const { products, loading, error: productsError, addProduct, editProduct, removeProduct, adjustStock } =
+    useProducts();
   const { effectiveSucursalId } = useEffectiveSucursalId();
   const { addToast } = useAppStore();
   const { user } = useAuthStore();
@@ -1044,6 +1045,32 @@ export function Inventario() {
         </div>
       ) : null}
 
+      {productsError ? (
+        <div
+          role="alert"
+          className="mt-3 shrink-0 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-900 dark:text-red-100"
+        >
+          <p className="font-medium">No se pudo cargar el inventario</p>
+          <p className="mt-1 text-xs leading-snug opacity-95">{productsError}</p>
+        </div>
+      ) : null}
+
+      {!loading && !productsError && effectiveSucursalId && products.length === 0 ? (
+        <div className="mt-3 shrink-0 rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-xs leading-snug text-amber-950 dark:text-amber-100/95 sm:text-sm">
+          <p className="font-medium text-amber-900 dark:text-amber-50">Catálogo vacío en esta sucursal</p>
+          <p className="mt-1 text-amber-900/90 dark:text-amber-100/85">
+            En Firestore no hay productos activos en{' '}
+            <code className="rounded bg-amber-500/20 px-1 font-mono text-[11px]">
+              sucursales/{effectiveSucursalId}/products
+            </code>
+            . Puede agregar artículos con <strong>Nuevo</strong> o cargar un Excel con el script del repositorio{' '}
+            <code className="rounded bg-amber-500/20 px-1 text-[11px]">import-olivares-inventory.mjs</code>{' '}
+            (el id de sucursal del script debe coincidir con el de esta tienda). Si antes ejecutó un reset de
+            Olivares, debe volver a importar el catálogo.
+          </p>
+        </div>
+      ) : null}
+
       <div className="mt-2 flex shrink-0 flex-wrap items-center justify-end gap-2 pb-2 sm:mt-3">
         <Button
           type="button"
@@ -1159,7 +1186,11 @@ export function Inventario() {
                         colSpan={inventoryMode === 'codigos' ? 3 : 6}
                         className="py-8 text-center text-slate-600 dark:text-slate-500"
                       >
-                        No se encontraron productos
+                        {productsError
+                          ? 'Revise el mensaje de error arriba.'
+                          : searchQuery.trim()
+                            ? 'No hay coincidencias con la búsqueda'
+                            : 'No se encontraron productos'}
                       </TableCell>
                     </TableRow>
                   ) : inventoryMode === 'codigos' ? (
