@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /**
  * Importa catálogo + existencia desde Excel (inventario por categoría) a
  * Firestore: sucursales/{sucursal}/products
@@ -23,6 +23,14 @@
  *   --ultimo-gana       Si el mismo SKU aparece en varios Excel, usar la última fila
  *   --incluir-ref-id    Añadir "Ref: {ID}" al inicio de descripcion
  *   --sample=15         En dry-run, cuántas filas de muestra imprimir por archivo
+ *
+ * Catálogo abril 2026 (Olivares) en el repo: data/inventario-abril-2026-olivares/*.xlsx
+ *   npm run import:olivares-inventory:abril2026:dry
+ *   (o: npm run import:olivares-inventory:abril2026 -- --dry-run)
+ *   set GOOGLE_APPLICATION_CREDENTIALS=ruta\serviceAccount.json
+ *   npm run import:olivares-inventory:abril2026
+ * El script crea documentos nuevos (no fusiona por SKU). Si la sucursal ya tiene productos,
+ * ejecute antes reset-olivares-firestore.mjs o tendrá duplicados.
  */
 
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
@@ -61,7 +69,7 @@ function parseArgs() {
     sample: 15,
   };
   for (const a of process.argv.slice(2)) {
-    if (a === '--dry-run') out.dryRun = true;
+    if (a === '--dry-run' || a === '--dryrun') out.dryRun = true;
     else if (a === '--strict-precios') out.strictPrecios = true;
     else if (a === '--ultimo-gana') out.ultimoGana = true;
     else if (a === '--incluir-ref-id') out.incluirRefId = true;
@@ -556,9 +564,19 @@ async function main() {
   }
 
   const credPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-  if (!credPath || !existsSync(credPath)) {
+  if (!credPath?.trim()) {
+    console.error('Falta la variable de entorno GOOGLE_APPLICATION_CREDENTIALS.');
+    console.error('Ejemplo (PowerShell):');
+    console.error('  $env:GOOGLE_APPLICATION_CREDENTIALS = "C:\\Users\\tuUsuario\\Downloads\\proyecto-firebase-adminsdk-xxxxx.json"');
+    console.error('Descarga el JSON en Firebase → Project settings → Service accounts → Generate new private key.');
+    process.exit(1);
+  }
+  if (!existsSync(credPath)) {
+    console.error('GOOGLE_APPLICATION_CREDENTIALS no apunta a un archivo que exista en disco:');
+    console.error(`  ${credPath}`);
+    console.error('Comprueba con: Test-Path $env:GOOGLE_APPLICATION_CREDENTIALS   (debe ser True)');
     console.error(
-      'Para importar de verdad, define GOOGLE_APPLICATION_CREDENTIALS con ruta válida al JSON de servicio.'
+      'No uses rutas de ejemplo como "ruta\\real\\al-archivo.json"; pon la ruta real al JSON de la cuenta de servicio.'
     );
     process.exit(1);
   }

@@ -842,7 +842,7 @@ export function Inventario() {
       });
       addToast({
         type: 'success',
-        message: 'Excel de inventario descargado.',
+        message: 'Excel descargado (formato carta, horizontal, listo para imprimir).',
         logToAppEvents: true,
       });
     } catch (e) {
@@ -1063,9 +1063,11 @@ export function Inventario() {
             <code className="rounded bg-amber-500/20 px-1 font-mono text-[11px]">
               sucursales/{effectiveSucursalId}/products
             </code>
-            . Puede agregar artículos con <strong>Nuevo</strong> o cargar un Excel con el script del repositorio{' '}
-            <code className="rounded bg-amber-500/20 px-1 text-[11px]">import-olivares-inventory.mjs</code>{' '}
-            (el id de sucursal del script debe coincidir con el de esta tienda). Si antes ejecutó un reset de
+            .             Puede agregar artículos con <strong>Nuevo</strong> o cargar un Excel con{' '}
+            <code className="rounded bg-amber-500/20 px-1 text-[11px]">npm run import:olivares-inventory:abril2026</code>{' '}
+            (requiere JSON de cuenta de servicio; ver comentarios en{' '}
+            <code className="rounded bg-amber-500/20 px-1 text-[11px]">scripts/import-olivares-inventory.mjs</code>
+            ). El id de sucursal del script debe coincidir con el de esta tienda. Si antes ejecutó un reset de
             Olivares, debe volver a importar el catálogo.
           </p>
         </div>
@@ -1131,12 +1133,28 @@ export function Inventario() {
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800/70 bg-slate-50 dark:bg-slate-950/40 shadow-inner">
           <div className="min-h-0 flex-1 overflow-auto overscroll-y-contain">
             <div className="min-w-0 overflow-x-auto">
-              <Table>
+              <Table className="table-fixed">
+                {inventoryMode === 'codigos' ? (
+                  <colgroup>
+                    <col style={{ width: 'min(28rem, 42vw)' }} />
+                    <col style={{ width: '10rem' }} />
+                    <col style={{ width: '3.25rem' }} />
+                  </colgroup>
+                ) : (
+                  <colgroup>
+                    <col style={{ width: 'min(28rem, 42vw)' }} />
+                    <col style={{ width: '9rem' }} />
+                    <col style={{ width: '7rem' }} />
+                    <col style={{ width: '6rem' }} />
+                    <col style={{ width: 'auto' }} />
+                    <col style={{ width: '3.25rem' }} />
+                  </colgroup>
+                )}
                 <TableHeader>
                   <TableRow className="border-slate-200 dark:border-slate-800 hover:bg-transparent">
                     {inventoryMode === 'codigos' ? (
                       <>
-                        <TableHead className="sticky top-0 z-10 bg-white/95 dark:bg-slate-950/95 text-slate-600 dark:text-slate-400 backdrop-blur-sm">
+                        <TableHead className="sticky top-0 z-10 min-w-0 bg-white/95 dark:bg-slate-950/95 text-slate-600 dark:text-slate-400 backdrop-blur-sm whitespace-normal">
                           Producto
                         </TableHead>
                         <TableHead className="sticky top-0 z-10 bg-white/95 dark:bg-slate-950/95 text-slate-600 dark:text-slate-400 backdrop-blur-sm">
@@ -1148,7 +1166,7 @@ export function Inventario() {
                       </>
                     ) : (
                       <>
-                        <TableHead className="sticky top-0 z-10 bg-white/95 dark:bg-slate-950/95 text-slate-600 dark:text-slate-400 backdrop-blur-sm">
+                        <TableHead className="sticky top-0 z-10 min-w-0 bg-white/95 dark:bg-slate-950/95 text-slate-600 dark:text-slate-400 backdrop-blur-sm whitespace-normal">
                           Producto
                         </TableHead>
                         <TableHead className="sticky top-0 z-10 bg-white/95 dark:bg-slate-950/95 text-slate-600 dark:text-slate-400 backdrop-blur-sm">
@@ -1196,13 +1214,15 @@ export function Inventario() {
                   ) : inventoryMode === 'codigos' ? (
                     displayProducts.map((product) => (
                       <TableRow key={product.id} className="border-slate-200/80 dark:border-slate-800/50">
-                        <TableCell className="font-medium text-slate-800 dark:text-slate-200">{product.nombre}</TableCell>
-                        <TableCell>
+                        <TableCell className="min-w-0 font-medium whitespace-normal break-words text-slate-800 dark:text-slate-200">
+                          {product.nombre}
+                        </TableCell>
+                        <TableCell className="align-top">
                           <Input
                             value={skuDrafts[product.id] ?? product.sku}
                             onChange={(e) => handleSkuDraftChange(product.id, e.target.value)}
                             onBlur={() => void commitSkuIfChanged(product)}
-                            className="h-9 min-w-[8rem] border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800/80 font-mono text-sm text-slate-900 dark:text-slate-100"
+                            className="h-9 w-full max-w-full border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800/80 font-mono text-sm text-slate-900 dark:text-slate-100"
                             aria-label={`SKU de ${product.nombre}`}
                           />
                         </TableCell>
@@ -1243,15 +1263,15 @@ export function Inventario() {
                   ) : (
                     displayProducts.map((product) => (
                       <TableRow key={product.id} className="border-slate-200/80 dark:border-slate-800/50">
-                        <TableCell>
-                          <div>
+                        <TableCell className="min-w-0 align-top whitespace-normal">
+                          <div className="min-w-0 break-words">
                             <p className="font-medium text-slate-800 dark:text-slate-200">{product.nombre}</p>
                             {product.descripcion ? (
                               <p className="text-xs text-slate-600 dark:text-slate-500">{product.descripcion}</p>
                             ) : null}
                           </div>
                         </TableCell>
-                        <TableCell className="text-slate-600 dark:text-slate-400">{product.sku}</TableCell>
+                        <TableCell className="font-mono text-sm text-slate-600 dark:text-slate-400">{product.sku}</TableCell>
                         <TableCell className="font-medium tabular-nums text-cyan-400">
                           {formatMoney(product.precioVenta)}
                         </TableCell>

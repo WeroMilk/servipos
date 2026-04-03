@@ -12,7 +12,9 @@
     "deploy:firestore:rules": "firebase deploy --only firestore:rules",
     "reset:olivares": "node scripts/reset-olivares-firestore.mjs",
     "reset:olivares:dry": "node scripts/reset-olivares-firestore.mjs --dry-run",
-    "import:olivares-inventory": "node scripts/import-olivares-inventory.mjs"
+    "import:olivares-inventory": "node scripts/import-olivares-inventory.mjs",
+    "import:olivares-inventory:abril2026": "node scripts/import-olivares-inventory.mjs --dir=./data/inventario-abril-2026-olivares --ultimo-gana --sucursal=olivares",
+    "import:olivares-inventory:abril2026:dry": "node scripts/import-olivares-inventory.mjs --dir=./data/inventario-abril-2026-olivares --ultimo-gana --sucursal=olivares --dry-run"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -31,6 +33,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "dexie": "^4.3.0",
+    "exceljs": "^4.4.0",
     "firebase": "^12.11.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
@@ -43,8 +46,8 @@
     "recharts": "^2.15.4",
     "tailwind-merge": "^3.4.0",
     "uuid": "^13.0.0",
-    "xml-js": "^1.6.11",
     "xlsx": "^0.18.5",
+    "xml-js": "^1.6.11",
     "zustand": "^5.0.12"
   },
   "devDependencies": {
