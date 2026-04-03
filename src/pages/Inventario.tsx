@@ -83,6 +83,7 @@ import { subscribeSucursales } from '@/lib/firestore/sucursalesMetaFirestore';
 import { confirmIncomingStoreTransfer } from '@/lib/firestore/storeTransfersFirestore';
 import { cn, formatMoney } from '@/lib/utils';
 import { getProductPrecioPublicoRegular } from '@/lib/productListPricing';
+import { parsePrecioNumberFromFirestore } from '@/lib/precioListaNorm';
 import {
   SAT_CLAVES_UNIDAD,
   normalizeClaveProdServ,
@@ -146,7 +147,12 @@ function isCatalogInventoryMovement(t: InventoryMovement['tipo']): boolean {
   return t === 'producto_alta' || t === 'producto_baja' || t === 'producto_edicion';
 }
 
-function InventarioCurrencyInput({ className, ...props }: ComponentProps<typeof Input>) {
+function InventarioCurrencyInput({
+  className,
+  type = 'text',
+  inputMode = 'decimal',
+  ...props
+}: ComponentProps<typeof Input>) {
   return (
     <div className="relative">
       <span
@@ -155,7 +161,7 @@ function InventarioCurrencyInput({ className, ...props }: ComponentProps<typeof 
       >
         $
       </span>
-      <Input {...props} className={cn('pl-7', className)} />
+      <Input type={type} inputMode={inputMode} {...props} className={cn('pl-7', className)} />
     </div>
   );
 }
@@ -171,12 +177,19 @@ function parsePreciosListaForm(
 ): Product['preciosPorListaCliente'] | undefined {
   const out: Partial<Record<ClientPriceListId, number>> = {};
   for (const id of CLIENT_PRICE_LIST_ORDER) {
-    const t = (strMap[id] ?? '').replace(',', '.').trim();
+    const t = (strMap[id] ?? '').trim();
     if (t === '') continue;
-    const n = parseFloat(t);
-    if (Number.isFinite(n) && n >= 0) out[id] = n;
+    const n = parsePrecioNumberFromFirestore(t);
+    if (Number.isFinite(n) && n >= 0) out[id] = roundMoney2(n);
   }
   return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/** Mismo criterio que import CSV / Firestore: coma o punto decimal, miles. */
+function parseMoneyInput(raw: string): number {
+  const n = parsePrecioNumberFromFirestore(raw);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return roundMoney2(n);
 }
 
 function roundMoney2(n: number): number {
@@ -2027,8 +2040,6 @@ export function Inventario() {
             <div className="space-y-1.5 lg:col-span-1 lg:space-y-1">
               <Label className="text-sm lg:text-xs">Precio de venta (sin IVA) *</Label>
               <InventarioCurrencyInput
-                type="number"
-                inputMode="decimal"
                 min={0}
                 step="any"
                 value={
@@ -2039,14 +2050,7 @@ export function Inventario() {
                 onChange={(e) => {
                   const v = e.target.value;
                   if (v === '') setFormData((d) => ({ ...d, precioVenta: 0 }));
-                  else {
-                    const sinIva = parseFloat(v);
-                    setFormData((d) => ({
-                      ...d,
-                      precioVenta:
-                        Number.isFinite(sinIva) && sinIva >= 0 ? roundMoney2(sinIva) : 0,
-                    }));
-                  }
+                  else setFormData((d) => ({ ...d, precioVenta: parseMoneyInput(v) }));
                 }}
                 className="h-10 border-slate-300 bg-slate-200 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9"
               />
@@ -2067,8 +2071,6 @@ export function Inventario() {
             <div className="space-y-1.5 lg:col-span-1 lg:space-y-1">
               <Label className="text-sm lg:text-xs">Precio de compra (sin IVA)</Label>
               <InventarioCurrencyInput
-                type="number"
-                inputMode="decimal"
                 min={0}
                 step="any"
                 value={addNumFocus.precioCompra && formData.precioCompra === 0 ? '' : formData.precioCompra}
@@ -2077,13 +2079,7 @@ export function Inventario() {
                 onChange={(e) => {
                   const v = e.target.value;
                   if (v === '') setFormData((d) => ({ ...d, precioCompra: 0 }));
-                  else {
-                    const n = parseFloat(v);
-                    setFormData((d) => ({
-                      ...d,
-                      precioCompra: Number.isFinite(n) && n >= 0 ? roundMoney2(n) : 0,
-                    }));
-                  }
+                  else setFormData((d) => ({ ...d, precioCompra: parseMoneyInput(v) }));
                 }}
                 className="h-10 border-slate-300 bg-slate-200 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9"
               />
@@ -2437,8 +2433,6 @@ export function Inventario() {
             <div className="space-y-2">
               <Label>Precio de venta (sin IVA) *</Label>
               <InventarioCurrencyInput
-                type="number"
-                inputMode="decimal"
                 min={0}
                 step="any"
                 value={
@@ -2449,14 +2443,7 @@ export function Inventario() {
                 onChange={(e) => {
                   const v = e.target.value;
                   if (v === '') setFormData((d) => ({ ...d, precioVenta: 0 }));
-                  else {
-                    const sinIva = parseFloat(v);
-                    setFormData((d) => ({
-                      ...d,
-                      precioVenta:
-                        Number.isFinite(sinIva) && sinIva >= 0 ? roundMoney2(sinIva) : 0,
-                    }));
-                  }
+                  else setFormData((d) => ({ ...d, precioVenta: parseMoneyInput(v) }));
                 }}
                 className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
@@ -2477,8 +2464,6 @@ export function Inventario() {
             <div className="space-y-2">
               <Label>Precio de compra (sin IVA)</Label>
               <InventarioCurrencyInput
-                type="number"
-                inputMode="decimal"
                 min={0}
                 step="any"
                 value={editNumFocus.precioCompra && formData.precioCompra === 0 ? '' : formData.precioCompra}
@@ -2487,13 +2472,7 @@ export function Inventario() {
                 onChange={(e) => {
                   const v = e.target.value;
                   if (v === '') setFormData((d) => ({ ...d, precioCompra: 0 }));
-                  else {
-                    const n = parseFloat(v);
-                    setFormData((d) => ({
-                      ...d,
-                      precioCompra: Number.isFinite(n) && n >= 0 ? roundMoney2(n) : 0,
-                    }));
-                  }
+                  else setFormData((d) => ({ ...d, precioCompra: parseMoneyInput(v) }));
                 }}
                 className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
@@ -2739,8 +2718,6 @@ export function Inventario() {
                 <div className="space-y-2">
                   <Label>Precio unitario de compra (sin IVA)</Label>
                   <InventarioCurrencyInput
-                    type="number"
-                    inputMode="decimal"
                     min={0}
                     step="any"
                     value={
@@ -2758,7 +2735,7 @@ export function Inventario() {
                       else
                         setStockAdjustment((st) => ({
                           ...st,
-                          precioCompraUnit: parseFloat(v) || 0,
+                          precioCompraUnit: parseMoneyInput(v),
                         }));
                     }}
                     className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
