@@ -16,6 +16,8 @@ export type Permission =
   | 'inventario:crear'
   | 'inventario:editar'
   | 'inventario:eliminar'
+  /** Revisión diaria por lotes (misiones); no implica ver todo el inventario. */
+  | 'inventario:mision_diaria'
   | 'cotizaciones:ver'
   | 'cotizaciones:crear'
   | 'facturas:ver'

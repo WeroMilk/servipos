@@ -9,6 +9,7 @@ import {
   Wallet,
   Settings,
   Clock,
+  Target,
 } from 'lucide-react';
 import type { Permission } from '@/types';
 
@@ -37,6 +38,13 @@ export const MAIN_NAV_ITEMS: MainNavItem[] = [
     label: 'Inventario',
     shortLabel: 'Stock',
     permission: 'inventario:ver',
+  },
+  {
+    to: '/mision-inventario',
+    icon: Target,
+    label: 'Misiones inventario',
+    shortLabel: 'Misiones',
+    permission: 'inventario:mision_diaria',
   },
   {
     to: '/cotizaciones',

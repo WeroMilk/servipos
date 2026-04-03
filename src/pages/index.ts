@@ -11,3 +11,4 @@ export { Clientes } from './Clientes';
 export { CuentasPorCobrar } from './CuentasPorCobrar';
 export { Configuracion } from './Configuracion';
 export { Checador } from './Checador';
+export { MisionInventario } from './MisionInventario';

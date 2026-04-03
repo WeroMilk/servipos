@@ -33,7 +33,13 @@ const PERMISSION_GROUPS: { title: string; items: Permission[] }[] = [
   },
   {
     title: 'Inventario',
-    items: ['inventario:ver', 'inventario:crear', 'inventario:editar', 'inventario:eliminar'],
+    items: [
+      'inventario:ver',
+      'inventario:crear',
+      'inventario:editar',
+      'inventario:eliminar',
+      'inventario:mision_diaria',
+    ],
   },
   {
     title: 'Cotizaciones y facturación',

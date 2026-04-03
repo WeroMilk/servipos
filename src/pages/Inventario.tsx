@@ -93,7 +93,7 @@ import { PageShell } from '@/components/ui-custom/PageShell';
 import { printThermalLowStockReport } from '@/lib/printTicket';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { isMovimientoLlegadaMercancia } from '@/lib/inventoryAbasto';
-import { downloadInventarioCompletoXlsx } from '@/lib/inventoryExportExcel';
+import { downloadInventarioCompleto } from '@/lib/inventoryExport';
 import {
   buildProveedorNombrePorLinea,
   formatProveedorHistorialLineaResuelto,
@@ -925,23 +925,23 @@ export function Inventario() {
     setPreciosListaStr(emptyPreciosListaStr());
   };
 
-  const handleDescargarInventario = useCallback(async () => {
+  const handleDescargarInventario = useCallback(() => {
     if (exportingInventario) return;
     setExportingInventario(true);
     try {
-      await downloadInventarioCompletoXlsx({
+      downloadInventarioCompleto({
         products,
         sucursalNombre: effectiveSucursalId ? nombreSucursal(effectiveSucursalId) : undefined,
       });
       addToast({
         type: 'success',
-        message: 'Excel descargado (formato carta, horizontal, listo para imprimir).',
+        message: 'Archivo CSV descargado. Ábralo en Excel o LibreOffice; desde ahí puede imprimir o guardar como Excel.',
         logToAppEvents: true,
       });
     } catch (e) {
       addToast({
         type: 'error',
-        message: e instanceof Error ? e.message : 'No se pudo generar el Excel.',
+        message: e instanceof Error ? e.message : 'No se pudo generar el archivo.',
         logToAppEvents: true,
       });
     } finally {
@@ -1145,24 +1145,6 @@ export function Inventario() {
         >
           <p className="font-medium">No se pudo cargar el inventario</p>
           <p className="mt-1 text-xs leading-snug opacity-95">{productsError}</p>
-        </div>
-      ) : null}
-
-      {!loading && !productsError && effectiveSucursalId && products.length === 0 ? (
-        <div className="mt-3 shrink-0 rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-xs leading-snug text-amber-950 dark:text-amber-100/95 sm:text-sm">
-          <p className="font-medium text-amber-900 dark:text-amber-50">Catálogo vacío en esta sucursal</p>
-          <p className="mt-1 text-amber-900/90 dark:text-amber-100/85">
-            En Firestore no hay productos activos en{' '}
-            <code className="rounded bg-amber-500/20 px-1 font-mono text-[11px]">
-              sucursales/{effectiveSucursalId}/products
-            </code>
-            .             Puede agregar artículos con <strong>Nuevo</strong> o cargar un Excel con{' '}
-            <code className="rounded bg-amber-500/20 px-1 text-[11px]">npm run import:olivares-inventory:abril2026</code>{' '}
-            (requiere JSON de cuenta de servicio; ver comentarios en{' '}
-            <code className="rounded bg-amber-500/20 px-1 text-[11px]">scripts/import-olivares-inventory.mjs</code>
-            ). El id de sucursal del script debe coincidir con el de esta tienda. Si antes ejecutó un reset de
-            Olivares, debe volver a importar el catálogo.
-          </p>
         </div>
       ) : null}
 

@@ -33,7 +33,6 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "dexie": "^4.3.0",
-    "exceljs": "^4.4.0",
     "firebase": "^12.11.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
