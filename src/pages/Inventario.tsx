@@ -1131,23 +1131,26 @@ export function Inventario() {
           <p className="mt-0.5 text-[11px] text-slate-600 dark:text-slate-500 sm:text-xs">{modeHint[inventoryMode]}</p>
         </div>
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800/70 bg-slate-50 dark:bg-slate-950/40 shadow-inner">
-          <div className="min-h-0 flex-1 overflow-auto overscroll-y-contain">
-            <div className="min-w-0 overflow-x-auto">
-              <Table className="table-fixed">
+          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain">
+            <div className="min-w-0 w-full">
+              <Table
+                containerClassName="overflow-x-hidden"
+                className="table-fixed w-full"
+              >
                 {inventoryMode === 'codigos' ? (
                   <colgroup>
-                    <col style={{ width: 'min(28rem, 42vw)' }} />
-                    <col style={{ width: '10rem' }} />
-                    <col style={{ width: '3.25rem' }} />
+                    <col style={{ width: '44%' }} />
+                    <col style={{ width: '44%' }} />
+                    <col style={{ width: '12%' }} />
                   </colgroup>
                 ) : (
                   <colgroup>
-                    <col style={{ width: 'min(28rem, 42vw)' }} />
-                    <col style={{ width: '9rem' }} />
-                    <col style={{ width: '7rem' }} />
-                    <col style={{ width: '6rem' }} />
-                    <col style={{ width: 'auto' }} />
-                    <col style={{ width: '3.25rem' }} />
+                    <col style={{ width: '30%' }} />
+                    <col style={{ width: '12%' }} />
+                    <col style={{ width: '10%' }} />
+                    <col style={{ width: '8%' }} />
+                    <col style={{ width: '32%' }} />
+                    <col style={{ width: '8%' }} />
                   </colgroup>
                 )}
                 <TableHeader>
@@ -1178,10 +1181,10 @@ export function Inventario() {
                         <TableHead className="sticky top-0 z-10 bg-white/95 dark:bg-slate-950/95 text-slate-600 dark:text-slate-400 backdrop-blur-sm">
                           Stock
                         </TableHead>
-                        <TableHead className="sticky top-0 z-10 bg-white/95 dark:bg-slate-950/95 text-slate-600 dark:text-slate-400 backdrop-blur-sm">
+                        <TableHead className="sticky top-0 z-10 min-w-0 bg-white/95 dark:bg-slate-950/95 text-slate-600 dark:text-slate-400 backdrop-blur-sm whitespace-normal">
                           Categoría
                         </TableHead>
-                        <TableHead className="sticky top-0 z-10 bg-white/95 dark:bg-slate-950/95 text-right text-slate-600 dark:text-slate-400 backdrop-blur-sm">
+                        <TableHead className="sticky top-0 z-10 w-14 min-w-[3.5rem] bg-white/95 dark:bg-slate-950/95 text-right text-slate-600 dark:text-slate-400 backdrop-blur-sm">
                           Acciones
                         </TableHead>
                       </>
@@ -1292,12 +1295,15 @@ export function Inventario() {
                             ) : null}
                           </div>
                         </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary" className="bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                        <TableCell className="min-w-0 max-w-[12rem] align-top whitespace-normal">
+                          <Badge
+                            variant="secondary"
+                            className="max-w-full whitespace-normal break-words bg-slate-200 dark:bg-slate-800 text-left text-slate-700 dark:text-slate-300"
+                          >
                             {product.categoria || 'Sin categoría'}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="w-14 min-w-[3.5rem] text-right">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button type="button" variant="ghost" size="icon" className="text-slate-600 dark:text-slate-400">

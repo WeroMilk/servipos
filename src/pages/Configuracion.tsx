@@ -871,55 +871,53 @@ export function Configuracion() {
         </TabsContent>
 
         <TabsContent value="nominas" className={configuracionTabsPanelClass}>
-          <div className="flex w-full min-w-0 flex-col gap-3 xl:grid xl:min-h-0 xl:grid-cols-2 xl:gap-3 xl:overflow-hidden">
-            <Card className="w-full shrink-0 border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 xl:min-h-0 xl:flex xl:flex-1 xl:flex-col xl:overflow-hidden">
-              <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
-                <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-slate-100 sm:text-base">
-                  <Wallet className="h-4 w-4 shrink-0 text-cyan-400 sm:h-5 sm:w-5" />
+          <div className="flex w-full min-w-0 flex-col gap-3 xl:grid xl:min-h-0 xl:grid-cols-2 xl:items-start xl:gap-3 xl:overflow-hidden">
+            <Card className="w-full min-w-0 shrink-0 border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 xl:min-h-0 xl:max-h-[min(100dvh-9.5rem,920px)] xl:overflow-hidden xl:flex xl:flex-col">
+              <CardHeader className="shrink-0 space-y-0 px-3 py-1.5 sm:px-4 lg:py-1">
+                <CardTitle className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100 sm:text-base lg:text-sm">
+                  <Wallet className="h-4 w-4 shrink-0 text-cyan-400 sm:h-5 sm:w-5 lg:h-4 lg:w-4" />
                   Nómina electrónica (CFDI)
                 </CardTitle>
               </CardHeader>
-              <CardContent className="flex flex-col gap-3 p-3 sm:p-4 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:overscroll-y-contain">
-                <div className="flex gap-2.5 rounded-lg border border-emerald-500/25 bg-emerald-500/10 p-3">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400 sm:h-5 sm:w-5" />
-                  <p className="text-sm leading-snug text-emerald-400/95 sm:text-xs">
-                    Con <span className="font-medium text-emerald-300">serie y folio autorizados por el SAT</span>, el
-                    mismo <span className="font-medium text-emerald-300">CSD</span> y un{' '}
-                    <span className="font-medium text-emerald-300">PAC</span> autorizado para timbrado de nómina, el
-                    CFDI cumple el esquema oficial y es válido ante el SAT.
+              <CardContent className="flex flex-col gap-2 p-2.5 sm:p-3 lg:gap-1.5 lg:p-2 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:overscroll-y-contain">
+                <div className="flex gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/10 p-2 lg:p-1.5">
+                  <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400 lg:h-3.5 lg:w-3.5" />
+                  <p className="text-[11px] leading-snug text-emerald-400/95 sm:text-xs lg:text-[11px]">
+                    Con <span className="font-medium text-emerald-300">serie y folio SAT</span>,{' '}
+                    <span className="font-medium text-emerald-300">CSD</span> y{' '}
+                    <span className="font-medium text-emerald-300">PAC</span> de nómina, el CFDI es válido ante el SAT.
                   </p>
                 </div>
 
-                <div className="rounded-lg border border-slate-300/80 dark:border-slate-600/80 bg-slate-100/60 dark:bg-slate-800/40 p-3 sm:p-3.5">
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                <div className="rounded-lg border border-slate-300/80 dark:border-slate-600/80 bg-slate-100/60 dark:bg-slate-800/40 p-2 sm:p-2.5 lg:p-2">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-1.5 lg:mb-1.5">
+                    <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 lg:text-[11px]">
                       Personalizar recibo de prueba
                     </p>
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="h-8 border-slate-400/60 text-xs"
+                      className="h-7 border-slate-400/60 text-[11px] lg:h-6"
                       onClick={() => {
                         setNominaPruebaForm(getNominaPruebaDraftDefaults());
                         setNominaPercDraft({});
                         addToast({ type: 'success', message: 'Valores restaurados al ejemplo.' });
                       }}
                     >
-                      <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                      <RotateCcw className="mr-1 h-3 w-3" />
                       Restaurar ejemplo
                     </Button>
                   </div>
-                  <p className="mb-3 text-xs leading-snug text-slate-600 dark:text-slate-400">
-                    Edita nombre, RFC, CURP, periodo, días pagados, percepciones y deducciones. Los totales y el neto se
-                    calculan al imprimir. Se guarda en este equipo (local).
+                  <p className="mb-2 text-[11px] leading-snug text-slate-600 dark:text-slate-400 lg:mb-1.5">
+                    Edita datos y montos; totales al imprimir. Se guarda local en este equipo.
                   </p>
 
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  <div className="space-y-1.5 lg:space-y-1">
+                    <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                       Trabajador (receptor)
                     </p>
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:gap-1">
                       <div className="space-y-1 sm:col-span-2">
                         <Label className="text-xs text-slate-600 dark:text-slate-400">Nombre completo</Label>
                         <Input
@@ -1001,11 +999,11 @@ export function Configuracion() {
                     </div>
                   </div>
 
-                  <div className="mt-4 space-y-2">
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  <div className="mt-2 space-y-1.5 lg:mt-1.5 lg:space-y-1">
+                    <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                       Periodo de pago
                     </p>
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-3 lg:gap-1">
                       <div className="space-y-1 sm:col-span-3">
                         <Label className="text-xs text-slate-600 dark:text-slate-400">Descripción del periodo</Label>
                         <Input
@@ -1051,9 +1049,9 @@ export function Configuracion() {
                     </div>
                   </div>
 
-                  <div className="mt-4 space-y-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  <div className="mt-2 space-y-1.5 lg:mt-1.5 lg:space-y-1">
+                    <div className="flex flex-wrap items-center justify-between gap-1.5">
+                      <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                         Percepciones
                       </p>
                       <Button
@@ -1075,11 +1073,11 @@ export function Configuracion() {
                         Fila
                       </Button>
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-1.5 lg:space-y-1">
                       {nominaPruebaForm.percepciones.map((row, idx) => (
                         <div
                           key={`p-${idx}`}
-                          className="grid grid-cols-1 gap-1.5 rounded-lg border border-slate-200/90 bg-slate-50/80 p-2 dark:border-slate-700/80 dark:bg-slate-900/40 sm:grid-cols-12 sm:items-end"
+                          className="grid grid-cols-1 gap-1 rounded-lg border border-slate-200/90 bg-slate-50/80 p-1.5 dark:border-slate-700/80 dark:bg-slate-900/40 sm:grid-cols-12 sm:items-end lg:p-1"
                         >
                           <div className="space-y-0.5 sm:col-span-2">
                             <Label className="text-[10px] text-slate-500">Clave</Label>
@@ -1252,9 +1250,9 @@ export function Configuracion() {
                     </div>
                   </div>
 
-                  <div className="mt-4 space-y-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  <div className="mt-2 space-y-1.5 lg:mt-1.5 lg:space-y-1">
+                    <div className="flex flex-wrap items-center justify-between gap-1.5">
+                      <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                         Deducciones
                       </p>
                       <Button
@@ -1278,14 +1276,14 @@ export function Configuracion() {
                       (IMSS) calculan el importe en automático a partir del total gravado + exento de percepciones
                       (estimación proporcional al mismo criterio del ejemplo 9,000 → 1,240 / 285).
                     </p>
-                    <div className="space-y-2">
+                    <div className="space-y-1.5 lg:space-y-1">
                       {nominaPruebaForm.deducciones.map((row, idx) => {
                         const ckDed = normClaveNomina(row.clave);
                         const importeDeduccionAuto = ckDed === '002' || ckDed === '021';
                         return (
                         <div
                           key={`d-${idx}`}
-                          className="grid grid-cols-1 gap-1.5 rounded-lg border border-slate-200/90 bg-slate-50/80 p-2 dark:border-slate-700/80 dark:bg-slate-900/40 sm:grid-cols-12 sm:items-end"
+                          className="grid grid-cols-1 gap-1 rounded-lg border border-slate-200/90 bg-slate-50/80 p-1.5 dark:border-slate-700/80 dark:bg-slate-900/40 sm:grid-cols-12 sm:items-end lg:p-1"
                         >
                           <div className="space-y-0.5 sm:col-span-2">
                             <Label className="text-[10px] text-slate-500">Clave</Label>
@@ -1373,126 +1371,133 @@ export function Configuracion() {
                     </div>
                   </div>
 
-                  <div className="mt-3 rounded-md border border-slate-300/80 bg-white/80 px-3 py-2 text-xs dark:border-slate-600 dark:bg-slate-900/50">
-                    <div className="flex flex-wrap justify-between gap-x-4 gap-y-1 text-slate-700 dark:text-slate-300">
+                  <div className="mt-2 rounded-md border border-slate-300/80 bg-white/80 px-2 py-1.5 text-[11px] dark:border-slate-600 dark:bg-slate-900/50 lg:py-1">
+                    <div className="flex flex-wrap justify-between gap-x-3 gap-y-0.5 text-slate-700 dark:text-slate-300">
                       <span>Total percepciones: {formatMoney(totalPercepcionesNomina)}</span>
                       <span>Total deducciones: {formatMoney(totalDeduccionesNomina)}</span>
                     </div>
-                    <div className="mt-1 font-semibold text-slate-900 dark:text-slate-100">
+                    <div className="mt-0.5 font-semibold text-slate-900 dark:text-slate-100">
                       Neto a pagar: {formatMoney(netoNominaPreview)}
                     </div>
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-slate-200/90 dark:border-slate-700/80 bg-slate-200/40 dark:bg-slate-800/40 p-3">
-                  <p className="text-sm leading-snug text-slate-600 dark:text-slate-400 sm:text-xs sm:leading-normal">
-                    <span className="font-medium text-slate-700 dark:text-slate-300">Impresión de prueba:</span> usa la
-                    serie fija PRUEBA-N y un folio local (siguiente:{' '}
+                <div className="rounded-lg border border-slate-200/90 dark:border-slate-700/80 bg-slate-200/40 dark:bg-slate-800/40 p-2 lg:p-1.5">
+                  <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-400">
+                    <span className="font-medium text-slate-700 dark:text-slate-300">Impresión de prueba:</span> serie
+                    PRUEBA-N y folio local (siguiente:{' '}
                     <span className="font-mono text-cyan-600 dark:text-cyan-400">
                       {config?.folioPruebaNomina ?? 1}
                     </span>
-                    ). No consume el folio de nómina SAT de la tarjeta de la derecha.
+                    ). No consume el folio de nómina SAT de la derecha.
                   </p>
                   <Button
                     type="button"
                     size="sm"
-                    className="mt-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+                    className="mt-2 h-8 bg-gradient-to-r from-cyan-500 to-blue-600 text-white lg:mt-1.5 lg:h-7 lg:text-xs"
                     onClick={() => void handlePrintNominaPrueba()}
                   >
-                    <Printer className="mr-2 h-4 w-4" />
+                    <Printer className="mr-2 h-3.5 w-3.5" />
                     Imprimir recibo de nómina (prueba)
                   </Button>
                 </div>
-                <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400 sm:text-sm">
-                  Solicita con Soporte los folios para el tipo de comprobante de nómina que uses. Aquí defines la serie y
-                  el folio consecutivo que se aplicarán al generar cada recibo; deben coincidir con el rango autorizado.
-                </p>
-                <ul className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:text-sm">
-                  <li className="flex gap-2">
-                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-cyan-400 sm:h-3.5 sm:w-3.5" />
-                    Datos fiscales del emisor completos (misma pestaña &quot;Datos fiscales&quot;).
-                  </li>
-                  <li className="flex gap-2">
-                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-cyan-400 sm:h-3.5 sm:w-3.5" />
-                    Certificado (.cer) y llave (.key) configurados en &quot;Certificados&quot;.
-                  </li>
-                  <li className="flex gap-2">
-                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-cyan-400 sm:h-3.5 sm:w-3.5" />
-                    PAC otorgado por Soporte con servicio de timbrado de nómina (mismo criterio que facturas).
-                  </li>
-                </ul>
               </CardContent>
             </Card>
 
-            <Card className="w-full shrink-0 border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 xl:min-h-0 xl:flex xl:flex-1 xl:flex-col xl:overflow-hidden">
-              <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
-                <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-slate-100 sm:text-base">
-                  <Receipt className="h-4 w-4 shrink-0 text-cyan-400 sm:h-5 sm:w-5" />
-                  Folios de nómina
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3 p-3 sm:p-4 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:overscroll-y-contain">
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <div className="space-y-1">
-                    <Label htmlFor="serieNomina" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
-                      Serie nómina *
-                    </Label>
-                    <Input
-                      id="serieNomina"
-                      value={fiscalForm.serieNomina}
-                      onChange={(e) =>
-                        setFiscalForm({
-                          ...fiscalForm,
-                          serieNomina: e.target.value.toUpperCase(),
-                        })
-                      }
-                      placeholder="N"
-                      className={fieldClass}
-                    />
+            <div className="flex w-full min-w-0 flex-col gap-2 xl:sticky xl:top-0 xl:max-h-[min(100dvh-9.5rem,920px)] xl:self-start">
+              <Card className="w-full border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
+                <CardHeader className="space-y-0 px-3 py-1.5 sm:px-4 lg:py-1">
+                  <CardTitle className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100 sm:text-base lg:text-sm">
+                    <Receipt className="h-4 w-4 shrink-0 text-cyan-400 lg:h-4 lg:w-4" />
+                    Folios de nómina
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-2 p-2.5 sm:p-3 lg:gap-1.5 lg:p-2">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:gap-1.5">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="serieNomina" className="text-xs text-slate-600 dark:text-slate-400">Serie nómina *</Label>
+                      <Input
+                        id="serieNomina"
+                        value={fiscalForm.serieNomina}
+                        onChange={(e) =>
+                          setFiscalForm({
+                            ...fiscalForm,
+                            serieNomina: e.target.value.toUpperCase(),
+                          })
+                        }
+                        placeholder="N"
+                        className={fieldClass}
+                      />
+                    </div>
+                    <div className="space-y-0.5">
+                      <Label htmlFor="folioNominaActual" className="text-xs text-slate-600 dark:text-slate-400">
+                        Folio actual nómina *
+                      </Label>
+                      <Input
+                        id="folioNominaActual"
+                        type="number"
+                        value={fiscalForm.folioNominaActual}
+                        onChange={(e) =>
+                          setFiscalForm({
+                            ...fiscalForm,
+                            folioNominaActual: parseInt(e.target.value, 10) || 1,
+                          })
+                        }
+                        className={fieldClass}
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="folioNominaActual" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
-                      Folio actual nómina *
-                    </Label>
-                    <Input
-                      id="folioNominaActual"
-                      type="number"
-                      value={fiscalForm.folioNominaActual}
-                      onChange={(e) =>
-                        setFiscalForm({
-                          ...fiscalForm,
-                          folioNominaActual: parseInt(e.target.value, 10) || 1,
-                        })
-                      }
-                      className={fieldClass}
-                    />
+                  <div className="flex gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 lg:p-1.5">
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
+                    <p className="text-[11px] leading-snug text-amber-400/90">
+                      No reutilices folios ni saltes números del rango autorizado.
+                    </p>
                   </div>
-                </div>
-                <div className="flex gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400 sm:h-5 sm:w-5" />
-                  <p className="text-sm leading-snug text-amber-400/90 sm:text-xs">
-                    No reutilices folios ni saltes números dentro del rango autorizado; el SAT puede rechazar
-                    comprobantes duplicados o fuera de secuencia.
-                  </p>
-                </div>
-                <div className="flex justify-end pt-1 xl:mt-auto">
                   <Button
                     type="button"
                     size="sm"
                     onClick={() => void handleSaveNominaFolios()}
                     disabled={!fiscalForm.serieNomina?.trim() || !fiscalForm.folioNominaActual}
                     className={cn(
-                      'bg-gradient-to-r from-cyan-500 to-blue-600 text-white',
+                      'h-8 w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white sm:w-auto sm:self-end lg:h-7 lg:text-xs',
                       (!fiscalForm.serieNomina?.trim() || !fiscalForm.folioNominaActual) &&
                         'cursor-not-allowed opacity-50'
                     )}
                   >
-                    <Save className="mr-2 h-4 w-4" />
+                    <Save className="mr-2 h-3.5 w-3.5" />
                     Guardar folios nómina
                   </Button>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+
+              <Card className="w-full border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
+                <CardHeader className="space-y-0 px-3 py-1.5 sm:px-4 lg:py-1">
+                  <CardTitle className="text-xs font-semibold text-slate-800 dark:text-slate-100 lg:text-[11px]">
+                    Requisitos para timbrado
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 p-2.5 pt-0 sm:p-3 sm:pt-0 lg:space-y-1.5 lg:p-2 lg:pt-0">
+                  <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-400">
+                    Solicita con Soporte los folios para tu tipo de nómina. Serie y folio deben coincidir con el rango
+                    autorizado.
+                  </p>
+                  <ul className="space-y-1.5 text-[11px] text-slate-700 dark:text-slate-300 lg:space-y-1">
+                    <li className="flex gap-1.5">
+                      <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-400" />
+                      Datos fiscales del emisor (pestaña Datos fiscales).
+                    </li>
+                    <li className="flex gap-1.5">
+                      <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-400" />
+                      .cer y .key en Certificados.
+                    </li>
+                    <li className="flex gap-1.5">
+                      <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-400" />
+                      PAC con timbrado de nómina (Soporte).
+                    </li>
+                  </ul>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </TabsContent>
 

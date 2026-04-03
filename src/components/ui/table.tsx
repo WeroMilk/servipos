@@ -2,20 +2,29 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-function Table({ className, ...props }: React.ComponentProps<"table">) {
+type TableProps = React.ComponentProps<'table'> & {
+  /** Contenedor del `<table>`. Por defecto incluye scroll horizontal para tablas anchas. */
+  containerClassName?: string;
+};
+
+function Table({ className, containerClassName, ...props }: TableProps) {
   return (
     <div
       data-slot="table-container"
       data-wheel-scroll-x="table"
-      className="relative w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch] touch-pan-x"
+      className={cn(
+        'relative w-full min-w-0',
+        containerClassName ??
+          'overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch] touch-pan-x'
+      )}
     >
       <table
         data-slot="table"
-        className={cn("w-full caption-bottom text-sm", className)}
+        className={cn('w-full caption-bottom text-sm', className)}
         {...props}
       />
     </div>
-  )
+  );
 }
 
 function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
