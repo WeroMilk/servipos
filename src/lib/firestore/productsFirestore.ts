@@ -17,7 +17,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Product, StockEntradaMeta } from '@/types';
-import { parsePreciosPorListaClienteRaw } from '@/lib/precioListaNorm';
+import { parsePrecioNumberFromFirestore, parsePreciosPorListaClienteRaw } from '@/lib/precioListaNorm';
 import { normalizeClaveProdServ, normalizeClaveUnidadSat } from '@/lib/satCatalog';
 
 // ============================================
@@ -46,15 +46,17 @@ function firestoreTimestampToDate(value: unknown): Date {
 }
 
 export function docToProduct(snap: QueryDocumentSnapshot): Product {
-  const d = snap.data();
+  const d = snap.data() as Record<string, unknown>;
+  const rawPv = d.precioVenta ?? d.precio ?? d.precioPublico ?? d.precio_venta;
+  const rawPc = d.precioCompra ?? d.precio_compra;
   return {
     id: snap.id,
     sku: String(d.sku ?? ''),
     codigoBarras: d.codigoBarras != null ? String(d.codigoBarras) : undefined,
     nombre: String(d.nombre ?? ''),
     descripcion: d.descripcion != null ? String(d.descripcion) : undefined,
-    precioVenta: typeof d.precioVenta === 'number' ? d.precioVenta : Number(d.precioVenta) || 0,
-    precioCompra: d.precioCompra != null ? Number(d.precioCompra) : undefined,
+    precioVenta: parsePrecioNumberFromFirestore(rawPv),
+    precioCompra: rawPc != null && String(rawPc).trim() !== '' ? parsePrecioNumberFromFirestore(rawPc) : undefined,
     impuesto: typeof d.impuesto === 'number' ? d.impuesto : Number(d.impuesto) || 16,
     existencia: typeof d.existencia === 'number' ? d.existencia : Number(d.existencia) || 0,
     existenciaMinima:
@@ -340,8 +342,13 @@ export async function ensureProductAtDestForTransfer(
       codigoBarras: od.codigoBarras != null ? String(od.codigoBarras) : null,
       nombre: String(od.nombre ?? fallback.nombre).trim() || fallback.nombre,
       descripcion: od.descripcion != null ? String(od.descripcion) : null,
-      precioVenta: typeof od.precioVenta === 'number' ? od.precioVenta : Number(od.precioVenta) || 0,
-      precioCompra: od.precioCompra != null ? Number(od.precioCompra) : null,
+      precioVenta: parsePrecioNumberFromFirestore(
+        od.precioVenta ?? od.precio ?? od.precioPublico ?? od.precio_venta
+      ),
+      precioCompra:
+        od.precioCompra != null && String(od.precioCompra).trim() !== ''
+          ? parsePrecioNumberFromFirestore(od.precioCompra ?? od.precio_compra)
+          : null,
       impuesto: typeof od.impuesto === 'number' ? od.impuesto : Number(od.impuesto) || 16,
       existencia: 0,
       existenciaMinima:

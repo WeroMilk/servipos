@@ -1,6 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores';
-import { userCanSeeInventoryMissions } from '@/lib/userPermissions';
+import { userCanSeeInventoryMissions, userCanSeeMissionProgressOnly } from '@/lib/userPermissions';
 import { MAIN_NAV_ITEMS } from '@/lib/mainNavItems';
 import { SHOW_CHECADOR_NAV } from '@/lib/featureFlags';
 import { cn } from '@/lib/utils';
@@ -27,7 +27,7 @@ export function MobileBottomNav() {
         {MAIN_NAV_ITEMS.map((item) => {
           if (item.to === '/checador' && !SHOW_CHECADOR_NAV) return null;
           if (item.to === '/mision-inventario') {
-            if (!userCanSeeInventoryMissions(user)) return null;
+            if (!userCanSeeInventoryMissions(user) && !userCanSeeMissionProgressOnly(user)) return null;
           } else if (!hasPermission(item.permission)) return null;
           const Icon = item.icon;
           const isActive =

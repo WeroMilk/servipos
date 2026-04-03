@@ -1,13 +1,16 @@
 import type { Product } from '@/types';
-import { parsePreciosPorListaClienteRaw } from '@/lib/precioListaNorm';
+import { parsePrecioNumberFromFirestore, parsePreciosPorListaClienteRaw } from '@/lib/precioListaNorm';
 
 /** Evita throws en sort/UI cuando IndexedDB u orígenes devuelven campos incompletos. */
 export function coerceProduct(p: Product): Product {
-  const precioVenta = Number(p.precioVenta);
+  const precioVenta = parsePrecioNumberFromFirestore(p.precioVenta);
   const existencia = Number(p.existencia);
   const existenciaMinima = Number(p.existenciaMinima);
   const impuesto = Number(p.impuesto);
-  const precioCompraNum = p.precioCompra != null ? Number(p.precioCompra) : NaN;
+  const precioCompraNum =
+    p.precioCompra != null && String(p.precioCompra).trim() !== ''
+      ? parsePrecioNumberFromFirestore(p.precioCompra)
+      : NaN;
   const preciosPorListaCliente = parsePreciosPorListaClienteRaw(p.preciosPorListaCliente);
   const preciosListaIncluyenIva =
     p.preciosListaIncluyenIva === true ? true : p.preciosListaIncluyenIva === false ? false : undefined;

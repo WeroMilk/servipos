@@ -329,6 +329,7 @@ export async function syncServipartzSeedUsers(): Promise<void> {
         'cotizaciones:crear',
         'checador:registrar',
         'inventario:mision_diaria',
+        'inventario:mision_ajustar_stock',
         'inventario:editar',
       ] satisfies Permission[],
     },

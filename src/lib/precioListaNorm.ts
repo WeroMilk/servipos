@@ -2,6 +2,33 @@ import type { Product } from '@/types';
 import { CLIENT_PRICE_LIST_ORDER, type ClientPriceListId } from '@/lib/clientPriceLists';
 
 /**
+ * Convierte precio desde Firestore / Excel / CSV (coma decimal, miles con coma o punto).
+ * Evita que `Number("1,234.56")` o `Number("1.234,56")` den NaN y el catálogo muestre $0.
+ */
+export function parsePrecioNumberFromFirestore(value: unknown): number {
+  if (value == null) return 0;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    let s = value.trim().replace(/\s/g, '');
+    if (!s) return 0;
+    s = s.replace(/^\$/, '').replace(/MXN$/i, '').trim();
+    const lastComma = s.lastIndexOf(',');
+    const lastDot = s.lastIndexOf('.');
+    let normalized: string;
+    if (lastComma > lastDot) {
+      normalized = s.replace(/\./g, '').replace(',', '.');
+    } else if (lastDot > lastComma) {
+      normalized = s.replace(/,/g, '');
+    } else {
+      normalized = s.replace(',', '.');
+    }
+    const n = Number(normalized);
+    return Number.isFinite(n) ? n : 0;
+  }
+  return 0;
+}
+
+/**
  * Unifica valores numéricos (Firestore, CSV, Excel) para mapas `preciosPorListaCliente`.
  */
 export function normalizeListaPrecioValue(v: unknown): number | undefined {
@@ -10,8 +37,9 @@ export function normalizeListaPrecioValue(v: unknown): number | undefined {
   if (typeof v === 'string') {
     const t = v.trim();
     if (!t) return undefined;
-    const n = Number(t.replace(/\s/g, '').replace(',', '.'));
-    if (Number.isFinite(n) && n >= 0) return n;
+    const n = parsePrecioNumberFromFirestore(v);
+    if (!Number.isFinite(n) || n < 0) return undefined;
+    return n;
   }
   return undefined;
 }

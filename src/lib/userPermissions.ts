@@ -18,6 +18,7 @@ export const ALL_PERMISSIONS: Permission[] = [
   'inventario:editar',
   'inventario:eliminar',
   'inventario:mision_diaria',
+  'inventario:mision_ajustar_stock',
   'cotizaciones:ver',
   'cotizaciones:crear',
   'facturas:ver',
@@ -42,6 +43,8 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'inventario:eliminar': 'Eliminar productos',
   'inventario:mision_diaria':
     'Misiones de inventario (solo cajeros con esta marca; ciclo bimestral cubre el catálogo)',
+  'inventario:mision_ajustar_stock':
+    'Corregir existencia desde misiones (cantidad y comentario; no edita ficha completa)',
   'cotizaciones:ver': 'Ver cotizaciones',
   'cotizaciones:crear': 'Crear y editar cotizaciones',
   'facturas:ver': 'Facturación (ver)',
@@ -71,6 +74,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, readonly Permission[]> =
     'ventas:crear',
     'inventario:ver',
     'inventario:mision_diaria',
+    'inventario:mision_ajustar_stock',
     'cotizaciones:ver',
     'cotizaciones:crear',
     'checador:registrar',
@@ -105,9 +109,8 @@ export function userHasPermission(user: User | null | undefined, permission: Per
 }
 
 /**
- * Misiones: requiere permiso `inventario:mision_diaria` (cajero lo trae por defecto).
- * Admin/gerente con ese permiso ven la entrada; cajero también; listas allow/exclude por
- * `username` o parte local del correo (p. ej. `gabriel` en `gabriel@…`).
+ * Lista de misiones (marcar revisados, otra misión, etc.): cajeros y lista allow;
+ * admin/gerente excluidos por nombre (p. ej. Julian) no ven esta vista.
  */
 export function userCanSeeInventoryMissions(user: User | null | undefined): boolean {
   if (!user?.isActive) return false;
@@ -116,11 +119,26 @@ export function userCanSeeInventoryMissions(user: User | null | undefined): bool
   const emailLocal = (user.email ?? '').split('@')[0]?.trim().toLowerCase() ?? '';
   if (INVENTORY_MISSIONS_EXCLUDED_USERNAMES.has(u)) return false;
   if (emailLocal && INVENTORY_MISSIONS_EXCLUDED_USERNAMES.has(emailLocal)) return false;
-  if (user.role === 'admin' || user.role === 'gerente') return true;
   if (user.role === 'cashier') return true;
   if (INVENTORY_MISSIONS_ALLOW_USERNAME.has(u)) return true;
   if (emailLocal && INVENTORY_MISSIONS_ALLOW_USERNAME.has(emailLocal)) return true;
   return false;
+}
+
+/**
+ * Admin/gerente en lista excluida (p. ej. Julian): solo barra de progreso global agregada en este equipo,
+ * sin listas de misión ni ajustes desde aquí.
+ */
+export function userCanSeeMissionProgressOnly(user: User | null | undefined): boolean {
+  if (!user?.isActive) return false;
+  if (!userHasPermission(user, 'inventario:ver')) return false;
+  const u = (user.username ?? '').trim().toLowerCase();
+  const emailLocal = (user.email ?? '').split('@')[0]?.trim().toLowerCase() ?? '';
+  const excluded =
+    INVENTORY_MISSIONS_EXCLUDED_USERNAMES.has(u) ||
+    (emailLocal.length > 0 && INVENTORY_MISSIONS_EXCLUDED_USERNAMES.has(emailLocal));
+  if (!excluded) return false;
+  return user.role === 'admin' || user.role === 'gerente';
 }
 
 export function permissionsFromRoleTemplate(role: UserRole): Permission[] {

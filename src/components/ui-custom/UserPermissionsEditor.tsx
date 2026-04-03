@@ -39,6 +39,7 @@ const PERMISSION_GROUPS: { title: string; items: Permission[] }[] = [
       'inventario:editar',
       'inventario:eliminar',
       'inventario:mision_diaria',
+      'inventario:mision_ajustar_stock',
     ],
   },
   {

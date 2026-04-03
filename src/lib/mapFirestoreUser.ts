@@ -29,6 +29,8 @@ function parsePermissionArray(value: unknown): Permission[] {
     'inventario:crear',
     'inventario:editar',
     'inventario:eliminar',
+    'inventario:mision_diaria',
+    'inventario:mision_ajustar_stock',
     'cotizaciones:ver',
     'cotizaciones:crear',
     'facturas:ver',

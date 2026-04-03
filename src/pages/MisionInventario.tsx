@@ -24,6 +24,7 @@ import {
   loadMissionProductIds,
   loadUsedIdsInDay,
   MAX_MISSION_SIZE,
+  mergeAllUsersMissionDoneInCycle,
   mergeMissionDoneIdsInCycle,
   MIN_MISSION_SIZE,
   pickRandomMissionIdsFromProducts,
@@ -42,7 +43,7 @@ import {
   buildMissionDayTicketLines,
   fetchInventoryMovementsForUserMexicoDay,
 } from '@/lib/missionDayInventoryMovements';
-import { userCanSeeInventoryMissions } from '@/lib/userPermissions';
+import { userCanSeeInventoryMissions, userCanSeeMissionProgressOnly } from '@/lib/userPermissions';
 import { cn } from '@/lib/utils';
 import type { Product } from '@/types';
 
@@ -51,7 +52,7 @@ export function MisionInventario() {
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const navigate = useNavigate();
   const { addToast } = useAppStore();
-  const { products, loading } = useProducts();
+  const { products, loading, adjustStock } = useProducts();
   const { effectiveSucursalId } = useEffectiveSucursalId();
 
   const [dateKey, setDateKey] = useState(() => getMexicoDateKey());
@@ -62,8 +63,17 @@ export function MisionInventario() {
   const [missionCompleteDialogOpen, setMissionCompleteDialogOpen] = useState(false);
   const [nextMissionCount, setNextMissionCount] = useState(25);
 
-  const allowed = userCanSeeInventoryMissions(user);
+  const fullMission = userCanSeeInventoryMissions(user);
+  const progressOnly = userCanSeeMissionProgressOnly(user);
+  const allowed = fullMission || progressOnly;
   const canEditProducto = hasPermission('inventario:editar');
+  const canAdjustStockMission = hasPermission('inventario:mision_ajustar_stock');
+
+  const [stockDialogOpen, setStockDialogOpen] = useState(false);
+  const [stockDialogProduct, setStockDialogProduct] = useState<Product | null>(null);
+  const [stockCantidadStr, setStockCantidadStr] = useState('');
+  const [stockComentario, setStockComentario] = useState('');
+  const [stockSaving, setStockSaving] = useState(false);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -83,6 +93,10 @@ export function MisionInventario() {
   }, [user?.id, partitionDateKey]);
 
   useEffect(() => {
+    if (progressOnly) {
+      setMissionIds([]);
+      return;
+    }
     if (!user?.id || products.length === 0) return;
     const activeIds = new Set(products.filter((p) => p.activo !== false).map((p) => p.id));
     if (activeIds.size === 0) {
@@ -105,7 +119,7 @@ export function MisionInventario() {
     const ids = pickRandomMissionIdsFromProducts(products, DEFAULT_MISSION_SIZE, used, seed);
     saveMissionProductIds(user.id, partitionDateKey, ids);
     setMissionIds(ids);
-  }, [user?.id, partitionDateKey, products]);
+  }, [progressOnly, user?.id, partitionDateKey, products]);
 
   const cycleInfo = useMemo(() => getBimonthCycleInfo(dateKey), [dateKey]);
 
@@ -120,15 +134,18 @@ export function MisionInventario() {
   );
 
   const revisadosEnCiclo = useMemo(() => {
-    if (!user?.id) return 0;
-    const merged = mergeMissionDoneIdsInCycle(user.id, dateKey);
     const activos = new Set(products.filter((p) => p.activo !== false).map((p) => p.id));
+    const merged = progressOnly
+      ? mergeAllUsersMissionDoneInCycle(dateKey)
+      : user?.id
+        ? mergeMissionDoneIdsInCycle(user.id, dateKey)
+        : new Set<string>();
     let n = 0;
     merged.forEach((id) => {
       if (activos.has(id)) n++;
     });
     return n;
-  }, [user?.id, dateKey, products]);
+  }, [progressOnly, user?.id, dateKey, products]);
 
   const pctGlobal =
     totalActivos > 0 ? Math.round((revisadosEnCiclo / totalActivos) * 100) : 0;
@@ -199,6 +216,44 @@ export function MisionInventario() {
     setMissionCompleteDialogOpen(false);
   }, [user?.id, partitionDateKey, products, nextMissionCount, addToast]);
 
+  const openStockAdjustDialog = useCallback((p: Product) => {
+    setStockDialogProduct(p);
+    setStockCantidadStr(String(Math.trunc(Number(p.existencia) || 0)));
+    setStockComentario('');
+    setStockDialogOpen(true);
+  }, []);
+
+  const submitStockAdjust = useCallback(async () => {
+    if (!stockDialogProduct || !user?.id) return;
+    const raw = stockCantidadStr.trim().replace(',', '.');
+    const nueva = Number(raw);
+    if (!Number.isFinite(nueva) || !Number.isInteger(nueva)) {
+      addToast({ type: 'error', message: 'Indique una cantidad entera válida.' });
+      return;
+    }
+    setStockSaving(true);
+    try {
+      await adjustStock(
+        stockDialogProduct.id,
+        nueva,
+        'ajuste',
+        `Misión inventario${stockComentario.trim() ? `: ${stockComentario.trim()}` : ''}`,
+        undefined,
+        user.id
+      );
+      addToast({ type: 'success', message: 'Existencia actualizada.' });
+      setStockDialogOpen(false);
+      setStockDialogProduct(null);
+    } catch (e) {
+      addToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'No se pudo guardar el ajuste',
+      });
+    } finally {
+      setStockSaving(false);
+    }
+  }, [stockDialogProduct, stockCantidadStr, stockComentario, user?.id, adjustStock, addToast]);
+
   const toggle = useCallback(
     (p: Product) => {
       if (!user?.id) return;
@@ -259,9 +314,64 @@ export function MisionInventario() {
 
   return (
     <PageShell
-      title="Misiones de inventario"
-      subtitle={`${subParts.join(' · ')}. Cada misión muestra artículos al azar; las listas sucesivas del mismo día evitan repetir lo ya sorteado cuando el catálogo lo permite.`}
+      title={progressOnly ? 'Progreso de inventario' : 'Misiones de inventario'}
+      subtitle={
+        progressOnly
+          ? `${subParts.join(' · ')}. Vista de supervisión: avance agregado en este navegador (todas las cuentas que usan misiones en este equipo). No incluye listas de revisión.`
+          : `${subParts.join(' · ')}. Cada misión muestra artículos al azar; las listas sucesivas del mismo día evitan repetir lo ya sorteado cuando el catálogo lo permite.`
+      }
     >
+      <Dialog open={stockDialogOpen} onOpenChange={(o) => {
+        setStockDialogOpen(o);
+        if (!o) setStockDialogProduct(null);
+      }}>
+        <DialogContent className="sm:max-w-md" useDialogDescription>
+          <DialogHeader>
+            <DialogTitle>Ajustar existencia</DialogTitle>
+            <DialogDescription>
+              Cantidad correcta en sistema y comentario (p. ej. motivo del conteo). Se registra como ajuste de inventario.
+            </DialogDescription>
+          </DialogHeader>
+          {stockDialogProduct ? (
+            <div className="space-y-3 py-1">
+              <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{stockDialogProduct.nombre}</p>
+              <p className="text-xs text-slate-600 dark:text-slate-400">SKU {stockDialogProduct.sku}</p>
+              <div className="space-y-1">
+                <Label htmlFor="mision-stock-cantidad">Cantidad correcta</Label>
+                <Input
+                  id="mision-stock-cantidad"
+                  type="number"
+                  inputMode="numeric"
+                  value={stockCantidadStr}
+                  onChange={(e) => setStockCantidadStr(e.target.value)}
+                  className="border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-900/80"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="mision-stock-comentario">Comentario</Label>
+                <textarea
+                  id="mision-stock-comentario"
+                  value={stockComentario}
+                  onChange={(e) => setStockComentario(e.target.value)}
+                  rows={3}
+                  placeholder="Ej. conteo físico, rotura, hallazgo en anaquel…"
+                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100"
+                />
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button type="button" variant="outline" onClick={() => setStockDialogOpen(false)} disabled={stockSaving}>
+              Cancelar
+            </Button>
+            <Button type="button" onClick={() => void submitStockAdjust()} disabled={stockSaving || !stockDialogProduct}>
+              {stockSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Guardar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={missionCompleteDialogOpen} onOpenChange={setMissionCompleteDialogOpen}>
         <DialogContent className="sm:max-w-md" useDialogDescription>
           <DialogHeader>
@@ -310,8 +420,9 @@ export function MisionInventario() {
                 Progreso global del inventario
               </CardTitle>
               <CardDescription>
-                Artículos activos que ya marcaste al menos una vez en este ciclo bimestral ({cycleInfo.cycleLabelEs}).
-                Suma revisiones de todas las misiones y días (en este dispositivo).
+                {progressOnly
+                  ? `Artículos activos marcados al menos una vez en este ciclo (${cycleInfo.cycleLabelEs}) en este navegador, sumando a todos los usuarios que usan misiones aquí.`
+                  : `Artículos activos que ya marcaste al menos una vez en este ciclo bimestral (${cycleInfo.cycleLabelEs}). Suma revisiones de todas las misiones y días (en este dispositivo).`}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -332,6 +443,8 @@ export function MisionInventario() {
           </Card>
         ) : null}
 
+        {!progressOnly ? (
+          <>
         <Card className="border-cyan-500/20 bg-gradient-to-br from-cyan-500/5 to-blue-500/5 dark:from-cyan-500/10 dark:to-blue-500/5">
           <CardHeader className="pb-2">
             <CardTitle className="text-lg text-slate-900 dark:text-slate-100">Misión actual</CardTitle>
@@ -377,8 +490,10 @@ export function MisionInventario() {
             comprobante de misión completada.
           </p>
         </div>
+          </>
+        ) : null}
 
-        {totalActivos > 0 ? (
+        {!progressOnly && totalActivos > 0 ? (
           <Card className="border-slate-200/80 dark:border-slate-800/60">
             <CardHeader className="pb-2">
               <CardTitle className="text-base text-slate-900 dark:text-slate-100">
@@ -392,6 +507,7 @@ export function MisionInventario() {
           </Card>
         ) : null}
 
+        {!progressOnly ? (
         <div className="space-y-2">
           <Label htmlFor="mision-buscar" className="text-slate-600 dark:text-slate-400">
             Buscar en la lista de esta misión
@@ -404,17 +520,18 @@ export function MisionInventario() {
             className="border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-900/80"
           />
         </div>
+        ) : null}
 
-        {loading || !missionsReady ? (
+        {!progressOnly && (loading || !missionsReady) ? (
           <div className="flex items-center justify-center gap-2 py-16 text-slate-600 dark:text-slate-400">
             <Loader2 className="h-5 w-5 animate-spin" />
             Cargando misión…
           </div>
-        ) : total === 0 ? (
+        ) : !progressOnly && total === 0 ? (
           <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
             No hay productos activos en catálogo para armar la misión en esta sucursal.
           </p>
-        ) : (
+        ) : !progressOnly ? (
           <ul className="space-y-2">
             {filtered.map((p) => {
               const isDone = done.has(p.id);
@@ -453,16 +570,24 @@ export function MisionInventario() {
                       </span>
                     </span>
                   </button>
-                  {canEditProducto ? (
+                  {canAdjustStockMission || canEditProducto ? (
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
                       className="h-auto shrink-0 flex-col gap-0.5 border-slate-300 px-2 py-2 text-[11px] dark:border-slate-600"
-                      title="Corregir existencia o datos en Inventario"
+                      title={
+                        canAdjustStockMission
+                          ? 'Corregir cantidad en sistema y comentario'
+                          : 'Abrir ficha en Inventario'
+                      }
                       onClick={(e) => {
                         e.stopPropagation();
-                        navigate('/inventario', { state: { editProductId: p.id } });
+                        if (canAdjustStockMission) {
+                          openStockAdjustDialog(p);
+                        } else {
+                          navigate('/inventario', { state: { editProductId: p.id } });
+                        }
                       }}
                     >
                       <Pencil className="h-4 w-4" />
@@ -473,16 +598,17 @@ export function MisionInventario() {
               );
             })}
           </ul>
-        )}
+        ) : null}
 
-        {filtered.length === 0 && total > 0 && query.trim() ? (
+        {!progressOnly && filtered.length === 0 && total > 0 && query.trim() ? (
           <p className="text-center text-sm text-slate-500 dark:text-slate-500">Ningún artículo coincide con la búsqueda.</p>
         ) : null}
 
-        {total > 0 ? (
+        {!progressOnly && total > 0 ? (
           <p className="text-center text-xs leading-relaxed text-slate-500 dark:text-slate-500">
-            Si encuentra diferencias de stock, avise a un encargado o use Inventario (si tiene permiso) para ajustar.
-            Esta pantalla no modifica existencias.
+            {canAdjustStockMission
+              ? 'Si el stock no coincide, use Editar para ajustar la cantidad y dejar comentario; con permiso de inventario completo también puede abrir la ficha en Inventario.'
+              : 'Si encuentra diferencias de stock, avise a un encargado o use Inventario (si tiene permiso) para ajustar.'}
           </p>
         ) : null}
       </div>

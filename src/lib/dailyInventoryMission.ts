@@ -148,6 +148,45 @@ export function saveMissionDoneIds(userId: string, dateKey: string, done: Set<st
   }
 }
 
+/**
+ * Une los IDs marcados como revisados por **todos** los usuarios en este navegador (localStorage),
+ * en el ciclo bimestral que contiene `dateKey`. Sirve para la vista solo-progreso del admin.
+ */
+export function mergeAllUsersMissionDoneInCycle(dateKey: string): Set<string> {
+  const merged = new Set<string>();
+  if (typeof localStorage === 'undefined') return merged;
+  const { periodStartKey, periodEndKey } = getBimonthCycleInfo(dateKey);
+  const partitions = new Set<string>();
+  let d = periodStartKey;
+  let guard = 0;
+  while (d <= periodEndKey && guard < 400) {
+    guard++;
+    partitions.add(effectiveDateKeyForMissionPartition(d));
+    if (d >= periodEndKey) break;
+    d = addDaysToMexicoDateKey(d, 1);
+  }
+  const prefix = `${STORAGE_PREFIX}_`;
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (!k || !k.startsWith(prefix) || k.includes('_list_') || k.includes('_used_')) continue;
+    const rest = k.slice(prefix.length);
+    const lastU = rest.lastIndexOf('_');
+    if (lastU <= 0) continue;
+    const partitionFromKey = rest.slice(lastU + 1);
+    if (!partitions.has(partitionFromKey)) continue;
+    try {
+      const raw = localStorage.getItem(k);
+      if (!raw) continue;
+      const arr = JSON.parse(raw) as unknown;
+      if (!Array.isArray(arr)) continue;
+      arr.filter((x): x is string => typeof x === 'string').forEach((id) => merged.add(id));
+    } catch {
+      /* ignore */
+    }
+  }
+  return merged;
+}
+
 /** IDs marcados como revisados en cualquier día del ciclo bimestral actual (misma clave de fecha). */
 export function mergeMissionDoneIdsInCycle(userId: string, dateKey: string): Set<string> {
   const { periodStartKey, periodEndKey } = getBimonthCycleInfo(dateKey);

@@ -18,6 +18,8 @@ export type Permission =
   | 'inventario:eliminar'
   /** Revisión diaria por lotes (misiones); no implica ver todo el inventario. */
   | 'inventario:mision_diaria'
+  /** Ajustar existencia desde la pantalla de misiones (diálogo cantidad + comentario). */
+  | 'inventario:mision_ajustar_stock'
   | 'cotizaciones:ver'
   | 'cotizaciones:crear'
   | 'facturas:ver'

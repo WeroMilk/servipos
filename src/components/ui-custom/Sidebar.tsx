@@ -7,7 +7,11 @@ import { cn } from '@/lib/utils';
 import { MAIN_NAV_ITEMS } from '@/lib/mainNavItems';
 import { SHOW_CHECADOR_NAV } from '@/lib/featureFlags';
 import { BRAND_LOGO_URL } from '@/lib/branding';
-import { ROLE_LABELS, userCanSeeInventoryMissions } from '@/lib/userPermissions';
+import {
+  ROLE_LABELS,
+  userCanSeeInventoryMissions,
+  userCanSeeMissionProgressOnly,
+} from '@/lib/userPermissions';
 interface NavItemProps {
   to: string;
   icon: LucideIcon;
@@ -90,8 +94,13 @@ export function Sidebar() {
         {MAIN_NAV_ITEMS.map((item) => {
           if (item.to === '/checador' && !SHOW_CHECADOR_NAV) return null;
           if (item.to === '/mision-inventario') {
-            return userCanSeeInventoryMissions(user) ? (
-              <NavItem key={item.to} to={item.to} icon={item.icon} label={item.label} />
+            return userCanSeeInventoryMissions(user) || userCanSeeMissionProgressOnly(user) ? (
+              <NavItem
+                key={item.to}
+                to={item.to}
+                icon={item.icon}
+                label={userCanSeeMissionProgressOnly(user) && !userCanSeeInventoryMissions(user) ? 'Progreso inventario' : item.label}
+              />
             ) : null;
           }
           return hasPermission(item.permission) ? (
