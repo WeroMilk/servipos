@@ -315,7 +315,6 @@ export async function createSaleFirestore(
       const cantidadAnterior =
         typeof pdata.existencia === 'number' ? pdata.existencia : Number(pdata.existencia) || 0;
       const cantidadNueva = cantidadAnterior - item.cantidad;
-      if (cantidadNueva < 0) throw new Error('Stock insuficiente');
 
       transaction.update(productRefs[i]!, {
         existencia: cantidadNueva,
@@ -565,7 +564,6 @@ export async function updatePendingOpenSaleFirestore(
       const cantidadAnterior =
         typeof pdata.existencia === 'number' ? pdata.existencia : Number(pdata.existencia) || 0;
       const cantidadNueva = cantidadAnterior - delta;
-      if (cantidadNueva < 0) throw new Error('Stock insuficiente');
 
       transaction.update(prodRefs[i]!, {
         existencia: cantidadNueva,

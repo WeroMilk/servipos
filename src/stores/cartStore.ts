@@ -87,20 +87,12 @@ export const useCartStore = create<CartState>((set, get) => ({
     const existingItem = items.find((item) => item.product.id === product.id);
 
     if (existingItem) {
-      if (existingItem.quantity + quantity > product.existencia) {
-        throw new Error('Stock insuficiente');
-      }
-
       set({
         items: items.map((item) =>
           item.product.id === product.id ? { ...item, quantity: item.quantity + quantity } : item
         ),
       });
     } else {
-      if (quantity > product.existencia) {
-        throw new Error('Stock insuficiente');
-      }
-
       set({
         items: [...items, { product, quantity, discount: 0 }],
       });
@@ -115,11 +107,6 @@ export const useCartStore = create<CartState>((set, get) => ({
     if (quantity <= 0) {
       get().removeItem(productId);
       return;
-    }
-
-    const item = get().items.find((i) => i.product.id === productId);
-    if (item && quantity > item.product.existencia) {
-      throw new Error('Stock insuficiente');
     }
 
     set({

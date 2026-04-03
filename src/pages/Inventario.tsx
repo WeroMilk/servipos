@@ -82,6 +82,7 @@ import { deleteAllInventoryMovementsFirestore } from '@/lib/firestore/inventoryM
 import { subscribeSucursales } from '@/lib/firestore/sucursalesMetaFirestore';
 import { confirmIncomingStoreTransfer } from '@/lib/firestore/storeTransfersFirestore';
 import { cn, formatMoney } from '@/lib/utils';
+import { getProductPrecioBaseCatalogoSinIva } from '@/lib/productListPricing';
 import {
   SAT_CLAVES_UNIDAD,
   normalizeClaveProdServ,
@@ -897,7 +898,11 @@ export function Inventario() {
   }, [preciosDialogProduct]);
 
   const valorInventarioTotal = useMemo(
-    () => products.reduce((sum, p) => sum + p.precioVenta * p.existencia, 0),
+    () =>
+      products.reduce(
+        (sum, p) => sum + getProductPrecioBaseCatalogoSinIva(p) * p.existencia,
+        0
+      ),
     [products]
   );
 
@@ -1543,7 +1548,7 @@ export function Inventario() {
                         </TableCell>
                         <TableCell className="font-mono text-sm text-slate-600 dark:text-slate-400">{product.sku}</TableCell>
                         <TableCell className="font-medium tabular-nums text-cyan-400">
-                          {formatMoney(product.precioVenta)}
+                          {formatMoney(getProductPrecioBaseCatalogoSinIva(product))}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">

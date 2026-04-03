@@ -23,7 +23,6 @@ export async function updateStockDexie(
     cantidadNueva = cantidadAnterior + cantidad;
   } else if (tipo === 'salida') {
     cantidadNueva = cantidadAnterior - cantidad;
-    if (cantidadNueva < 0) throw new Error('Stock insuficiente');
   } else {
     cantidadNueva = cantidad;
   }

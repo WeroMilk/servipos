@@ -1,5 +1,6 @@
 import type { Product } from '@/types';
 import { CLIENT_PRICE_LIST_ORDER, CLIENT_PRICE_LABELS } from '@/lib/clientPriceLists';
+import { getProductPrecioBaseCatalogoSinIva } from '@/lib/productListPricing';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 
 function round2(n: number): number {
@@ -100,7 +101,8 @@ export function downloadInventarioCompleto(opts: {
     const pCompra = p.precioCompra;
     const valorCosto =
       pCompra != null && Number.isFinite(pCompra) ? round2(exist * pCompra) : '';
-    const valorVentaSinIva = round2(exist * (Number(p.precioVenta) || 0));
+    const baseVenta = getProductPrecioBaseCatalogoSinIva(p);
+    const valorVentaSinIva = round2(exist * baseVenta);
     const listCols = CLIENT_PRICE_LIST_ORDER.map((id) => {
       const v = p.preciosPorListaCliente?.[id];
       return v != null && Number.isFinite(v) ? round2(v) : '';
@@ -119,7 +121,7 @@ export function downloadInventarioCompleto(opts: {
       exist,
       Number(p.existenciaMinima) || 0,
       esStockBajo(p) ? 'Sí' : 'No',
-      round2(Number(p.precioVenta) || 0),
+      round2(baseVenta),
       Number(p.impuesto) || 0,
       pCompra != null && Number.isFinite(pCompra) ? round2(pCompra) : '',
       valorCosto === '' ? '' : valorCosto,

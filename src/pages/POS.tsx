@@ -83,7 +83,7 @@ import { subscribeSucursales } from '@/lib/firestore/sucursalesMetaFirestore';
 import { cn, formatMoney } from '@/lib/utils';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { printThermalTicket } from '@/lib/printTicket';
-import { getCartLineUnitSinIvaBase } from '@/lib/productListPricing';
+import { getCartLineUnitSinIvaBase, getProductUnitSinIvaForClienteList } from '@/lib/productListPricing';
 
 // ============================================
 // PUNTO DE VENTA (POS) — Vista tipo app: lg+ sin scroll del contenedor (solo carrito / panel cobro); móvil conserva scroll vertical.
@@ -1792,7 +1792,9 @@ export function POS() {
                         <p className="text-xs text-slate-600 dark:text-slate-500">SKU: {product.sku}</p>
                       </div>
                       <div className="shrink-0 text-right">
-                        <p className="font-bold text-cyan-400">{formatMoney(product.precioVenta)}</p>
+                        <p className="font-bold text-cyan-400">
+                          {formatMoney(getProductUnitSinIvaForClienteList(product, precioClienteListaId))}
+                        </p>
                         <p className="text-[10px] text-slate-500 dark:text-slate-400">sin IVA</p>
                         <p
                           className={cn(
