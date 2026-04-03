@@ -1,6 +1,6 @@
 import type { Product, CartItem } from '@/types';
-import { CLIENT_PRICE_LIST_ORDER, type ClientPriceListId } from '@/lib/clientPriceLists';
-import { normalizeListaPrecioValue } from '@/lib/precioListaNorm';
+import { type ClientPriceListId } from '@/lib/clientPriceLists';
+import { firstSinIvaFromListaMap, normalizeListaPrecioValue } from '@/lib/precioListaNorm';
 import { getListaPrecioClientePct } from '@/stores/clientPriceListStore';
 import { effectiveListaPreciosIncluyenIva } from '@/lib/catalogPricingFlags';
 
@@ -12,16 +12,7 @@ function impuestoPct(product: Product): number {
 function firstSinIvaFromAnyLista(product: Product): number {
   const map = product.preciosPorListaCliente;
   if (!map) return 0;
-  const incl = effectiveListaPreciosIncluyenIva(product);
-  const imp = impuestoPct(product);
-  for (const id of CLIENT_PRICE_LIST_ORDER) {
-    const ex = normalizeListaPrecioValue(map[id]);
-    if (ex !== undefined && ex > 0) {
-      if (incl) return ex / (1 + imp / 100);
-      return ex;
-    }
-  }
-  return 0;
+  return firstSinIvaFromListaMap(map, effectiveListaPreciosIncluyenIva(product), impuestoPct(product));
 }
 
 /**

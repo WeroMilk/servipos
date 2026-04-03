@@ -1,19 +1,28 @@
 import type { Product } from '@/types';
-import { parsePrecioNumberFromFirestore, parsePreciosPorListaClienteRaw } from '@/lib/precioListaNorm';
+import {
+  parsePrecioNumberFromFirestore,
+  parsePreciosPorListaClienteRaw,
+  resolvePrecioVentaSinIvaForDoc,
+} from '@/lib/precioListaNorm';
 
 /** Evita throws en sort/UI cuando IndexedDB u orígenes devuelven campos incompletos. */
 export function coerceProduct(p: Product): Product {
-  const precioVenta = parsePrecioNumberFromFirestore(p.precioVenta);
+  const preciosPorListaCliente = parsePreciosPorListaClienteRaw(p.preciosPorListaCliente);
+  const preciosListaIncluyenIva =
+    p.preciosListaIncluyenIva === true ? true : p.preciosListaIncluyenIva === false ? false : undefined;
+  const impuesto = Number(p.impuesto);
+  const precioVenta = resolvePrecioVentaSinIvaForDoc({
+    rawPv: p.precioVenta,
+    preciosPorListaCliente,
+    preciosListaIncluyenIva,
+    impuesto: Number.isFinite(impuesto) ? impuesto : 16,
+  });
   const existencia = Number(p.existencia);
   const existenciaMinima = Number(p.existenciaMinima);
-  const impuesto = Number(p.impuesto);
   const precioCompraNum =
     p.precioCompra != null && String(p.precioCompra).trim() !== ''
       ? parsePrecioNumberFromFirestore(p.precioCompra)
       : NaN;
-  const preciosPorListaCliente = parsePreciosPorListaClienteRaw(p.preciosPorListaCliente);
-  const preciosListaIncluyenIva =
-    p.preciosListaIncluyenIva === true ? true : p.preciosListaIncluyenIva === false ? false : undefined;
   return {
     ...p,
     nombre: p.nombre != null ? String(p.nombre) : '',

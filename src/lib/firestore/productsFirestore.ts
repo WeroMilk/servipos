@@ -17,7 +17,11 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Product, StockEntradaMeta } from '@/types';
-import { parsePrecioNumberFromFirestore, parsePreciosPorListaClienteRaw } from '@/lib/precioListaNorm';
+import {
+  parsePrecioNumberFromFirestore,
+  parsePreciosPorListaClienteRaw,
+  resolvePrecioVentaSinIvaForDoc,
+} from '@/lib/precioListaNorm';
 import { normalizeClaveProdServ, normalizeClaveUnidadSat } from '@/lib/satCatalog';
 
 // ============================================
@@ -58,22 +62,32 @@ export function docToProduct(snap: QueryDocumentSnapshot): Product {
     d.precio_unitario ??
     d.importe;
   const rawPc = d.precioCompra ?? d.precio_compra;
+  const impuesto = typeof d.impuesto === 'number' ? d.impuesto : Number(d.impuesto) || 16;
+  const preciosListaIncluyenIva: boolean | undefined =
+    d.preciosListaIncluyenIva === true ? true : d.preciosListaIncluyenIva === false ? false : undefined;
+  const parsedLista = parsePreciosPorListaClienteRaw(d.preciosPorListaCliente);
+  const precioVenta = resolvePrecioVentaSinIvaForDoc({
+    rawPv,
+    preciosPorListaCliente: parsedLista,
+    preciosListaIncluyenIva,
+    impuesto,
+  });
   return {
     id: snap.id,
     sku: String(d.sku ?? ''),
     codigoBarras: d.codigoBarras != null ? String(d.codigoBarras) : undefined,
     nombre: String(d.nombre ?? ''),
     descripcion: d.descripcion != null ? String(d.descripcion) : undefined,
-    precioVenta: parsePrecioNumberFromFirestore(rawPv),
+    precioVenta,
     precioCompra: rawPc != null && String(rawPc).trim() !== '' ? parsePrecioNumberFromFirestore(rawPc) : undefined,
-    impuesto: typeof d.impuesto === 'number' ? d.impuesto : Number(d.impuesto) || 16,
+    impuesto,
     existencia: typeof d.existencia === 'number' ? d.existencia : Number(d.existencia) || 0,
     existenciaMinima:
       typeof d.existenciaMinima === 'number' ? d.existenciaMinima : Number(d.existenciaMinima) || 0,
     categoria: d.categoria != null ? String(d.categoria) : undefined,
     proveedor: d.proveedor != null ? String(d.proveedor) : undefined,
-    preciosPorListaCliente: parsePreciosPorListaClienteRaw(d.preciosPorListaCliente),
-    preciosListaIncluyenIva: d.preciosListaIncluyenIva === true ? true : d.preciosListaIncluyenIva === false ? false : undefined,
+    preciosPorListaCliente: parsedLista,
+    preciosListaIncluyenIva,
     imagen: d.imagen != null ? String(d.imagen) : undefined,
     unidadMedida: normalizeClaveUnidadSat(d.unidadMedida != null ? String(d.unidadMedida) : 'H87'),
     claveProdServ: (() => {

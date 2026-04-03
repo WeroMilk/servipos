@@ -43,7 +43,7 @@ export const useClientPriceListStore = create<ClientPriceListState>()(
 export function getListaPrecioClientePct(listId: ClientPriceListId): number {
   const d = useClientPriceListStore.getState().discounts[listId];
   if (typeof d === 'number' && !Number.isNaN(d)) {
-    return Math.min(100, Math.max(0, d));
+    return Math.min(99.99, Math.max(0, Math.min(100, d)));
   }
-  return DEFAULT_CLIENT_PRICE_DISCOUNTS[listId];
+  return Math.min(99.99, DEFAULT_CLIENT_PRICE_DISCOUNTS[listId]);
 }
