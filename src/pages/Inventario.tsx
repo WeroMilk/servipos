@@ -14,6 +14,7 @@ import {
   Truck,
   Clock,
   CircleDollarSign,
+  Download,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -92,6 +93,7 @@ import { PageShell } from '@/components/ui-custom/PageShell';
 import { printThermalLowStockReport } from '@/lib/printTicket';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { isMovimientoLlegadaMercancia } from '@/lib/inventoryAbasto';
+import { downloadInventarioCompletoXlsx } from '@/lib/inventoryExportExcel';
 
 type InventoryMode = 'productos' | 'stock' | 'valor' | 'codigos';
 
@@ -246,6 +248,7 @@ export function Inventario() {
     existenciaMinima: false,
   });
   const [inventoryMode, setInventoryMode] = useState<InventoryMode>('productos');
+  const [exportingInventario, setExportingInventario] = useState(false);
   const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
   const [movementsHistoryOpen, setMovementsHistoryOpen] = useState(false);
   const [clearMovementsConfirmOpen, setClearMovementsConfirmOpen] = useState(false);
@@ -828,6 +831,36 @@ export function Inventario() {
     setPreciosListaStr(emptyPreciosListaStr());
   };
 
+  const handleDescargarInventario = useCallback(async () => {
+    if (exportingInventario) return;
+    setExportingInventario(true);
+    try {
+      await downloadInventarioCompletoXlsx({
+        products,
+        sucursalNombre: effectiveSucursalId ? nombreSucursal(effectiveSucursalId) : undefined,
+      });
+      addToast({
+        type: 'success',
+        message: 'Excel de inventario descargado.',
+        logToAppEvents: true,
+      });
+    } catch (e) {
+      addToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'No se pudo generar el Excel.',
+        logToAppEvents: true,
+      });
+    } finally {
+      setExportingInventario(false);
+    }
+  }, [
+    exportingInventario,
+    products,
+    effectiveSucursalId,
+    nombreSucursal,
+    addToast,
+  ]);
+
   return (
     <>
     <PageShell
@@ -836,19 +869,32 @@ export function Inventario() {
       className="min-w-0 max-w-none"
       actionsClassName="md:mt-2"
       actions={
-        <Button
-          type="button"
-          onClick={() => {
-            resetForm();
-            addSessionLinesRef.current = [];
-            setShowAddDialog(true);
-          }}
-          className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
-          size="sm"
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Nuevo
-        </Button>
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={loading || exportingInventario}
+            onClick={() => void handleDescargarInventario()}
+            className="border-slate-300 dark:border-slate-600"
+          >
+            <Download className="mr-2 h-4 w-4" />
+            {exportingInventario ? 'Generando…' : 'Descargar Inventario'}
+          </Button>
+          <Button
+            type="button"
+            onClick={() => {
+              resetForm();
+              addSessionLinesRef.current = [];
+              setShowAddDialog(true);
+            }}
+            className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+            size="sm"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Nuevo
+          </Button>
+        </>
       }
     >
       <div className="grid w-full min-w-0 shrink-0 grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
