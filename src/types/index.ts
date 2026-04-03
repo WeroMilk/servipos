@@ -187,6 +187,8 @@ export interface InventoryMovement {
   referencia?: string; // ID de venta, compra, etc.
   /** Proveedor registrado en entradas de stock (compra / abasto). */
   proveedor?: string;
+  /** Código de proveedor (lista Configuración, formato CODIGO|Nombre), si aplica. */
+  proveedorCodigo?: string;
   /** Precio unitario de compra en esa entrada (sin IVA), si se capturó. */
   precioUnitarioCompra?: number;
   /** Copia al registrar el evento (p. ej. producto dado de baja y ya no está en catálogo activo). */
@@ -200,6 +202,7 @@ export interface InventoryMovement {
 /** Metadatos opcionales al registrar entrada de mercancía (Firestore / Dexie). */
 export interface StockEntradaMeta {
   proveedor?: string;
+  proveedorCodigo?: string;
   precioUnitarioCompra?: number;
 }
 

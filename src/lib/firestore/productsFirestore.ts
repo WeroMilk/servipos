@@ -291,6 +291,7 @@ export async function adjustStockFirestore(
 
     const movRef = doc(movementsCol(sucursalId));
     const prov = entradaMeta?.proveedor?.trim();
+    const provCod = entradaMeta?.proveedorCodigo?.trim();
     const pu = entradaMeta?.precioUnitarioCompra;
     transaction.set(movRef, {
       productId,
@@ -302,6 +303,8 @@ export async function adjustStockFirestore(
       referencia: referencia ?? null,
       proveedor:
         tipo === 'entrada' && prov && prov.length > 0 ? prov : null,
+      proveedorCodigo:
+        tipo === 'entrada' && provCod && provCod.length > 0 ? provCod : null,
       precioUnitarioCompra:
         tipo === 'entrada' && pu != null && Number.isFinite(pu) && pu >= 0 ? pu : null,
       usuarioId: usuarioId ?? 'system',

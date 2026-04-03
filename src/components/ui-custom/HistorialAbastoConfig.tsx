@@ -14,6 +14,8 @@ import {
 } from '@/components/ui/table';
 import { useProducts } from '@/hooks/useProducts';
 import { useInventoryMovementsHistory } from '@/hooks/useInventoryMovementsHistory';
+import { useInventoryListsStore } from '@/stores';
+import { formatProveedorHistorialLineaResuelto } from '@/lib/proveedoresCatalog';
 import { formatMoney, cn } from '@/lib/utils';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { isMovimientoLlegadaMercancia } from '@/lib/inventoryAbasto';
@@ -30,6 +32,7 @@ type Props = {
 export function HistorialAbastoConfig({ enabled }: Props) {
   const { products } = useProducts();
   const { movements, loading } = useInventoryMovementsHistory(enabled);
+  const proveedoresLista = useInventoryListsStore((s) => s.proveedores);
   const [query, setQuery] = useState('');
   const [showPicker, setShowPicker] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -249,8 +252,12 @@ export function HistorialAbastoConfig({ enabled }: Props) {
                       <TableCell className="whitespace-nowrap tabular-nums text-slate-800 dark:text-slate-200">
                         +{m.cantidad}
                       </TableCell>
-                      <TableCell className="max-w-[10rem] text-sm text-slate-700 dark:text-slate-300">
-                        {m.proveedor?.trim() || '—'}
+                      <TableCell className="max-w-[14rem] text-sm text-slate-700 dark:text-slate-300">
+                        {formatProveedorHistorialLineaResuelto(
+                          m.proveedor,
+                          m.proveedorCodigo,
+                          proveedoresLista
+                        ) || '—'}
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-right text-sm text-slate-800 dark:text-slate-200">
                         {pu != null && Number.isFinite(pu) ? formatMoney(pu) : '—'}

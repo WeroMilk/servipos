@@ -35,6 +35,7 @@ export async function updateStockDexie(
   });
 
   const prov = entradaMeta?.proveedor?.trim();
+  const provCod = entradaMeta?.proveedorCodigo?.trim();
   const pu = entradaMeta?.precioUnitarioCompra;
   await db.inventoryMovements.add({
     id: crypto.randomUUID(),
@@ -46,6 +47,8 @@ export async function updateStockDexie(
     motivo,
     referencia,
     proveedor: tipo === 'entrada' && prov ? prov : undefined,
+    proveedorCodigo:
+      tipo === 'entrada' && provCod && provCod.length > 0 ? provCod : undefined,
     precioUnitarioCompra:
       tipo === 'entrada' && pu != null && Number.isFinite(pu) && pu >= 0 ? pu : undefined,
     usuarioId: usuarioId || 'system',

@@ -94,6 +94,13 @@ import { printThermalLowStockReport } from '@/lib/printTicket';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { isMovimientoLlegadaMercancia } from '@/lib/inventoryAbasto';
 import { downloadInventarioCompletoXlsx } from '@/lib/inventoryExportExcel';
+import {
+  buildProveedorNombrePorLinea,
+  formatProveedorHistorialLineaResuelto,
+  lookupProveedorCodigo,
+  normalizeProveedorNombreGuardado,
+  proveedorSelectItemLabel,
+} from '@/lib/proveedoresCatalog';
 
 type InventoryMode = 'productos' | 'stock' | 'valor' | 'codigos';
 
@@ -311,6 +318,9 @@ export function Inventario() {
   const [preciosListaStr, setPreciosListaStr] = useState(emptyPreciosListaStr);
   const [addFormTemplateId, setAddFormTemplateId] = useState<string>('__none__');
   const [addProveedorSelectKey, setAddProveedorSelectKey] = useState(0);
+  const [addProveedorFilter, setAddProveedorFilter] = useState('');
+  const [editProveedorFilter, setEditProveedorFilter] = useState('');
+  const [stockProveedorFilter, setStockProveedorFilter] = useState('');
   const [addTemplateLlegadaOpen, setAddTemplateLlegadaOpen] = useState(false);
   const [addTemplateLlegadaProduct, setAddTemplateLlegadaProduct] = useState<Product | null>(null);
   const [addTemplateLlegadaQtyStr, setAddTemplateLlegadaQtyStr] = useState('');
@@ -325,20 +335,87 @@ export function Inventario() {
     return categoriasLista;
   }, [categoriasLista, formData.categoria]);
 
-  const proveedorSelectOptions = useMemo(() => {
-    const s = new Set(proveedoresLista);
-    if (formData.proveedor && !s.has(formData.proveedor)) {
-      return [formData.proveedor, ...proveedoresLista];
+  const proveedorNombreMapForm = useMemo(() => {
+    const m = buildProveedorNombrePorLinea(proveedoresLista);
+    if (formData.proveedor?.trim()) {
+      const n = normalizeProveedorNombreGuardado(formData.proveedor);
+      if (n && !m.has(n)) m.set(n, { codigo: '', nombre: n });
     }
-    return proveedoresLista;
+    return m;
   }, [proveedoresLista, formData.proveedor]);
 
-  const stockProveedorOptions = useMemo(() => {
-    const s = new Set(proveedoresLista);
+  const proveedorNombresSortedForm = useMemo(
+    () => [...proveedorNombreMapForm.keys()].sort((a, b) => a.localeCompare(b, 'es')),
+    [proveedorNombreMapForm]
+  );
+
+  const proveedorOptionsForAddSelect = useMemo(() => {
+    const q = addProveedorFilter.trim().toLowerCase();
+    let list = proveedorNombresSortedForm;
+    if (q.length > 0) {
+      list = proveedorNombresSortedForm.filter((nombre) => {
+        const row = proveedorNombreMapForm.get(nombre);
+        const cod = (row?.codigo ?? '').toLowerCase();
+        return nombre.toLowerCase().includes(q) || cod.includes(q);
+      });
+    }
+    const sel = formData.proveedor?.trim() ? normalizeProveedorNombreGuardado(formData.proveedor) : '';
+    if (sel && !list.includes(sel)) {
+      return [sel, ...list];
+    }
+    return list;
+  }, [proveedorNombresSortedForm, proveedorNombreMapForm, addProveedorFilter, formData.proveedor]);
+
+  const proveedorOptionsForEditSelect = useMemo(() => {
+    const q = editProveedorFilter.trim().toLowerCase();
+    let list = proveedorNombresSortedForm;
+    if (q.length > 0) {
+      list = proveedorNombresSortedForm.filter((nombre) => {
+        const row = proveedorNombreMapForm.get(nombre);
+        const cod = (row?.codigo ?? '').toLowerCase();
+        return nombre.toLowerCase().includes(q) || cod.includes(q);
+      });
+    }
+    const sel = formData.proveedor?.trim() ? normalizeProveedorNombreGuardado(formData.proveedor) : '';
+    if (sel && !list.includes(sel)) {
+      return [sel, ...list];
+    }
+    return list;
+  }, [proveedorNombresSortedForm, proveedorNombreMapForm, editProveedorFilter, formData.proveedor]);
+
+  const stockProveedorNombreMap = useMemo(() => {
+    const m = buildProveedorNombrePorLinea(proveedoresLista);
     const pe = stockAdjustment.proveedorEntrada.trim();
-    if (pe && !s.has(pe)) return [pe, ...proveedoresLista];
-    return proveedoresLista;
+    if (pe) {
+      const n = normalizeProveedorNombreGuardado(pe);
+      if (n && !m.has(n)) m.set(n, { codigo: '', nombre: n });
+    }
+    return m;
   }, [proveedoresLista, stockAdjustment.proveedorEntrada]);
+
+  const stockProveedorNombresSorted = useMemo(
+    () => [...stockProveedorNombreMap.keys()].sort((a, b) => a.localeCompare(b, 'es')),
+    [stockProveedorNombreMap]
+  );
+
+  const stockProveedorOptionsForSelect = useMemo(() => {
+    const q = stockProveedorFilter.trim().toLowerCase();
+    let list = stockProveedorNombresSorted;
+    if (q.length > 0) {
+      list = stockProveedorNombresSorted.filter((nombre) => {
+        const row = stockProveedorNombreMap.get(nombre);
+        const cod = (row?.codigo ?? '').toLowerCase();
+        return nombre.toLowerCase().includes(q) || cod.includes(q);
+      });
+    }
+    const sel = stockAdjustment.proveedorEntrada.trim()
+      ? normalizeProveedorNombreGuardado(stockAdjustment.proveedorEntrada)
+      : '';
+    if (sel && !list.includes(sel)) {
+      return [sel, ...list];
+    }
+    return list;
+  }, [stockProveedorNombresSorted, stockProveedorNombreMap, stockProveedorFilter, stockAdjustment.proveedorEntrada]);
 
   const { results: searchResults, search } = useProductSearch();
 
@@ -367,8 +444,16 @@ export function Inventario() {
       setAddTemplateLlegadaOpen(false);
       setAddTemplateLlegadaProduct(null);
       setAddTemplateLlegadaQtyStr('');
+      setAddProveedorFilter('');
     }
   }, [showAddDialog]);
+
+  useEffect(() => {
+    if (showEditDialog) {
+      setEditProveedorFilter('');
+      setStockProveedorFilter('');
+    }
+  }, [showEditDialog]);
 
   useEffect(() => {
     if (showEditDialog) {
@@ -406,7 +491,7 @@ export function Inventario() {
       });
       return;
     }
-    const proveedorParaSiguiente = formData.proveedor.trim();
+    const proveedorParaSiguiente = normalizeProveedorNombreGuardado(formData.proveedor);
     const descripcionUpper = upperTxt((formData.descripcion ?? '').trim());
     const compraSubSinIva = roundMoney2(
       Math.max(0, Number(formData.precioCompra) || 0) * Math.max(0, Number(formData.existencia) || 0)
@@ -419,6 +504,7 @@ export function Inventario() {
         descripcion: descripcionUpper,
         sku: skuFinal,
         codigoBarras,
+        proveedor: proveedorParaSiguiente,
         activo: true,
         unidadMedida: normalizeClaveUnidadSat(formData.unidadMedida),
         claveProdServ: cps,
@@ -491,6 +577,7 @@ export function Inventario() {
         descripcion: upperTxt((formData.descripcion ?? '').trim()),
         sku: upperTxt((formData.sku ?? '').trim()),
         codigoBarras: upperTxt((formData.codigoBarras ?? '').trim()),
+        proveedor: normalizeProveedorNombreGuardado(formData.proveedor),
         unidadMedida: normalizeClaveUnidadSat(formData.unidadMedida),
         claveProdServ: cpsEdit,
         preciosPorListaCliente: preciosPorListaCliente ?? {},
@@ -520,10 +607,16 @@ export function Inventario() {
     const motivoMov = motivoMovTrim ? upperTxt(motivoMovTrim) : '';
 
     try {
+      const provNombre = stockAdjustment.proveedorEntrada.trim()
+        ? normalizeProveedorNombreGuardado(stockAdjustment.proveedorEntrada)
+        : '';
       const entradaMeta =
         stockAdjustment.tipo === 'entrada'
           ? {
-              proveedor: stockAdjustment.proveedorEntrada.trim() || undefined,
+              proveedor: provNombre || undefined,
+              proveedorCodigo: provNombre
+                ? lookupProveedorCodigo(provNombre, proveedoresLista)
+                : undefined,
               precioUnitarioCompra:
                 stockAdjustment.precioCompraUnit > 0 ? stockAdjustment.precioCompraUnit : undefined,
             }
@@ -541,7 +634,7 @@ export function Inventario() {
         tipo: 'entrada',
         cantidad: 0,
         motivo: '',
-        proveedorEntrada: formData.proveedor.trim() || '',
+        proveedorEntrada: normalizeProveedorNombreGuardado(formData.proveedor),
         precioCompraUnit: formData.precioCompra > 0 ? formData.precioCompra : 0,
       });
       setStockQtyFocus(false);
@@ -590,7 +683,7 @@ export function Inventario() {
         existencia,
         existenciaMinima: p.existenciaMinima,
         categoria: p.categoria || '',
-        proveedor: p.proveedor || '',
+        proveedor: normalizeProveedorNombreGuardado(p.proveedor || ''),
         unidadMedida: normalizeClaveUnidadSat(p.unidadMedida),
         claveProdServ: p.claveProdServ ?? '',
       });
@@ -642,7 +735,7 @@ export function Inventario() {
       existencia: product.existencia,
       existenciaMinima: product.existenciaMinima,
       categoria: product.categoria || '',
-      proveedor: product.proveedor || '',
+      proveedor: normalizeProveedorNombreGuardado(product.proveedor || ''),
       unidadMedida: normalizeClaveUnidadSat(product.unidadMedida),
       claveProdServ: product.claveProdServ ?? '',
     });
@@ -656,7 +749,7 @@ export function Inventario() {
       tipo: 'entrada',
       cantidad: 0,
       motivo: '',
-      proveedorEntrada: product.proveedor?.trim() || '',
+      proveedorEntrada: normalizeProveedorNombreGuardado(product.proveedor || ''),
       precioCompraUnit: product.precioCompra && product.precioCompra > 0 ? product.precioCompra : 0,
     });
     setStockQtyFocus(false);
@@ -1462,31 +1555,53 @@ export function Inventario() {
               </p>
             </div>
             <div className="col-span-2 space-y-1.5 rounded-lg border border-slate-200/80 bg-slate-200/35 p-2.5 dark:border-slate-700/60 dark:bg-slate-800/40 lg:col-span-2 lg:space-y-1 lg:p-2">
-              <Label>Proveedor</Label>
-              <Select
-                key={addProveedorSelectKey}
-                value={formData.proveedor || '__none__'}
-                onValueChange={(v) => setFormData({ ...formData, proveedor: v === '__none__' ? '' : v })}
-              >
-                <SelectTrigger className="h-10 border-slate-300 bg-slate-200 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9">
-                  <SelectValue placeholder="Sin proveedor" />
-                </SelectTrigger>
-                <SelectContent
-                  position="popper"
-                  className="z-[300] max-h-[min(50dvh,18rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
-                >
-                  <SelectItem value="__none__" className="text-slate-900 dark:text-slate-100">
-                    Sin proveedor
-                  </SelectItem>
-                  {proveedorSelectOptions.map((c) => (
-                    <SelectItem key={c} value={c} className="text-slate-900 dark:text-slate-100">
-                      {c}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                <div className="min-w-0 flex-1 space-y-1.5 sm:space-y-1">
+                  <Label>Proveedor</Label>
+                  <Select
+                    key={addProveedorSelectKey}
+                    value={
+                      formData.proveedor?.trim()
+                        ? normalizeProveedorNombreGuardado(formData.proveedor) || '__none__'
+                        : '__none__'
+                    }
+                    onValueChange={(v) =>
+                      setFormData({ ...formData, proveedor: v === '__none__' ? '' : v })
+                    }
+                  >
+                    <SelectTrigger className="h-10 border-slate-300 bg-slate-200 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9">
+                      <SelectValue placeholder="Sin proveedor" />
+                    </SelectTrigger>
+                    <SelectContent
+                      position="popper"
+                      className="z-[300] max-h-[min(50dvh,18rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
+                    >
+                      <SelectItem value="__none__" className="text-slate-900 dark:text-slate-100">
+                        Sin proveedor
+                      </SelectItem>
+                      {proveedorOptionsForAddSelect.map((c) => (
+                        <SelectItem key={c} value={c} className="text-slate-900 dark:text-slate-100">
+                          {proveedorSelectItemLabel(c, proveedorNombreMapForm)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="w-full shrink-0 space-y-1.5 sm:w-44 sm:space-y-1">
+                  <Label className="text-slate-600 dark:text-slate-400">Buscar (código o nombre)</Label>
+                  <Input
+                    value={addProveedorFilter}
+                    onChange={(e) => setAddProveedorFilter(upperTxt(e.target.value))}
+                    placeholder="Ej. PRV01"
+                    autoComplete="off"
+                    className="h-10 border-slate-300 bg-slate-200 font-mono text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9"
+                  />
+                </div>
+              </div>
               <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-400 lg:text-[10px] lg:leading-tight">
-                Varios artículos del mismo proveedor: elija el proveedor aquí una vez y use{' '}
+                En Configuración puede definir líneas <span className="font-mono">CODIGO|NOMBRE</span>. Use el campo de
+                búsqueda para filtrar por código o nombre. Varios artículos del mismo proveedor: elija el proveedor
+                aquí una vez y use{' '}
                 <span className="font-medium text-slate-700 dark:text-slate-300">Guardar y otro producto</span> para
                 vaciar solo SKU, código y datos del artículo y seguir capturando.
               </p>
@@ -2087,28 +2202,48 @@ export function Inventario() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Proveedor</Label>
-              <Select
-                value={formData.proveedor || '__none__'}
-                onValueChange={(v) => setFormData({ ...formData, proveedor: v === '__none__' ? '' : v })}
-              >
-                <SelectTrigger className="h-10 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">
-                  <SelectValue placeholder="Sin proveedor" />
-                </SelectTrigger>
-                <SelectContent
-                  position="popper"
-                  className="z-[300] max-h-[min(50dvh,18rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
-                >
-                  <SelectItem value="__none__" className="text-slate-900 dark:text-slate-100">
-                    Sin proveedor
-                  </SelectItem>
-                  {proveedorSelectOptions.map((c) => (
-                    <SelectItem key={c} value={c} className="text-slate-900 dark:text-slate-100">
-                      {c}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Label>Proveedor</Label>
+                  <Select
+                    value={
+                      formData.proveedor?.trim()
+                        ? normalizeProveedorNombreGuardado(formData.proveedor) || '__none__'
+                        : '__none__'
+                    }
+                    onValueChange={(v) =>
+                      setFormData({ ...formData, proveedor: v === '__none__' ? '' : v })
+                    }
+                  >
+                    <SelectTrigger className="h-10 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+                      <SelectValue placeholder="Sin proveedor" />
+                    </SelectTrigger>
+                    <SelectContent
+                      position="popper"
+                      className="z-[300] max-h-[min(50dvh,18rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
+                    >
+                      <SelectItem value="__none__" className="text-slate-900 dark:text-slate-100">
+                        Sin proveedor
+                      </SelectItem>
+                      {proveedorOptionsForEditSelect.map((c) => (
+                        <SelectItem key={c} value={c} className="text-slate-900 dark:text-slate-100">
+                          {proveedorSelectItemLabel(c, proveedorNombreMapForm)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="w-full shrink-0 space-y-2 sm:w-44">
+                  <Label className="text-slate-600 dark:text-slate-400">Buscar (código o nombre)</Label>
+                  <Input
+                    value={editProveedorFilter}
+                    onChange={(e) => setEditProveedorFilter(upperTxt(e.target.value))}
+                    placeholder="Ej. PRV01"
+                    autoComplete="off"
+                    className="h-10 border-slate-300 bg-slate-200 font-mono text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -2212,38 +2347,52 @@ export function Inventario() {
 
             {stockAdjustment.tipo === 'entrada' ? (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Proveedor</Label>
-                  <Select
-                    value={
-                      stockAdjustment.proveedorEntrada.trim()
-                        ? stockAdjustment.proveedorEntrada.trim()
-                        : '__none__'
-                    }
-                    onValueChange={(v) =>
-                      setStockAdjustment((st) => ({
-                        ...st,
-                        proveedorEntrada: v === '__none__' ? '' : v,
-                      }))
-                    }
-                  >
-                    <SelectTrigger className="h-10 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">
-                      <SelectValue placeholder="Seleccione proveedor" />
-                    </SelectTrigger>
-                    <SelectContent
-                      position="popper"
-                      className="z-[300] max-h-[min(50dvh,18rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
-                    >
-                      <SelectItem value="__none__" className="text-slate-900 dark:text-slate-100">
-                        Sin especificar
-                      </SelectItem>
-                      {stockProveedorOptions.map((c) => (
-                        <SelectItem key={c} value={c} className="text-slate-900 dark:text-slate-100">
-                          {c}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="space-y-2 sm:col-span-2">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <Label>Proveedor</Label>
+                      <Select
+                        value={
+                          stockAdjustment.proveedorEntrada.trim()
+                            ? normalizeProveedorNombreGuardado(stockAdjustment.proveedorEntrada) || '__none__'
+                            : '__none__'
+                        }
+                        onValueChange={(v) =>
+                          setStockAdjustment((st) => ({
+                            ...st,
+                            proveedorEntrada: v === '__none__' ? '' : v,
+                          }))
+                        }
+                      >
+                        <SelectTrigger className="h-10 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+                          <SelectValue placeholder="Seleccione proveedor" />
+                        </SelectTrigger>
+                        <SelectContent
+                          position="popper"
+                          className="z-[300] max-h-[min(50dvh,18rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
+                        >
+                          <SelectItem value="__none__" className="text-slate-900 dark:text-slate-100">
+                            Sin especificar
+                          </SelectItem>
+                          {stockProveedorOptionsForSelect.map((c) => (
+                            <SelectItem key={c} value={c} className="text-slate-900 dark:text-slate-100">
+                              {proveedorSelectItemLabel(c, stockProveedorNombreMap)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="w-full shrink-0 space-y-2 sm:w-44">
+                      <Label className="text-slate-600 dark:text-slate-400">Buscar (código o nombre)</Label>
+                      <Input
+                        value={stockProveedorFilter}
+                        onChange={(e) => setStockProveedorFilter(upperTxt(e.target.value))}
+                        placeholder="Ej. PRV01"
+                        autoComplete="off"
+                        className="h-10 border-slate-300 bg-slate-200 font-mono text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                      />
+                    </div>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label>Precio unitario de compra (sin IVA)</Label>
@@ -2426,8 +2575,12 @@ export function Inventario() {
                             <TableCell className="text-right text-xs tabular-nums text-slate-700 dark:text-slate-300">
                               {pu != null && Number.isFinite(pu) ? formatMoney(pu) : '—'}
                             </TableCell>
-                            <TableCell className="max-w-[8rem] text-xs text-slate-700 dark:text-slate-300">
-                              {mov.proveedor?.trim() || '—'}
+                            <TableCell className="max-w-[14rem] text-xs text-slate-700 dark:text-slate-300">
+                              {formatProveedorHistorialLineaResuelto(
+                                mov.proveedor,
+                                mov.proveedorCodigo,
+                                proveedoresLista
+                              ) || '—'}
                             </TableCell>
                             <TableCell className="whitespace-nowrap text-xs text-slate-600 dark:text-slate-400">
                               {tipoMovimientoLabel(mov.tipo)}
@@ -2546,8 +2699,14 @@ export function Inventario() {
                           <TableCell className="whitespace-nowrap text-xs text-slate-600 dark:text-slate-400">
                             {tipoMovimientoLabel(mov.tipo)}
                           </TableCell>
-                          <TableCell className="max-w-[6rem] text-xs text-slate-700 dark:text-slate-300">
-                            {cat ? '—' : mov.proveedor?.trim() || '—'}
+                          <TableCell className="max-w-[12rem] text-xs text-slate-700 dark:text-slate-300">
+                            {cat
+                              ? '—'
+                              : formatProveedorHistorialLineaResuelto(
+                                  mov.proveedor,
+                                  mov.proveedorCodigo,
+                                  proveedoresLista
+                                ) || '—'}
                           </TableCell>
                           <TableCell className="whitespace-nowrap text-right text-xs tabular-nums text-slate-700 dark:text-slate-300">
                             {cat ? '—' : pu != null && Number.isFinite(pu) ? formatMoney(pu) : '—'}

@@ -1543,7 +1543,9 @@ export function Configuracion() {
                 </CardTitle>
                 <p className="text-sm font-normal text-slate-600 dark:text-slate-400 sm:text-xs">
                   Una línea por categoría o por proveedor. Se usan en los desplegables al crear o editar productos.
-                  Valores iniciales orientados a refaccionaria de electrodomésticos; puede adaptarlos aquí.
+                  Valores iniciales orientados a refaccionaria de electrodomésticos; puede adaptarlos aquí. En
+                  proveedores puede usar <span className="font-mono text-[11px]">CODIGO|NOMBRE</span> para código
+                  interno; en el producto se guarda solo el nombre y podrá buscar por código en Inventario.
                 </p>
               </CardHeader>
               <CardContent className="flex flex-col gap-3 p-3 pt-0 sm:p-4 sm:pt-0 xl:min-h-0 xl:flex-1 xl:overflow-hidden">

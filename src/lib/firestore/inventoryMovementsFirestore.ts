@@ -54,6 +54,7 @@ export function movementDocToMovement(id: string, d: Record<string, unknown>): I
   const precioUnitarioCompra =
     typeof pu === 'number' && Number.isFinite(pu) && pu >= 0 ? pu : undefined;
   const prov = d.proveedor != null ? String(d.proveedor).trim() : '';
+  const provCodRaw = d.proveedorCodigo != null ? String(d.proveedorCodigo).trim() : '';
   const nr = d.nombreRegistro != null ? String(d.nombreRegistro).trim() : '';
   const sr = d.skuRegistro != null ? String(d.skuRegistro).trim() : '';
   return {
@@ -66,6 +67,7 @@ export function movementDocToMovement(id: string, d: Record<string, unknown>): I
     motivo: d.motivo != null && String(d.motivo).length > 0 ? String(d.motivo) : undefined,
     referencia: d.referencia != null && String(d.referencia).length > 0 ? String(d.referencia) : undefined,
     proveedor: prov.length > 0 ? prov : undefined,
+    proveedorCodigo: provCodRaw.length > 0 ? provCodRaw : undefined,
     precioUnitarioCompra,
     nombreRegistro: nr.length > 0 ? nr : undefined,
     skuRegistro: sr.length > 0 ? sr : undefined,
