@@ -203,10 +203,17 @@ export const useCartStore = create<CartState>((set, get) => ({
   getSubtotal: () => subtotalAfterLineDiscounts(get().items, get().precioClienteListaId),
 
   getImpuestos: () => {
-    const S0 = subtotalAfterLineDiscounts(get().items, get().precioClienteListaId);
+    const items = get().items;
+    const listaId = get().precioClienteListaId;
     const globalPct = Number(get().discount) || 0;
-    const S1 = S0 * (1 - globalPct / 100);
-    return S1 * 0.16;
+    let totalIva = 0;
+    for (const item of items) {
+      const lineSin = lineUnitNet(item, listaId) * item.quantity;
+      const lineSinAfterGlobal = lineSin * (1 - globalPct / 100);
+      const imp = Number(item.product.impuesto) || 16;
+      totalIva += lineSinAfterGlobal * (imp / 100);
+    }
+    return totalIva;
   },
 
   getDescuento: () => {
@@ -233,12 +240,17 @@ export const useCartStore = create<CartState>((set, get) => ({
   },
 
   getTotal: () => {
-    const S0 = subtotalAfterLineDiscounts(get().items, get().precioClienteListaId);
+    const items = get().items;
+    const listaId = get().precioClienteListaId;
     const globalPct = Number(get().discount) || 0;
-    const S1 = S0 * (1 - globalPct / 100);
-    const imp = S1 * 0.16;
-    const t = S1 + imp;
-    return Number.isFinite(t) ? t : 0;
+    let sum = 0;
+    for (const item of items) {
+      const lineSin = lineUnitNet(item, listaId) * item.quantity;
+      const lineSinAfterGlobal = lineSin * (1 - globalPct / 100);
+      const imp = Number(item.product.impuesto) || 16;
+      sum += lineSinAfterGlobal * (1 + imp / 100);
+    }
+    return Number.isFinite(sum) ? sum : 0;
   },
 
   getTotalPagado: () => {

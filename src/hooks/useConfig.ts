@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { FiscalConfig } from '@/types';
+import { setCatalogListaPreciosIncluyenIvaFromFiscal } from '@/lib/catalogPricingFlags';
 import { getFiscalConfig, saveFiscalConfig } from '@/db/database';
 import { reportHookFailure } from '@/lib/appEventLog';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
@@ -20,6 +21,7 @@ export function useFiscalConfig() {
       setLoading(true);
       const data = await getFiscalConfig();
       setConfig(data ?? null);
+      setCatalogListaPreciosIncluyenIvaFromFiscal(data ?? undefined);
       setIsConfigured(!!data && !!data.rfc && !!data.serie);
       setError(null);
     } catch (err) {
@@ -45,6 +47,7 @@ export function useFiscalConfig() {
           unsub = subscribeFiscalConfigForSucursal(sid, (data) => {
             if (cancelled) return;
             setConfig(data ?? null);
+            setCatalogListaPreciosIncluyenIvaFromFiscal(data ?? undefined);
             setIsConfigured(!!data && !!data.rfc && !!data.serie);
             setError(null);
             setLoading(false);

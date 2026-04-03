@@ -123,6 +123,11 @@ export interface FiscalConfig {
   email?: string;
   direccion?: Direccion;
   updatedAt: Date;
+  /**
+   * Si es false, las listas por cliente se interpretan sin IVA. Si es true o no existe el campo, por defecto la app
+   * trata los precios de lista como con IVA incluido.
+   */
+  preciosListaIncluyenIva?: boolean;
 }
 
 export interface Direccion {
@@ -151,6 +156,11 @@ export interface Product {
   precioCompra?: number;
   /** Precio unitario sin IVA por tipo de cliente (opcional); si falta, aplica el % de configuración sobre `precioVenta`. */
   preciosPorListaCliente?: Partial<Record<ClientPriceListId, number>>;
+  /**
+   * Si es true, los valores en `preciosPorListaCliente` son precio al público **con IVA**.
+   * Si es false, sin IVA. Si es undefined, aplica la sucursal (por defecto: con IVA incluido).
+   */
+  preciosListaIncluyenIva?: boolean;
   impuesto: number; // IVA por defecto 16%
   existencia: number;
   existenciaMinima: number;

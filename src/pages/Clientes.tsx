@@ -399,7 +399,7 @@ export function Clientes() {
       }
     >
       <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden sm:gap-3">
-      <div className="grid w-full min-w-0 shrink-0 grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3">
+      <div className="grid w-full min-w-0 shrink-0 grid-cols-3 gap-1.5 sm:gap-3">
         <button
           type="button"
           onClick={() => setSortMode('nombre')}
@@ -410,13 +410,15 @@ export function Clientes() {
               : 'border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 hover:border-slate-300 dark:border-slate-700/60'
           )}
         >
-          <CardContent className="flex items-center gap-2 p-2 sm:gap-3 sm:p-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-500/20 sm:h-10 sm:w-10">
-              <User className="h-4 w-4 text-cyan-400 sm:h-5 sm:w-5" />
+          <CardContent className="flex flex-col items-center justify-center gap-0.5 px-1 py-2 sm:flex-row sm:items-center sm:gap-3 sm:p-3 sm:text-left">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-cyan-500/20 sm:h-10 sm:w-10">
+              <User className="h-3.5 w-3.5 text-cyan-400 sm:h-5 sm:w-5" />
             </div>
-            <div className="min-w-0">
-              <p className="text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl">{countRegistrados}</p>
-              <p className="text-[10px] text-slate-600 dark:text-slate-500 sm:text-xs">Registrados</p>
+            <div className="min-w-0 text-center sm:text-left">
+              <p className="text-sm font-bold tabular-nums text-slate-900 dark:text-slate-100 sm:text-xl">{countRegistrados}</p>
+              <p className="text-[9px] leading-tight text-slate-600 dark:text-slate-500 sm:text-xs sm:leading-normal">
+                Registrados
+              </p>
             </div>
           </CardContent>
         </button>
@@ -430,13 +432,13 @@ export function Clientes() {
               : 'border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 hover:border-slate-300 dark:border-slate-700/60'
           )}
         >
-          <CardContent className="flex items-center gap-2 p-2 sm:gap-3 sm:p-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 sm:h-10 sm:w-10">
-              <Building2 className="h-4 w-4 text-emerald-400 sm:h-5 sm:w-5" />
+          <CardContent className="flex flex-col items-center justify-center gap-0.5 px-1 py-2 sm:flex-row sm:items-center sm:gap-3 sm:p-3 sm:text-left">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 sm:h-10 sm:w-10">
+              <Building2 className="h-3.5 w-3.5 text-emerald-400 sm:h-5 sm:w-5" />
             </div>
-            <div className="min-w-0">
-              <p className="text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl">{countConRfc}</p>
-              <p className="text-[10px] text-slate-600 dark:text-slate-500 sm:text-xs">Con RFC</p>
+            <div className="min-w-0 text-center sm:text-left">
+              <p className="text-sm font-bold tabular-nums text-slate-900 dark:text-slate-100 sm:text-xl">{countConRfc}</p>
+              <p className="text-[9px] leading-tight text-slate-600 dark:text-slate-500 sm:text-xs sm:leading-normal">Con RFC</p>
             </div>
           </CardContent>
         </button>
@@ -450,13 +452,15 @@ export function Clientes() {
               : 'border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 hover:border-slate-300 dark:border-slate-700/60'
           )}
         >
-          <CardContent className="flex items-center gap-2 p-2 sm:gap-3 sm:p-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-500/20 sm:h-10 sm:w-10">
-              <Mail className="h-4 w-4 text-violet-400 sm:h-5 sm:w-5" />
+          <CardContent className="flex flex-col items-center justify-center gap-0.5 px-1 py-2 sm:flex-row sm:items-center sm:gap-3 sm:p-3 sm:text-left">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-violet-500/20 sm:h-10 sm:w-10">
+              <Mail className="h-3.5 w-3.5 text-violet-400 sm:h-5 sm:w-5" />
             </div>
-            <div className="min-w-0">
-              <p className="text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl">{countConEmail}</p>
-              <p className="text-[10px] text-slate-600 dark:text-slate-500 sm:text-xs">Con email</p>
+            <div className="min-w-0 text-center sm:text-left">
+              <p className="text-sm font-bold tabular-nums text-slate-900 dark:text-slate-100 sm:text-xl">{countConEmail}</p>
+              <p className="text-[9px] leading-tight text-slate-600 dark:text-slate-500 sm:text-xs sm:leading-normal">
+                Con email
+              </p>
             </div>
           </CardContent>
         </button>

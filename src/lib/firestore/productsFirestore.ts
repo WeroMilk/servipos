@@ -17,7 +17,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Product, StockEntradaMeta } from '@/types';
-import { CLIENT_PRICE_LIST_ORDER, type ClientPriceListId } from '@/lib/clientPriceLists';
+import { parsePreciosPorListaClienteRaw } from '@/lib/precioListaNorm';
 import { normalizeClaveProdServ, normalizeClaveUnidadSat } from '@/lib/satCatalog';
 
 // ============================================
@@ -30,17 +30,6 @@ function productsCol(sucursalId: string) {
 
 function movementsCol(sucursalId: string) {
   return collection(db, 'sucursales', sucursalId, 'inventoryMovements');
-}
-
-function parsePreciosPorListaCliente(raw: unknown): Product['preciosPorListaCliente'] {
-  if (!raw || typeof raw !== 'object') return undefined;
-  const o = raw as Record<string, unknown>;
-  const out: Partial<Record<ClientPriceListId, number>> = {};
-  for (const id of CLIENT_PRICE_LIST_ORDER) {
-    const v = o[id];
-    if (typeof v === 'number' && Number.isFinite(v) && v >= 0) out[id] = v;
-  }
-  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 function firestoreTimestampToDate(value: unknown): Date {
@@ -72,7 +61,8 @@ export function docToProduct(snap: QueryDocumentSnapshot): Product {
       typeof d.existenciaMinima === 'number' ? d.existenciaMinima : Number(d.existenciaMinima) || 0,
     categoria: d.categoria != null ? String(d.categoria) : undefined,
     proveedor: d.proveedor != null ? String(d.proveedor) : undefined,
-    preciosPorListaCliente: parsePreciosPorListaCliente(d.preciosPorListaCliente),
+    preciosPorListaCliente: parsePreciosPorListaClienteRaw(d.preciosPorListaCliente),
+    preciosListaIncluyenIva: d.preciosListaIncluyenIva === true ? true : d.preciosListaIncluyenIva === false ? false : undefined,
     imagen: d.imagen != null ? String(d.imagen) : undefined,
     unidadMedida: normalizeClaveUnidadSat(d.unidadMedida != null ? String(d.unidadMedida) : 'H87'),
     claveProdServ: (() => {
@@ -105,6 +95,7 @@ function productToFirestorePayload(
       product.preciosPorListaCliente && Object.keys(product.preciosPorListaCliente).length > 0
         ? product.preciosPorListaCliente
         : null,
+    preciosListaIncluyenIva: product.preciosListaIncluyenIva ?? null,
     imagen: product.imagen ?? null,
     unidadMedida: normalizeClaveUnidadSat(product.unidadMedida),
     claveProdServ:

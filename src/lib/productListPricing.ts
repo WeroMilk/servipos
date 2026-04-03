@@ -1,36 +1,52 @@
 import type { Product, CartItem } from '@/types';
-import { CLIENT_PRICE_LIST_ORDER, type ClientPriceListId } from '@/lib/clientPriceLists';
+import type { ClientPriceListId } from '@/lib/clientPriceLists';
+import { normalizeListaPrecioValue } from '@/lib/precioListaNorm';
 import { getListaPrecioClientePct } from '@/stores/clientPriceListStore';
+import { effectiveListaPreciosIncluyenIva } from '@/lib/catalogPricingFlags';
+
+function impuestoPct(product: Product): number {
+  return Number(product.impuesto) || 16;
+}
 
 /**
- * Precio de catálogo sin IVA para listados (Inventario, etc.):
- * usa `precioVenta` si es > 0; si no, lista `regular` explícita o el mayor entre listas guardadas.
- * Así no se muestra $0 cuando solo existían precios por lista.
+ * Precio al público (con IVA) según lista; base interna sigue siendo sin IVA para totales y CFDI.
  */
-export function getProductPrecioBaseCatalogoSinIva(product: Product): number {
-  const pv = Number(product.precioVenta) || 0;
-  if (pv > 0) return pv;
-  const raw = product.preciosPorListaCliente;
-  if (!raw || typeof raw !== 'object') return 0;
-  const reg = raw.regular;
-  if (reg != null && Number.isFinite(reg) && reg >= 0) return reg;
-  let max = 0;
-  for (const id of CLIENT_PRICE_LIST_ORDER) {
-    const v = raw[id];
-    if (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v > max) max = v;
-  }
-  return max;
+export function getProductUnitConIvaForClienteList(
+  product: Product,
+  listaId: ClientPriceListId
+): number {
+  const sinIva = getProductUnitSinIvaForClienteList(product, listaId);
+  const imp = impuestoPct(product);
+  return sinIva * (1 + imp / 100);
+}
+
+/**
+ * Importe de IVA por unidad (sin descuento de línea), coherente con el precio catálogo.
+ */
+export function getProductIvaUnitarioDesdeSinIva(product: Product, unitSinIva: number): number {
+  const imp = impuestoPct(product);
+  return unitSinIva * (imp / 100);
+}
+
+/** Precio lista Regular mostrado al público (con IVA). */
+export function getProductPrecioPublicoRegular(product: Product): number {
+  return getProductUnitConIvaForClienteList(product, 'regular');
 }
 
 /**
  * Precio unitario sin IVA según lista de cliente (o % configurado si no hay precio fijo por producto).
+ * Si `preciosListaIncluyenIva` aplica, los importes fijos por lista vienen con IVA y se convierten aquí.
  */
 export function getProductUnitSinIvaForClienteList(
   product: Product,
   listaId: ClientPriceListId
 ): number {
-  const explicit = product.preciosPorListaCliente?.[listaId];
-  if (explicit != null && Number.isFinite(explicit) && explicit >= 0) {
+  const explicit = normalizeListaPrecioValue(product.preciosPorListaCliente?.[listaId]);
+  if (explicit !== undefined) {
+    if (effectiveListaPreciosIncluyenIva(product)) {
+      const imp = impuestoPct(product);
+      return explicit / (1 + imp / 100);
+    }
     return explicit;
   }
   const base = Number(product.precioVenta) || 0;

@@ -222,7 +222,7 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
 
   return (
     <>
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div className={cn('flex min-h-0 flex-1 flex-col', embedded && 'h-full')}>
         <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
           <CardHeader
             className={cn(

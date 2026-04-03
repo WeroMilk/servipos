@@ -94,6 +94,12 @@ export function fiscalDocToConfig(_sucursalId: string, raw: Record<string, unkno
     email: raw.email != null ? String(raw.email) : undefined,
     direccion: readDireccion(raw.direccion),
     updatedAt: firestoreTimestampToDate(raw.updatedAt),
+    preciosListaIncluyenIva:
+      raw.preciosListaIncluyenIva === true
+        ? true
+        : raw.preciosListaIncluyenIva === false
+          ? false
+          : undefined,
   };
 }
 
@@ -130,6 +136,9 @@ function toFirestoreFields(
   if (config.nombreComercial !== undefined) o.nombreComercial = config.nombreComercial ?? null;
   if (config.telefono !== undefined) o.telefono = config.telefono ?? null;
   if (config.email !== undefined) o.email = config.email ?? null;
+  if (config.preciosListaIncluyenIva !== undefined) {
+    o.preciosListaIncluyenIva = config.preciosListaIncluyenIva;
+  }
   if (config.direccion !== undefined) {
     o.direccion = config.direccion
       ? {

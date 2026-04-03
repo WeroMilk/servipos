@@ -82,7 +82,7 @@ import { deleteAllInventoryMovementsFirestore } from '@/lib/firestore/inventoryM
 import { subscribeSucursales } from '@/lib/firestore/sucursalesMetaFirestore';
 import { confirmIncomingStoreTransfer } from '@/lib/firestore/storeTransfersFirestore';
 import { cn, formatMoney } from '@/lib/utils';
-import { getProductPrecioBaseCatalogoSinIva } from '@/lib/productListPricing';
+import { getProductPrecioPublicoRegular } from '@/lib/productListPricing';
 import {
   SAT_CLAVES_UNIDAD,
   normalizeClaveProdServ,
@@ -192,6 +192,60 @@ function precioVentaSinIvaToConIva(sinIva: number, impuestoPct: number): number 
 /** Texto de catálogo en mayúsculas aunque el usuario escriba en minúsculas. */
 function upperTxt(s: string): string {
   return s.toLocaleUpperCase('es');
+}
+
+function InventoryProductActions({
+  editLabel = 'Editar / ajustar stock',
+  onEdit,
+  onPrecios,
+  onDelete,
+}: {
+  editLabel?: string;
+  onEdit: () => void;
+  onPrecios: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9 shrink-0 text-slate-600 dark:text-slate-400"
+          aria-label="Acciones del producto"
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        className="border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
+      >
+        <DropdownMenuItem
+          onClick={onEdit}
+          className="text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:bg-slate-800 hover:text-slate-900 dark:text-slate-100"
+        >
+          <Edit2 className="mr-2 h-4 w-4" />
+          {editLabel}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={onPrecios}
+          className="text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:bg-slate-800 hover:text-slate-900 dark:text-slate-100"
+        >
+          <CircleDollarSign className="mr-2 h-4 w-4" />
+          Precios
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={onDelete}
+          className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
+        >
+          <Trash2 className="mr-2 h-4 w-4" />
+          Eliminar
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }
 
 type AddSessionLine = { nombre: string; sku: string; subtotalSinIva: number };
@@ -900,7 +954,7 @@ export function Inventario() {
   const valorInventarioTotal = useMemo(
     () =>
       products.reduce(
-        (sum, p) => sum + getProductPrecioBaseCatalogoSinIva(p) * p.existencia,
+        (sum, p) => sum + getProductPrecioPublicoRegular(p) * p.existencia,
         0
       ),
     [products]
@@ -1038,7 +1092,7 @@ export function Inventario() {
       title="Inventario"
       subtitle="Productos y stock"
       className="min-w-0 max-w-none"
-      actionsClassName="md:mt-2"
+      actionsClassName="w-full flex-col gap-2 sm:mt-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end"
       actions={
         <>
           <Button
@@ -1047,7 +1101,7 @@ export function Inventario() {
             size="sm"
             disabled={loading || exportingInventario}
             onClick={() => void handleDescargarInventario()}
-            className="border-slate-300 dark:border-slate-600"
+            className="w-full border-slate-300 dark:border-slate-600 sm:w-auto"
           >
             <Download className="mr-2 h-4 w-4" />
             {exportingInventario ? 'Generando…' : 'Descargar Inventario'}
@@ -1059,7 +1113,7 @@ export function Inventario() {
               addSessionLinesRef.current = [];
               setShowAddDialog(true);
             }}
-            className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+            className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white sm:w-auto"
             size="sm"
           >
             <Plus className="mr-2 h-4 w-4" />
@@ -1068,7 +1122,7 @@ export function Inventario() {
         </>
       }
     >
-      <div className="grid w-full min-w-0 shrink-0 grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
+      <div className="grid w-full min-w-0 shrink-0 grid-cols-1 gap-2 min-[420px]:grid-cols-2 lg:grid-cols-4 lg:gap-3">
         <button
           type="button"
           onClick={() => setInventoryMode('productos')}
@@ -1225,14 +1279,14 @@ export function Inventario() {
         </div>
       ) : null}
 
-      <div className="mt-2 flex shrink-0 flex-wrap items-center justify-end gap-2 pb-2 sm:mt-3">
+      <div className="mt-2 flex w-full shrink-0 flex-row flex-wrap items-center gap-2 pb-2 sm:mt-3 sm:justify-end">
         <Button
           type="button"
           variant="outline"
           size="icon"
           title="Historial de movimientos de inventario"
           aria-label="Historial de movimientos de inventario"
-          className="h-9 w-9 shrink-0 border-blue-600/45 text-blue-800 hover:bg-blue-500/10 hover:text-blue-900 dark:border-amber-500/45 dark:text-amber-200/95 dark:hover:bg-amber-500/15 dark:hover:text-amber-100"
+          className="h-10 w-10 shrink-0 border-blue-600/45 text-blue-800 hover:bg-blue-500/10 hover:text-blue-900 dark:border-amber-500/45 dark:text-amber-200/95 dark:hover:bg-amber-500/15 dark:hover:text-amber-100 sm:h-9 sm:w-9"
           onClick={() => setMovementsHistoryOpen(true)}
         >
           <Clock className="h-4 w-4" />
@@ -1241,7 +1295,7 @@ export function Inventario() {
           type="button"
           variant="outline"
           size="sm"
-          className="border-blue-600/45 text-blue-800 hover:bg-blue-500/10 hover:text-blue-900 dark:border-amber-500/45 dark:text-amber-200/95 dark:hover:bg-amber-500/15 dark:hover:text-amber-100"
+          className="min-h-10 flex-1 border-blue-600/45 px-3 text-blue-800 hover:bg-blue-500/10 hover:text-blue-900 dark:border-amber-500/45 dark:text-amber-200/95 dark:hover:bg-amber-500/15 dark:hover:text-amber-100 sm:h-9 sm:min-h-0 sm:flex-none sm:w-auto"
           onClick={() => {
             const items = products.filter(isStockBajo).map((p) => ({
               nombre: p.nombre,
@@ -1281,13 +1335,171 @@ export function Inventario() {
         <div className="shrink-0 pb-1">
           <CardTitle className="text-sm text-slate-900 dark:text-slate-100 sm:text-base">Lista de productos</CardTitle>
           <p className="mt-0.5 text-[11px] text-slate-600 dark:text-slate-500 sm:text-xs">{modeHint[inventoryMode]}</p>
+          <div className="mt-2 flex items-center gap-2 md:hidden">
+            <Select
+              value={inventorySort.key}
+              onValueChange={(v) => setInventorySort({ key: v as InventorySortKey, dir: 'asc' })}
+            >
+              <SelectTrigger className="h-10 min-w-0 flex-1 border-slate-300 dark:border-slate-700 bg-slate-200/80 text-sm dark:bg-slate-800/80">
+                <SelectValue placeholder="Ordenar por" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="nombre">Nombre</SelectItem>
+                <SelectItem value="sku">SKU</SelectItem>
+                <SelectItem value="categoria">Categoría</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-10 w-10 shrink-0 border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/80"
+              onClick={() =>
+                setInventorySort((prev) => ({
+                  ...prev,
+                  dir: prev.dir === 'asc' ? 'desc' : 'asc',
+                }))
+              }
+              aria-label={inventorySort.dir === 'asc' ? 'Orden ascendente' : 'Orden descendente'}
+            >
+              {inventorySort.dir === 'asc' ? (
+                <ArrowUp className="h-4 w-4" />
+              ) : (
+                <ArrowDown className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
         </div>
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800/70 bg-slate-50 dark:bg-slate-950/40 shadow-inner">
-          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain">
-            <div className="min-w-0 w-full">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
+            <div className="space-y-3 p-3 md:hidden">
+              {loading ? (
+                <div className="flex flex-col items-center justify-center gap-2 py-12">
+                  <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-cyan-500/30 border-t-cyan-500" />
+                  <p className="text-xs text-slate-600 dark:text-slate-500">Cargando productos…</p>
+                </div>
+              ) : displayProducts.length === 0 ? (
+                <p className="py-10 text-center text-sm text-slate-600 dark:text-slate-500">
+                  {productsError
+                    ? 'Revise el mensaje de error arriba.'
+                    : searchQuery.trim()
+                      ? 'No hay coincidencias con la búsqueda'
+                      : 'No se encontraron productos'}
+                </p>
+              ) : inventoryMode === 'codigos' ? (
+                displayProducts.map((product) => (
+                  <article
+                    key={product.id}
+                    className="rounded-xl border border-slate-200/90 bg-slate-50/95 p-3 shadow-sm dark:border-slate-800/80 dark:bg-slate-900/60"
+                  >
+                    <div className="flex gap-2">
+                      <p className="min-w-0 flex-1 text-sm font-semibold leading-snug text-slate-900 dark:text-slate-100">
+                        {product.nombre}
+                      </p>
+                      <InventoryProductActions
+                        editLabel="Editar producto"
+                        onEdit={() => openEditDialog(product)}
+                        onPrecios={() => openPreciosDialog(product)}
+                        onDelete={() => handleDeleteProduct(product)}
+                      />
+                    </div>
+                    <div className="mt-3 space-y-1.5">
+                      <Label className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                        SKU
+                      </Label>
+                      <Input
+                        value={skuDrafts[product.id] ?? product.sku}
+                        onChange={(e) => handleSkuDraftChange(product.id, e.target.value)}
+                        onBlur={() => void commitSkuIfChanged(product)}
+                        className="h-10 w-full border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800/80 font-mono text-sm text-slate-900 dark:text-slate-100"
+                        aria-label={`SKU de ${product.nombre}`}
+                      />
+                    </div>
+                    <div className="mt-2">
+                      <Badge
+                        variant="secondary"
+                        className="max-w-full whitespace-normal break-words bg-slate-200 dark:bg-slate-800 text-left text-xs text-slate-700 dark:text-slate-300"
+                      >
+                        {product.categoria || 'Sin categoría'}
+                      </Badge>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                displayProducts.map((product) => (
+                  <article
+                    key={product.id}
+                    className="rounded-xl border border-slate-200/90 bg-slate-50/95 p-3 shadow-sm dark:border-slate-800/80 dark:bg-slate-900/60"
+                  >
+                    <div className="flex gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold leading-snug text-slate-900 dark:text-slate-100">
+                          {product.nombre}
+                        </p>
+                        {product.descripcion ? (
+                          <p className="mt-1 line-clamp-2 text-xs text-slate-600 dark:text-slate-500">
+                            {product.descripcion}
+                          </p>
+                        ) : null}
+                      </div>
+                      <InventoryProductActions
+                        onEdit={() => openEditDialog(product)}
+                        onPrecios={() => openPreciosDialog(product)}
+                        onDelete={() => handleDeleteProduct(product)}
+                      />
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-slate-200/80 pt-3 dark:border-slate-800/60 sm:grid-cols-4">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">SKU</p>
+                        <p className="font-mono text-xs text-slate-800 dark:text-slate-200">{product.sku}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                          Precio
+                        </p>
+                        <p className="text-sm font-medium tabular-nums text-cyan-400">
+                          {formatMoney(getProductPrecioPublicoRegular(product))}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Stock</p>
+                        <div className="flex items-center gap-1">
+                          <span
+                            className={cn(
+                              'text-sm font-semibold',
+                              product.existencia <= product.existenciaMinima
+                                ? 'text-amber-400'
+                                : 'text-emerald-400'
+                            )}
+                          >
+                            {product.existencia}
+                          </span>
+                          {product.existencia <= product.existenciaMinima ? (
+                            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400" />
+                          ) : null}
+                        </div>
+                      </div>
+                      <div className="col-span-2 min-w-0 sm:col-span-1">
+                        <p className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                          Categoría
+                        </p>
+                        <Badge
+                          variant="secondary"
+                          className="mt-0.5 max-w-full whitespace-normal break-words bg-slate-200 dark:bg-slate-800 text-left text-xs text-slate-700 dark:text-slate-300"
+                        >
+                          {product.categoria || 'Sin categoría'}
+                        </Badge>
+                      </div>
+                    </div>
+                  </article>
+                ))
+              )}
+            </div>
+
+            <div className="hidden min-w-0 md:block">
               <Table
-                containerClassName="overflow-x-hidden"
-                className="table-fixed w-full"
+                containerClassName="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch] touch-pan-x"
+                className="table-fixed w-full min-w-[720px]"
               >
                 {inventoryMode === 'codigos' ? (
                   <colgroup>
@@ -1422,7 +1634,7 @@ export function Inventario() {
                           </button>
                         </TableHead>
                         <TableHead className="sticky top-0 z-10 bg-white/95 dark:bg-slate-950/95 text-slate-600 dark:text-slate-400 backdrop-blur-sm">
-                          Precio
+                          Precio (con IVA)
                         </TableHead>
                         <TableHead className="sticky top-0 z-10 bg-white/95 dark:bg-slate-950/95 text-slate-600 dark:text-slate-400 backdrop-blur-sm">
                           Stock
@@ -1502,36 +1714,12 @@ export function Inventario() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button type="button" variant="ghost" size="icon" className="text-slate-600 dark:text-slate-400">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent className="border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900">
-                              <DropdownMenuItem
-                                onClick={() => openEditDialog(product)}
-                                className="text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:bg-slate-800 hover:text-slate-900 dark:text-slate-100"
-                              >
-                                <Edit2 className="mr-2 h-4 w-4" />
-                                Editar producto
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => openPreciosDialog(product)}
-                                className="text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100"
-                              >
-                                <CircleDollarSign className="mr-2 h-4 w-4" />
-                                Precios
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => handleDeleteProduct(product)}
-                                className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Eliminar
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          <InventoryProductActions
+                            editLabel="Editar producto"
+                            onEdit={() => openEditDialog(product)}
+                            onPrecios={() => openPreciosDialog(product)}
+                            onDelete={() => handleDeleteProduct(product)}
+                          />
                         </TableCell>
                       </TableRow>
                     ))
@@ -1548,7 +1736,7 @@ export function Inventario() {
                         </TableCell>
                         <TableCell className="font-mono text-sm text-slate-600 dark:text-slate-400">{product.sku}</TableCell>
                         <TableCell className="font-medium tabular-nums text-cyan-400">
-                          {formatMoney(getProductPrecioBaseCatalogoSinIva(product))}
+                          {formatMoney(getProductPrecioPublicoRegular(product))}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -1576,36 +1764,11 @@ export function Inventario() {
                           </Badge>
                         </TableCell>
                         <TableCell className="w-14 min-w-[3.5rem] text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button type="button" variant="ghost" size="icon" className="text-slate-600 dark:text-slate-400">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent className="border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900">
-                              <DropdownMenuItem
-                                onClick={() => openEditDialog(product)}
-                                className="text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:bg-slate-800 hover:text-slate-900 dark:text-slate-100"
-                              >
-                                <Edit2 className="mr-2 h-4 w-4" />
-                                Editar / ajustar stock
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => openPreciosDialog(product)}
-                                className="text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:bg-slate-800 hover:text-slate-900 dark:text-slate-100"
-                              >
-                                <CircleDollarSign className="mr-2 h-4 w-4" />
-                                Precios
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => handleDeleteProduct(product)}
-                                className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Eliminar
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          <InventoryProductActions
+                            onEdit={() => openEditDialog(product)}
+                            onPrecios={() => openPreciosDialog(product)}
+                            onDelete={() => handleDeleteProduct(product)}
+                          />
                         </TableCell>
                       </TableRow>
                     ))

@@ -315,6 +315,13 @@ export function Configuracion() {
   const configuracionTabsPanelClass =
     'mt-0 flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch] outline-none data-[state=inactive]:hidden';
 
+  /**
+   * Pestañas con componentes embebidos (lista + panel interno con scroll): el panel NO debe hacer scroll
+   * completo; si no, el flex interno no recibe alto acotado y el contenido queda recortado en móvil.
+   */
+  const configuracionTabsPanelFillClass =
+    'mt-0 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden';
+
   const totalPercepcionesNomina = nominaPruebaForm.percepciones.reduce(
     (s, p) => s + (Number(p.gravado) || 0) + (Number(p.exento) || 0),
     0
@@ -1502,16 +1509,16 @@ export function Configuracion() {
         </TabsContent>
 
         {canManageSucursales && (
-          <TabsContent value="sucursales" className={cn(configuracionTabsPanelClass, 'w-full')}>
-            <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
+          <TabsContent value="sucursales" className={cn(configuracionTabsPanelFillClass, 'w-full')}>
+            <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
               <SucursalManagement embedded />
             </div>
           </TabsContent>
         )}
 
         {canManageUsers && (
-          <TabsContent value="usuarios" className={cn(configuracionTabsPanelClass, 'w-full')}>
-            <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
+          <TabsContent value="usuarios" className={cn(configuracionTabsPanelFillClass, 'w-full')}>
+            <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
               <UserManagement embedded />
             </div>
           </TabsContent>
@@ -1520,9 +1527,9 @@ export function Configuracion() {
         {canManageUsers && (
           <TabsContent
             value="permisos"
-            className={cn(configuracionTabsPanelClass, 'w-full')}
+            className={cn(configuracionTabsPanelFillClass, 'w-full')}
           >
-            <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
+            <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
               <UserPermissionsEditor embedded />
             </div>
           </TabsContent>
@@ -1549,6 +1556,26 @@ export function Configuracion() {
                 </p>
               </CardHeader>
               <CardContent className="flex flex-col gap-3 p-3 pt-0 sm:p-4 sm:pt-0 xl:min-h-0 xl:flex-1 xl:overflow-hidden">
+                <div className="flex flex-col gap-2 rounded-lg border border-slate-200/90 bg-slate-100/50 p-3 dark:border-slate-700/80 dark:bg-slate-900/40 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0 space-y-0.5">
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                      Precios por lista (Regular, Técnico, …) con IVA incluido
+                    </p>
+                    <p className="text-xs text-slate-600 dark:text-slate-400">
+                      Por defecto está activado: los importes de lista en catálogo son precio al público (con IVA) y el
+                      POS desglosa el impuesto sin volver a cargarlo. Desactívelo solo si sus listas están capturadas
+                      sin IVA. Requiere configuración fiscal guardada por sucursal para persistir el cambio.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={config ? config.preciosListaIncluyenIva !== false : true}
+                    disabled={!config}
+                    onCheckedChange={(v) => {
+                      void updateConfig({ preciosListaIncluyenIva: v });
+                    }}
+                    className="shrink-0 data-[state=checked]:bg-cyan-600"
+                  />
+                </div>
                 <div className="flex flex-col gap-4 xl:min-h-0 xl:flex-1 xl:flex-row xl:gap-4">
                   <div className="flex min-h-[12rem] flex-col gap-2 xl:min-h-0 xl:flex-1">
                     <Label className="shrink-0 text-sm text-slate-600 dark:text-slate-400 sm:text-xs">

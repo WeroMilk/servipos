@@ -1,6 +1,6 @@
 import type { Product } from '@/types';
 import { CLIENT_PRICE_LIST_ORDER, CLIENT_PRICE_LABELS } from '@/lib/clientPriceLists';
-import { getProductPrecioBaseCatalogoSinIva } from '@/lib/productListPricing';
+import { getProductPrecioPublicoRegular } from '@/lib/productListPricing';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 
 function round2(n: number): number {
@@ -45,7 +45,7 @@ export function downloadInventarioCompleto(opts: {
   });
 
   const listHeaderCols = CLIENT_PRICE_LIST_ORDER.map(
-    (id) => `Precio lista ${CLIENT_PRICE_LABELS[id]} (s/IVA)`
+    (id) => `Precio lista ${CLIENT_PRICE_LABELS[id]} (valor en catálogo)`
   );
 
   const headers = [
@@ -61,11 +61,11 @@ export function downloadInventarioCompleto(opts: {
     'Existencia',
     'Existencia mínima',
     'Stock bajo',
-    'Precio venta (s/IVA)',
+    'Precio venta Regular (con IVA)',
     '% IVA',
     'Precio compra (s/IVA)',
     'Valor al costo (exist × compra)',
-    'Valor venta s/IVA (exist × P. venta)',
+    'Valor venta (exist × precio Regular con IVA)',
     ...listHeaderCols,
     'Activo',
   ];
@@ -101,8 +101,8 @@ export function downloadInventarioCompleto(opts: {
     const pCompra = p.precioCompra;
     const valorCosto =
       pCompra != null && Number.isFinite(pCompra) ? round2(exist * pCompra) : '';
-    const baseVenta = getProductPrecioBaseCatalogoSinIva(p);
-    const valorVentaSinIva = round2(exist * baseVenta);
+    const baseVenta = getProductPrecioPublicoRegular(p);
+    const valorVentaConIva = round2(exist * baseVenta);
     const listCols = CLIENT_PRICE_LIST_ORDER.map((id) => {
       const v = p.preciosPorListaCliente?.[id];
       return v != null && Number.isFinite(v) ? round2(v) : '';
@@ -125,7 +125,7 @@ export function downloadInventarioCompleto(opts: {
       Number(p.impuesto) || 0,
       pCompra != null && Number.isFinite(pCompra) ? round2(pCompra) : '',
       valorCosto === '' ? '' : valorCosto,
-      valorVentaSinIva,
+      valorVentaConIva,
       ...listCols,
       p.activo !== false ? 'Sí' : 'No',
     ];

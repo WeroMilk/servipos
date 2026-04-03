@@ -1,7 +1,13 @@
 import type { Permission, User, UserRole } from '@/types';
 
-/** Usuarios que no deben ver misiones de inventario aunque tengan el permiso (p. ej. gerentes con usuario cajero). */
+/** No ver la entrada Misiones (p. ej. quien usa inventario completo). */
 const INVENTORY_MISSIONS_EXCLUDED_USERNAMES = new Set(['julian']);
+
+/**
+ * Ver Misiones aunque el rol no sea cajero (cuenta operativa de cajero en tienda).
+ * Útil si el usuario sigue como admin en Firestore pero debe llevar el ciclo de misiones.
+ */
+const INVENTORY_MISSIONS_ALLOW_USERNAME = new Set(['gabriel']);
 
 /** Todos los permisos conocidos (orden estable para UI). */
 export const ALL_PERMISSIONS: Permission[] = [
@@ -98,16 +104,18 @@ export function userHasPermission(user: User | null | undefined, permission: Per
 }
 
 /**
- * Misiones de inventario: solo rol **cajero**, permiso `inventario:mision_diaria`, y no usuarios excluidos por nombre.
- * (Admin/gerente no ven la entrada aunque tengan todos los permisos.)
+ * Misiones de inventario: permiso `inventario:mision_diaria`, rol cajero (por defecto ya lo incluye) o usuario
+ * explícito en `INVENTORY_MISSIONS_ALLOW_USERNAME`, y no estar en la lista excluida.
+ * Admin/gerente sin ese permiso o sin estar en la lista de cajero explícito no ven la entrada.
  */
 export function userCanSeeInventoryMissions(user: User | null | undefined): boolean {
   if (!user?.isActive) return false;
-  if (user.role !== 'cashier') return false;
   if (!userHasPermission(user, 'inventario:mision_diaria')) return false;
   const u = (user.username ?? '').trim().toLowerCase();
   if (INVENTORY_MISSIONS_EXCLUDED_USERNAMES.has(u)) return false;
-  return true;
+  if (user.role === 'cashier') return true;
+  if (INVENTORY_MISSIONS_ALLOW_USERNAME.has(u)) return true;
+  return false;
 }
 
 export function permissionsFromRoleTemplate(role: UserRole): Permission[] {

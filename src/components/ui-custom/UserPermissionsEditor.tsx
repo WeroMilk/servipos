@@ -157,13 +157,15 @@ export function UserPermissionsEditor({ embedded = false }: UserPermissionsEdito
     <div
       className={cn(
         'flex w-full min-w-0 flex-col gap-3',
-        embedded ? 'min-h-0 flex-1 p-0' : 'h-full min-h-0 flex-1 overflow-hidden'
+        embedded ? 'h-full min-h-0 flex-1 overflow-hidden p-0' : 'h-full min-h-0 flex-1 overflow-hidden'
       )}
     >
       <Card
         className={cn(
           'flex min-h-0 min-w-0 w-full flex-col border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50',
-          embedded ? 'min-h-0 flex-1 overflow-hidden' : 'h-full flex-1 overflow-hidden'
+          embedded
+            ? 'h-full min-h-0 flex-1 gap-2 overflow-hidden py-0 shadow-sm'
+            : 'h-full flex-1 overflow-hidden'
         )}
       >
         <CardHeader className="shrink-0 space-y-1 px-3 py-2 sm:px-4">
@@ -295,7 +297,10 @@ export function UserPermissionsEditor({ embedded = false }: UserPermissionsEdito
               <div
                 className={cn(
                   'min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pr-0.5 [-webkit-overflow-scrolling:touch]',
-                  !embedded && 'max-h-[min(72dvh,28rem)] sm:max-h-none'
+                  !embedded && 'max-h-[min(72dvh,28rem)] sm:max-h-none',
+                  /* Móvil: tope explícito si el flex no acota (nav inferior + cabecera); el scroll queda aquí */
+                  embedded &&
+                    'max-md:max-h-[min(calc(100dvh-13rem),32rem)] md:max-h-none'
                 )}
               >
                 {groupsToRender.map((group) => (

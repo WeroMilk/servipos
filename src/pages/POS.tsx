@@ -83,7 +83,12 @@ import { subscribeSucursales } from '@/lib/firestore/sucursalesMetaFirestore';
 import { cn, formatMoney } from '@/lib/utils';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { printThermalTicket } from '@/lib/printTicket';
-import { getCartLineUnitSinIvaBase, getProductUnitSinIvaForClienteList } from '@/lib/productListPricing';
+import {
+  getCartLineUnitSinIvaBase,
+  getProductIvaUnitarioDesdeSinIva,
+  getProductUnitConIvaForClienteList,
+  getProductUnitSinIvaForClienteList,
+} from '@/lib/productListPricing';
 
 // ============================================
 // PUNTO DE VENTA (POS) — Vista tipo app: lg+ sin scroll del contenedor (solo carrito / panel cobro); móvil conserva scroll vertical.
@@ -612,7 +617,7 @@ export function POS() {
     setUnitPriceEditProductId(productId);
     setUnitPriceEditStep(isAdmin ? 'price' : 'pin');
     setUnitPricePinInput('');
-    const baseSinIva = Number(it.precioUnitarioOverride ?? it.product.precioVenta) || 0;
+    const baseSinIva = getCartLineUnitSinIvaBase(it, precioClienteListaId);
     const conIva = unitBaseSinIvaToPrecioConIva(baseSinIva, it.product.impuesto);
     setUnitPriceInput(conIva.toFixed(2));
     setUnitPriceDialogOpen(true);
@@ -1793,9 +1798,18 @@ export function POS() {
                       </div>
                       <div className="shrink-0 text-right">
                         <p className="font-bold text-cyan-400">
-                          {formatMoney(getProductUnitSinIvaForClienteList(product, precioClienteListaId))}
+                          {formatMoney(getProductUnitConIvaForClienteList(product, precioClienteListaId))}
                         </p>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400">sin IVA</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400">con IVA</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                          IVA{' '}
+                          {formatMoney(
+                            getProductIvaUnitarioDesdeSinIva(
+                              product,
+                              getProductUnitSinIvaForClienteList(product, precioClienteListaId)
+                            )
+                          )}
+                        </p>
                         <p
                           className={cn(
                             'text-xs',
@@ -1847,8 +1861,19 @@ export function POS() {
                           <p className="truncate font-medium text-slate-800 dark:text-slate-200">{item.product.nombre}</p>
                           <p className="text-xs text-slate-600 dark:text-slate-500">SKU {item.product.sku}</p>
                           <p className="text-xs text-cyan-400/90 sm:text-sm">
-                            {formatMoney(cartLineUnitSinIva(item, precioClienteListaId))} c/u{' '}
-                            <span className="text-slate-500 dark:text-slate-400">sin IVA</span>
+                            {formatMoney(
+                              cartLineUnitSinIva(item, precioClienteListaId) *
+                                (1 + (Number(item.product.impuesto) || 16) / 100)
+                            )}{' '}
+                            c/u{' '}
+                            <span className="text-slate-500 dark:text-slate-400">con IVA</span>
+                          </p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                            IVA{' '}
+                            {formatMoney(
+                              cartLineUnitSinIva(item, precioClienteListaId) *
+                                ((Number(item.product.impuesto) || 16) / 100)
+                            )}
                           </p>
                         </div>
 
@@ -2021,11 +2046,11 @@ export function POS() {
             <CardContent className="flex flex-col gap-3 overflow-visible p-2 sm:p-3 lg:gap-2 lg:overflow-visible lg:p-2.5">
               <div className="shrink-0 space-y-2 lg:space-y-1">
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs sm:text-sm lg:gap-x-2 lg:gap-y-0.5 lg:text-xs">
-                  <span className="text-slate-600 dark:text-slate-400">Subtotal</span>
+                  <span className="text-slate-600 dark:text-slate-400">Subtotal (sin IVA)</span>
                   <span className="text-right text-slate-700 dark:text-slate-300">{formatMoney(subtotalCobro)}</span>
                   <span className="text-slate-600 dark:text-slate-400">Descuento</span>
                   <span className="text-right text-amber-400">-{formatMoney(descuentoCobro)}</span>
-                  <span className="text-slate-600 dark:text-slate-400">IVA 16%</span>
+                  <span className="text-slate-600 dark:text-slate-400">IVA (desglose)</span>
                   <span className="text-right text-slate-700 dark:text-slate-300">{formatMoney(impuestosCobro)}</span>
                 </div>
 
