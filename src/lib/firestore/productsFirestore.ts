@@ -47,7 +47,16 @@ function firestoreTimestampToDate(value: unknown): Date {
 
 export function docToProduct(snap: QueryDocumentSnapshot): Product {
   const d = snap.data() as Record<string, unknown>;
-  const rawPv = d.precioVenta ?? d.precio ?? d.precioPublico ?? d.precio_venta;
+  const rawPv =
+    d.precioVenta ??
+    d.precio ??
+    d.precioPublico ??
+    d.precio_venta ??
+    d.pvp ??
+    d.PVP ??
+    d.precioMostrador ??
+    d.precio_unitario ??
+    d.importe;
   const rawPc = d.precioCompra ?? d.precio_compra;
   return {
     id: snap.id,

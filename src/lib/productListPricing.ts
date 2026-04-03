@@ -1,11 +1,27 @@
 import type { Product, CartItem } from '@/types';
-import type { ClientPriceListId } from '@/lib/clientPriceLists';
+import { CLIENT_PRICE_LIST_ORDER, type ClientPriceListId } from '@/lib/clientPriceLists';
 import { normalizeListaPrecioValue } from '@/lib/precioListaNorm';
 import { getListaPrecioClientePct } from '@/stores/clientPriceListStore';
 import { effectiveListaPreciosIncluyenIva } from '@/lib/catalogPricingFlags';
 
 function impuestoPct(product: Product): number {
   return Number(product.impuesto) || 16;
+}
+
+/** Primera lista con importe > 0 (sin IVA), para cuando `precioVenta` es 0. */
+function firstSinIvaFromAnyLista(product: Product): number {
+  const map = product.preciosPorListaCliente;
+  if (!map) return 0;
+  const incl = effectiveListaPreciosIncluyenIva(product);
+  const imp = impuestoPct(product);
+  for (const id of CLIENT_PRICE_LIST_ORDER) {
+    const ex = normalizeListaPrecioValue(map[id]);
+    if (ex !== undefined && ex > 0) {
+      if (incl) return ex / (1 + imp / 100);
+      return ex;
+    }
+  }
+  return 0;
 }
 
 /**
@@ -51,7 +67,12 @@ export function getProductUnitSinIvaForClienteList(
   }
   const base = Number(product.precioVenta) || 0;
   const pct = getListaPrecioClientePct(listaId);
-  return base * (1 - pct / 100);
+  let sinIva = base * (1 - pct / 100);
+  if (sinIva <= 0) {
+    const alt = firstSinIvaFromAnyLista(product);
+    if (alt > 0) sinIva = alt * (1 - pct / 100);
+  }
+  return sinIva;
 }
 
 /** Unitario sin IVA antes del descuento de línea (override manual gana sobre lista). */
