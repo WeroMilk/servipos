@@ -3,6 +3,7 @@ import {
   parsePrecioNumberFromFirestore,
   parsePreciosPorListaClienteRaw,
   resolvePrecioVentaSinIvaForDoc,
+  pickBestPrecioVentaRawFromFirestoreDoc,
 } from '@/lib/precioListaNorm';
 
 /** Evita throws en sort/UI cuando IndexedDB u orígenes devuelven campos incompletos. */
@@ -11,8 +12,9 @@ export function coerceProduct(p: Product): Product {
   const preciosListaIncluyenIva =
     p.preciosListaIncluyenIva === true ? true : p.preciosListaIncluyenIva === false ? false : undefined;
   const impuesto = Number(p.impuesto);
+  const rawDoc = p as unknown as Record<string, unknown>;
   const precioVenta = resolvePrecioVentaSinIvaForDoc({
-    rawPv: p.precioVenta,
+    rawPv: pickBestPrecioVentaRawFromFirestoreDoc(rawDoc) ?? rawDoc.precioVenta,
     preciosPorListaCliente,
     preciosListaIncluyenIva,
     impuesto: Number.isFinite(impuesto) ? impuesto : 16,

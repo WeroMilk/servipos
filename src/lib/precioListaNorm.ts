@@ -12,6 +12,23 @@ function roundMoney2(n: number): number {
 export function parsePrecioNumberFromFirestore(value: unknown): number {
   if (value == null) return 0;
   if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'bigint') {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
+  }
+  if (typeof value === 'object' && value !== null) {
+    const o = value as Record<string, unknown>;
+    if ('value' in o && typeof o.value === 'number' && Number.isFinite(o.value)) return o.value;
+    if ('value' in o && typeof o.value === 'string') return parsePrecioNumberFromFirestore(o.value);
+    if (typeof o.toNumber === 'function') {
+      try {
+        const n = (o as { toNumber: () => number }).toNumber();
+        if (typeof n === 'number' && Number.isFinite(n)) return n;
+      } catch {
+        /* ignore */
+      }
+    }
+  }
   if (typeof value === 'string') {
     let s = value.trim().replace(/\s/g, '');
     if (!s) return 0;
@@ -30,6 +47,115 @@ export function parsePrecioNumberFromFirestore(value: unknown): number {
     return Number.isFinite(n) ? n : 0;
   }
   return 0;
+}
+
+/** Clave normalizada para emparejar nombres de campo con distinta capitalización / separadores. */
+function normFieldKey(k: string): string {
+  return k
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/[\s_-]+/g, '')
+    .toLowerCase();
+}
+
+function buildFieldIndex(d: Record<string, unknown>): Map<string, unknown> {
+  const idx = new Map<string, unknown>();
+  for (const [k, v] of Object.entries(d)) {
+    const nk = normFieldKey(k);
+    if (!idx.has(nk)) idx.set(nk, v);
+  }
+  return idx;
+}
+
+function pickByKeyOrder(idx: Map<string, unknown>, orderedKeys: string[]): unknown[] {
+  const out: unknown[] = [];
+  for (const k of orderedKeys) {
+    const v = idx.get(normFieldKey(k));
+    if (v !== undefined && v !== null && v !== '') out.push(v);
+  }
+  return out;
+}
+
+function isEmptyPrecioRaw(v: unknown): boolean {
+  return v === undefined || v === null || v === '';
+}
+
+/**
+ * Valores candidatos a precio de venta (sin IVA) en un documento Firestore / importación.
+ * Orden: campos canónicos primero, luego alias; incluye `precios` anidado y la cadena legacy del listener.
+ */
+function collectPrecioVentaRawCandidates(d: Record<string, unknown>): unknown[] {
+  const idx = buildFieldIndex(d);
+  const out: unknown[] = [];
+  const push = (v: unknown) => {
+    if (isEmptyPrecioRaw(v)) return;
+    out.push(v);
+  };
+  for (const v of pickByKeyOrder(idx, [
+    'precioVenta',
+    'precioVentaSinIva',
+    'precio_sin_iva',
+    'precioSinIva',
+    'precioPublico',
+    'precioLista',
+    'precio_lista',
+    'precioUnitario',
+    'precio_unitario',
+    'precioUnitarioVenta',
+    'pvp',
+    'PVP',
+    'precioMostrador',
+    'precio',
+  ])) {
+    push(v);
+  }
+
+  const nestedRaw = d.precios ?? d.Precios;
+  if (nestedRaw && typeof nestedRaw === 'object' && nestedRaw !== null && !Array.isArray(nestedRaw)) {
+    const nidx = buildFieldIndex(nestedRaw as Record<string, unknown>);
+    for (const v of pickByKeyOrder(nidx, [
+      'precioVenta',
+      'venta',
+      'regular',
+      'publico',
+      'precioPublico',
+      'precio',
+      'lista',
+    ])) {
+      push(v);
+    }
+  }
+
+  for (const v of [
+    d.precioVenta,
+    d.precio,
+    d.precioPublico,
+    d.precio_venta,
+    d.pvp,
+    d.PVP,
+    d.precioMostrador,
+    d.precio_unitario,
+    d.importe,
+  ]) {
+    push(v);
+  }
+
+  return out;
+}
+
+/**
+ * Elige el mejor `raw` para `precioVenta`: si hay varios campos, preferir el que parsea a un importe &gt; 0
+ * (evita quedarse en `precioVenta: 0` cuando `precio` u otro alias sí trae el importe).
+ */
+export function pickBestPrecioVentaRawFromFirestoreDoc(d: Record<string, unknown>): unknown {
+  const candidates = collectPrecioVentaRawCandidates(d);
+  for (const c of candidates) {
+    if (parsePrecioNumberFromFirestore(c) > 0) return c;
+  }
+  for (const c of candidates) {
+    if (!isEmptyPrecioRaw(c)) return c;
+  }
+  return undefined;
 }
 
 /**

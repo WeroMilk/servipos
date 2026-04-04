@@ -1,13 +1,13 @@
 import type { Permission, User, UserRole } from '@/types';
 
 /** No ver la entrada Misiones (p. ej. quien usa inventario completo). */
-const INVENTORY_MISSIONS_EXCLUDED_USERNAMES = new Set(['julian']);
+const INVENTORY_MISSIONS_EXCLUDED_USERNAMES = new Set<string>([]);
 
 /**
  * Ver Misiones aunque el rol no sea cajero (cuenta operativa de cajero en tienda).
  * Útil si el usuario sigue como admin en Firestore pero debe llevar el ciclo de misiones.
  */
-const INVENTORY_MISSIONS_ALLOW_USERNAME = new Set(['gabriel']);
+const INVENTORY_MISSIONS_ALLOW_USERNAME = new Set(['gabriel', 'julian']);
 
 /** Todos los permisos conocidos (orden estable para UI). */
 export const ALL_PERMISSIONS: Permission[] = [
@@ -126,7 +126,7 @@ export function userCanSeeInventoryMissions(user: User | null | undefined): bool
 }
 
 /**
- * Admin/gerente en lista excluida (p. ej. Julian): solo barra de progreso global agregada en este equipo,
+ * Admin/gerente en lista excluida por nombre: solo barra de progreso global agregada en este equipo,
  * sin listas de misión ni ajustes desde aquí.
  */
 export function userCanSeeMissionProgressOnly(user: User | null | undefined): boolean {

@@ -14,7 +14,9 @@
     "reset:olivares:dry": "node scripts/reset-olivares-firestore.mjs --dry-run",
     "import:olivares-inventory": "node scripts/import-olivares-inventory.mjs",
     "import:olivares-inventory:abril2026": "node scripts/import-olivares-inventory.mjs --dir=./data/inventario-abril-2026-olivares --ultimo-gana --sucursal=olivares",
-    "import:olivares-inventory:abril2026:dry": "node scripts/import-olivares-inventory.mjs --dir=./data/inventario-abril-2026-olivares --ultimo-gana --sucursal=olivares --dry-run"
+    "import:olivares-inventory:abril2026:dry": "node scripts/import-olivares-inventory.mjs --dir=./data/inventario-abril-2026-olivares --ultimo-gana --sucursal=olivares --dry-run",
+    "merge:precios-rtf": "node scripts/merge-olivares-precios-rtf.mjs",
+    "update:olivares-precios-csv": "node scripts/update-olivares-precios-from-csv.mjs"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",

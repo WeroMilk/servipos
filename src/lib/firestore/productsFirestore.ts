@@ -21,6 +21,7 @@ import {
   parsePrecioNumberFromFirestore,
   parsePreciosPorListaClienteRaw,
   resolvePrecioVentaSinIvaForDoc,
+  pickBestPrecioVentaRawFromFirestoreDoc,
 } from '@/lib/precioListaNorm';
 import { normalizeClaveProdServ, normalizeClaveUnidadSat } from '@/lib/satCatalog';
 
@@ -51,16 +52,7 @@ function firestoreTimestampToDate(value: unknown): Date {
 
 export function docToProduct(snap: QueryDocumentSnapshot): Product {
   const d = snap.data() as Record<string, unknown>;
-  const rawPv =
-    d.precioVenta ??
-    d.precio ??
-    d.precioPublico ??
-    d.precio_venta ??
-    d.pvp ??
-    d.PVP ??
-    d.precioMostrador ??
-    d.precio_unitario ??
-    d.importe;
+  const rawPv = pickBestPrecioVentaRawFromFirestoreDoc(d);
   const rawPc = d.precioCompra ?? d.precio_compra;
   const impuesto = typeof d.impuesto === 'number' ? d.impuesto : Number(d.impuesto) || 16;
   const preciosListaIncluyenIva: boolean | undefined =
@@ -365,9 +357,7 @@ export async function ensureProductAtDestForTransfer(
       codigoBarras: od.codigoBarras != null ? String(od.codigoBarras) : null,
       nombre: String(od.nombre ?? fallback.nombre).trim() || fallback.nombre,
       descripcion: od.descripcion != null ? String(od.descripcion) : null,
-      precioVenta: parsePrecioNumberFromFirestore(
-        od.precioVenta ?? od.precio ?? od.precioPublico ?? od.precio_venta
-      ),
+      precioVenta: parsePrecioNumberFromFirestore(pickBestPrecioVentaRawFromFirestoreDoc(od)),
       precioCompra:
         od.precioCompra != null && String(od.precioCompra).trim() !== ''
           ? parsePrecioNumberFromFirestore(od.precioCompra ?? od.precio_compra)

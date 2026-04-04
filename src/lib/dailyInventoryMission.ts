@@ -7,6 +7,73 @@ import {
 
 const STORAGE_PREFIX = 'servipos_mision_inv_v1';
 
+/** Clave de partición activa: la misma lista se conserva entre días hasta completarla o pedir otra misión. */
+const ACTIVE_PARTITION_PREFIX = 'servipos_mision_inv_active_partition_v1';
+
+function activePartitionStorageKey(userId: string): string {
+  return `${ACTIVE_PARTITION_PREFIX}_${userId}`;
+}
+
+export function loadActiveMissionPartitionKey(userId: string): string | null {
+  if (typeof localStorage === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(activePartitionStorageKey(userId));
+    if (!raw || !raw.trim()) return null;
+    return raw.trim();
+  } catch {
+    return null;
+  }
+}
+
+export function saveActiveMissionPartitionKey(userId: string, partitionKey: string): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(activePartitionStorageKey(userId), partitionKey);
+  } catch {
+    /* quota */
+  }
+}
+
+/**
+ * Resuelve la partición de almacenamiento para la misión actual: no cambia solo por pasar de día;
+ * si hay lista incompleta (o completada esperando "otra misión"), se reutiliza la misma clave.
+ */
+export function resolveStickyMissionPartitionKey(
+  userId: string,
+  products: Product[],
+  todayDateKey: string
+): string {
+  const activeIds = new Set(products.filter((p) => p.activo !== false).map((p) => p.id));
+  const pickValid = (ids: string[] | null): string[] =>
+    ids ? ids.filter((id) => activeIds.has(id)) : [];
+  const effectiveToday = effectiveDateKeyForMissionPartition(todayDateKey);
+
+  const active = loadActiveMissionPartitionKey(userId);
+  if (active) {
+    const valid = pickValid(loadMissionProductIds(userId, active));
+    if (valid.length > 0) {
+      return active;
+    }
+  }
+
+  const legacy = pickValid(loadMissionProductIds(userId, effectiveToday));
+  if (legacy.length > 0) {
+    saveActiveMissionPartitionKey(userId, effectiveToday);
+    return effectiveToday;
+  }
+
+  saveActiveMissionPartitionKey(userId, effectiveToday);
+  return effectiveToday;
+}
+
+/** Nueva partición al pedir otra misión (evita pisar la lista/done del bloque anterior el mismo día). */
+export function newMissionPartitionKeyAfterComplete(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `m${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 function storageKey(userId: string, dateKey: string): string {
   return `${STORAGE_PREFIX}_${userId}_${dateKey}`;
 }
@@ -195,10 +262,14 @@ export function mergeMissionDoneIdsInCycle(userId: string, dateKey: string): Set
   let guard = 0;
   while (d <= periodEndKey && guard < 400) {
     guard++;
-    const storageKey = effectiveDateKeyForMissionPartition(d);
-    loadMissionDoneIds(userId, storageKey).forEach((id) => merged.add(id));
+    const sk = effectiveDateKeyForMissionPartition(d);
+    loadMissionDoneIds(userId, sk).forEach((id) => merged.add(id));
     if (d >= periodEndKey) break;
     d = addDaysToMexicoDateKey(d, 1);
+  }
+  const activePk = loadActiveMissionPartitionKey(userId);
+  if (activePk) {
+    loadMissionDoneIds(userId, activePk).forEach((id) => merged.add(id));
   }
   return merged;
 }

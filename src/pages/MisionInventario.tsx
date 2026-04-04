@@ -27,17 +27,14 @@ import {
   mergeAllUsersMissionDoneInCycle,
   mergeMissionDoneIdsInCycle,
   MIN_MISSION_SIZE,
+  newMissionPartitionKeyAfterComplete,
   pickRandomMissionIdsFromProducts,
+  resolveStickyMissionPartitionKey,
+  saveActiveMissionPartitionKey,
   saveMissionDoneIds,
   saveMissionProductIds,
 } from '@/lib/dailyInventoryMission';
-import {
-  effectiveDateKeyForMissionPartition,
-  formatDateKeyMx,
-  getBimonthCycleInfo,
-  getMexicoDateKey,
-  isMexicoSunday,
-} from '@/lib/quincenaMx';
+import { formatDateKeyMx, getBimonthCycleInfo, getMexicoDateKey, isMexicoSunday } from '@/lib/quincenaMx';
 import { printThermalMissionComplete, printThermalMissionInventoryReport } from '@/lib/printTicket';
 import {
   buildMissionDayTicketLines,
@@ -61,7 +58,8 @@ export function MisionInventario() {
   const [done, setDone] = useState<Set<string>>(() => new Set());
   const [missionIds, setMissionIds] = useState<string[]>([]);
   const [missionCompleteDialogOpen, setMissionCompleteDialogOpen] = useState(false);
-  const [nextMissionCount, setNextMissionCount] = useState(25);
+  const [nextMissionCount, setNextMissionCount] = useState(DEFAULT_MISSION_SIZE);
+  const [missionPartitionKey, setMissionPartitionKey] = useState<string | null>(null);
 
   const fullMission = userCanSeeInventoryMissions(user);
   const progressOnly = userCanSeeMissionProgressOnly(user);
@@ -85,25 +83,33 @@ export function MisionInventario() {
     return () => clearInterval(id);
   }, []);
 
-  const partitionDateKey = useMemo(() => effectiveDateKeyForMissionPartition(dateKey), [dateKey]);
+  useEffect(() => {
+    if (progressOnly) {
+      setMissionPartitionKey(null);
+      return;
+    }
+    if (!user?.id || products.length === 0) return;
+    const key = resolveStickyMissionPartitionKey(user.id, products, dateKey);
+    setMissionPartitionKey(key);
+  }, [progressOnly, user?.id, products, dateKey]);
 
   useEffect(() => {
-    if (!user?.id) return;
-    setDone(loadMissionDoneIds(user.id, partitionDateKey));
-  }, [user?.id, partitionDateKey]);
+    if (!user?.id || !missionPartitionKey) return;
+    setDone(loadMissionDoneIds(user.id, missionPartitionKey));
+  }, [user?.id, missionPartitionKey]);
 
   useEffect(() => {
     if (progressOnly) {
       setMissionIds([]);
       return;
     }
-    if (!user?.id || products.length === 0) return;
+    if (!user?.id || !missionPartitionKey || products.length === 0) return;
     const activeIds = new Set(products.filter((p) => p.activo !== false).map((p) => p.id));
     if (activeIds.size === 0) {
       setMissionIds([]);
       return;
     }
-    const stored = loadMissionProductIds(user.id, partitionDateKey);
+    const stored = loadMissionProductIds(user.id, missionPartitionKey);
     if (stored && stored.length > 0) {
       const valid = stored.filter((id) => activeIds.has(id));
       if (valid.length > 0) {
@@ -111,15 +117,15 @@ export function MisionInventario() {
         return;
       }
     }
-    const used = loadUsedIdsInDay(user.id, partitionDateKey);
+    const used = loadUsedIdsInDay(user.id, missionPartitionKey);
     const seed =
       typeof crypto !== 'undefined' && crypto.randomUUID ?
         crypto.randomUUID()
       : `${Date.now()}-${Math.random()}`;
     const ids = pickRandomMissionIdsFromProducts(products, DEFAULT_MISSION_SIZE, used, seed);
-    saveMissionProductIds(user.id, partitionDateKey, ids);
+    saveMissionProductIds(user.id, missionPartitionKey, ids);
     setMissionIds(ids);
-  }, [progressOnly, user?.id, partitionDateKey, products]);
+  }, [progressOnly, user?.id, missionPartitionKey, products]);
 
   const cycleInfo = useMemo(() => getBimonthCycleInfo(dateKey), [dateKey]);
 
@@ -193,9 +199,10 @@ export function MisionInventario() {
     const raw = Number(nextMissionCount);
     const n = Math.min(
       MAX_MISSION_SIZE,
-      Math.max(MIN_MISSION_SIZE, Number.isFinite(raw) ? Math.round(raw) : 25)
+      Math.max(MIN_MISSION_SIZE, Number.isFinite(raw) ? Math.round(raw) : DEFAULT_MISSION_SIZE)
     );
-    const used = loadUsedIdsInDay(user.id, partitionDateKey);
+    const newPk = newMissionPartitionKeyAfterComplete();
+    const used = loadUsedIdsInDay(user.id, newPk);
     const seed =
       typeof crypto !== 'undefined' && crypto.randomUUID ?
         crypto.randomUUID()
@@ -205,16 +212,19 @@ export function MisionInventario() {
       addToast({ type: 'warning', message: 'No hay artículos activos para armar otra misión.' });
       return;
     }
+    saveActiveMissionPartitionKey(user.id, newPk);
+    setMissionPartitionKey(newPk);
     if (ids.length < n) {
       addToast({
         type: 'info',
-        message: `Solo había ${ids.length} artículo(s) disponibles sin repetir lo ya sorteado hoy; se asignó la lista completa.`,
+        message: `Solo había ${ids.length} artículo(s) disponibles sin repetir lo ya sorteado en esta misión; se asignó la lista completa.`,
       });
     }
-    saveMissionProductIds(user.id, partitionDateKey, ids);
+    saveMissionProductIds(user.id, newPk, ids);
     setMissionIds(ids);
+    setDone(new Set());
     setMissionCompleteDialogOpen(false);
-  }, [user?.id, partitionDateKey, products, nextMissionCount, addToast]);
+  }, [user?.id, products, nextMissionCount, addToast]);
 
   const openStockAdjustDialog = useCallback((p: Product) => {
     setStockDialogProduct(p);
@@ -256,13 +266,13 @@ export function MisionInventario() {
 
   const toggle = useCallback(
     (p: Product) => {
-      if (!user?.id) return;
+      if (!user?.id || !missionPartitionKey) return;
       setDone((prev) => {
         const next = new Set(prev);
         const wasAllDone = misionList.length > 0 && misionList.every((x) => prev.has(x.id));
         if (next.has(p.id)) next.delete(p.id);
         else next.add(p.id);
-        saveMissionDoneIds(user.id, partitionDateKey, next);
+        saveMissionDoneIds(user.id, missionPartitionKey, next);
         const nowAllDone = misionList.length > 0 && misionList.every((x) => next.has(x.id));
         if (nowAllDone && !wasAllDone) {
           const completedIds = misionList.map((x) => x.id);
@@ -275,7 +285,7 @@ export function MisionInventario() {
               articulosRevisados: totalEnMision,
               totalEnMision,
             });
-            addUsedIdsToDay(user.id, partitionDateKey, completedIds);
+            addUsedIdsToDay(user.id, missionPartitionKey, completedIds);
             addToast({
               type: 'success',
               message: `¡Listo! Completaste esta misión (${totalEnMision} artículos).`,
@@ -291,7 +301,7 @@ export function MisionInventario() {
       user?.id,
       user?.name,
       user?.email,
-      partitionDateKey,
+      missionPartitionKey,
       misionList,
       addToast,
       dateKey,
@@ -310,7 +320,8 @@ export function MisionInventario() {
     totalActivos > 0 ? `Catálogo: ${revisadosEnCiclo}/${totalActivos} artículos revisados en el ciclo` : null,
   ].filter(Boolean);
 
-  const missionsReady = missionIds.length > 0 || (!loading && totalActivos === 0);
+  const missionsReady =
+    missionPartitionKey != null && (missionIds.length > 0 || (!loading && totalActivos === 0));
 
   return (
     <PageShell
@@ -318,7 +329,7 @@ export function MisionInventario() {
       subtitle={
         progressOnly
           ? `${subParts.join(' · ')}. Vista de supervisión: avance agregado en este navegador (todas las cuentas que usan misiones en este equipo). No incluye listas de revisión.`
-          : `${subParts.join(' · ')}. Cada misión muestra artículos al azar; las listas sucesivas del mismo día evitan repetir lo ya sorteado cuando el catálogo lo permite.`
+          : `${subParts.join(' · ')}. Cada misión son ${DEFAULT_MISSION_SIZE} artículos al azar; si un día no alcanzan, al día siguiente verán la misma lista y el mismo avance. Tras completarla pueden pedir otra misión; las sucesivas en el mismo periodo evitan repetir lo ya sorteado cuando el catálogo lo permite.`
       }
     >
       <Dialog open={stockDialogOpen} onOpenChange={(o) => {

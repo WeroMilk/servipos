@@ -207,6 +207,12 @@ function upperTxt(s: string): string {
   return s.toLocaleUpperCase('es');
 }
 
+/** No mostrar línea secundaria bajo el nombre si la descripción es vacía o placeholder de import (p. ej. "0"). */
+function hasInventoryDescripcionVisible(descripcion: string | undefined | null): boolean {
+  const t = (descripcion ?? '').trim();
+  return t !== '' && t !== '0';
+}
+
 function InventoryProductActions({
   editLabel = 'Editar / ajustar stock',
   onEdit,
@@ -1449,7 +1455,7 @@ export function Inventario() {
                         <p className="text-sm font-semibold leading-snug text-slate-900 dark:text-slate-100">
                           {product.nombre}
                         </p>
-                        {product.descripcion ? (
+                        {hasInventoryDescripcionVisible(product.descripcion) ? (
                           <p className="mt-1 line-clamp-2 text-xs text-slate-600 dark:text-slate-500">
                             {product.descripcion}
                           </p>
@@ -1742,7 +1748,7 @@ export function Inventario() {
                         <TableCell className="min-w-0 align-top whitespace-normal">
                           <div className="min-w-0 break-words">
                             <p className="font-medium text-slate-800 dark:text-slate-200">{product.nombre}</p>
-                            {product.descripcion ? (
+                            {hasInventoryDescripcionVisible(product.descripcion) ? (
                               <p className="text-xs text-slate-600 dark:text-slate-500">{product.descripcion}</p>
                             ) : null}
                           </div>
