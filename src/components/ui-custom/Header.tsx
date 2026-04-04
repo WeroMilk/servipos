@@ -11,6 +11,10 @@ import {
   PowerOff,
   ClipboardList,
   BanknoteArrowDown,
+  Clock,
+  Printer,
+  Download,
+  Plus,
 } from 'lucide-react';
 import { useAuthStore, useSyncStore, useAppStore, getResolvedIsDark } from '@/stores';
 import { Button } from '@/components/ui/button';
@@ -36,6 +40,7 @@ import { BRAND_LOGO_URL } from '@/lib/branding';
 import { ROLE_LABELS } from '@/lib/userPermissions';
 import { useCajaPosHeaderStore } from '@/stores/cajaPosHeaderStore';
 import { useVentasAbiertasPosHeaderStore } from '@/stores/ventasAbiertasPosHeaderStore';
+import { useInventarioHeaderStore } from '@/stores/inventarioHeaderStore';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 
 export function Header() {
@@ -70,6 +75,61 @@ export function Header() {
 
   const showPosHeaderTools =
     location.pathname === '/pos' && hasPermission('ventas:crear');
+
+  const invHeader = useInventarioHeaderStore();
+  const showInventarioHeaderTools =
+    location.pathname === '/inventario' &&
+    hasPermission('inventario:ver') &&
+    invHeader.registered;
+
+  const inventarioToolbarButtons = showInventarioHeaderTools ? (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        title="Historial de movimientos de inventario"
+        aria-label="Historial de movimientos de inventario"
+        onClick={() => invHeader.onHistorial()}
+        className="h-9 w-9 shrink-0 rounded-xl border-blue-600/45 text-blue-800 hover:bg-blue-500/10 hover:text-blue-900 dark:border-amber-500/45 dark:text-amber-200/95 dark:hover:bg-amber-500/15 dark:hover:text-amber-100 sm:h-9 sm:w-9"
+      >
+        <Clock className="h-4 w-4" />
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        title="Imprimir ticket de stock bajo"
+        aria-label="Ticket stock bajo"
+        onClick={() => invHeader.onTicketStockBajo()}
+        className="h-9 w-9 shrink-0 rounded-xl border-blue-600/45 text-blue-800 hover:bg-blue-500/10 hover:text-blue-900 dark:border-amber-500/45 dark:text-amber-200/95 dark:hover:bg-amber-500/15 dark:hover:text-amber-100 sm:h-9 sm:w-9"
+      >
+        <Printer className="h-4 w-4" />
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        title={invHeader.exportingInventario ? 'Generando archivo…' : 'Descargar inventario (CSV)'}
+        aria-label={invHeader.exportingInventario ? 'Generando inventario' : 'Descargar inventario'}
+        disabled={invHeader.descargarDisabled}
+        onClick={() => void invHeader.onDescargar()}
+        className="h-9 w-9 shrink-0 rounded-xl border-slate-300 dark:border-slate-600 sm:h-9 sm:w-9"
+      >
+        <Download className="h-4 w-4" />
+      </Button>
+      <Button
+        type="button"
+        size="icon"
+        title="Nuevo producto"
+        aria-label="Nuevo producto"
+        onClick={() => invHeader.onNuevo()}
+        className="h-9 w-9 shrink-0 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:from-cyan-400 hover:to-blue-500 sm:h-9 sm:w-9"
+      >
+        <Plus className="h-4 w-4" />
+      </Button>
+    </>
+  ) : null;
 
   const posToolbar = showPosHeaderTools ? (
     <>
@@ -176,7 +236,7 @@ export function Header() {
         )}
       >
         {/* Móvil / tablet: logo + menú */}
-        <div className="flex w-full min-w-0 items-center justify-between gap-2 lg:hidden">
+        <div className="flex w-full min-w-0 items-center gap-1 sm:gap-1.5 lg:hidden">
           <Link
             to="/"
             className="flex shrink-0 items-center rounded-lg p-1 outline-none ring-cyan-500/40 focus-visible:ring-2"
@@ -190,6 +250,13 @@ export function Header() {
               height={32}
             />
           </Link>
+          {inventarioToolbarButtons ? (
+            <div className="flex min-h-0 min-w-0 flex-1 items-center justify-center gap-0.5 overflow-x-auto px-0.5 [-ms-overflow-style:none] [scrollbar-width:none] sm:gap-1 [&::-webkit-scrollbar]:hidden">
+              {inventarioToolbarButtons}
+            </div>
+          ) : (
+            <div className="min-w-0 flex-1" aria-hidden />
+          )}
           <Button
             type="button"
             variant="outline"
@@ -224,6 +291,11 @@ export function Header() {
             </p>
             {showPosHeaderTools ? (
               <div className="ml-1 flex items-center gap-1 md:gap-1">{posToolbar}</div>
+            ) : null}
+            {inventarioToolbarButtons ? (
+              <div className="ml-1 flex min-w-0 items-center gap-0.5 md:gap-1">
+                {inventarioToolbarButtons}
+              </div>
             ) : null}
           </div>
 

@@ -17,7 +17,6 @@ import {
   Download,
   ArrowDown,
   ArrowUp,
-  Menu,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -64,6 +63,7 @@ import {
   useInventoryMovementsHistory,
 } from '@/hooks';
 import { useAppStore, useAuthStore, useInventoryListsStore } from '@/stores';
+import { setInventarioHeaderBridge, clearInventarioHeaderBridge } from '@/stores/inventarioHeaderStore';
 import type { InventoryMovement, Product, Sucursal } from '@/types';
 import {
   CLIENT_PRICE_LIST_ORDER,
@@ -1174,103 +1174,24 @@ export function Inventario() {
     setShowAddDialog(true);
   };
 
+  const openNuevoRef = useRef(openNuevoProductoDialog);
+  openNuevoRef.current = openNuevoProductoDialog;
+
+  useEffect(() => {
+    setInventarioHeaderBridge({
+      onHistorial: () => setMovementsHistoryOpen(true),
+      onTicketStockBajo: handleTicketStockBajo,
+      onDescargar: () => void handleDescargarInventario(),
+      onNuevo: () => openNuevoRef.current(),
+      descargarDisabled: loading || exportingInventario,
+      exportingInventario,
+    });
+    return () => clearInventarioHeaderBridge();
+  }, [loading, exportingInventario, handleTicketStockBajo, handleDescargarInventario]);
+
   return (
     <>
-    <PageShell
-      title="Inventario"
-      subtitle="Productos y stock"
-      className="min-w-0 max-w-none"
-      actionsClassName="w-full justify-end gap-2 sm:mt-2 sm:w-auto"
-      actions={
-        <>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="h-10 w-10 shrink-0 border-slate-300 dark:border-slate-600 md:hidden"
-                aria-label="Acciones de inventario"
-              >
-                <Menu className="h-5 w-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className="w-[min(100vw-2rem,18rem)] border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-900"
-            >
-              <DropdownMenuItem
-                className="cursor-pointer"
-                onClick={() => setMovementsHistoryOpen(true)}
-              >
-                <Clock className="h-4 w-4" />
-                Historial de movimientos
-              </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer" onClick={handleTicketStockBajo}>
-                <Printer className="h-4 w-4" />
-                Ticket stock bajo
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="cursor-pointer"
-                disabled={loading || exportingInventario}
-                onClick={() => void handleDescargarInventario()}
-              >
-                <Download className="h-4 w-4" />
-                {exportingInventario ? 'Generando inventario…' : 'Descargar inventario'}
-              </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer" onClick={openNuevoProductoDialog}>
-                <Plus className="h-4 w-4" />
-                Nuevo producto
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <div className="hidden flex-wrap items-center gap-2 md:flex">
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              title="Historial de movimientos de inventario"
-              aria-label="Historial de movimientos de inventario"
-              className="h-9 w-9 shrink-0 border-blue-600/45 text-blue-800 hover:bg-blue-500/10 hover:text-blue-900 dark:border-amber-500/45 dark:text-amber-200/95 dark:hover:bg-amber-500/15 dark:hover:text-amber-100"
-              onClick={() => setMovementsHistoryOpen(true)}
-            >
-              <Clock className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="border-blue-600/45 px-3 text-blue-800 hover:bg-blue-500/10 hover:text-blue-900 dark:border-amber-500/45 dark:text-amber-200/95 dark:hover:bg-amber-500/15 dark:hover:text-amber-100"
-              onClick={handleTicketStockBajo}
-            >
-              <Printer className="mr-2 h-4 w-4" />
-              Ticket stock bajo
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={loading || exportingInventario}
-              onClick={() => void handleDescargarInventario()}
-              className="border-slate-300 dark:border-slate-600"
-            >
-              <Download className="mr-2 h-4 w-4" />
-              {exportingInventario ? 'Generando…' : 'Descargar Inventario'}
-            </Button>
-            <Button
-              type="button"
-              onClick={openNuevoProductoDialog}
-              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
-              size="sm"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Nuevo
-            </Button>
-          </div>
-        </>
-      }
-    >
+    <PageShell title="Inventario" subtitle="Productos y stock" className="min-w-0 max-w-none">
       <div className="grid w-full min-w-0 shrink-0 grid-cols-1 gap-2 min-[420px]:grid-cols-2 lg:grid-cols-4 lg:gap-3">
         <button
           type="button"
