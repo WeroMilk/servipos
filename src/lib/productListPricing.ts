@@ -8,6 +8,33 @@ function impuestoPct(product: Product): number {
   return Number(product.impuesto) || 16;
 }
 
+/** Convierte importe fijo de lista (según bandera IVA del producto) a unitario sin IVA. */
+function explicitListaToSinIva(product: Product, explicit: number): number {
+  if (effectiveListaPreciosIncluyenIva(product)) {
+    const imp = impuestoPct(product);
+    return explicit / (1 + imp / 100);
+  }
+  return explicit;
+}
+
+/**
+ * Precio unitario sin IVA de la lista **Regular** (referencia para comparar otras listas).
+ */
+function getRegularUnitSinIva(product: Product): number {
+  const explicit = normalizeListaPrecioValue(product.preciosPorListaCliente?.regular);
+  if (explicit !== undefined && explicit > 0) {
+    return explicitListaToSinIva(product, explicit);
+  }
+  const base = Number(product.precioVenta) || 0;
+  const pctReg = getListaPrecioClientePct('regular');
+  let sinIva = base * (1 - pctReg / 100);
+  if (sinIva <= 0) {
+    const alt = firstSinIvaFromAnyLista(product);
+    if (alt > 0) sinIva = alt * (1 - pctReg / 100);
+  }
+  return sinIva;
+}
+
 /** Primera lista con importe > 0 (sin IVA), para cuando `precioVenta` es 0. */
 function firstSinIvaFromAnyLista(product: Product): number {
   const map = product.preciosPorListaCliente;
@@ -50,11 +77,20 @@ export function getProductUnitSinIvaForClienteList(
 ): number {
   const explicit = normalizeListaPrecioValue(product.preciosPorListaCliente?.[listaId]);
   if (explicit !== undefined && explicit > 0) {
-    if (effectiveListaPreciosIncluyenIva(product)) {
-      const imp = impuestoPct(product);
-      return explicit / (1 + imp / 100);
+    const unitSin = explicitListaToSinIva(product, explicit);
+    /**
+     * Si el catálogo trae el mismo importe en Técnico (u otra lista) que en Regular — p. ej. merge RTF
+     * con precios duplicados — el usuario espera el **% de lista** (Configuración) sobre Regular,
+     * no un segundo precio idéntico.
+     */
+    if (listaId !== 'regular') {
+      const regRef = getRegularUnitSinIva(product);
+      if (regRef > 0 && Math.abs(unitSin - regRef) < 0.02) {
+        const pct = getListaPrecioClientePct(listaId);
+        return regRef * (1 - pct / 100);
+      }
     }
-    return explicit;
+    return unitSin;
   }
   const base = Number(product.precioVenta) || 0;
   const pct = getListaPrecioClientePct(listaId);
