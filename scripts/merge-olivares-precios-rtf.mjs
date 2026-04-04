@@ -16,6 +16,7 @@
  * Opciones:
  *   --iva=16           Porcentaje IVA (default 16)
  *   --sin-iva-en-rtf   Si los valores del RTF ya vienen sin IVA (no dividir)
+ *   --pad-5              Si hay 1–4 precios en el RTF, repite el último hasta completar 5 (usar con cuidado)
  */
 
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
@@ -67,6 +68,12 @@ function mapFiveConIvaPricesToLists(pricesConIva) {
   };
 }
 
+function normSkuKey(s) {
+  return String(s ?? '')
+    .trim()
+    .toLocaleUpperCase('es-MX');
+}
+
 function parseArgs() {
   const out = {
     csv: '',
@@ -74,6 +81,7 @@ function parseArgs() {
     outPath: join(__dirname, '..', 'data', 'precios-merged-olivares.csv'),
     ivaPct: 16,
     sinIvaEnRtf: false,
+    pad5: false,
   };
   for (const a of process.argv.slice(2)) {
     if (a.startsWith('--csv=')) out.csv = a.slice('--csv='.length).trim();
@@ -81,6 +89,7 @@ function parseArgs() {
     else if (a.startsWith('--out=')) out.outPath = a.slice('--out='.length).trim();
     else if (a.startsWith('--iva=')) out.ivaPct = Number(a.slice('--iva='.length)) || 16;
     else if (a === '--sin-iva-en-rtf') out.sinIvaEnRtf = true;
+    else if (a === '--pad-5') out.pad5 = true;
   }
   return out;
 }
@@ -141,9 +150,11 @@ function parseMxDateTime(str) {
 }
 
 /**
+ * @param {{ pad5?: boolean }} opts
  * @returns {Map<string, { nombre: string, preciosConIva: Record<string, number> }>}
  */
-function parsePreciosRtf(rtfText) {
+function parsePreciosRtf(rtfText, opts = {}) {
+  const pad5 = opts.pad5 === true;
   const s = stripRtfPictBlocks(rtfText);
   const map = new Map();
 
@@ -156,6 +167,7 @@ function parsePreciosRtf(rtfText) {
 
   for (let i = 0; i < hits.length; i++) {
     const { sku } = hits[i];
+    const skuKey = normSkuKey(sku);
     const start = hits[i].idx;
     const end = hits[i + 1]?.idx ?? s.length;
     const block = s.slice(start, end);
@@ -164,27 +176,34 @@ function parsePreciosRtf(rtfText) {
     if (!nombre) continue;
 
     const rows = [];
+    let seq = 0;
     const parts = block.split('\\par');
     for (const part of parts) {
       if (!part.includes('$')) continue;
       const priceM = part.match(/\$(\d+(?:\.\d+)?)/);
+      if (!priceM) continue;
       const timeM = part.match(/(\d{1,2}\/\d{1,2}\/\d{4}\s+\d{1,2}:\d{2}:\d{2})/);
-      if (priceM && timeM) {
-        rows.push({
-          t: parseMxDateTime(timeM[1]),
-          price: parseFloat(priceM[1]),
-        });
-      }
+      const t = timeM ? parseMxDateTime(timeM[1]) : seq++;
+      rows.push({
+        t,
+        price: parseFloat(priceM[1]),
+      });
     }
 
-    if (rows.length < 5) continue;
+    if (rows.length === 0) continue;
 
     const ordered = [...rows].sort((a, b) => a.t - b.t);
-    const pricesConIva = ordered.map((r) => r.price).slice(0, 5);
+    let pricesConIva = ordered.map((r) => r.price).slice(0, 5);
+    if (pricesConIva.length < 5 && pad5 && pricesConIva.length > 0) {
+      const last = pricesConIva[pricesConIva.length - 1];
+      while (pricesConIva.length < 5) pricesConIva.push(last);
+    }
+    if (pricesConIva.length < 5) continue;
+
     const preciosConIva = mapFiveConIvaPricesToLists(pricesConIva);
     if (!preciosConIva) continue;
 
-    map.set(sku, { nombre, preciosConIva });
+    map.set(skuKey, { nombre, preciosConIva });
   }
 
   return map;
@@ -270,8 +289,8 @@ function main() {
     rtfText = rtfBuf.toString('utf8');
   }
 
-  const preciosMap = parsePreciosRtf(rtfText);
-  console.error(`Productos con precios en RTF (por SKU): ${preciosMap.size}`);
+  const preciosMap = parsePreciosRtf(rtfText, { pad5: args.pad5 });
+  console.error(`Productos con precios en RTF (por SKU): ${preciosMap.size}${args.pad5 ? ' (--pad-5 activo)' : ''}`);
 
   const inv = loadInventoryCsv(args.csv);
   const outCols = [
@@ -287,7 +306,7 @@ function main() {
   let missing = 0;
 
   for (const row of inv.rows) {
-    const skuKey = row.sku.trim();
+    const skuKey = normSkuKey(row.sku);
     const p = preciosMap.get(skuKey);
     if (!p) {
       missing++;

@@ -16,6 +16,7 @@
  *   --project=        Project ID Firebase (default: .firebaserc)
  *   --dry-run         No escribe; muestra conteos y muestra
  *   --sample=12       En dry-run, cuántas filas de ejemplo
+ *   --omitir-cero     No actualiza filas con precioVenta 0 (evita pisar con ceros)
  */
 
 import { readFileSync, existsSync } from 'node:fs';
@@ -44,9 +45,11 @@ function parseArgs() {
     project: process.env.FIREBASE_PROJECT_ID || readDefaultProjectId(),
     dryRun: false,
     sample: 12,
+    omitirCero: false,
   };
   for (const a of process.argv.slice(2)) {
     if (a === '--dry-run' || a === '--dryrun') out.dryRun = true;
+    else if (a === '--omitir-cero') out.omitirCero = true;
     else if (a.startsWith('--csv=')) out.csv = a.slice('--csv='.length).trim();
     else if (a.startsWith('--sucursal=')) out.sucursal = a.slice('--sucursal='.length).trim();
     else if (a.startsWith('--project=')) out.project = a.slice('--project='.length).trim();
@@ -82,7 +85,8 @@ function normSku(s) {
     .toLocaleUpperCase('es-MX');
 }
 
-function parseMergedCsv(csvPath) {
+function parseMergedCsv(csvPath, options = {}) {
+  const omitirCero = options.omitirCero === true;
   let raw = readFileSync(csvPath, 'utf8');
   if (raw.charCodeAt(0) === 0xfeff) raw = raw.slice(1);
   const lines = raw.split(/\r?\n/).filter((l) => l.length > 0);
@@ -111,6 +115,7 @@ function parseMergedCsv(csvPath) {
     if (!sku) continue;
     const precioVenta = Number(String(cells[iPv] ?? '').replace(',', '.'));
     if (!Number.isFinite(precioVenta) || precioVenta < 0) continue;
+    if (omitirCero && precioVenta === 0) continue;
 
     let preciosPorListaCliente;
     if (iJson >= 0 && cells[iJson]?.trim()) {
@@ -156,7 +161,7 @@ async function main() {
 
   let rows;
   try {
-    rows = parseMergedCsv(args.csv);
+    rows = parseMergedCsv(args.csv, { omitirCero: args.omitirCero });
   } catch (e) {
     console.error(e instanceof Error ? e.message : e);
     process.exit(1);

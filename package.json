@@ -16,7 +16,9 @@
     "import:olivares-inventory:abril2026": "node scripts/import-olivares-inventory.mjs --dir=./data/inventario-abril-2026-olivares --ultimo-gana --sucursal=olivares",
     "import:olivares-inventory:abril2026:dry": "node scripts/import-olivares-inventory.mjs --dir=./data/inventario-abril-2026-olivares --ultimo-gana --sucursal=olivares --dry-run",
     "merge:precios-rtf": "node scripts/merge-olivares-precios-rtf.mjs",
-    "update:olivares-precios-csv": "node scripts/update-olivares-precios-from-csv.mjs"
+    "update:olivares-precios-csv": "node scripts/update-olivares-precios-from-csv.mjs",
+    "export:skus-faltantes-precios": "node scripts/export-skus-faltantes-precios.mjs",
+    "combinar:precios-csv": "node scripts/combinar-precios-csv.mjs"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",
