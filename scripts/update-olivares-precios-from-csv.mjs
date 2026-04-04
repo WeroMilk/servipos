@@ -17,6 +17,7 @@
  *   --dry-run         No escribe; muestra conteos y muestra
  *   --sample=12       En dry-run, cuántas filas de ejemplo
  *   --omitir-cero     No actualiza filas con precioVenta 0 (evita pisar con ceros)
+ *
  */
 
 import { readFileSync, existsSync } from 'node:fs';
@@ -148,6 +149,33 @@ function parseMergedCsv(csvPath, options = {}) {
   return rows;
 }
 
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+async function getWithRetry(label, fn, maxAttempts = 8) {
+  let lastErr;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastErr = e;
+      const code = e?.code;
+      const msg = String(e?.message ?? e);
+      const retryable =
+        code === 8 ||
+        code === 'RESOURCE_EXHAUSTED' ||
+        msg.includes('Quota') ||
+        msg.includes('RESOURCE_EXHAUSTED');
+      if (!retryable || attempt === maxAttempts - 1) throw e;
+      const waitMs = Math.min(120_000, 2000 * 2 ** attempt);
+      console.warn(`${label}: error transitorio o cuota; reintento ${attempt + 2}/${maxAttempts} en ${waitMs}ms…`);
+      await sleep(waitMs);
+    }
+  }
+  throw lastErr;
+}
+
 async function main() {
   const args = parseArgs();
   if (!args.csv) {
@@ -200,8 +228,24 @@ async function main() {
   const db = admin.firestore();
   const col = db.collection('sucursales').doc(args.sucursal).collection('products');
 
-  console.log('Leyendo productos de Firestore…');
-  const snap = await col.get();
+  console.log('Leyendo productos de Firestore (toda la colección de la sucursal)…');
+  let snap;
+  try {
+    snap = await getWithRetry('Lectura catálogo', () => col.get());
+  } catch (e) {
+    const msg = String(e?.message ?? e);
+    if (msg.includes('Quota') || e?.code === 8) {
+      console.error(
+        '\nFirestore devolvió RESOURCE_EXHAUSTED (cuota agotada). Revise en Google Cloud Console:\n' +
+          '  · Plan de facturación de Firebase / límites diarios del plan gratuito\n' +
+          '  · Uso de Firestore: https://console.firebase.google.com/project/' +
+          args.project +
+          '/usage\n' +
+          'Cuando haya cuota disponible, vuelva a ejecutar este script.\n'
+      );
+    }
+    throw e;
+  }
   const bySku = new Map();
   for (const doc of snap.docs) {
     const d = doc.data();

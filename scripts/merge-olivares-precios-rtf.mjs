@@ -10,6 +10,11 @@
  *
  * Convierte precios **con IVA** a **sin IVA** para Firestore (igual que el catálogo).
  *
+ * Emparejamiento con el inventario CSV (mismo orden de prioridad):
+ *   1) SKU normalizado (MAYÚSCULAS, trim); el RTF usa códigos de hasta 14 dígitos.
+ *   2) Nombre normalizado (mayúsculas, sin acentos, espacios colapsados).
+ *   3) Nombre «suelto»: sin signos de puntuación (por si difiere el texto respecto a Crystal).
+ *
  * Uso:
  *   node scripts/merge-olivares-precios-rtf.mjs --csv="..." --rtf="..." --out=./data/precios-merged.csv
  *
@@ -72,6 +77,25 @@ function normSkuKey(s) {
   return String(s ?? '')
     .trim()
     .toLocaleUpperCase('es-MX');
+}
+
+/** Normaliza nombre para comparar inventario vs RTF (mayúsculas, espacios, sin acentos). */
+function normNombreKey(s) {
+  return String(s ?? '')
+    .trim()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLocaleUpperCase('es-MX')
+    .replace(/\s+/g, ' ');
+}
+
+/** Más tolerante: quita puntuación (.,-/ etc.) que a veces difiere entre inventario y Crystal. */
+function normNombreKeyLoose(s) {
+  return normNombreKey(s)
+    .replace(/Ñ/g, 'N')
+    .replace(/[^A-Z0-9 ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function parseArgs() {
@@ -158,7 +182,8 @@ function parsePreciosRtf(rtfText, opts = {}) {
   const s = stripRtfPictBlocks(rtfText);
   const map = new Map();
 
-  const skuRe = /\\cf1\s+(\d{1,8})\s*\\par/g;
+  /** Códigos de artículo / barras (hasta EAN-14); antes \d{1,8} truncaba SKUs largos. */
+  const skuRe = /\\cf1\s+(\d{1,14})\s*\\par/g;
   const hits = [];
   let m;
   while ((m = skuRe.exec(s)) !== null) {
@@ -292,6 +317,34 @@ function main() {
   const preciosMap = parsePreciosRtf(rtfText, { pad5: args.pad5 });
   console.error(`Productos con precios en RTF (por SKU): ${preciosMap.size}${args.pad5 ? ' (--pad-5 activo)' : ''}`);
 
+  /** Índice por nombre (estricto y suelto) cuando el SKU del inventario no coincide con el RTF. */
+  const preciosByNombre = new Map();
+  const preciosByNombreLoose = new Map();
+  const nombreDup = [];
+  const nombreLooseDup = [];
+  for (const [, v] of preciosMap) {
+    const nk = normNombreKey(v.nombre);
+    if (nk) {
+      if (preciosByNombre.has(nk)) nombreDup.push(nk);
+      preciosByNombre.set(nk, v);
+    }
+    const nl = normNombreKeyLoose(v.nombre);
+    if (nl) {
+      if (preciosByNombreLoose.has(nl)) nombreLooseDup.push(nl);
+      preciosByNombreLoose.set(nl, v);
+    }
+  }
+  if (nombreDup.length) {
+    console.error(
+      `Aviso: ${nombreDup.length} nombre(es) estricto(s) repetido(s) en RTF; se usa la última aparición.`
+    );
+  }
+  if (nombreLooseDup.length) {
+    console.error(
+      `Aviso: ${nombreLooseDup.length} nombre(es) «suelto(s)» repetido(s) en RTF; se usa la última aparición.`
+    );
+  }
+
   const inv = loadInventoryCsv(args.csv);
   const outCols = [
     'SKU',
@@ -303,16 +356,31 @@ function main() {
 
   const linesOut = [outCols.join(',')];
   let matched = 0;
+  let matchedBySku = 0;
+  let matchedByNombre = 0;
+  let matchedByNombreLoose = 0;
   let missing = 0;
 
   for (const row of inv.rows) {
     const skuKey = normSkuKey(row.sku);
-    const p = preciosMap.get(skuKey);
+    let p = preciosMap.get(skuKey);
+    let how = 'sku';
+    if (!p) {
+      p = preciosByNombre.get(normNombreKey(row.nombre));
+      how = 'nombre';
+    }
+    if (!p) {
+      p = preciosByNombreLoose.get(normNombreKeyLoose(row.nombre));
+      how = 'nombreLoose';
+    }
     if (!p) {
       missing++;
       continue;
     }
     matched++;
+    if (how === 'sku') matchedBySku++;
+    else if (how === 'nombre') matchedByNombre++;
+    else matchedByNombreLoose++;
     const rec = {};
     const cols = [];
     for (const k of LIST_KEYS) {
@@ -333,8 +401,10 @@ function main() {
   }
 
   writeFileSync(args.outPath, '\uFEFF' + linesOut.join('\r\n'), 'utf8');
-  console.error(`Filas escritas (SKU con precio en RTF): ${matched}`);
-  console.error(`Filas del inventario sin fila en RTF (por SKU): ${missing}`);
+  console.error(
+    `Filas escritas con precio del RTF: ${matched} (SKU: ${matchedBySku}, nombre: ${matchedByNombre}, nombre suelto: ${matchedByNombreLoose})`
+  );
+  console.error(`Filas del inventario sin coincidencia en RTF (ni SKU ni nombre): ${missing}`);
   console.error(`Salida: ${args.outPath}`);
   console.error('');
   console.error(
