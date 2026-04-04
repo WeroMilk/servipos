@@ -17,6 +17,7 @@ import {
   Download,
   ArrowDown,
   ArrowUp,
+  Menu,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -1147,39 +1148,126 @@ export function Inventario() {
     addToast,
   ]);
 
+  const handleTicketStockBajo = useCallback(() => {
+    const items = products.filter(isStockBajo).map((p) => ({
+      nombre: p.nombre,
+      sku: p.sku,
+      existencia: p.existencia,
+      existenciaMinima: p.existenciaMinima,
+    }));
+    printThermalLowStockReport({
+      fechaLabel: formatInAppTimezone(new Date(), {
+        dateStyle: 'full',
+        timeStyle: 'short',
+      }),
+      sucursalId: effectiveSucursalId,
+      items,
+    });
+    if (items.length === 0) {
+      addToast({ type: 'info', message: 'No hay artículos con stock bajo en esta tienda' });
+    }
+  }, [products, effectiveSucursalId, addToast]);
+
+  const openNuevoProductoDialog = () => {
+    resetForm();
+    addSessionLinesRef.current = [];
+    setShowAddDialog(true);
+  };
+
   return (
     <>
     <PageShell
       title="Inventario"
       subtitle="Productos y stock"
       className="min-w-0 max-w-none"
-      actionsClassName="w-full flex-col gap-2 sm:mt-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end"
+      actionsClassName="w-full justify-end gap-2 sm:mt-2 sm:w-auto"
       actions={
         <>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={loading || exportingInventario}
-            onClick={() => void handleDescargarInventario()}
-            className="w-full border-slate-300 dark:border-slate-600 sm:w-auto"
-          >
-            <Download className="mr-2 h-4 w-4" />
-            {exportingInventario ? 'Generando…' : 'Descargar Inventario'}
-          </Button>
-          <Button
-            type="button"
-            onClick={() => {
-              resetForm();
-              addSessionLinesRef.current = [];
-              setShowAddDialog(true);
-            }}
-            className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white sm:w-auto"
-            size="sm"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Nuevo
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-10 w-10 shrink-0 border-slate-300 dark:border-slate-600 md:hidden"
+                aria-label="Acciones de inventario"
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="w-[min(100vw-2rem,18rem)] border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-900"
+            >
+              <DropdownMenuItem
+                className="cursor-pointer"
+                onClick={() => setMovementsHistoryOpen(true)}
+              >
+                <Clock className="h-4 w-4" />
+                Historial de movimientos
+              </DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer" onClick={handleTicketStockBajo}>
+                <Printer className="h-4 w-4" />
+                Ticket stock bajo
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="cursor-pointer"
+                disabled={loading || exportingInventario}
+                onClick={() => void handleDescargarInventario()}
+              >
+                <Download className="h-4 w-4" />
+                {exportingInventario ? 'Generando inventario…' : 'Descargar inventario'}
+              </DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer" onClick={openNuevoProductoDialog}>
+                <Plus className="h-4 w-4" />
+                Nuevo producto
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <div className="hidden flex-wrap items-center gap-2 md:flex">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              title="Historial de movimientos de inventario"
+              aria-label="Historial de movimientos de inventario"
+              className="h-9 w-9 shrink-0 border-blue-600/45 text-blue-800 hover:bg-blue-500/10 hover:text-blue-900 dark:border-amber-500/45 dark:text-amber-200/95 dark:hover:bg-amber-500/15 dark:hover:text-amber-100"
+              onClick={() => setMovementsHistoryOpen(true)}
+            >
+              <Clock className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="border-blue-600/45 px-3 text-blue-800 hover:bg-blue-500/10 hover:text-blue-900 dark:border-amber-500/45 dark:text-amber-200/95 dark:hover:bg-amber-500/15 dark:hover:text-amber-100"
+              onClick={handleTicketStockBajo}
+            >
+              <Printer className="mr-2 h-4 w-4" />
+              Ticket stock bajo
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={loading || exportingInventario}
+              onClick={() => void handleDescargarInventario()}
+              className="border-slate-300 dark:border-slate-600"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              {exportingInventario ? 'Generando…' : 'Descargar Inventario'}
+            </Button>
+            <Button
+              type="button"
+              onClick={openNuevoProductoDialog}
+              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+              size="sm"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Nuevo
+            </Button>
+          </div>
         </>
       }
     >
@@ -1339,48 +1427,6 @@ export function Inventario() {
           <p className="mt-1 text-xs leading-snug opacity-95">{productsError}</p>
         </div>
       ) : null}
-
-      <div className="mt-2 flex w-full shrink-0 flex-row flex-wrap items-center gap-2 pb-2 sm:mt-3 sm:justify-end">
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          title="Historial de movimientos de inventario"
-          aria-label="Historial de movimientos de inventario"
-          className="h-10 w-10 shrink-0 border-blue-600/45 text-blue-800 hover:bg-blue-500/10 hover:text-blue-900 dark:border-amber-500/45 dark:text-amber-200/95 dark:hover:bg-amber-500/15 dark:hover:text-amber-100 sm:h-9 sm:w-9"
-          onClick={() => setMovementsHistoryOpen(true)}
-        >
-          <Clock className="h-4 w-4" />
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="min-h-10 flex-1 border-blue-600/45 px-3 text-blue-800 hover:bg-blue-500/10 hover:text-blue-900 dark:border-amber-500/45 dark:text-amber-200/95 dark:hover:bg-amber-500/15 dark:hover:text-amber-100 sm:h-9 sm:min-h-0 sm:flex-none sm:w-auto"
-          onClick={() => {
-            const items = products.filter(isStockBajo).map((p) => ({
-              nombre: p.nombre,
-              sku: p.sku,
-              existencia: p.existencia,
-              existenciaMinima: p.existenciaMinima,
-            }));
-            printThermalLowStockReport({
-              fechaLabel: formatInAppTimezone(new Date(), {
-                dateStyle: 'full',
-                timeStyle: 'short',
-              }),
-              sucursalId: effectiveSucursalId,
-              items,
-            });
-            if (items.length === 0) {
-              addToast({ type: 'info', message: 'No hay artículos con stock bajo en esta tienda' });
-            }
-          }}
-        >
-          <Printer className="mr-2 h-4 w-4" />
-          Ticket stock bajo
-        </Button>
-      </div>
 
       <div className="relative mt-3 mb-3 w-full min-w-0 shrink-0 sm:mt-4 sm:mb-4">
         <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-600 dark:text-slate-500 sm:left-3 sm:h-5 sm:w-5" />
