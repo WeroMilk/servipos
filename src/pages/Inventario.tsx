@@ -1,20 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
-import { 
-  Plus, 
-  Search, 
-  Edit2, 
-  Trash2, 
-  Package, 
+import {
+  Search,
+  Edit2,
+  Trash2,
+  Package,
   AlertTriangle,
   Barcode,
   TrendingUp,
   MoreHorizontal,
-  Printer,
   Truck,
   Clock,
   CircleDollarSign,
-  Download,
   ArrowDown,
   ArrowUp,
 } from 'lucide-react';
