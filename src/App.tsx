@@ -16,7 +16,7 @@ import {
 const Facturas = lazy(() =>
   import('@/pages/Facturas').then((m) => ({ default: m.Facturas }))
 );
-import { useAuthStore, useSyncStore, subscribeFirebaseAuth } from '@/stores';
+import { useAuthStore, useSyncStore, subscribeSupabaseAuth } from '@/stores';
 import { initializeDemoData, syncServipartzSeedUsers } from '@/db/database';
 import { setAppEventActorResolver } from '@/lib/appEventContext';
 import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
@@ -58,7 +58,7 @@ function App() {
   const { checkConnection } = useSyncStore();
 
   useEffect(() => {
-    return subscribeFirebaseAuth();
+    return subscribeSupabaseAuth();
   }, []);
 
   // Inicializar datos de demo al cargar

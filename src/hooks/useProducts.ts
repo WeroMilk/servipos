@@ -30,7 +30,7 @@ import {
 import { productCatalogConflictMessage } from '@/lib/productCatalogUniqueness';
 import { reportHookFailure } from '@/lib/appEventLog';
 import { useAuthStore } from '@/stores';
-import type { FirestoreError } from 'firebase/firestore';
+import { isRemotePermissionDenied, SUPABASE_PERMISSION_HINT } from '@/lib/remotePermissionError';
 
 // ============================================
 // HOOK DE PRODUCTOS (Dexie local o Firestore por sucursal)
@@ -44,14 +44,14 @@ export function useProducts() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const onCatalogFirestoreError = useCallback((err: FirestoreError) => {
-    reportHookFailure('hook:useProducts', 'Catálogo Firestore (products)', err);
-    if (err.code === 'permission-denied') {
+  const onCatalogFirestoreError = useCallback((err: unknown) => {
+    reportHookFailure('hook:useProducts', 'Catálogo remoto (products)', err);
+    if (isRemotePermissionDenied(err)) {
       setError(
-        'Sin permiso para leer el inventario de esta sucursal. Compruebe en Firestore que users/{su UID} tenga role admin o sucursalId igual al id de la tienda, y despliegue las reglas: npx firebase deploy --only firestore:rules'
+        `Sin permiso para leer el inventario de esta sucursal. ${SUPABASE_PERMISSION_HINT}`
       );
     } else {
-      setError(err.message || 'Error al sincronizar inventario con la nube');
+      setError(err instanceof Error ? err.message : 'Error al sincronizar inventario con la nube');
     }
     setProducts([]);
     setLoading(false);

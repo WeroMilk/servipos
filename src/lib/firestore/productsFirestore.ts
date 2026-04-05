@@ -1,21 +1,3 @@
-import {
-  collection,
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  query,
-  where,
-  getDocs,
-  limit,
-  onSnapshot,
-  runTransaction,
-  serverTimestamp,
-  type FirestoreError,
-  type QueryDocumentSnapshot,
-  type Unsubscribe,
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import type { Product, StockEntradaMeta } from '@/types';
 import {
   parsePrecioNumberFromFirestore,
@@ -24,20 +6,13 @@ import {
   pickBestPrecioVentaRawFromFirestoreDoc,
 } from '@/lib/precioListaNorm';
 import { normalizeClaveProdServ, normalizeClaveUnidadSat } from '@/lib/satCatalog';
-
-// ============================================
-// PRODUCTOS + STOCK EN FIRESTORE (por sucursal)
-// ============================================
-
-function productsCol(sucursalId: string) {
-  return collection(db, 'sucursales', sucursalId, 'products');
-}
-
-function movementsCol(sucursalId: string) {
-  return collection(db, 'sucursales', sucursalId, 'inventoryMovements');
-}
+import { getSupabase } from '@/lib/supabaseClient';
 
 function firestoreTimestampToDate(value: unknown): Date {
+  if (typeof value === 'string' && value.length > 0) {
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? new Date() : d;
+  }
   if (
     value &&
     typeof value === 'object' &&
@@ -50,8 +25,8 @@ function firestoreTimestampToDate(value: unknown): Date {
   return new Date();
 }
 
-export function docToProduct(snap: QueryDocumentSnapshot): Product {
-  const d = snap.data() as Record<string, unknown>;
+export function docToProduct(row: { id: string; doc: Record<string, unknown> }): Product {
+  const d = row.doc;
   const rawPv = pickBestPrecioVentaRawFromFirestoreDoc(d);
   const rawPc = d.precioCompra ?? d.precio_compra;
   const impuesto = typeof d.impuesto === 'number' ? d.impuesto : Number(d.impuesto) || 16;
@@ -65,7 +40,7 @@ export function docToProduct(snap: QueryDocumentSnapshot): Product {
     impuesto,
   });
   return {
-    id: snap.id,
+    id: row.id,
     sku: String(d.sku ?? ''),
     codigoBarras: d.codigoBarras != null ? String(d.codigoBarras) : undefined,
     nombre: String(d.nombre ?? ''),
@@ -93,7 +68,7 @@ export function docToProduct(snap: QueryDocumentSnapshot): Product {
   };
 }
 
-function productToFirestorePayload(
+function productToDocPayload(
   product: Omit<Product, 'id' | 'createdAt' | 'updatedAt' | 'syncStatus' | 'lastSyncAt'>
 ): Record<string, unknown> {
   return {
@@ -123,12 +98,10 @@ function productToFirestorePayload(
   };
 }
 
-// --- Catálogo en tiempo real (un listener por sucursal activa en la app) ---
-
 let lastProducts: Product[] = [];
 const catalogListeners = new Set<(products: Product[]) => void>();
-const catalogErrorListeners = new Set<(err: FirestoreError) => void>();
-let catalogUnsub: Unsubscribe | null = null;
+const catalogErrorListeners = new Set<(err: Error) => void>();
+let catalogChannel: ReturnType<ReturnType<typeof getSupabase>['channel']> | null = null;
 let catalogSucursalId: string | null = null;
 
 export function getProductCatalogSnapshot(): Product[] {
@@ -138,7 +111,7 @@ export function getProductCatalogSnapshot(): Product[] {
 export function subscribeProductCatalog(
   sucursalId: string,
   onProducts: (products: Product[]) => void,
-  onError?: (err: FirestoreError) => void
+  onError?: (err: Error) => void
 ): () => void {
   try {
     onProducts([...lastProducts]);
@@ -148,46 +121,69 @@ export function subscribeProductCatalog(
   catalogListeners.add(onProducts);
   if (onError) catalogErrorListeners.add(onError);
 
-  if (catalogSucursalId !== sucursalId) {
-    catalogUnsub?.();
-    catalogSucursalId = sucursalId;
-    const q = query(productsCol(sucursalId), where('activo', '==', true));
-    catalogUnsub = onSnapshot(
-      q,
-      (snap) => {
-        lastProducts = snap.docs.map(docToProduct);
-        lastProducts.sort((a, b) =>
-          String(a.nombre ?? '').localeCompare(String(b.nombre ?? ''), 'es')
-        );
-        catalogListeners.forEach((l) => {
-          try {
-            l([...lastProducts]);
-          } catch (e) {
-            console.error('subscribeProductCatalog listener:', e);
-          }
-        });
-      },
-      (err) => {
-        console.error('Firestore products:', err);
-        lastProducts = [];
-        catalogListeners.forEach((l) => l([]));
-        catalogErrorListeners.forEach((fn) => {
-          try {
-            fn(err);
-          } catch (e) {
-            console.error('subscribeProductCatalog onError:', e);
-          }
-        });
+  const supabase = getSupabase();
+
+  const load = async () => {
+    const { data, error } = await supabase
+      .from('products')
+      .select('id, doc')
+      .eq('sucursal_id', sucursalId);
+    if (error) {
+      console.error('Supabase products:', error);
+      lastProducts = [];
+      catalogListeners.forEach((l) => l([]));
+      catalogErrorListeners.forEach((fn) => {
+        try {
+          fn(new Error(error.message));
+        } catch (e) {
+          console.error(fn, e);
+        }
+      });
+      return;
+    }
+    const rows = (data ?? []) as { id: string; doc: Record<string, unknown> }[];
+    lastProducts = rows
+      .filter((r) => r.doc && (r.doc as { activo?: boolean }).activo !== false)
+      .map((r) => docToProduct(r))
+      .sort((a, b) => String(a.nombre ?? '').localeCompare(String(b.nombre ?? ''), 'es'));
+    catalogListeners.forEach((l) => {
+      try {
+        l([...lastProducts]);
+      } catch (e) {
+        console.error('subscribeProductCatalog listener:', e);
       }
-    );
+    });
+  };
+
+  if (catalogSucursalId !== sucursalId) {
+    if (catalogChannel) {
+      void supabase.removeChannel(catalogChannel);
+      catalogChannel = null;
+    }
+    catalogSucursalId = sucursalId;
+    void load();
+    catalogChannel = supabase
+      .channel(`products-${sucursalId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'products', filter: `sucursal_id=eq.${sucursalId}` },
+        () => {
+          void load();
+        }
+      )
+      .subscribe();
+  } else {
+    void load();
   }
 
   return () => {
     catalogListeners.delete(onProducts);
     if (onError) catalogErrorListeners.delete(onError);
     if (catalogListeners.size === 0) {
-      catalogUnsub?.();
-      catalogUnsub = null;
+      if (catalogChannel) {
+        void supabase.removeChannel(catalogChannel);
+        catalogChannel = null;
+      }
       catalogSucursalId = null;
       lastProducts = [];
       catalogErrorListeners.clear();
@@ -199,14 +195,22 @@ export async function createProductFirestore(
   sucursalId: string,
   product: Omit<Product, 'id' | 'createdAt' | 'updatedAt' | 'syncStatus' | 'lastSyncAt'>
 ): Promise<string> {
-  const ref = doc(productsCol(sucursalId));
-  const ts = serverTimestamp();
-  await setDoc(ref, {
-    ...productToFirestorePayload(product),
-    createdAt: ts,
-    updatedAt: ts,
+  const supabase = getSupabase();
+  const id = crypto.randomUUID().replace(/-/g, '');
+  const now = new Date().toISOString();
+  const doc = {
+    ...productToDocPayload(product),
+    createdAt: now,
+    updatedAt: now,
+  };
+  const { error } = await supabase.from('products').insert({
+    sucursal_id: sucursalId,
+    id,
+    doc,
+    updated_at: now,
   });
-  return ref.id;
+  if (error) throw new Error(error.message);
+  return id;
 }
 
 const PRODUCT_UPDATE_KEYS = [
@@ -230,32 +234,40 @@ export async function updateProductFirestore(
   productId: string,
   updates: Partial<Product>
 ): Promise<void> {
-  const ref = doc(db, 'sucursales', sucursalId, 'products', productId);
-  const payload: Record<string, unknown> = { updatedAt: serverTimestamp() };
-
+  const supabase = getSupabase();
+  const { data: row, error: ge } = await supabase
+    .from('products')
+    .select('doc')
+    .eq('sucursal_id', sucursalId)
+    .eq('id', productId)
+    .maybeSingle();
+  if (ge) throw new Error(ge.message);
+  const doc = { ...((row?.doc as Record<string, unknown>) ?? {}) };
+  const now = new Date().toISOString();
   for (const k of PRODUCT_UPDATE_KEYS) {
     if (k in updates && updates[k] !== undefined) {
-      payload[k] = updates[k];
+      (doc as Record<string, unknown>)[k] = updates[k];
     }
   }
-
   if ('codigoBarras' in updates) {
     const v = updates.codigoBarras;
-    payload.codigoBarras = v && v.length > 0 ? v : null;
+    doc.codigoBarras = v && v.length > 0 ? v : null;
   }
-
   if ('claveProdServ' in updates) {
     const n = normalizeClaveProdServ(updates.claveProdServ);
-    payload.claveProdServ = n.length === 8 ? n : null;
+    doc.claveProdServ = n.length === 8 ? n : null;
   }
-
   if ('preciosPorListaCliente' in updates && updates.preciosPorListaCliente !== undefined) {
     const m = updates.preciosPorListaCliente;
-    payload.preciosPorListaCliente =
-      m && Object.keys(m).length > 0 ? m : null;
+    doc.preciosPorListaCliente = m && Object.keys(m).length > 0 ? m : null;
   }
-
-  await updateDoc(ref, payload);
+  doc.updatedAt = now;
+  const { error } = await supabase
+    .from('products')
+    .update({ doc, updated_at: now })
+    .eq('sucursal_id', sucursalId)
+    .eq('id', productId);
+  if (error) throw new Error(error.message);
 }
 
 export async function deleteProductFirestore(sucursalId: string, productId: string): Promise<void> {
@@ -272,87 +284,57 @@ export async function adjustStockFirestore(
   usuarioId?: string,
   entradaMeta?: StockEntradaMeta
 ): Promise<void> {
-  const prodRef = doc(db, 'sucursales', sucursalId, 'products', productId);
-
-  await runTransaction(db, async (transaction) => {
-    const prodSnap = await transaction.get(prodRef);
-    if (!prodSnap.exists()) throw new Error('Producto no encontrado');
-
-    const data = prodSnap.data()!;
-    const cantidadAnterior =
-      typeof data.existencia === 'number' ? data.existencia : Number(data.existencia) || 0;
-    let cantidadNueva: number;
-
-    if (tipo === 'entrada') {
-      cantidadNueva = cantidadAnterior + cantidad;
-    } else if (tipo === 'salida') {
-      cantidadNueva = cantidadAnterior - cantidad;
-    } else {
-      cantidadNueva = cantidad;
-    }
-
-    transaction.update(prodRef, {
-      existencia: cantidadNueva,
-      updatedAt: serverTimestamp(),
-    });
-
-    const movRef = doc(movementsCol(sucursalId));
-    const prov = entradaMeta?.proveedor?.trim();
-    const provCod = entradaMeta?.proveedorCodigo?.trim();
-    const pu = entradaMeta?.precioUnitarioCompra;
-    transaction.set(movRef, {
-      productId,
-      tipo,
-      cantidad,
-      cantidadAnterior,
-      cantidadNueva,
-      motivo: motivo ?? null,
-      referencia: referencia ?? null,
-      proveedor:
-        tipo === 'entrada' && prov && prov.length > 0 ? prov : null,
-      proveedorCodigo:
-        tipo === 'entrada' && provCod && provCod.length > 0 ? provCod : null,
-      precioUnitarioCompra:
-        tipo === 'entrada' && pu != null && Number.isFinite(pu) && pu >= 0 ? pu : null,
-      usuarioId: usuarioId ?? 'system',
-      createdAt: serverTimestamp(),
-    });
+  const supabase = getSupabase();
+  const meta =
+    entradaMeta != null
+      ? {
+          proveedor: entradaMeta.proveedor,
+          proveedorCodigo: entradaMeta.proveedorCodigo,
+          precioUnitarioCompra: entradaMeta.precioUnitarioCompra,
+        }
+      : null;
+  const { error } = await supabase.rpc('rpc_adjust_stock', {
+    p_sucursal_id: sucursalId,
+    p_product_id: productId,
+    p_cantidad: cantidad,
+    p_tipo: tipo,
+    p_motivo: motivo ?? null,
+    p_referencia: referencia ?? null,
+    p_usuario_id: usuarioId ?? 'system',
+    p_entrada_meta: meta,
   });
+  if (error) throw new Error(error.message);
 }
 
-/**
- * Para recibir traspaso: mismo id de documento en destino, o un único producto activo con el mismo SKU.
- */
-/**
- * Crea en destino un producto con el mismo id que en origen (o mínimo desde la línea del traspaso si no hay copia posible).
- * Existencia inicial 0; la confirmación del traspaso suma la cantidad recibida.
- */
 export async function ensureProductAtDestForTransfer(
   destSucursalId: string,
   origenSucursalId: string,
   productIdOrigen: string,
   fallback: { nombre: string; sku: string }
 ): Promise<string> {
-  const destRef = doc(db, 'sucursales', destSucursalId, 'products', productIdOrigen);
-  const destEx = await getDoc(destRef);
-  if (destEx.exists()) {
-    const act = destEx.data()?.activo;
-    if (act !== false) return productIdOrigen;
+  const supabase = getSupabase();
+  const { data: destRow } = await supabase
+    .from('products')
+    .select('doc')
+    .eq('sucursal_id', destSucursalId)
+    .eq('id', productIdOrigen)
+    .maybeSingle();
+  if (destRow?.doc && (destRow.doc as { activo?: boolean }).activo !== false) {
+    return productIdOrigen;
   }
 
-  const origRef = doc(db, 'sucursales', origenSucursalId, 'products', productIdOrigen);
-  let originOd: Record<string, unknown> | null = null;
-  try {
-    const origSnap = await getDoc(origRef);
-    if (origSnap.exists()) originOd = origSnap.data() as Record<string, unknown>;
-  } catch {
-    originOd = null;
-  }
-
-  const ts = serverTimestamp();
+  const { data: orig } = await supabase
+    .from('products')
+    .select('doc')
+    .eq('sucursal_id', origenSucursalId)
+    .eq('id', productIdOrigen)
+    .maybeSingle();
+  const ts = new Date().toISOString();
+  const originOd = orig?.doc as Record<string, unknown> | undefined;
+  let doc: Record<string, unknown>;
   if (originOd) {
     const od = originOd;
-    await setDoc(destRef, {
+    doc = {
       sku: String(od.sku ?? fallback.sku ?? '').trim() || `T-${productIdOrigen.slice(0, 8)}`,
       codigoBarras: od.codigoBarras != null ? String(od.codigoBarras) : null,
       nombre: String(od.nombre ?? fallback.nombre).trim() || fallback.nombre,
@@ -377,11 +359,11 @@ export async function ensureProductAtDestForTransfer(
       activo: true,
       createdAt: ts,
       updatedAt: ts,
-    });
+    };
   } else {
     const sku =
       (fallback.sku ?? '').trim() || `T-${productIdOrigen.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 12) || 'SKU'}`;
-    await setDoc(destRef, {
+    doc = {
       sku,
       codigoBarras: null,
       nombre: (fallback.nombre ?? '').trim() || 'Producto (traspaso)',
@@ -398,8 +380,15 @@ export async function ensureProductAtDestForTransfer(
       activo: true,
       createdAt: ts,
       updatedAt: ts,
-    });
+    };
   }
+  const { error } = await supabase.from('products').upsert({
+    sucursal_id: destSucursalId,
+    id: productIdOrigen,
+    doc,
+    updated_at: ts,
+  });
+  if (error) throw new Error(error.message);
   return productIdOrigen;
 }
 
@@ -408,17 +397,25 @@ export async function resolveDestProductIdForTransfer(
   productIdOrigen: string,
   sku: string
 ): Promise<string | null> {
-  const byIdRef = doc(db, 'sucursales', destSucursalId, 'products', productIdOrigen);
-  const byId = await getDoc(byIdRef);
-  if (byId.exists()) {
-    const act = byId.data()?.activo;
-    if (act !== false) return byId.id;
+  const supabase = getSupabase();
+  const { data: byId } = await supabase
+    .from('products')
+    .select('id, doc')
+    .eq('sucursal_id', destSucursalId)
+    .eq('id', productIdOrigen)
+    .maybeSingle();
+  if (byId?.doc && (byId.doc as { activo?: boolean }).activo !== false) {
+    return byId.id;
   }
   const sk = (sku ?? '').trim();
   if (!sk) return null;
-  const q = query(productsCol(destSucursalId), where('sku', '==', sk), where('activo', '==', true), limit(2));
-  const snap = await getDocs(q);
-  if (snap.docs.length === 1) return snap.docs[0]!.id;
+  const { data: rows } = await supabase.from('products').select('id, doc').eq('sucursal_id', destSucursalId);
+  const matches = (rows ?? []).filter(
+    (r) =>
+      String((r.doc as { sku?: string })?.sku ?? '').trim() === sk &&
+      (r.doc as { activo?: boolean }).activo !== false
+  );
+  if (matches.length === 1) return matches[0]!.id;
   return null;
 }
 
@@ -426,9 +423,9 @@ export async function getProductByBarcodeFirestore(
   sucursalId: string,
   codigoBarras: string
 ): Promise<Product | null> {
-  const q = query(productsCol(sucursalId), where('codigoBarras', '==', codigoBarras), limit(1));
-  const snap = await getDocs(q);
-  const first = snap.docs[0];
-  if (!first) return null;
-  return docToProduct(first as QueryDocumentSnapshot);
+  const supabase = getSupabase();
+  const { data: rows } = await supabase.from('products').select('id, doc').eq('sucursal_id', sucursalId);
+  const hit = (rows ?? []).find((r) => String((r.doc as { codigoBarras?: string })?.codigoBarras ?? '') === codigoBarras);
+  if (!hit) return null;
+  return docToProduct(hit as { id: string; doc: Record<string, unknown> });
 }

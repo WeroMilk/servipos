@@ -1,28 +1,21 @@
 import { create } from 'zustand';
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { FirebaseError } from 'firebase/app';
 import type { AuthState, Permission, User } from '@/types';
-import { auth, db } from '@/lib/firebase';
-import { normalizeServipartzEmail } from '@/lib/servipartzAuth';
-import { mapFirestoreUserProfile, userFromAuthOnly } from '@/lib/mapFirestoreUser';
+import { mapProfileRowToUser, userFromAuthOnly } from '@/lib/mapFirestoreUser';
 import { useSucursalContextStore } from '@/stores/sucursalContextStore';
 import { reportAppEvent } from '@/lib/appEventLog';
 import { userHasPermission } from '@/lib/userPermissions';
+import { getSupabase } from '@/lib/supabaseClient';
 
-// ============================================
-// STORE DE AUTENTICACIÓN (Firebase Auth + perfil Firestore)
-// ============================================
+async function loadUserProfile(userId: string, email: string | null): Promise<User> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+  if (error || !data) {
+    return userFromAuthOnly(userId, email);
+  }
+  return mapProfileRowToUser(data as Parameters<typeof mapProfileRowToUser>[0]);
+}
 
 type AuthStore = AuthState;
-
-async function loadUserProfile(firebaseUid: string, email: string | null): Promise<User> {
-  const snap = await getDoc(doc(db, 'users', firebaseUid));
-  if (!snap.exists()) {
-    return userFromAuthOnly(firebaseUid, email);
-  }
-  return mapFirestoreUserProfile(firebaseUid, snap.data() as Record<string, unknown>, email ?? '');
-}
 
 export const useAuthStore = create<AuthStore>((set) => ({
   user: null,
@@ -31,23 +24,25 @@ export const useAuthStore = create<AuthStore>((set) => ({
 
   login: async (usernameOrEmail: string, password: string): Promise<boolean> => {
     try {
+      const { normalizeServipartzEmail } = await import('@/lib/servipartzAuth');
       const email = normalizeServipartzEmail(usernameOrEmail);
       if (!email) return false;
-      await signInWithEmailAndPassword(auth, email, password);
+      const supabase = getSupabase();
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        console.error('Supabase Auth:', error.message);
+        return false;
+      }
       return true;
     } catch (err) {
-      if (err instanceof FirebaseError) {
-        console.error('Firebase Auth:', err.code, err.message);
-      } else {
-        console.error('Login:', err);
-      }
+      console.error('Login:', err);
       return false;
     }
   },
 
   logout: async () => {
     useSucursalContextStore.getState().setActiveSucursalId(null);
-    await signOut(auth);
+    await getSupabase().auth.signOut();
     set({ user: null, isAuthenticated: false });
   },
 
@@ -57,10 +52,12 @@ export const useAuthStore = create<AuthStore>((set) => ({
   },
 
   refreshUserProfile: async () => {
-    const fbUser = getAuth().currentUser;
-    if (!fbUser) return;
+    const supabase = getSupabase();
+    const { data: sessionData } = await supabase.auth.getSession();
+    const u = sessionData.session?.user;
+    if (!u) return;
     try {
-      const user = await loadUserProfile(fbUser.uid, fbUser.email);
+      const user = await loadUserProfile(u.id, u.email ?? null);
       useAuthStore.setState({ user });
     } catch (e) {
       console.error('refreshUserProfile:', e);
@@ -68,10 +65,11 @@ export const useAuthStore = create<AuthStore>((set) => ({
   },
 }));
 
-/** Suscripción global: mantener sesión y perfil alineados con Firebase. */
-export function subscribeFirebaseAuth(): () => void {
-  return onAuthStateChanged(auth, async (fbUser) => {
-    if (!fbUser) {
+/** Suscripción global: sesión Supabase + perfil en `profiles`. */
+export function subscribeSupabaseAuth(): () => void {
+  const supabase = getSupabase();
+  const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_OUT' || !session?.user) {
       const prev = useAuthStore.getState().user;
       useSucursalContextStore.getState().setActiveSucursalId(null);
       if (prev) {
@@ -91,7 +89,7 @@ export function subscribeFirebaseAuth(): () => void {
       return;
     }
     try {
-      const user = await loadUserProfile(fbUser.uid, fbUser.email);
+      const user = await loadUserProfile(session.user.id, session.user.email ?? null);
       useAuthStore.setState({ user, isAuthenticated: true, authReady: true });
       reportAppEvent({
         kind: 'success',
@@ -101,8 +99,8 @@ export function subscribeFirebaseAuth(): () => void {
         meta: { userId: user.id, role: user.role },
       });
     } catch (e) {
-      console.error('Error cargando perfil Firestore:', e);
-      const user = userFromAuthOnly(fbUser.uid, fbUser.email);
+      console.error('Error cargando perfil:', e);
+      const user = userFromAuthOnly(session.user.id, session.user.email ?? null);
       useAuthStore.setState({
         user,
         isAuthenticated: true,
@@ -111,10 +109,13 @@ export function subscribeFirebaseAuth(): () => void {
       reportAppEvent({
         kind: 'warning',
         source: 'auth',
-        title: 'Sesión iniciada (perfil Firestore incompleto)',
+        title: 'Sesión iniciada (perfil incompleto)',
         detail: user.email,
         meta: { userId: user.id },
       });
     }
   });
+  return () => {
+    data.subscription.unsubscribe();
+  };
 }

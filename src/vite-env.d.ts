@@ -1,14 +1,13 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  readonly VITE_FIREBASE_API_KEY: string;
-  readonly VITE_FIREBASE_AUTH_DOMAIN: string;
-  readonly VITE_FIREBASE_PROJECT_ID: string;
-  readonly VITE_FIREBASE_STORAGE_BUCKET: string;
-  readonly VITE_FIREBASE_MESSAGING_SENDER_ID: string;
-  readonly VITE_FIREBASE_APP_ID: string;
+  readonly VITE_SUPABASE_URL: string;
+  readonly VITE_SUPABASE_ANON_KEY: string;
   /** Dominio corporativo para login corto (ej. usuario → usuario@dominio) */
   readonly VITE_SERVIPARTZ_EMAIL_DOMAIN: string;
+  /** Ids de sucursal permitidos en la app (coma-separados) */
+  readonly VITE_SUCURSAL_IDS?: string;
+  readonly VITE_DEFAULT_SUCURSAL_ID?: string;
 }
 
 interface ImportMeta {

@@ -33,16 +33,12 @@ import {
   resumenGruposMedioPagoCierre,
 } from '@/lib/cajaResumen';
 import type { Sale } from '@/types';
-import { FirebaseError } from 'firebase/app';
 import { useCajaLocalStore } from '@/stores/cajaLocalStore';
+import { isRemotePermissionDenied, SUPABASE_PERMISSION_HINT } from '@/lib/remotePermissionError';
 
 function cajaFirestoreUserMessage(e: unknown): string {
-  if (e instanceof FirebaseError && e.code === 'permission-denied') {
-    return (
-      'Sin permiso en Firestore al usar caja. Desde la carpeta del proyecto ejecute: npm run deploy:firestore:rules. ' +
-      'En la consola de Firebase, confirme que existe el documento users/{su uid de Auth} con role "admin" ' +
-      'o con sucursalId exactamente igual al id de la tienda activa (p. ej. Matriz).'
-    );
+  if (isRemotePermissionDenied(e)) {
+    return `Sin permiso al usar caja en la nube. ${SUPABASE_PERMISSION_HINT}`;
   }
   if (e instanceof Error) return e.message;
   return 'No se pudo completar la operación de caja';

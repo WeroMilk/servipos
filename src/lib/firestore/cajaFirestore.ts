@@ -1,15 +1,3 @@
-import {
-  arrayUnion,
-  doc,
-  getDoc,
-  increment,
-  runTransaction,
-  serverTimestamp,
-  onSnapshot,
-  Timestamp,
-  type Unsubscribe,
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import type { CajaRetiroEfectivo, CajaSesion } from '@/types';
 import {
   computeCajaEfectivoEsperado,
@@ -18,16 +6,13 @@ import {
   resumenBrutoSesion,
 } from '@/lib/cajaResumen';
 import { fetchSalesByCajaSesion } from '@/lib/firestore/salesFirestore';
-
-function cajaEstadoRef(sucursalId: string) {
-  return doc(db, 'sucursales', sucursalId, 'cajaEstado', 'current');
-}
-
-function cajaSesionRef(sucursalId: string, sesionId: string) {
-  return doc(db, 'sucursales', sucursalId, 'cajaSesiones', sesionId);
-}
+import { getSupabase } from '@/lib/supabaseClient';
 
 function firestoreTimestampToDate(value: unknown): Date {
+  if (typeof value === 'string' && value.length > 0) {
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? new Date() : d;
+  }
   if (
     value &&
     typeof value === 'object' &&
@@ -61,11 +46,7 @@ function parseRetirosEfectivoFirestore(raw: unknown): CajaRetiroEfectivo[] | und
   return out.length > 0 ? out : undefined;
 }
 
-function mapCajaSesionDoc(
-  sucursalId: string,
-  sesionId: string,
-  d: Record<string, unknown>
-): CajaSesion {
+function mapCajaSesionDoc(sucursalId: string, sesionId: string, d: Record<string, unknown>): CajaSesion {
   return {
     id: sesionId,
     estado: d.estado === 'cerrada' ? 'cerrada' : 'abierta',
@@ -89,55 +70,87 @@ function mapCajaSesionDoc(
   };
 }
 
-/**
- * Suscripción a la sesión de caja abierta (si existe). `null` si la caja está cerrada o sin sesión.
- */
 export function subscribeCajaSesionAbierta(
   sucursalId: string,
   cb: (session: CajaSesion | null) => void
-): Unsubscribe {
-  const estRef = cajaEstadoRef(sucursalId);
-  let unsubSesion: Unsubscribe | null = null;
+): () => void {
+  const supabase = getSupabase();
+  let unsubSes: (() => void) | null = null;
 
-  const unsubEst = onSnapshot(
-    estRef,
-    (estSnap) => {
-      unsubSesion?.();
-      unsubSesion = null;
-
-      const openIdRaw = estSnap.data()?.sesionAbiertaId;
-      const openId = typeof openIdRaw === 'string' ? openIdRaw.trim() : '';
-      if (!openId) {
+  const loadSesion = (openId: string) => {
+    unsubSes?.();
+    unsubSes = null;
+    if (!openId) {
+      cb(null);
+      return;
+    }
+    const load = async () => {
+      const { data } = await supabase
+        .from('caja_sesiones')
+        .select('id, doc')
+        .eq('sucursal_id', sucursalId)
+        .eq('id', openId)
+        .maybeSingle();
+      if (!data?.doc) {
         cb(null);
         return;
       }
-
-      const sRef = cajaSesionRef(sucursalId, openId);
-      unsubSesion = onSnapshot(
-        sRef,
-        (sSnap) => {
-          if (!sSnap.exists()) {
-            cb(null);
-            return;
-          }
-          const mapped = mapCajaSesionDoc(sucursalId, openId, sSnap.data() as Record<string, unknown>);
-          cb(mapped.estado === 'abierta' ? mapped : null);
+      const mapped = mapCajaSesionDoc(sucursalId, data.id, data.doc as Record<string, unknown>);
+      cb(mapped.estado === 'abierta' ? mapped : null);
+    };
+    void load();
+    const ch = supabase
+      .channel(`caja-ses-${sucursalId}-${openId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'caja_sesiones',
+          filter: `id=eq.${openId}`,
         },
         () => {
-          cb(null);
+          void load();
         }
-      );
-    },
-    () => {
-      unsubSesion?.();
-      unsubSesion = null;
-      cb(null);
-    }
-  );
+      )
+      .subscribe();
+    unsubSes = () => {
+      void supabase.removeChannel(ch);
+    };
+  };
+
+  const loadEstado = async () => {
+    const { data } = await supabase
+      .from('caja_estado')
+      .select('doc')
+      .eq('sucursal_id', sucursalId)
+      .eq('doc_id', 'current')
+      .maybeSingle();
+    const openIdRaw = data?.doc ? (data.doc as { sesionAbiertaId?: string }).sesionAbiertaId : null;
+    const openId = typeof openIdRaw === 'string' ? openIdRaw.trim() : '';
+    loadSesion(openId);
+  };
+
+  void loadEstado();
+  const chEst = supabase
+    .channel(`caja-est-${sucursalId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'caja_estado',
+        filter: `sucursal_id=eq.${sucursalId}`,
+      },
+      () => {
+        void loadEstado();
+      }
+    )
+    .subscribe();
 
   return () => {
-    unsubSesion?.();
-    unsubEst();
+    unsubSes?.();
+    void supabase.removeChannel(chEst);
   };
 }
 
@@ -149,48 +162,17 @@ export async function openCajaSessionFirestore(
     openedByNombre: string;
   }
 ): Promise<{ id: string }> {
-  const estRef = cajaEstadoRef(sucursalId);
-  const newSesionRef = doc(db, 'sucursales', sucursalId, 'cajaSesiones', crypto.randomUUID());
-
-  await runTransaction(db, async (transaction) => {
-    const estSnap = await transaction.get(estRef);
-    const openIdRaw = estSnap.exists() ? (estSnap.data() as Record<string, unknown>).sesionAbiertaId : null;
-    const openId = typeof openIdRaw === 'string' ? openIdRaw.trim() : '';
-
-    if (openId) {
-      const prevRef = cajaSesionRef(sucursalId, openId);
-      const prevSnap = await transaction.get(prevRef);
-      if (prevSnap.exists()) {
-        const st = (prevSnap.data() as Record<string, unknown>).estado;
-        if (st === 'abierta') {
-          const nom = String((prevSnap.data() as Record<string, unknown>).openedByNombre ?? 'Otro usuario');
-          throw new Error(
-            `Ya hay una caja abierta (registrada por ${nom}). Cierre esa sesión antes de abrir otra.`
-          );
-        }
-      }
-    }
-
-    transaction.set(newSesionRef, {
-      estado: 'abierta',
-      fondoInicial: Math.max(0, Number(input.fondoInicial) || 0),
-      openedAt: serverTimestamp(),
-      openedByUserId: input.openedByUserId,
-      openedByNombre: input.openedByNombre.trim() || 'Usuario',
-      updatedAt: serverTimestamp(),
-    });
-
-    transaction.set(
-      estRef,
-      {
-        sesionAbiertaId: newSesionRef.id,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
+  const supabase = getSupabase();
+  const { data, error } = await supabase.rpc('rpc_open_caja_session', {
+    p_sucursal_id: sucursalId,
+    p_fondo_inicial: input.fondoInicial,
+    p_opened_by_user_id: input.openedByUserId,
+    p_opened_by_nombre: input.openedByNombre,
   });
-
-  return { id: newSesionRef.id };
+  if (error) throw new Error(error.message);
+  const o = data as { id?: string };
+  if (!o?.id) throw new Error('Sesión no creada');
+  return { id: o.id };
 }
 
 export async function closeCajaSessionFirestore(
@@ -210,70 +192,55 @@ export async function closeCajaSessionFirestore(
   const completadas = filterVentasCompletadasSesion(ventas);
   const { tickets, total } = resumenBrutoSesion(ventas);
 
-  const estRef = cajaEstadoRef(sucursalId);
-  const sRef = cajaSesionRef(sucursalId, sid);
+  const { data: sRow } = await getSupabase()
+    .from('caja_sesiones')
+    .select('doc')
+    .eq('sucursal_id', sucursalId)
+    .eq('id', sid)
+    .maybeSingle();
+  if (!sRow?.doc) throw new Error('Sesión de caja no encontrada');
+  const data = sRow.doc as Record<string, unknown>;
+  if (data.estado !== 'abierta') throw new Error('Esta sesión de caja ya está cerrada');
 
-  await runTransaction(db, async (transaction) => {
-    // Firestore (SDK web/móvil): todas las lecturas deben ir antes de cualquier escritura.
-    const sSnap = await transaction.get(sRef);
-    const estSnap = await transaction.get(estRef);
+  const fondo = Number(data.fondoInicial) || 0;
+  const retirosTotal = Number(data.retirosEfectivoTotal) || 0;
+  const { esperadoEnCaja: esperadoBruto } = computeCajaEfectivoEsperado(fondo, completadas);
+  const esperadoEnCaja = efectivoEsperadoMenosRetiros(esperadoBruto, retirosTotal);
+  const declarado = Number(input.conteoDeclarado);
+  if (!Number.isFinite(declarado) || declarado < 0) {
+    throw new Error('Indique un conteo de efectivo válido');
+  }
 
-    if (!sSnap.exists()) throw new Error('Sesión de caja no encontrada');
-    const data = sSnap.data() as Record<string, unknown>;
-    if (data.estado !== 'abierta') throw new Error('Esta sesión de caja ya está cerrada');
-
-    const fondo = Number(data.fondoInicial) || 0;
-    const retirosTotal = Number(data.retirosEfectivoTotal) || 0;
-    const { esperadoEnCaja: esperadoBruto } = computeCajaEfectivoEsperado(fondo, completadas);
-    const esperadoEnCaja = efectivoEsperadoMenosRetiros(esperadoBruto, retirosTotal);
-    const declarado = Number(input.conteoDeclarado);
-    if (!Number.isFinite(declarado) || declarado < 0) {
-      throw new Error('Indique un conteo de efectivo válido');
-    }
-    const diferencia = Math.round((declarado - esperadoEnCaja) * 100) / 100;
-
-    const curOpen = estSnap.exists()
-      ? String((estSnap.data() as Record<string, unknown>).sesionAbiertaId ?? '').trim()
-      : '';
-
-    transaction.update(sRef, {
-      estado: 'cerrada',
-      closedAt: serverTimestamp(),
-      closedByUserId: input.closedByUserId,
-      closedByNombre: input.closedByNombre.trim() || 'Usuario',
-      conteoDeclarado: declarado,
-      efectivoEsperado: esperadoEnCaja,
-      diferencia,
-      notasCierre: input.notasCierre?.trim() || null,
-      ticketsCompletados: tickets,
-      totalVentasBruto: total,
-      updatedAt: serverTimestamp(),
-    });
-
-    if (curOpen === sid) {
-      transaction.set(
-        estRef,
-        {
-          sesionAbiertaId: null,
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-    }
+  const supabase = getSupabase();
+  const { error } = await supabase.rpc('rpc_close_caja_session', {
+    p_sucursal_id: sucursalId,
+    p_sesion_id: sid,
+    p_conteo_declarado: declarado,
+    p_notas: input.notasCierre ?? null,
+    p_closed_by_user_id: input.closedByUserId,
+    p_closed_by_nombre: input.closedByNombre,
+    p_efectivo_esperado: esperadoEnCaja,
+    p_tickets: tickets,
+    p_total_ventas_bruto: total,
   });
+  if (error) throw new Error(error.message);
 }
 
-/** Lectura puntual (p. ej. imprimir último cierre). */
 export async function getCajaSesionFirestore(
   sucursalId: string,
   sesionId: string
 ): Promise<CajaSesion | null> {
-  const snap = await getDoc(cajaSesionRef(sucursalId, sesionId.trim()));
-  if (!snap.exists()) return null;
-  return mapCajaSesionDoc(sucursalId, snap.id, snap.data() as Record<string, unknown>);
+  const supabase = getSupabase();
+  const { data } = await supabase
+    .from('caja_sesiones')
+    .select('id, doc')
+    .eq('sucursal_id', sucursalId)
+    .eq('id', sesionId.trim())
+    .maybeSingle();
+  if (!data?.doc) return null;
+  return mapCajaSesionDoc(sucursalId, data.id, data.doc as Record<string, unknown>);
 }
 
-/** Registra retiro de efectivo del cajón (sesión abierta). Actualiza totales para el cierre de caja. */
 export async function registrarRetiroEfectivoFirestore(
   sucursalId: string,
   sesionId: string,
@@ -284,32 +251,14 @@ export async function registrarRetiroEfectivoFirestore(
     usuarioNombre: string;
   }
 ): Promise<void> {
-  const sid = sesionId.trim();
-  if (!sid) throw new Error('Sesión inválida');
-  const monto = Math.round(Math.max(0, Number(input.monto) || 0) * 100) / 100;
-  if (monto <= 0) throw new Error('Indique un monto mayor a cero');
-
-  const sRef = cajaSesionRef(sucursalId, sid);
-  /** `serverTimestamp()` no es válido dentro de `arrayUnion()`; usar hora concreta. */
-  const item = {
-    id: crypto.randomUUID(),
-    monto,
-    notas: input.notas?.trim() || null,
-    createdAt: Timestamp.now(),
-    usuarioId: input.usuarioId,
-    usuarioNombre: input.usuarioNombre.trim() || 'Usuario',
-  };
-
-  await runTransaction(db, async (transaction) => {
-    const sSnap = await transaction.get(sRef);
-    if (!sSnap.exists()) throw new Error('Sesión de caja no encontrada');
-    const d = sSnap.data() as Record<string, unknown>;
-    if (d.estado !== 'abierta') throw new Error('La caja no está abierta; no se puede registrar el retiro');
-
-    transaction.update(sRef, {
-      retirosEfectivoTotal: increment(monto),
-      retirosEfectivo: arrayUnion(item),
-      updatedAt: serverTimestamp(),
-    });
+  const supabase = getSupabase();
+  const { error } = await supabase.rpc('rpc_registrar_retiro_caja', {
+    p_sucursal_id: sucursalId,
+    p_sesion_id: sesionId.trim(),
+    p_monto: input.monto,
+    p_notas: input.notas ?? null,
+    p_usuario_id: input.usuarioId,
+    p_usuario_nombre: input.usuarioNombre,
   });
+  if (error) throw new Error(error.message);
 }

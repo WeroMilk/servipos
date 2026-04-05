@@ -1,6 +1,10 @@
 import type { Permission, User, UserRole } from '@/types';
 
 function timestampToDate(value: unknown): Date {
+  if (typeof value === 'string' && value.length > 0) {
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? new Date() : d;
+  }
   if (
     value &&
     typeof value === 'object' &&
@@ -80,6 +84,39 @@ export function mapFirestoreUserProfile(
     createdAt: timestampToDate(data.createdAt),
     updatedAt: timestampToDate(data.updatedAt),
   };
+}
+
+/** Fila `public.profiles` (Supabase). */
+export function mapProfileRowToUser(row: {
+  id: string;
+  email: string | null;
+  username: string | null;
+  name: string | null;
+  role: string | null;
+  is_active: boolean | null;
+  sucursal_id: string | null;
+  use_custom_permissions: boolean | null;
+  custom_permissions: unknown;
+  created_at: string;
+  updated_at: string;
+}): User {
+  const email = typeof row.email === 'string' && row.email.length > 0 ? row.email : '';
+  return mapFirestoreUserProfile(
+    row.id,
+    {
+      email,
+      username: row.username ?? undefined,
+      name: row.name ?? undefined,
+      role: row.role ?? undefined,
+      isActive: row.is_active !== false,
+      sucursalId: row.sucursal_id ?? undefined,
+      useCustomPermissions: row.use_custom_permissions === true ? true : undefined,
+      customPermissions: row.custom_permissions as never,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    },
+    email
+  );
 }
 
 export function userFromAuthOnly(uid: string, email: string | null): User {

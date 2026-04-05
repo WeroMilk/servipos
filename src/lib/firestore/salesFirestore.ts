@@ -1,48 +1,20 @@
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  onSnapshot,
-  query,
-  orderBy,
-  limit,
-  where,
-  runTransaction,
-  serverTimestamp,
-  Timestamp,
-  updateDoc,
-  deleteField,
-  type DocumentSnapshot,
-  type Unsubscribe,
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { CLIENT_PRICE_LIST_ORDER, normalizeClientPriceListId } from '@/lib/clientPriceLists';
 import type { Client, FormaPago, MetodoPago, Payment, Sale, SaleItem, SaleStatus } from '@/types';
 import { getMexicoDateKey, startOfDayFromDateKey } from '@/lib/quincenaMx';
-import { saleItemsQtyByProductId } from '@/lib/posOpenSaleResume';
+import { getSupabase } from '@/lib/supabaseClient';
 
 // ============================================
-// VENTAS EN FIRESTORE (tiempo real + folio atómico)
+// VENTAS (Supabase + RPC atómicos)
 // ============================================
 
 const SALES_PAGE_SIZE = 500;
-/** Ventas abiertas (fiado) fuera del top N por fecha: query aparte para que no desaparezcan del catálogo. */
 const PENDING_OPEN_SALES_LIMIT = 500;
 
-function salesCol(sucursalId: string) {
-  return collection(db, 'sucursales', sucursalId, 'sales');
-}
-
-function movementsCol(sucursalId: string) {
-  return collection(db, 'sucursales', sucursalId, 'inventoryMovements');
-}
-
-function ventasDiarioCounterRef(sucursalId: string) {
-  return doc(db, 'sucursales', sucursalId, 'counters', 'ventasDiario');
-}
-
 function firestoreTimestampToDate(value: unknown): Date {
+  if (typeof value === 'string' && value.length > 0) {
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? new Date() : d;
+  }
   if (
     value &&
     typeof value === 'object' &&
@@ -137,15 +109,13 @@ function mapClientEmbedded(raw: Record<string, unknown>): Client {
   };
 }
 
-export function saleDocToSale(snap: DocumentSnapshot): Sale | null {
-  if (!snap.exists()) return null;
-  const d = snap.data() as Record<string, unknown>;
+/** Mapea documento JSON (Firestore / Supabase) a `Sale`. */
+export function saleDataToSale(id: string, d: Record<string, unknown>, sucursalId?: string): Sale | null {
   const productosRaw = Array.isArray(d.productos) ? d.productos : [];
   const pagosRaw = Array.isArray(d.pagos) ? d.pagos : [];
-  const sucursalFromPath = snap.ref.parent.parent?.id;
 
   return {
-    id: snap.id,
+    id,
     folio: String(d.folio ?? ''),
     clienteId: String(d.clienteId ?? ''),
     cliente:
@@ -183,14 +153,25 @@ export function saleDocToSale(snap: DocumentSnapshot): Sale | null {
       typeof d.cajaSesionId === 'string' && d.cajaSesionId.trim().length > 0
         ? d.cajaSesionId.trim()
         : undefined,
-    sucursalId: typeof sucursalFromPath === 'string' && sucursalFromPath.length > 0 ? sucursalFromPath : undefined,
+    sucursalId,
     createdAt: firestoreTimestampToDate(d.createdAt),
     updatedAt: firestoreTimestampToDate(d.updatedAt),
     syncStatus: 'synced',
   };
 }
 
-/** Fecha del folio diario en zona Hermosillo (consistente con checador / panel). */
+/** Compat: snapshot mínimo tipo Firestore. */
+export function saleDocToSale(snap: {
+  id: string;
+  exists: () => boolean;
+  data: () => Record<string, unknown> | undefined;
+}): Sale | null {
+  if (!snap.exists()) return null;
+  const d = snap.data();
+  if (!d) return null;
+  return saleDataToSale(snap.id, d, undefined);
+}
+
 function yyyymmddFolioZone(d: Date): string {
   return getMexicoDateKey(d).replace(/-/g, '');
 }
@@ -204,17 +185,15 @@ function clientSnapshotToFirestorePayload(cliente: Client | null | undefined): R
     razonSocial: cliente.razonSocial ?? null,
     isMostrador: cliente.isMostrador,
     listaPreciosId: cliente.listaPreciosId ?? null,
-    createdAt: cliente.createdAt,
-    updatedAt: cliente.updatedAt,
+    createdAt: cliente.createdAt instanceof Date ? cliente.createdAt.toISOString() : cliente.createdAt,
+    updatedAt: cliente.updatedAt instanceof Date ? cliente.updatedAt.toISOString() : cliente.updatedAt,
   };
 }
 
-function saleInputToPayload(
-  sale: Omit<Sale, 'id' | 'createdAt' | 'updatedAt' | 'syncStatus' | 'lastSyncAt'>,
-  folio: string
+function saleToRpcPayload(
+  sale: Omit<Sale, 'id' | 'createdAt' | 'updatedAt' | 'syncStatus' | 'lastSyncAt'>
 ): Record<string, unknown> {
   return {
-    folio,
     clienteId: sale.clienteId,
     cliente: clientSnapshotToFirestorePayload(sale.cliente ?? null),
     productos: sale.productos.map((p) => {
@@ -265,126 +244,23 @@ function saleInputToPayload(
   };
 }
 
-/**
- * Crea venta: folio diario atómico + descuento de stock + movimientos en una sola transacción.
- */
 export async function createSaleFirestore(
   sucursalId: string,
   sale: Omit<Sale, 'id' | 'createdAt' | 'updatedAt' | 'syncStatus' | 'lastSyncAt'>
 ): Promise<{ id: string; folio: string }> {
-  const saleRef = doc(salesCol(sucursalId));
-  const counterRef = ventasDiarioCounterRef(sucursalId);
+  const supabase = getSupabase();
   const now = new Date();
   const dateStr = yyyymmddFolioZone(now);
-  let folioAsignado = '';
-
-  await runTransaction(db, async (transaction) => {
-    const counterSnap = await transaction.get(counterRef);
-    let seq = 1;
-    if (counterSnap.exists()) {
-      const c = counterSnap.data() as Record<string, unknown>;
-      if (String(c.fecha ?? '') === dateStr) {
-        seq = (typeof c.seq === 'number' ? c.seq : Number(c.seq) || 0) + 1;
-      }
-    }
-    const folio = `V-${dateStr}-${String(seq).padStart(4, '0')}`;
-    folioAsignado = folio;
-
-    const productRefs = sale.productos.map((item) =>
-      doc(db, 'sucursales', sucursalId, 'products', item.productId)
-    );
-    const productSnaps = await Promise.all(productRefs.map((r) => transaction.get(r)));
-
-    const isTts =
-      sale.formaPago === 'TTS' &&
-      Boolean(sale.transferenciaSucursalDestinoId?.trim()) &&
-      sale.transferenciaSucursalDestinoId != null;
-
-    const transferItems: {
-      productIdOrigen: string;
-      sku: string;
-      nombre: string;
-      cantidad: number;
-    }[] = [];
-
-    for (let i = 0; i < sale.productos.length; i++) {
-      const item = sale.productos[i]!;
-      const ps = productSnaps[i]!;
-      if (!ps.exists()) throw new Error(`Producto no encontrado: ${item.productId}`);
-      const pdata = ps.data() as Record<string, unknown>;
-      const cantidadAnterior =
-        typeof pdata.existencia === 'number' ? pdata.existencia : Number(pdata.existencia) || 0;
-      const cantidadNueva = cantidadAnterior - item.cantidad;
-
-      transaction.update(productRefs[i]!, {
-        existencia: cantidadNueva,
-        updatedAt: serverTimestamp(),
-      });
-
-      const movRef = doc(movementsCol(sucursalId));
-      transaction.set(movRef, {
-        productId: item.productId,
-        tipo: 'salida',
-        cantidad: item.cantidad,
-        cantidadAnterior,
-        cantidadNueva,
-        motivo: isTts ? 'Traspaso a tienda (salida)' : 'Venta',
-        referencia: saleRef.id,
-        usuarioId: sale.usuarioId,
-        createdAt: serverTimestamp(),
-      });
-
-      if (isTts) {
-        transferItems.push({
-          productIdOrigen: item.productId,
-          sku: String(pdata.sku ?? ''),
-          nombre: String(pdata.nombre ?? ''),
-          cantidad: item.cantidad,
-        });
-      }
-    }
-
-    if (isTts && transferItems.length > 0) {
-      const destId = sale.transferenciaSucursalDestinoId!.trim();
-      const tid = saleRef.id;
-      const incRef = doc(db, 'sucursales', destId, 'incomingTransfers', tid);
-      const outRef = doc(db, 'sucursales', sucursalId, 'outgoingTransfers', tid);
-      transaction.set(incRef, {
-        estado: 'pendiente',
-        origenSucursalId: sucursalId,
-        origenSaleId: tid,
-        origenFolio: folio,
-        items: transferItems,
-        usuarioNombre: sale.usuarioNombre?.trim() || null,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-      transaction.set(outRef, {
-        estado: 'pendiente',
-        destinoSucursalId: destId,
-        saleId: tid,
-        folio,
-        items: transferItems,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-    }
-
-    transaction.set(counterRef, {
-      fecha: dateStr,
-      seq,
-      updatedAt: serverTimestamp(),
-    });
-
-    const payload = saleInputToPayload(sale, folio);
-    transaction.set(saleRef, {
-      ...payload,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+  const payload = saleToRpcPayload(sale);
+  const { data, error } = await supabase.rpc('rpc_create_sale', {
+    p_sucursal_id: sucursalId,
+    p_date_str: dateStr,
+    p_sale: payload,
   });
-
-  return { id: saleRef.id, folio: folioAsignado };
+  if (error) throw new Error(error.message);
+  const out = data as { id?: string; folio?: string } | null;
+  if (!out?.id || !out?.folio) throw new Error('Respuesta inválida al crear venta');
+  return { id: out.id, folio: out.folio };
 }
 
 export async function cancelSaleFirestore(
@@ -393,129 +269,73 @@ export async function cancelSaleFirestore(
   motivo?: string,
   cancelacionMotivo?: 'devolucion' | 'panel'
 ): Promise<void> {
-  const saleRef = doc(db, 'sucursales', sucursalId, 'sales', saleId);
-
-  await runTransaction(db, async (transaction) => {
-    const saleSnap = await transaction.get(saleRef);
-    if (!saleSnap.exists()) throw new Error('Venta no encontrada');
-    const sale = saleDocToSale(saleSnap);
-    if (!sale) throw new Error('Venta no encontrada');
-    if (sale.estado === 'cancelada') throw new Error('La venta ya está cancelada');
-    if (sale.facturaId) throw new Error('No se puede cancelar una venta facturada');
-
-    const productRefs = sale.productos.map((item) =>
-      doc(db, 'sucursales', sucursalId, 'products', item.productId)
-    );
-    const productSnaps = await Promise.all(productRefs.map((r) => transaction.get(r)));
-
-    for (let i = 0; i < sale.productos.length; i++) {
-      const item = sale.productos[i]!;
-      const ps = productSnaps[i]!;
-      if (!ps.exists()) throw new Error(`Producto no encontrado: ${item.productId}`);
-      const pdata = ps.data() as Record<string, unknown>;
-      const cantidadAnterior =
-        typeof pdata.existencia === 'number' ? pdata.existencia : Number(pdata.existencia) || 0;
-      const cantidadNueva = cantidadAnterior + item.cantidad;
-
-      transaction.update(productRefs[i]!, {
-        existencia: cantidadNueva,
-        updatedAt: serverTimestamp(),
-      });
-
-      const movRef = doc(movementsCol(sucursalId));
-      transaction.set(movRef, {
-        productId: item.productId,
-        tipo: 'entrada',
-        cantidad: item.cantidad,
-        cantidadAnterior,
-        cantidadNueva,
-        motivo: `Cancelación de venta: ${motivo || 'Sin motivo'}`,
-        referencia: saleId,
-        usuarioId: sale.usuarioId,
-        createdAt: serverTimestamp(),
-      });
-    }
-
-    const tipoEtiqueta =
-      cancelacionMotivo === 'devolucion' ? 'devolución' : cancelacionMotivo === 'panel' ? 'panel' : 'venta';
-    const notas = motivo
-      ? `${sale.notas || ''} | Cancelada (${tipoEtiqueta}): ${motivo}`.trim()
-      : sale.notas;
-
-    transaction.update(saleRef, {
-      estado: 'cancelada',
-      cancelacionMotivo: cancelacionMotivo ?? null,
-      notas: notas || null,
-      updatedAt: serverTimestamp(),
-    });
+  const supabase = getSupabase();
+  const { error } = await supabase.rpc('rpc_cancel_sale', {
+    p_sucursal_id: sucursalId,
+    p_sale_id: saleId,
+    p_motivo: motivo ?? null,
+    p_cancelacion_motivo: cancelacionMotivo ?? null,
   });
+  if (error) throw new Error(error.message);
 }
 
-/** Ventas ligadas a una sesión de caja (arqueo / cierre). */
-export async function fetchSalesByCajaSesion(
-  sucursalId: string,
-  sesionId: string
-): Promise<Sale[]> {
+export async function fetchSalesByCajaSesion(sucursalId: string, sesionId: string): Promise<Sale[]> {
   const sid = sesionId.trim();
   if (!sid) return [];
-  const q = query(salesCol(sucursalId), where('cajaSesionId', '==', sid));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => saleDocToSale(d)).filter((s): s is Sale => s != null);
+  const supabase = getSupabase();
+  const { data: rows } = await supabase.from('sales').select('id, doc').eq('sucursal_id', sucursalId);
+  const list = (rows ?? [])
+    .filter((r) => String((r.doc as { cajaSesionId?: string })?.cajaSesionId ?? '').trim() === sid)
+    .map((r) => saleDataToSale(r.id, r.doc as Record<string, unknown>, sucursalId))
+    .filter((s): s is Sale => s != null);
+  return list;
 }
 
-/** Ventas creadas en el día calendario YYYY-MM-DD (ancla `startOfDayFromDateKey`, +24 h). */
-export async function fetchSalesForMexicoDateKey(
-  sucursalId: string,
-  dateKey: string
-): Promise<Sale[]> {
+export async function fetchSalesForMexicoDateKey(sucursalId: string, dateKey: string): Promise<Sale[]> {
   const start = startOfDayFromDateKey(dateKey);
   const end = new Date(start);
   end.setDate(end.getDate() + 1);
-  const q = query(
-    salesCol(sucursalId),
-    where('createdAt', '>=', Timestamp.fromDate(start)),
-    where('createdAt', '<', Timestamp.fromDate(end))
-  );
-  const snap = await getDocs(q);
-  const list = snap.docs.map((d) => saleDocToSale(d)).filter((s): s is Sale => s != null);
+  const supabase = getSupabase();
+  const { data: rows } = await supabase.from('sales').select('id, doc').eq('sucursal_id', sucursalId);
+  const list = (rows ?? [])
+    .map((r) => saleDataToSale(r.id, r.doc as Record<string, unknown>, sucursalId))
+    .filter((s): s is Sale => s != null)
+    .filter((s) => s.createdAt >= start && s.createdAt < end);
   list.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   return list;
 }
 
 const CLIENT_SALES_QUERY_LIMIT = 500;
 
-/** Ventas de un cliente en la sucursal (p. ej. historial en pantalla Clientes). */
 export async function fetchSalesByClienteIdFirestore(
   sucursalId: string,
   clienteId: string
 ): Promise<Sale[]> {
   const cid = clienteId.trim();
   if (!cid || cid === 'mostrador') return [];
-  const q = query(
-    salesCol(sucursalId),
-    where('clienteId', '==', cid),
-    limit(CLIENT_SALES_QUERY_LIMIT)
-  );
-  const snap = await getDocs(q);
-  const list = snap.docs.map((d) => saleDocToSale(d)).filter((s): s is Sale => s != null);
+  const supabase = getSupabase();
+  const { data: rows } = await supabase.from('sales').select('id, doc').eq('sucursal_id', sucursalId);
+  const list = (rows ?? [])
+    .filter((r) => String((r.doc as { clienteId?: string })?.clienteId ?? '') === cid)
+    .map((r) => saleDataToSale(r.id, r.doc as Record<string, unknown>, sucursalId))
+    .filter((s): s is Sale => s != null)
+    .slice(0, CLIENT_SALES_QUERY_LIMIT);
   list.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   return list;
 }
 
-export async function getSaleByIdFirestore(
-  sucursalId: string,
-  saleId: string
-): Promise<Sale | undefined> {
-  const ref = doc(db, 'sucursales', sucursalId, 'sales', saleId);
-  const snap = await getDoc(ref);
-  const s = saleDocToSale(snap);
-  return s ?? undefined;
+export async function getSaleByIdFirestore(sucursalId: string, saleId: string): Promise<Sale | undefined> {
+  const supabase = getSupabase();
+  const { data } = await supabase
+    .from('sales')
+    .select('id, doc')
+    .eq('sucursal_id', sucursalId)
+    .eq('id', saleId)
+    .maybeSingle();
+  if (!data) return undefined;
+  return saleDataToSale(data.id, data.doc as Record<string, unknown>, sucursalId) ?? undefined;
 }
 
-/**
- * Actualiza líneas y totales de una venta `pendiente` y ajusta inventario por la diferencia
- * respecto a lo ya descontado (transacción: todas las lecturas antes de las escrituras).
- */
 export async function updatePendingOpenSaleFirestore(
   sucursalId: string,
   saleId: string,
@@ -533,107 +353,43 @@ export async function updatePendingOpenSaleFirestore(
 ): Promise<void> {
   const sid = saleId.trim();
   if (!sid) throw new Error('Venta inválida');
-
-  const sRef = doc(db, 'sucursales', sucursalId, 'sales', sid);
-
-  await runTransaction(db, async (transaction) => {
-    const saleSnap = await transaction.get(sRef);
-    if (!saleSnap.exists()) throw new Error('Venta no encontrada');
-    const sale = saleDocToSale(saleSnap);
-    if (!sale) throw new Error('Venta no encontrada');
-    if (sale.estado !== 'pendiente') throw new Error('Solo se pueden editar ventas abiertas');
-    if (sale.facturaId) throw new Error('No se puede editar una venta ya vinculada a factura');
-
-    const oldLines = sale.productos ?? [];
-    const oldMap = saleItemsQtyByProductId(oldLines);
-    const newMap = saleItemsQtyByProductId(patch.productos);
-    const allIds = new Set<string>([...oldMap.keys(), ...newMap.keys()]);
-    const sortedIds = [...allIds].sort();
-    const prodRefs = sortedIds.map((id) => doc(db, 'sucursales', sucursalId, 'products', id));
-    const prodSnaps = await Promise.all(prodRefs.map((r) => transaction.get(r)));
-
-    const usuarioMov = sale.usuarioId?.trim() || 'system';
-
-    for (let i = 0; i < sortedIds.length; i++) {
-      const pid = sortedIds[i]!;
-      const ps = prodSnaps[i]!;
-      const delta = (newMap.get(pid) ?? 0) - (oldMap.get(pid) ?? 0);
-      if (delta === 0) continue;
-      if (!ps.exists()) throw new Error(`Producto no encontrado: ${pid}`);
-      const pdata = ps.data() as Record<string, unknown>;
-      const cantidadAnterior =
-        typeof pdata.existencia === 'number' ? pdata.existencia : Number(pdata.existencia) || 0;
-      const cantidadNueva = cantidadAnterior - delta;
-
-      transaction.update(prodRefs[i]!, {
-        existencia: cantidadNueva,
-        updatedAt: serverTimestamp(),
-      });
-
-      const movRef = doc(movementsCol(sucursalId));
-      if (delta > 0) {
-        transaction.set(movRef, {
-          productId: pid,
-          tipo: 'salida',
-          cantidad: delta,
-          cantidadAnterior,
-          cantidadNueva,
-          motivo: 'Ajuste por edición de venta abierta',
-          referencia: sid,
-          usuarioId: usuarioMov,
-          createdAt: serverTimestamp(),
-        });
-      } else {
-        const entra = -delta;
-        transaction.set(movRef, {
-          productId: pid,
-          tipo: 'entrada',
-          cantidad: entra,
-          cantidadAnterior,
-          cantidadNueva,
-          motivo: 'Ajuste por edición de venta abierta',
-          referencia: sid,
-          usuarioId: usuarioMov,
-          createdAt: serverTimestamp(),
-        });
-      }
-    }
-
-    const productosFs = patch.productos.map((p) => {
-      const nombre =
-        typeof p.productoNombre === 'string' && p.productoNombre.trim()
-          ? p.productoNombre.trim()
-          : p.producto?.nombre?.trim();
-      return {
-        id: p.id,
-        productId: p.productId,
-        ...(nombre ? { productoNombre: nombre } : {}),
-        cantidad: p.cantidad,
-        precioUnitario: p.precioUnitario,
-        descuento: p.descuento,
-        impuesto: p.impuesto,
-        subtotal: p.subtotal,
-        total: p.total,
-      };
-    });
-
-    transaction.update(sRef, {
-      productos: productosFs,
-      subtotal: patch.subtotal,
-      descuento: patch.descuento,
-      impuestos: patch.impuestos,
-      total: patch.total,
-      clienteId: patch.clienteId,
-      cliente: clientSnapshotToFirestorePayload(patch.cliente ?? null),
-      posResumeGlobalDiscount: patch.posResumeGlobalDiscount,
-      posResumeListaPrecios: patch.posResumeListaPrecios?.trim() || null,
-      updatedAt: serverTimestamp(),
-    });
+  const supabase = getSupabase();
+  const productosFs = patch.productos.map((p) => {
+    const nombre =
+      typeof p.productoNombre === 'string' && p.productoNombre.trim()
+        ? p.productoNombre.trim()
+        : p.producto?.nombre?.trim();
+    return {
+      id: p.id,
+      productId: p.productId,
+      ...(nombre ? { productoNombre: nombre } : {}),
+      cantidad: p.cantidad,
+      precioUnitario: p.precioUnitario,
+      descuento: p.descuento,
+      impuesto: p.impuesto,
+      subtotal: p.subtotal,
+      total: p.total,
+    };
   });
+  const p_patch = {
+    productos: productosFs,
+    subtotal: patch.subtotal,
+    descuento: patch.descuento,
+    impuestos: patch.impuestos,
+    total: patch.total,
+    clienteId: patch.clienteId,
+    cliente: clientSnapshotToFirestorePayload(patch.cliente ?? null),
+    posResumeGlobalDiscount: patch.posResumeGlobalDiscount,
+    posResumeListaPrecios: patch.posResumeListaPrecios?.trim() || null,
+  };
+  const { error } = await supabase.rpc('rpc_update_pending_open_sale', {
+    p_sucursal_id: sucursalId,
+    p_sale_id: sid,
+    p_patch: p_patch,
+  });
+  if (error) throw new Error(error.message);
 }
 
-/** Busca venta por folio diario (ej. V-20260322-0001) en la sucursal actual. */
-/** Completa cobro de una venta en estado `pendiente` (sin tocar inventario). */
 export async function completePendingSaleFirestore(
   sucursalId: string,
   saleId: string,
@@ -642,74 +398,67 @@ export async function completePendingSaleFirestore(
     metodoPago: MetodoPago;
     pagos: Payment[];
     cambio: number;
-    /** Cajero que cierra el cobro (si se omite, se conserva el de la venta). */
     usuarioNombreCierre?: string | null;
-    /** Asocia la venta a la sesión de caja abierta al cobrar. */
     cajaSesionId?: string | null;
-    /**
-     * Cliente al cobrar (carrito POS). Si se envía, sustituye `clienteId` / snapshot `cliente` de la venta
-     * pendiente para historial y contador de tickets.
-     */
     clienteId?: string;
     cliente?: Client | null;
   }
 ): Promise<void> {
-  const saleRef = doc(db, 'sucursales', sucursalId, 'sales', saleId);
+  const supabase = getSupabase();
+  const { data: row } = await supabase
+    .from('sales')
+    .select('doc')
+    .eq('sucursal_id', sucursalId)
+    .eq('id', saleId)
+    .maybeSingle();
+  if (!row?.doc) throw new Error('Venta no encontrada');
+  const sale = saleDataToSale(saleId, row.doc as Record<string, unknown>, sucursalId);
+  if (!sale) throw new Error('Venta no encontrada');
+  if (sale.estado !== 'pendiente') throw new Error('Esta venta ya no está pendiente de pago');
+  if (sale.facturaId) throw new Error('No se puede completar una venta ya vinculada a factura');
 
-  await runTransaction(db, async (transaction) => {
-    const saleSnap = await transaction.get(saleRef);
-    if (!saleSnap.exists()) throw new Error('Venta no encontrada');
-    const sale = saleDocToSale(saleSnap);
-    if (!sale) throw new Error('Venta no encontrada');
-    if (sale.estado !== 'pendiente') throw new Error('Esta venta ya no está pendiente de pago');
-    if (sale.facturaId) throw new Error('No se puede completar una venta ya vinculada a factura');
+  const nombreCierre =
+    typeof patch.usuarioNombreCierre === 'string' && patch.usuarioNombreCierre.trim().length > 0
+      ? patch.usuarioNombreCierre.trim()
+      : sale.usuarioNombre ?? null;
 
-    const nombreCierre =
-      typeof patch.usuarioNombreCierre === 'string' && patch.usuarioNombreCierre.trim().length > 0
-        ? patch.usuarioNombreCierre.trim()
-        : sale.usuarioNombre ?? null;
+  const doc = { ...(row.doc as Record<string, unknown>) };
+  doc.estado = 'completada';
+  doc.formaPago = patch.formaPago;
+  doc.metodoPago = patch.metodoPago;
+  doc.pagos = patch.pagos.map((p) => ({
+    id: p.id,
+    formaPago: p.formaPago,
+    monto: p.monto,
+    referencia: p.referencia ?? null,
+  }));
+  doc.cambio = patch.cambio;
+  doc.usuarioNombre = nombreCierre;
+  if (typeof patch.cajaSesionId === 'string' && patch.cajaSesionId.trim().length > 0) {
+    doc.cajaSesionId = patch.cajaSesionId.trim();
+  }
+  if (patch.clienteId !== undefined) {
+    doc.clienteId = patch.clienteId;
+    doc.cliente = clientSnapshotToFirestorePayload(patch.cliente ?? null);
+  }
+  doc.updatedAt = new Date().toISOString();
 
-    const cajaSesionPatch =
-      typeof patch.cajaSesionId === 'string' && patch.cajaSesionId.trim().length > 0
-        ? { cajaSesionId: patch.cajaSesionId.trim() }
-        : {};
-
-    const clienteCierrePatch: Record<string, unknown> = {};
-    if (patch.clienteId !== undefined) {
-      clienteCierrePatch.clienteId = patch.clienteId;
-      clienteCierrePatch.cliente = clientSnapshotToFirestorePayload(patch.cliente ?? null);
-    }
-
-    transaction.update(saleRef, {
-      estado: 'completada',
-      formaPago: patch.formaPago,
-      metodoPago: patch.metodoPago,
-      pagos: patch.pagos.map((p) => ({
-        id: p.id,
-        formaPago: p.formaPago,
-        monto: p.monto,
-        referencia: p.referencia ?? null,
-      })),
-      cambio: patch.cambio,
-      usuarioNombre: nombreCierre,
-      ...cajaSesionPatch,
-      ...clienteCierrePatch,
-      updatedAt: serverTimestamp(),
-    });
-  });
+  const { error } = await supabase
+    .from('sales')
+    .update({ doc, updated_at: new Date().toISOString() })
+    .eq('sucursal_id', sucursalId)
+    .eq('id', saleId);
+  if (error) throw new Error(error.message);
 }
 
-export async function getSaleByFolioFirestore(
-  sucursalId: string,
-  folioRaw: string
-): Promise<Sale | null> {
+export async function getSaleByFolioFirestore(sucursalId: string, folioRaw: string): Promise<Sale | null> {
   const folio = folioRaw.trim();
   if (!folio) return null;
-  const q = query(salesCol(sucursalId), where('folio', '==', folio), limit(10));
-  const snap = await getDocs(q);
-  if (snap.empty) return null;
-  const list = snap.docs
-    .map((d) => saleDocToSale(d))
+  const supabase = getSupabase();
+  const { data: rows } = await supabase.from('sales').select('id, doc').eq('sucursal_id', sucursalId);
+  const hits = (rows ?? []).filter((r) => String((r.doc as { folio?: string })?.folio ?? '') === folio);
+  const list = hits
+    .map((r) => saleDataToSale(r.id, r.doc as Record<string, unknown>, sucursalId))
     .filter((s): s is Sale => s != null)
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   return list[0] ?? null;
@@ -720,39 +469,42 @@ export async function patchSaleInvoiceFirestore(
   saleId: string,
   patch: { facturaId: string | null; estado: SaleStatus }
 ): Promise<void> {
-  const ref = doc(db, 'sucursales', sucursalId, 'sales', saleId);
+  const supabase = getSupabase();
+  const { data: row } = await supabase
+    .from('sales')
+    .select('doc')
+    .eq('sucursal_id', sucursalId)
+    .eq('id', saleId)
+    .maybeSingle();
+  if (!row?.doc) throw new Error('Venta no encontrada');
+  const doc = { ...(row.doc as Record<string, unknown>) };
   if (patch.facturaId === null) {
-    await updateDoc(ref, {
-      facturaId: deleteField(),
-      estado: patch.estado,
-      updatedAt: serverTimestamp(),
-    });
+    delete doc.facturaId;
   } else {
-    await updateDoc(ref, {
-      facturaId: patch.facturaId,
-      estado: patch.estado,
-      updatedAt: serverTimestamp(),
-    });
+    doc.facturaId = patch.facturaId;
   }
+  doc.estado = patch.estado;
+  doc.updatedAt = new Date().toISOString();
+  const { error } = await supabase
+    .from('sales')
+    .update({ doc, updated_at: new Date().toISOString() })
+    .eq('sucursal_id', sucursalId)
+    .eq('id', saleId);
+  if (error) throw new Error(error.message);
 }
-
-// --- Lista en tiempo real (compartida entre hooks) ---
 
 let lastSales: Sale[] = [];
 let lastSalesRecent: Sale[] = [];
 let lastSalesPending: Sale[] = [];
 const salesListeners = new Set<(sales: Sale[]) => void>();
-let salesUnsubRecent: Unsubscribe | null = null;
-let salesUnsubPending: Unsubscribe | null = null;
+let salesChannel: ReturnType<ReturnType<typeof getSupabase>['channel']> | null = null;
 let salesSucursalId: string | null = null;
 
 function mergeSalesCatalog(): Sale[] {
   const byId = new Map<string, Sale>();
   for (const s of lastSalesPending) byId.set(s.id, s);
   for (const s of lastSalesRecent) byId.set(s.id, s);
-  return Array.from(byId.values()).sort(
-    (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
-  );
+  return Array.from(byId.values()).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }
 
 function notifySalesCatalogListeners(): void {
@@ -760,78 +512,122 @@ function notifySalesCatalogListeners(): void {
   salesListeners.forEach((l) => l([...lastSales]));
 }
 
+function mapRow(r: { id: string; doc: unknown }, sucursalId: string): Sale | null {
+  return saleDataToSale(r.id, r.doc as Record<string, unknown>, sucursalId);
+}
+
 export function getSalesCatalogSnapshot(): Sale[] {
   return lastSales;
 }
 
-export function subscribeSalesCatalog(
-  sucursalId: string,
-  onSales: (sales: Sale[]) => void
-): () => void {
+export function subscribeSalesCatalog(sucursalId: string, onSales: (sales: Sale[]) => void): () => void {
   onSales([...lastSales]);
   salesListeners.add(onSales);
 
+  const supabase = getSupabase();
+
+  const reload = async () => {
+    const { data: recentRows, error: e1 } = await supabase
+      .from('sales')
+      .select('id, doc, updated_at')
+      .eq('sucursal_id', sucursalId)
+      .order('updated_at', { ascending: false })
+      .limit(SALES_PAGE_SIZE);
+    if (e1) {
+      console.error('Supabase sales (recientes):', e1);
+      lastSalesRecent = [];
+    } else {
+      lastSalesRecent = (recentRows ?? [])
+        .map((r) => mapRow(r, sucursalId))
+        .filter((s): s is Sale => s != null);
+    }
+
+    const { data: pendRows, error: e2 } = await supabase
+      .from('sales')
+      .select('id, doc')
+      .eq('sucursal_id', sucursalId);
+    if (e2) {
+      console.error('Supabase sales (pendientes):', e2);
+      lastSalesPending = [];
+    } else {
+      lastSalesPending = (pendRows ?? [])
+        .filter((r) => String((r.doc as { estado?: string })?.estado ?? '') === 'pendiente')
+        .map((r) => mapRow(r, sucursalId))
+        .filter((s): s is Sale => s != null)
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+        .slice(0, PENDING_OPEN_SALES_LIMIT);
+    }
+    notifySalesCatalogListeners();
+  };
+
   if (salesSucursalId !== sucursalId) {
-    salesUnsubRecent?.();
-    salesUnsubPending?.();
-    salesUnsubRecent = null;
-    salesUnsubPending = null;
+    if (salesChannel) {
+      void supabase.removeChannel(salesChannel);
+      salesChannel = null;
+    }
     lastSalesRecent = [];
     lastSalesPending = [];
     lastSales = [];
     salesSucursalId = sucursalId;
     notifySalesCatalogListeners();
-
-    const qRecent = query(salesCol(sucursalId), orderBy('createdAt', 'desc'), limit(SALES_PAGE_SIZE));
-    const qPending = query(
-      salesCol(sucursalId),
-      where('estado', '==', 'pendiente'),
-      orderBy('createdAt', 'desc'),
-      limit(PENDING_OPEN_SALES_LIMIT)
-    );
-
-    salesUnsubRecent = onSnapshot(
-      qRecent,
-      (snap) => {
-        lastSalesRecent = snap.docs
-          .map((d) => saleDocToSale(d))
-          .filter((s): s is Sale => s != null);
-        notifySalesCatalogListeners();
-      },
-      (err) => {
-        console.error('Firestore sales (recientes):', err);
-        lastSalesRecent = [];
-        notifySalesCatalogListeners();
-      }
-    );
-
-    salesUnsubPending = onSnapshot(
-      qPending,
-      (snap) => {
-        lastSalesPending = snap.docs
-          .map((d) => saleDocToSale(d))
-          .filter((s): s is Sale => s != null);
-        notifySalesCatalogListeners();
-      },
-      (err) => {
-        console.error('Firestore sales (pendientes):', err);
-        lastSalesPending = [];
-        notifySalesCatalogListeners();
-      }
-    );
+    void reload();
+    salesChannel = supabase
+      .channel(`sales-${sucursalId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'sales', filter: `sucursal_id=eq.${sucursalId}` },
+        () => {
+          void reload();
+        }
+      )
+      .subscribe();
+  } else {
+    void reload();
   }
 
   return () => {
     salesListeners.delete(onSales);
     if (salesListeners.size === 0) {
-      salesUnsubRecent?.();
-      salesUnsubPending?.();
-      salesUnsubRecent = null;
-      salesUnsubPending = null;
+      if (salesChannel) {
+        void supabase.removeChannel(salesChannel);
+        salesChannel = null;
+      }
       salesSucursalId = null;
       lastSalesRecent = [];
       lastSalesPending = [];
       lastSales = [];
     }
+  };
+}
+
+/** Suscripción en tiempo real a un documento de venta (p. ej. hook detalle). */
+export function subscribeSaleDocument(
+  sucursalId: string,
+  saleId: string,
+  onSale: (sale: Sale | null) => void
+): () => void {
+  const supabase = getSupabase();
+  const load = async () => {
+    const { data } = await supabase
+      .from('sales')
+      .select('id, doc')
+      .eq('sucursal_id', sucursalId)
+      .eq('id', saleId)
+      .maybeSingle();
+    onSale(data ? mapRow(data, sucursalId) : null);
+  };
+  void load();
+  const ch = supabase
+    .channel(`sale-doc-${sucursalId}-${saleId}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'sales', filter: `id=eq.${saleId}` },
+      () => {
+        void load();
+      }
+    )
+    .subscribe();
+  return () => {
+    void supabase.removeChannel(ch);
   };
 }

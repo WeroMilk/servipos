@@ -1,27 +1,15 @@
-import {
-  arrayUnion,
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  limit,
-  onSnapshot,
-  orderBy,
-  query,
-  serverTimestamp,
-  setDoc,
-  updateDoc,
-  where,
-  type Unsubscribe,
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import type { ChecadorDiaRegistro, User } from '@/types';
 import { getMexicoDateKey, quincenaIdFromDateKey } from '@/lib/quincenaMx';
+import { getSupabase } from '@/lib/supabaseClient';
 
-const COL = 'checadorRegistros';
+const COL = 'checador_registros';
 
 function tsToDate(v: unknown): Date | null {
   if (!v) return null;
+  if (typeof v === 'string' && v.length > 0) {
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? null : d;
+  }
   if (
     v &&
     typeof v === 'object' &&
@@ -38,7 +26,6 @@ export function checadorDocId(userId: string, dateKey: string): string {
   return `${userId}_${dateKey}`;
 }
 
-/** Tienda que debe quedar en el registro: contexto de trabajo (p. ej. selector admin) o perfil. */
 export function resolveRegistroSucursalId(user: User, effectiveSucursalId?: string): string | null {
   const ctx = effectiveSucursalId?.trim();
   if (ctx) return ctx;
@@ -46,7 +33,6 @@ export function resolveRegistroSucursalId(user: User, effectiveSucursalId?: stri
   return p || null;
 }
 
-/** Filtra fichajes de la quincena a la tienda indicada (campo en doc o perfil en `users` si es legado sin tienda). */
 export function filterChecadorRowsBySucursal(
   rows: ChecadorDiaRegistro[],
   sucursalId: string,
@@ -78,78 +64,86 @@ export function docToChecadorDia(id: string, d: Record<string, unknown>): Checad
   };
 }
 
+async function getDocRow(id: string): Promise<Record<string, unknown> | null> {
+  const supabase = getSupabase();
+  const { data } = await supabase.from(COL).select('doc').eq('id', id).maybeSingle();
+  return (data?.doc as Record<string, unknown>) ?? null;
+}
+
+async function upsertDoc(id: string, doc: Record<string, unknown>): Promise<void> {
+  const supabase = getSupabase();
+  const now = new Date().toISOString();
+  doc.updatedAt = now;
+  const { error } = await supabase.from(COL).upsert({
+    id,
+    doc,
+    updated_at: now,
+  });
+  if (error) throw new Error(error.message);
+}
+
 export function subscribeChecadorDia(
   userId: string,
   dateKey: string,
   onData: (row: ChecadorDiaRegistro | null) => void
-): Unsubscribe {
+): () => void {
   const id = checadorDocId(userId, dateKey);
-  const ref = doc(db, COL, id);
-  let unsubscribe: Unsubscribe = () => {};
-  unsubscribe = onSnapshot(
-    ref,
-    (snap) => {
-      if (!snap.exists()) {
-        onData(null);
-        return;
-      }
-      onData(docToChecadorDia(snap.id, snap.data() as Record<string, unknown>));
-    },
-    (err) => {
-      const code = (err as { code?: string })?.code;
-      if (code !== 'permission-denied') {
-        console.error('checador día:', err);
-      }
+  const supabase = getSupabase();
+  const load = async () => {
+    const { data } = await supabase.from(COL).select('id, doc').eq('id', id).maybeSingle();
+    if (!data?.doc) {
       onData(null);
-      unsubscribe();
+      return;
     }
-  );
-  return unsubscribe;
+    onData(docToChecadorDia(data.id, data.doc as Record<string, unknown>));
+  };
+  void load();
+  const ch = supabase
+    .channel(`checador-${id}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: COL, filter: `id=eq.${id}` }, () => {
+      void load();
+    })
+    .subscribe();
+  return () => {
+    void supabase.removeChannel(ch);
+  };
 }
 
 export async function punchEntrada(user: User, effectiveSucursalId?: string): Promise<void> {
   const dateKey = getMexicoDateKey();
   const quincenaId = quincenaIdFromDateKey(dateKey);
   const id = checadorDocId(user.id, dateKey);
-  const ref = doc(db, COL, id);
-  const snap = await getDoc(ref);
-  if (snap.exists()) {
-    const d = snap.data();
-    if (d?.entrada && !d?.cierre) {
+  const prev = await getDocRow(id);
+  if (prev) {
+    if (prev.entrada && !prev.cierre) {
       throw new Error('Ya registró su entrada hoy');
     }
-    if (d?.cierre) {
+    if (prev.cierre) {
       throw new Error(
         'La jornada está cerrada. Use «Iniciar jornada de nuevo» para registrar otro turno el mismo día.'
       );
     }
   }
-  await setDoc(
-    ref,
-    {
-      userId: user.id,
-      userName: user.name,
-      userEmail: user.email,
-      dateKey,
-      quincenaId,
-      sucursalId: resolveRegistroSucursalId(user, effectiveSucursalId),
-      entrada: serverTimestamp(),
-      salidaComer: null,
-      regresoComer: null,
-      cierre: null,
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true }
-  );
+  const now = new Date().toISOString();
+  await upsertDoc(id, {
+    userId: user.id,
+    userName: user.name,
+    userEmail: user.email,
+    dateKey,
+    quincenaId,
+    sucursalId: resolveRegistroSucursalId(user, effectiveSucursalId),
+    entrada: now,
+    salidaComer: null,
+    regresoComer: null,
+    cierre: null,
+  });
 }
 
 export async function punchSalidaComer(user: User): Promise<void> {
   const dateKey = getMexicoDateKey();
   const id = checadorDocId(user.id, dateKey);
-  const ref = doc(db, COL, id);
-  const snap = await getDoc(ref);
-  const data = snap.data();
-  if (!snap.exists() || !data?.entrada) {
+  const data = await getDocRow(id);
+  if (!data?.entrada) {
     throw new Error('Registre su entrada primero');
   }
   if (data.cierre) {
@@ -158,19 +152,15 @@ export async function punchSalidaComer(user: User): Promise<void> {
   if (data.salidaComer) {
     throw new Error('Ya registró salida a comer');
   }
-  await updateDoc(ref, {
-    salidaComer: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
+  const now = new Date().toISOString();
+  await upsertDoc(id, { ...data, salidaComer: now });
 }
 
 export async function punchRegresoComer(user: User): Promise<void> {
   const dateKey = getMexicoDateKey();
   const id = checadorDocId(user.id, dateKey);
-  const ref = doc(db, COL, id);
-  const snap = await getDoc(ref);
-  const data = snap.data();
-  if (!snap.exists() || !data?.salidaComer) {
+  const data = await getDocRow(id);
+  if (!data?.salidaComer) {
     throw new Error('Registre salida a comer primero');
   }
   if (data.regresoComer) {
@@ -179,56 +169,46 @@ export async function punchRegresoComer(user: User): Promise<void> {
   if (data.cierre) {
     throw new Error('El día ya está cerrado');
   }
-  await updateDoc(ref, {
-    regresoComer: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
+  const now = new Date().toISOString();
+  await upsertDoc(id, { ...data, regresoComer: now });
 }
 
-/** Borra los registros del día para volver a fichar (misma fecha, tras haber cerrado). */
 export async function reiniciarJornadaMismoDia(user: User, effectiveSucursalId?: string): Promise<void> {
   const dateKey = getMexicoDateKey();
   const quincenaId = quincenaIdFromDateKey(dateKey);
   const id = checadorDocId(user.id, dateKey);
-  const ref = doc(db, COL, id);
-  const snap = await getDoc(ref);
-  if (!snap.exists() || !snap.data()?.cierre) {
+  const snap = await getDocRow(id);
+  if (!snap?.cierre) {
     throw new Error('Solo puede reiniciar después de cerrar la jornada');
   }
-  const prev = snap.data() as Record<string, unknown>;
   const bloque = {
-    entrada: prev.entrada ?? null,
-    salidaComer: prev.salidaComer ?? null,
-    regresoComer: prev.regresoComer ?? null,
-    cierre: prev.cierre ?? null,
+    entrada: snap.entrada ?? null,
+    salidaComer: snap.salidaComer ?? null,
+    regresoComer: snap.regresoComer ?? null,
+    cierre: snap.cierre ?? null,
   };
-  await setDoc(
-    ref,
-    {
-      userId: user.id,
-      userName: user.name,
-      userEmail: user.email,
-      dateKey,
-      quincenaId,
-      sucursalId: resolveRegistroSucursalId(user, effectiveSucursalId),
-      jornadasCompletadas: arrayUnion(bloque),
-      entrada: null,
-      salidaComer: null,
-      regresoComer: null,
-      cierre: null,
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true }
-  );
+  const prevJ = Array.isArray(snap.jornadasCompletadas) ? [...(snap.jornadasCompletadas as unknown[])] : [];
+  prevJ.push(bloque);
+  await upsertDoc(id, {
+    userId: user.id,
+    userName: user.name,
+    userEmail: user.email,
+    dateKey,
+    quincenaId,
+    sucursalId: resolveRegistroSucursalId(user, effectiveSucursalId),
+    jornadasCompletadas: prevJ,
+    entrada: null,
+    salidaComer: null,
+    regresoComer: null,
+    cierre: null,
+  });
 }
 
 export async function punchCierre(user: User): Promise<void> {
   const dateKey = getMexicoDateKey();
   const id = checadorDocId(user.id, dateKey);
-  const ref = doc(db, COL, id);
-  const snap = await getDoc(ref);
-  const data = snap.data();
-  if (!snap.exists() || !data?.entrada) {
+  const data = await getDocRow(id);
+  if (!data?.entrada) {
     throw new Error('Registre su entrada primero');
   }
   if (data.salidaComer && !data.regresoComer) {
@@ -237,10 +217,8 @@ export async function punchCierre(user: User): Promise<void> {
   if (data.cierre) {
     throw new Error('El día ya está cerrado');
   }
-  await updateDoc(ref, {
-    cierre: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
+  const now = new Date().toISOString();
+  await upsertDoc(id, { ...data, cierre: now });
 }
 
 function sortChecadorRows(list: ChecadorDiaRegistro[]): ChecadorDiaRegistro[] {
@@ -254,37 +232,39 @@ function sortChecadorRows(list: ChecadorDiaRegistro[]): ChecadorDiaRegistro[] {
 }
 
 export async function fetchChecadorByQuincena(quincenaId: string): Promise<ChecadorDiaRegistro[]> {
-  const q = query(
-    collection(db, COL),
-    where('quincenaId', '==', quincenaId),
-    orderBy('dateKey', 'desc'),
-    limit(500)
-  );
-  const snap = await getDocs(q);
-  const list = snap.docs.map((s) => docToChecadorDia(s.id, s.data() as Record<string, unknown>));
+  const supabase = getSupabase();
+  const { data: rows } = await supabase.from(COL).select('id, doc');
+  const list = (rows ?? [])
+    .filter((r) => String((r.doc as { quincenaId?: string })?.quincenaId ?? '') === quincenaId)
+    .map((r) => docToChecadorDia(r.id, r.doc as Record<string, unknown>));
   return sortChecadorRows(list);
 }
 
-/** Actualización en vivo de la tabla por quincena (mismos filtros que fetch). */
 export function subscribeChecadorByQuincena(
   quincenaId: string,
   onData: (rows: ChecadorDiaRegistro[]) => void
-): Unsubscribe {
-  const q = query(
-    collection(db, COL),
-    where('quincenaId', '==', quincenaId),
-    orderBy('dateKey', 'desc'),
-    limit(500)
-  );
-  return onSnapshot(
-    q,
-    (snap) => {
-      const list = snap.docs.map((s) => docToChecadorDia(s.id, s.data() as Record<string, unknown>));
-      onData(sortChecadorRows(list));
-    },
-    (err) => {
-      console.error('subscribeChecadorByQuincena:', err);
+): () => void {
+  const supabase = getSupabase();
+  const load = async () => {
+    const { data: rows, error } = await supabase.from(COL).select('id, doc');
+    if (error) {
+      console.error('subscribeChecadorByQuincena:', error);
       onData([]);
+      return;
     }
-  );
+    const list = (rows ?? [])
+      .filter((r) => String((r.doc as { quincenaId?: string })?.quincenaId ?? '') === quincenaId)
+      .map((r) => docToChecadorDia(r.id, r.doc as Record<string, unknown>));
+    onData(sortChecadorRows(list));
+  };
+  void load();
+  const ch = supabase
+    .channel(`checador-q-${quincenaId}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: COL }, () => {
+      void load();
+    })
+    .subscribe();
+  return () => {
+    void supabase.removeChannel(ch);
+  };
 }

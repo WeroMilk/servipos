@@ -1,27 +1,14 @@
-import {
-  doc,
-  getDoc,
-  increment,
-  onSnapshot,
-  runTransaction,
-  serverTimestamp,
-  setDoc,
-  updateDoc,
-  type Unsubscribe,
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import { SERIE_FACTURA_PRUEBA, SERIE_NOMINA_PRUEBA } from '@/lib/fiscalConstants';
 import type { Direccion, FiscalConfig } from '@/types';
+import { SERIE_FACTURA_PRUEBA, SERIE_NOMINA_PRUEBA } from '@/lib/fiscalConstants';
+import { getSupabase } from '@/lib/supabaseClient';
 
-const COL = 'sucursales';
-const CONFIG_SUB = 'config';
 export const FISCAL_CONFIG_DOC_ID = 'fiscal';
 
-export function fiscalConfigDocRef(sucursalId: string) {
-  return doc(db, COL, sucursalId.trim(), CONFIG_SUB, FISCAL_CONFIG_DOC_ID);
-}
-
 function firestoreTimestampToDate(value: unknown): Date {
+  if (typeof value === 'string' && value.length > 0) {
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? new Date() : d;
+  }
   if (
     value &&
     typeof value === 'object' &&
@@ -103,10 +90,7 @@ export function fiscalDocToConfig(_sucursalId: string, raw: Record<string, unkno
   };
 }
 
-/** Payload sin undefined (Firestore ignora undefined en merge). */
-function toFirestoreFields(
-  config: Omit<FiscalConfig, 'id' | 'updatedAt'> | FiscalConfig
-): Record<string, unknown> {
+function toDocFields(config: Omit<FiscalConfig, 'id' | 'updatedAt'> | FiscalConfig): Record<string, unknown> {
   const o: Record<string, unknown> = {
     rfc: config.rfc ?? '',
     razonSocial: config.razonSocial ?? '',
@@ -160,34 +144,64 @@ function toFirestoreFields(
 export async function getFiscalConfigFirestoreOnce(sucursalId: string): Promise<FiscalConfig | undefined> {
   const sid = sucursalId.trim();
   if (!sid) return undefined;
-  const snap = await getDoc(fiscalConfigDocRef(sid));
-  if (!snap.exists()) return undefined;
-  return fiscalDocToConfig(sid, snap.data() as Record<string, unknown>);
+  const supabase = getSupabase();
+  const { data } = await supabase
+    .from('fiscal_config')
+    .select('doc')
+    .eq('sucursal_id', sid)
+    .eq('doc_id', FISCAL_CONFIG_DOC_ID)
+    .maybeSingle();
+  if (!data?.doc) return undefined;
+  return fiscalDocToConfig(sid, data.doc as Record<string, unknown>);
 }
 
 export function subscribeFiscalConfigForSucursal(
   sucursalId: string,
   onData: (config: FiscalConfig | undefined) => void
-): Unsubscribe {
+): () => void {
   const sid = sucursalId.trim();
   if (!sid) {
     onData(undefined);
     return () => {};
   }
-  return onSnapshot(
-    fiscalConfigDocRef(sid),
-    (snap) => {
-      if (!snap.exists()) {
-        onData(undefined);
-        return;
-      }
-      onData(fiscalDocToConfig(sid, snap.data() as Record<string, unknown>));
-    },
-    (err) => {
-      console.error('fiscalConfig:', err);
+  const supabase = getSupabase();
+  const load = async () => {
+    const { data, error } = await supabase
+      .from('fiscal_config')
+      .select('doc')
+      .eq('sucursal_id', sid)
+      .eq('doc_id', FISCAL_CONFIG_DOC_ID)
+      .maybeSingle();
+    if (error) {
+      console.error('fiscalConfig:', error);
       onData(undefined);
+      return;
     }
-  );
+    if (!data?.doc) {
+      onData(undefined);
+      return;
+    }
+    onData(fiscalDocToConfig(sid, data.doc as Record<string, unknown>));
+  };
+  void load();
+  const ch = supabase
+    .channel(`fiscal-${sid}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'fiscal_config',
+        filter: `sucursal_id=eq.${sid}`,
+      },
+      () => {
+        void load();
+      }
+    )
+    .subscribe();
+  return () => {
+    void supabase.removeChannel(ch);
+  };
 }
 
 export async function saveFiscalConfigFirestore(
@@ -196,42 +210,36 @@ export async function saveFiscalConfigFirestore(
 ): Promise<string> {
   const sid = sucursalId.trim();
   if (!sid) throw new Error('No hay sucursal para guardar la configuración fiscal en la nube');
-  const ref = fiscalConfigDocRef(sid);
-  const fields = toFirestoreFields(config);
-  await setDoc(ref, { ...fields, updatedAt: serverTimestamp() }, { merge: true });
+  const supabase = getSupabase();
+  const now = new Date().toISOString();
+  const fields = toDocFields(config);
+  const doc = { ...fields, updatedAt: now };
+  const { error } = await supabase.from('fiscal_config').upsert({
+    sucursal_id: sid,
+    doc_id: FISCAL_CONFIG_DOC_ID,
+    doc,
+    updated_at: now,
+  });
+  if (error) throw new Error(error.message);
   return FISCAL_CONFIG_DOC_ID;
 }
 
-/** Reserva el folio actual y avanza `folioActual` en una sola transacción (evita duplicados entre dispositivos). */
-/** Sube `folioActual` en 1 (p. ej. si ya se emitió el CFDI con el folio leído aparte). */
 export async function incrementFolioActualOnlyFirestore(sucursalId: string): Promise<void> {
-  const ref = fiscalConfigDocRef(sucursalId.trim());
-  await updateDoc(ref, {
-    folioActual: increment(1),
-    updatedAt: serverTimestamp(),
+  const supabase = getSupabase();
+  const { error } = await supabase.rpc('rpc_increment_folio_actual_only', {
+    p_sucursal_id: sucursalId.trim(),
   });
+  if (error) throw new Error(error.message);
 }
 
 export async function allocateNextInvoiceFolioFirestore(sucursalId: string): Promise<{ serie: string; folio: number }> {
   const sid = sucursalId.trim();
   if (!sid) throw new Error('No hay sucursal');
-  const ref = fiscalConfigDocRef(sid);
-  return runTransaction(db, async (tx) => {
-    const snap = await tx.get(ref);
-    if (!snap.exists()) throw new Error('No hay configuración fiscal');
-    const d = snap.data() as Record<string, unknown>;
-    const serie = String(d.serie ?? 'A');
-    const n = typeof d.folioActual === 'number' ? d.folioActual : Number(d.folioActual) || 1;
-    tx.set(
-      ref,
-      {
-        folioActual: n + 1,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
-    return { serie, folio: n };
-  });
+  const supabase = getSupabase();
+  const { data, error } = await supabase.rpc('rpc_allocate_invoice_folio', { p_sucursal_id: sid });
+  if (error) throw new Error(error.message);
+  const o = data as { serie?: string; folio?: number };
+  return { serie: o.serie ?? 'A', folio: o.folio ?? 1 };
 }
 
 export async function reservePruebaInvoiceFolioFirestore(
@@ -239,22 +247,11 @@ export async function reservePruebaInvoiceFolioFirestore(
 ): Promise<{ serie: string; folio: string }> {
   const sid = sucursalId.trim();
   if (!sid) throw new Error('No hay sucursal');
-  const ref = fiscalConfigDocRef(sid);
-  return runTransaction(db, async (tx) => {
-    const snap = await tx.get(ref);
-    if (!snap.exists()) throw new Error('No hay configuración fiscal');
-    const d = snap.data() as Record<string, unknown>;
-    const n = typeof d.folioPruebaFactura === 'number' ? d.folioPruebaFactura : Number(d.folioPruebaFactura) || 1;
-    tx.set(
-      ref,
-      {
-        folioPruebaFactura: n + 1,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
-    return { serie: SERIE_FACTURA_PRUEBA, folio: String(n) };
-  });
+  const supabase = getSupabase();
+  const { data, error } = await supabase.rpc('rpc_reserve_prueba_factura_folio', { p_sucursal_id: sid });
+  if (error) throw new Error(error.message);
+  const o = data as { serie?: string; folio?: string };
+  return { serie: o.serie ?? SERIE_FACTURA_PRUEBA, folio: o.folio ?? '1' };
 }
 
 export async function reservePruebaNominaFolioFirestore(
@@ -262,20 +259,9 @@ export async function reservePruebaNominaFolioFirestore(
 ): Promise<{ serie: string; folio: string }> {
   const sid = sucursalId.trim();
   if (!sid) throw new Error('No hay sucursal');
-  const ref = fiscalConfigDocRef(sid);
-  return runTransaction(db, async (tx) => {
-    const snap = await tx.get(ref);
-    if (!snap.exists()) throw new Error('No hay configuración fiscal');
-    const d = snap.data() as Record<string, unknown>;
-    const n = typeof d.folioPruebaNomina === 'number' ? d.folioPruebaNomina : Number(d.folioPruebaNomina) || 1;
-    tx.set(
-      ref,
-      {
-        folioPruebaNomina: n + 1,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
-    return { serie: SERIE_NOMINA_PRUEBA, folio: String(n) };
-  });
+  const supabase = getSupabase();
+  const { data, error } = await supabase.rpc('rpc_reserve_prueba_nomina_folio', { p_sucursal_id: sid });
+  if (error) throw new Error(error.message);
+  const o = data as { serie?: string; folio?: string };
+  return { serie: o.serie ?? SERIE_NOMINA_PRUEBA, folio: o.folio ?? '1' };
 }

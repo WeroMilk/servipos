@@ -1,26 +1,13 @@
-import {
-  addDoc,
-  collection,
-  getDocs,
-  limit,
-  onSnapshot,
-  orderBy,
-  query,
-  serverTimestamp,
-  where,
-  writeBatch,
-  type Unsubscribe,
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import type { InventoryMovement } from '@/types';
+import { getSupabase } from '@/lib/supabaseClient';
 
 const DEFAULT_LIMIT = 500;
 
-function movementsCol(sucursalId: string) {
-  return collection(db, 'sucursales', sucursalId, 'inventoryMovements');
-}
-
 function firestoreTimestampToDate(value: unknown): Date {
+  if (typeof value === 'string' && value.length > 0) {
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? new Date() : d;
+  }
   if (
     value &&
     typeof value === 'object' &&
@@ -86,12 +73,14 @@ export type CatalogInventoryMovementInput = {
   skuRegistro?: string;
 };
 
-/** Registro de alta, baja o edición de catálogo (misma colección que movimientos de stock). */
 export async function appendCatalogInventoryMovementFirestore(
   sucursalId: string,
   input: CatalogInventoryMovementInput
 ): Promise<void> {
-  await addDoc(movementsCol(sucursalId), {
+  const supabase = getSupabase();
+  const id = crypto.randomUUID().replace(/-/g, '');
+  const now = new Date().toISOString();
+  const doc = {
     productId: input.productId,
     tipo: input.tipo,
     cantidad: 0,
@@ -104,14 +93,19 @@ export async function appendCatalogInventoryMovementFirestore(
     nombreRegistro: input.nombreRegistro?.trim() || null,
     skuRegistro: input.skuRegistro?.trim() || null,
     usuarioId: input.usuarioId,
-    createdAt: serverTimestamp(),
+    createdAt: now,
+  };
+  const { error } = await supabase.from('inventory_movements').insert({
+    sucursal_id: sucursalId,
+    id,
+    doc,
+    created_at: now,
   });
+  if (error) throw new Error(error.message);
 }
 
-/** Suscripción a los movimientos más recientes (orden descendente por fecha). */
 const BY_PRODUCT_LIMIT = 200;
 
-/** Movimientos de un solo producto (p. ej. historial de entradas en inventario). */
 export async function fetchInventoryMovementsByProductIdFirestore(
   sucursalId: string,
   productId: string,
@@ -119,24 +113,33 @@ export async function fetchInventoryMovementsByProductIdFirestore(
 ): Promise<InventoryMovement[]> {
   const pid = productId.trim();
   if (!pid) return [];
-  const q = query(movementsCol(sucursalId), where('productId', '==', pid), limit(maxDocs));
-  const snap = await getDocs(q);
-  const list = snap.docs.map((doc) =>
-    movementDocToMovement(doc.id, doc.data() as Record<string, unknown>)
-  );
+  const supabase = getSupabase();
+  const { data: rows } = await supabase
+    .from('inventory_movements')
+    .select('id, doc')
+    .eq('sucursal_id', sucursalId)
+    .limit(maxDocs * 2);
+  const list = (rows ?? [])
+    .filter((r) => String((r.doc as { productId?: string })?.productId ?? '') === pid)
+    .map((r) => movementDocToMovement(r.id, r.doc as Record<string, unknown>))
+    .slice(0, maxDocs);
   list.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   return list;
 }
 
-/** Lectura única de los movimientos más recientes (misma ventana que la suscripción). */
 export async function fetchRecentInventoryMovementsOnce(
   sucursalId: string,
   maxDocs = DEFAULT_LIMIT
 ): Promise<InventoryMovement[]> {
-  const q = query(movementsCol(sucursalId), orderBy('createdAt', 'desc'), limit(maxDocs));
-  const snap = await getDocs(q);
-  return snap.docs.map((doc) =>
-    movementDocToMovement(doc.id, doc.data() as Record<string, unknown>)
+  const supabase = getSupabase();
+  const { data: rows } = await supabase
+    .from('inventory_movements')
+    .select('id, doc, created_at')
+    .eq('sucursal_id', sucursalId)
+    .order('created_at', { ascending: false })
+    .limit(maxDocs);
+  return (rows ?? []).map((r) =>
+    movementDocToMovement(r.id, r.doc as Record<string, unknown>)
   );
 }
 
@@ -144,29 +147,42 @@ export function subscribeInventoryMovements(
   sucursalId: string,
   onUpdate: (movements: InventoryMovement[]) => void,
   maxDocs = DEFAULT_LIMIT
-): Unsubscribe {
-  const q = query(movementsCol(sucursalId), orderBy('createdAt', 'desc'), limit(maxDocs));
-  return onSnapshot(
-    q,
-    (snap) => {
-      const rows = snap.docs.map((doc) => movementDocToMovement(doc.id, doc.data() as Record<string, unknown>));
-      onUpdate(rows);
-    },
-    (err) => {
-      console.error('inventoryMovements:', err);
+): () => void {
+  const supabase = getSupabase();
+  const load = async () => {
+    const { data: rows, error } = await supabase
+      .from('inventory_movements')
+      .select('id, doc, created_at')
+      .eq('sucursal_id', sucursalId)
+      .order('created_at', { ascending: false })
+      .limit(maxDocs);
+    if (error) {
+      console.error('inventoryMovements:', error);
       onUpdate([]);
+      return;
     }
-  );
+    onUpdate(
+      (rows ?? []).map((r) => movementDocToMovement(r.id, r.doc as Record<string, unknown>))
+    );
+  };
+  void load();
+  const ch = supabase
+    .channel(`inv-mov-${sucursalId}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'inventory_movements', filter: `sucursal_id=eq.${sucursalId}` },
+      () => {
+        void load();
+      }
+    )
+    .subscribe();
+  return () => {
+    void supabase.removeChannel(ch);
+  };
 }
 
-/** Elimina todos los documentos de movimientos (por lotes de 500). Solo usar con permisos de admin en reglas. */
 export async function deleteAllInventoryMovementsFirestore(sucursalId: string): Promise<void> {
-  const col = movementsCol(sucursalId);
-  for (;;) {
-    const snap = await getDocs(query(col, limit(500)));
-    if (snap.empty) return;
-    const batch = writeBatch(db);
-    snap.docs.forEach((d) => batch.delete(d.ref));
-    await batch.commit();
-  }
+  const supabase = getSupabase();
+  const { error } = await supabase.from('inventory_movements').delete().eq('sucursal_id', sucursalId);
+  if (error) throw new Error(error.message);
 }

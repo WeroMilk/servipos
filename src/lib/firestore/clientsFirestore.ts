@@ -1,23 +1,12 @@
-import {
-  collection,
-  deleteDoc,
-  doc,
-  onSnapshot,
-  query,
-  setDoc,
-  updateDoc,
-  serverTimestamp,
-  type Unsubscribe,
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import type { Client } from '@/types';
 import { normalizeClientPriceListId } from '@/lib/clientPriceLists';
-
-function clientsCol(sucursalId: string) {
-  return collection(db, 'sucursales', sucursalId, 'clients');
-}
+import { getSupabase } from '@/lib/supabaseClient';
 
 function firestoreTimestampToDate(value: unknown): Date {
+  if (typeof value === 'string' && value.length > 0) {
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? new Date() : d;
+  }
   if (
     value &&
     typeof value === 'object' &&
@@ -73,7 +62,7 @@ export function docToClient(sucursalId: string, id: string, d: Record<string, un
   };
 }
 
-function clientToFirestorePayload(
+function clientToDocPayload(
   client: Omit<Client, 'id' | 'createdAt' | 'updatedAt' | 'syncStatus' | 'lastSyncAt'>
 ): Record<string, unknown> {
   return {
@@ -94,34 +83,43 @@ function clientToFirestorePayload(
         ? Math.max(0, Math.round(Number(client.saldoAdeudado) * 100) / 100)
         : null,
     sucursalId: client.sucursalId ?? null,
-    updatedAt: serverTimestamp(),
   };
 }
 
-/**
- * Clientes en tiempo real por sucursal; opcional `onMirrorLocal` solo en snapshots OK (no en error).
- */
 export function subscribeClientsCatalog(
   sucursalId: string,
   onData: (clients: Client[]) => void,
   onMirrorLocal?: (clients: Client[]) => void | Promise<void>
-): Unsubscribe {
-  const q = query(clientsCol(sucursalId));
-  return onSnapshot(
-    q,
-    (snap) => {
-      const list = snap.docs.map((s) =>
-        docToClient(sucursalId, s.id, s.data() as Record<string, unknown>)
-      );
-      list.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
-      void onMirrorLocal?.(list);
-      onData(list);
-    },
-    (err) => {
-      console.error('subscribeClientsCatalog:', err);
+): () => void {
+  const supabase = getSupabase();
+  const load = async () => {
+    const { data, error } = await supabase.from('clients').select('id, doc').eq('sucursal_id', sucursalId);
+    if (error) {
+      console.error('subscribeClientsCatalog:', error);
       onData([]);
+      return;
     }
-  );
+    const list = (data ?? []).map((r) =>
+      docToClient(sucursalId, r.id, r.doc as Record<string, unknown>)
+    );
+    list.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+    void onMirrorLocal?.(list);
+    onData(list);
+  };
+  void load();
+  const ch = supabase
+    .channel(`clients-${sucursalId}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'clients', filter: `sucursal_id=eq.${sucursalId}` },
+      () => {
+        void load();
+      }
+    )
+    .subscribe();
+  return () => {
+    void supabase.removeChannel(ch);
+  };
 }
 
 export async function createClientFirestore(
@@ -129,11 +127,20 @@ export async function createClientFirestore(
   client: Omit<Client, 'id' | 'createdAt' | 'updatedAt' | 'syncStatus' | 'lastSyncAt'>,
   id: string
 ): Promise<string> {
-  const ref = doc(db, 'sucursales', sucursalId, 'clients', id);
-  await setDoc(ref, {
-    ...clientToFirestorePayload(client),
-    createdAt: serverTimestamp(),
+  const supabase = getSupabase();
+  const now = new Date().toISOString();
+  const doc = {
+    ...clientToDocPayload(client),
+    createdAt: now,
+    updatedAt: now,
+  };
+  const { error } = await supabase.from('clients').insert({
+    sucursal_id: sucursalId,
+    id,
+    doc,
+    updated_at: now,
   });
+  if (error) throw new Error(error.message);
   return id;
 }
 
@@ -142,37 +149,51 @@ export async function updateClientFirestore(
   id: string,
   updates: Partial<Client>
 ): Promise<void> {
-  const ref = doc(db, 'sucursales', sucursalId, 'clients', id);
-  const patch: Record<string, unknown> = { updatedAt: serverTimestamp() };
-  if (updates.nombre !== undefined) patch.nombre = updates.nombre;
-  if (updates.rfc !== undefined) patch.rfc = updates.rfc ?? null;
-  if (updates.razonSocial !== undefined) patch.razonSocial = updates.razonSocial ?? null;
-  if (updates.codigoPostal !== undefined) patch.codigoPostal = updates.codigoPostal ?? null;
-  if (updates.regimenFiscal !== undefined) patch.regimenFiscal = updates.regimenFiscal ?? null;
-  if (updates.usoCfdi !== undefined) patch.usoCfdi = updates.usoCfdi ?? null;
-  if (updates.email !== undefined) patch.email = updates.email ?? null;
-  if (updates.telefono !== undefined) patch.telefono = updates.telefono ?? null;
-  if (updates.direccion !== undefined) patch.direccion = updates.direccion ?? null;
-  if (updates.isMostrador !== undefined) patch.isMostrador = updates.isMostrador;
-  if (updates.listaPreciosId !== undefined) patch.listaPreciosId = updates.listaPreciosId ?? null;
-  if (updates.ticketsComprados !== undefined) patch.ticketsComprados = updates.ticketsComprados ?? null;
+  const supabase = getSupabase();
+  const { data: row } = await supabase
+    .from('clients')
+    .select('doc')
+    .eq('sucursal_id', sucursalId)
+    .eq('id', id)
+    .maybeSingle();
+  const doc = { ...((row?.doc as Record<string, unknown>) ?? {}) };
+  const now = new Date().toISOString();
+  if (updates.nombre !== undefined) doc.nombre = updates.nombre;
+  if (updates.rfc !== undefined) doc.rfc = updates.rfc ?? null;
+  if (updates.razonSocial !== undefined) doc.razonSocial = updates.razonSocial ?? null;
+  if (updates.codigoPostal !== undefined) doc.codigoPostal = updates.codigoPostal ?? null;
+  if (updates.regimenFiscal !== undefined) doc.regimenFiscal = updates.regimenFiscal ?? null;
+  if (updates.usoCfdi !== undefined) doc.usoCfdi = updates.usoCfdi ?? null;
+  if (updates.email !== undefined) doc.email = updates.email ?? null;
+  if (updates.telefono !== undefined) doc.telefono = updates.telefono ?? null;
+  if (updates.direccion !== undefined) doc.direccion = updates.direccion ?? null;
+  if (updates.isMostrador !== undefined) doc.isMostrador = updates.isMostrador;
+  if (updates.listaPreciosId !== undefined) doc.listaPreciosId = updates.listaPreciosId ?? null;
+  if (updates.ticketsComprados !== undefined) doc.ticketsComprados = updates.ticketsComprados ?? null;
   if (updates.ventasHistorial !== undefined) {
     const vh = updates.ventasHistorial;
-    patch.ventasHistorial =
+    doc.ventasHistorial =
       vh != null && Number.isFinite(Number(vh)) ? Math.max(0, Math.floor(Number(vh))) : null;
   }
   if (updates.saldoAdeudado !== undefined) {
     const v = Number(updates.saldoAdeudado);
-    patch.saldoAdeudado =
-      Number.isFinite(v) ? Math.max(0, Math.round(v * 100) / 100) : null;
+    doc.saldoAdeudado = Number.isFinite(v) ? Math.max(0, Math.round(v * 100) / 100) : null;
   }
   if (updates.notasInternas !== undefined) {
     const t = updates.notasInternas?.trim();
-    patch.notasInternas = t ? t : null;
+    doc.notasInternas = t ? t : null;
   }
-  await updateDoc(ref, patch);
+  doc.updatedAt = now;
+  const { error } = await supabase
+    .from('clients')
+    .update({ doc, updated_at: now })
+    .eq('sucursal_id', sucursalId)
+    .eq('id', id);
+  if (error) throw new Error(error.message);
 }
 
 export async function deleteClientFirestore(sucursalId: string, id: string): Promise<void> {
-  await deleteDoc(doc(db, 'sucursales', sucursalId, 'clients', id));
+  const supabase = getSupabase();
+  const { error } = await supabase.from('clients').delete().eq('sucursal_id', sucursalId).eq('id', id);
+  if (error) throw new Error(error.message);
 }

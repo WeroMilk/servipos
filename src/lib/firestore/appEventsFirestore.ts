@@ -1,22 +1,11 @@
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDocs,
-  limit,
-  onSnapshot,
-  orderBy,
-  query,
-  serverTimestamp,
-  type Unsubscribe,
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import type { AppEventKind, AppEventLogRecord } from '@/types';
-
-const COL = 'appEvents';
+import { getSupabase } from '@/lib/supabaseClient';
 
 function tsToDate(v: unknown): Date {
+  if (typeof v === 'string' && v.length > 0) {
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? new Date() : d;
+  }
   if (
     v &&
     typeof v === 'object' &&
@@ -71,11 +60,14 @@ export type AppendAppEventInput = {
 };
 
 export async function appendAppEventRecord(input: AppendAppEventInput): Promise<void> {
+  const supabase = getSupabase();
   const meta =
     input.meta && Object.keys(input.meta).length > 0
       ? JSON.parse(JSON.stringify(input.meta))
       : undefined;
-  await addDoc(collection(db, COL), {
+  const id = crypto.randomUUID().replace(/-/g, '');
+  const now = new Date().toISOString();
+  const doc = {
     kind: input.kind,
     source: input.source,
     title: input.title.slice(0, 500),
@@ -87,38 +79,53 @@ export async function appendAppEventRecord(input: AppendAppEventInput): Promise<
     sucursalId: input.sucursalId ?? null,
     route: input.route ? input.route.slice(0, 500) : null,
     meta: meta ?? null,
-    createdAt: serverTimestamp(),
+    createdAt: now,
+  };
+  const { error } = await supabase.from('app_events').insert({
+    id,
+    doc,
+    created_at: now,
   });
+  if (error) throw new Error(error.message);
 }
 
-export function subscribeAppEvents(
-  max: number,
-  onList: (list: AppEventLogRecord[]) => void
-): Unsubscribe {
-  const q = query(collection(db, COL), orderBy('createdAt', 'desc'), limit(Math.min(max, 500)));
-  return onSnapshot(
-    q,
-    (snap) => {
-      const list = snap.docs.map((s) => docToAppEvent(s.id, s.data() as Record<string, unknown>));
-      onList(list);
-    },
-    (err) => {
-      console.error('appEvents:', err);
+export function subscribeAppEvents(max: number, onList: (list: AppEventLogRecord[]) => void): () => void {
+  const supabase = getSupabase();
+  const lim = Math.min(max, 500);
+  const load = async () => {
+    const { data: rows, error } = await supabase
+      .from('app_events')
+      .select('id, doc')
+      .order('created_at', { ascending: false })
+      .limit(lim);
+    if (error) {
+      console.error('appEvents:', error);
       onList([]);
+      return;
     }
-  );
+    const list = (rows ?? []).map((r) => docToAppEvent(r.id, r.doc as Record<string, unknown>));
+    onList(list);
+  };
+  void load();
+  const ch = supabase
+    .channel('app-events')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'app_events' }, () => {
+      void load();
+    })
+    .subscribe();
+  return () => {
+    void supabase.removeChannel(ch);
+  };
 }
 
-/** Solo administración: borra todos los documentos de `appEvents` (en lotes). */
 export async function deleteAllAppEvents(): Promise<number> {
+  const supabase = getSupabase();
+  const { data: rows } = await supabase.from('app_events').select('id');
   let removed = 0;
-  // Repetir hasta vaciar (cada consulta trae hasta 500)
-  for (;;) {
-    const snap = await getDocs(query(collection(db, COL), limit(500)));
-    if (snap.empty) break;
-    await Promise.all(snap.docs.map((d) => deleteDoc(doc(db, COL, d.id))));
-    removed += snap.docs.length;
-    if (snap.docs.length < 500) break;
+  for (const r of rows ?? []) {
+    const { error } = await supabase.from('app_events').delete().eq('id', r.id);
+    if (error) throw new Error(error.message);
+    removed++;
   }
   return removed;
 }

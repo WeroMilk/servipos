@@ -1,50 +1,41 @@
-import {
-  collection,
-  deleteField,
-  doc,
-  getDocs,
-  onSnapshot,
-  serverTimestamp,
-  setDoc,
-  updateDoc,
-  type Unsubscribe,
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import type { Permission, User, UserRole } from '@/types';
-import { mapFirestoreUserProfile } from '@/lib/mapFirestoreUser';
+import { mapProfileRowToUser } from '@/lib/mapFirestoreUser';
+import { getSupabase } from '@/lib/supabaseClient';
 
-const USERS = 'users';
-
-/** Lista usuarios con perfil en Firestore (colección `users`). */
-export function subscribeFirestoreDirectoryUsers(onList: (list: User[]) => void): Unsubscribe {
-  const q = collection(db, USERS);
-  return onSnapshot(
-    q,
-    (snap) => {
-      const list: User[] = [];
-      snap.forEach((s) => {
-        const data = s.data() as Record<string, unknown>;
-        const email = typeof data.email === 'string' ? data.email : '';
-        list.push(mapFirestoreUserProfile(s.id, data, email));
-      });
-      list.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
-      onList(list);
-    },
-    (err) => {
-      console.error('Users directory:', err);
+/** Lista usuarios con perfil en `public.profiles`. */
+export function subscribeFirestoreDirectoryUsers(onList: (list: User[]) => void): () => void {
+  const supabase = getSupabase();
+  const load = async () => {
+    const { data, error } = await supabase.from('profiles').select('*').order('name');
+    if (error) {
+      console.error('Users directory:', error);
       onList([]);
+      return;
     }
-  );
+    const list = (data ?? []).map((row) => mapProfileRowToUser(row as Parameters<typeof mapProfileRowToUser>[0]));
+    list.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+    onList(list);
+  };
+  void load();
+  const channel = supabase
+    .channel('profiles-directory')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
+      void load();
+    })
+    .subscribe();
+  return () => {
+    void supabase.removeChannel(channel);
+  };
 }
 
 export async function fetchFirestoreDirectoryUsersOnce(): Promise<User[]> {
-  const snap = await getDocs(collection(db, USERS));
-  const list: User[] = [];
-  snap.forEach((s) => {
-    const data = s.data() as Record<string, unknown>;
-    const email = typeof data.email === 'string' ? data.email : '';
-    list.push(mapFirestoreUserProfile(s.id, data, email));
-  });
+  const supabase = getSupabase();
+  const { data, error } = await supabase.from('profiles').select('*').order('name');
+  if (error) {
+    console.error('Users directory:', error);
+    return [];
+  }
+  const list = (data ?? []).map((row) => mapProfileRowToUser(row as Parameters<typeof mapProfileRowToUser>[0]));
   list.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
   return list;
 }
@@ -59,39 +50,38 @@ export async function updateFirestoreDirectoryUser(
     isActive?: boolean;
     sucursalId?: string | null;
     useCustomPermissions?: boolean;
-    /** `null` borra el arreglo en Firestore (volver solo a plantilla del rol). */
     customPermissions?: Permission[] | null;
   }
 ): Promise<void> {
-  const ref = doc(db, USERS, uid);
-  const payload: Record<string, unknown> = { updatedAt: serverTimestamp() };
-  if (patch.name !== undefined) payload.name = patch.name;
-  if (patch.username !== undefined) payload.username = patch.username;
-  if (patch.email !== undefined) payload.email = patch.email;
-  if (patch.role !== undefined) payload.role = patch.role;
-  if (patch.isActive !== undefined) payload.isActive = patch.isActive;
+  const supabase = getSupabase();
+  const row: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (patch.name !== undefined) row.name = patch.name;
+  if (patch.username !== undefined) row.username = patch.username;
+  if (patch.email !== undefined) row.email = patch.email;
+  if (patch.role !== undefined) row.role = patch.role;
+  if (patch.isActive !== undefined) row.is_active = patch.isActive;
   if (patch.sucursalId !== undefined) {
-    payload.sucursalId = patch.sucursalId === null || patch.sucursalId === '' ? null : patch.sucursalId;
+    row.sucursal_id = patch.sucursalId === null || patch.sucursalId === '' ? null : patch.sucursalId;
   }
   if (patch.useCustomPermissions !== undefined) {
-    payload.useCustomPermissions = patch.useCustomPermissions;
+    row.use_custom_permissions = patch.useCustomPermissions;
     if (patch.useCustomPermissions === false) {
-      payload.customPermissions = deleteField();
+      row.custom_permissions = [];
     }
   }
   if (patch.customPermissions !== undefined) {
     if (patch.customPermissions === null) {
-      payload.customPermissions = deleteField();
+      row.custom_permissions = [];
     } else {
-      payload.customPermissions = patch.customPermissions;
+      row.custom_permissions = patch.customPermissions;
     }
   }
-  await updateDoc(ref, payload);
+  const { error } = await supabase.from('profiles').update(row).eq('id', uid);
+  if (error) throw new Error(error.message);
 }
 
 /**
- * Crea cuenta en Firebase Auth vía Identity Toolkit REST (no cambia la sesión actual)
- * y escribe perfil en `users/{uid}`.
+ * Crea usuario vía Edge Function `admin-create-user` (requiere desplegar en Supabase).
  */
 export async function createAuthUserAndProfile(input: {
   email: string;
@@ -101,48 +91,33 @@ export async function createAuthUserAndProfile(input: {
   role: UserRole;
   sucursalId?: string | null;
 }): Promise<string> {
-  const apiKey = import.meta.env.VITE_FIREBASE_API_KEY as string | undefined;
-  if (!apiKey) throw new Error('Falta VITE_FIREBASE_API_KEY');
+  const base = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+  if (!base) throw new Error('Falta VITE_SUPABASE_URL');
+  const supabase = getSupabase();
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  if (!token) throw new Error('Sesión requerida para crear usuarios');
 
-  const res = await fetch(
-    `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${encodeURIComponent(apiKey)}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: input.email.trim(),
-        password: input.password,
-        returnSecureToken: true,
-      }),
-    }
-  );
-  const json = (await res.json()) as {
-    localId?: string;
-    error?: { message: string };
-  };
-  if (!res.ok || !json.localId) {
-    const code = json.error?.message ?? 'Error al crear cuenta';
-    if (code.includes('EMAIL_EXISTS')) {
-      throw new Error('Ese correo ya está registrado. Asigne sucursal desde la lista de usuarios.');
-    }
-    throw new Error(code);
-  }
-
-  const uid = json.localId;
-  const ref = doc(db, USERS, uid);
-  const username =
-    input.username?.trim() ||
-    (input.email.includes('@') ? input.email.split('@')[0]! : input.email);
-  await setDoc(ref, {
-    email: input.email.trim(),
-    username,
-    name: input.name.trim(),
-    role: input.role,
-    isActive: true,
-    sucursalId: input.sucursalId && input.sucursalId.length > 0 ? input.sucursalId : null,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+  const res = await fetch(`${base.replace(/\/$/, '')}/functions/v1/admin-create-user`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      email: input.email.trim(),
+      password: input.password,
+      name: input.name.trim(),
+      username:
+        input.username?.trim() ||
+        (input.email.includes('@') ? input.email.split('@')[0]! : input.email),
+      role: input.role,
+      sucursalId: input.sucursalId && input.sucursalId.length > 0 ? input.sucursalId : null,
+    }),
   });
-
-  return uid;
+  const json = (await res.json()) as { uid?: string; error?: string };
+  if (!res.ok || !json.uid) {
+    throw new Error(json.error ?? 'No se pudo crear el usuario (¿desplegó la Edge Function admin-create-user?)');
+  }
+  return json.uid;
 }

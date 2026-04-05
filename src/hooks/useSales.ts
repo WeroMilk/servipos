@@ -10,9 +10,7 @@ import {
 } from '@/db/database';
 import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
-import { subscribeSalesCatalog, saleDocToSale } from '@/lib/firestore/salesFirestore';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { subscribeSalesCatalog, subscribeSaleDocument } from '@/lib/firestore/salesFirestore';
 import { reportHookFailure } from '@/lib/appEventLog';
 
 // ============================================
@@ -233,21 +231,11 @@ export function useSaleDetails(saleId: string | null) {
 
     if (sucursalId) {
       setLoading(true);
-      const ref = doc(db, 'sucursales', sucursalId, 'sales', saleId);
-      const unsub = onSnapshot(
-        ref,
-        (snap) => {
-          setSale(saleDocToSale(snap));
-          setLoading(false);
-        },
-        (err) => {
-          reportHookFailure('hook:useSaleDetails', 'Suscripción venta Firestore', err);
-          console.error('Error al cargar venta:', err);
-          setSale(null);
-          setLoading(false);
-        }
-      );
-      return () => unsub();
+      const unsub = subscribeSaleDocument(sucursalId, saleId, (row) => {
+        setSale(row);
+        setLoading(false);
+      });
+      return unsub;
     }
 
     let cancelled = false;

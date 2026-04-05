@@ -2,7 +2,7 @@
 // EXPORTS DE TODOS LOS STORES
 // ============================================
 
-export { useAuthStore, subscribeFirebaseAuth } from './authStore';
+export { useAuthStore, subscribeSupabaseAuth } from './authStore';
 export { useSucursalContextStore } from './sucursalContextStore';
 export { useAppStore, getResolvedIsDark } from './appStore';
 export { useSyncStore } from './syncStore';
