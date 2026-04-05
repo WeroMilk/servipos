@@ -35,13 +35,13 @@ export type Permission =
 export interface User {
   id: string;
   username: string;
-  /** Solo usuarios locales (Dexie). Con Firebase Auth no se usa. */
+  /** Solo usuarios locales (Dexie). Con Supabase Auth no se usa. */
   password?: string;
   name: string;
   email: string;
   role: UserRole;
   isActive: boolean;
-  /** Sucursal asignada; la app filtrará datos por este id cuando migre a Firestore. */
+  /** Sucursal asignada; la app filtra datos remotos por este id. */
   sucursalId?: string;
   /**
    * Si es true, solo aplican `customPermissions` (sustituyen la plantilla del rol).
@@ -54,7 +54,7 @@ export interface User {
   updatedAt: Date;
 }
 
-/** Catálogo de sucursales (Firestore `sucursales/{id}`). */
+/** Catálogo de sucursales (tabla `public.sucursales`). */
 export interface Sucursal {
   id: string;
   nombre: string;
@@ -68,16 +68,16 @@ export interface Sucursal {
 export interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
-  /** true después del primer evento de Firebase Auth (evita flash al /login). */
+  /** true después del primer evento de sesión Supabase (evita flash al /login). */
   authReady: boolean;
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   hasPermission: (permission: Permission) => boolean;
-  /** Vuelve a leer `users/{uid}` en Firestore y actualiza la sesión (p. ej. tras cambiar permisos). */
+  /** Vuelve a leer el perfil en `public.profiles` y actualiza la sesión (p. ej. tras cambiar permisos). */
   refreshUserProfile: () => Promise<void>;
 }
 
-/** Un día de asistencia en Firestore `checadorRegistros/{userId}_{YYYY-MM-DD}`. */
+/** Un día de asistencia (`public.checador_registros`, id tipo `userId_YYYY-MM-DD`). */
 export interface ChecadorDiaRegistro {
   id: string;
   userId: string;
@@ -213,7 +213,7 @@ export interface InventoryMovement {
   syncStatus: SyncStatus;
 }
 
-/** Metadatos opcionales al registrar entrada de mercancía (Firestore / Dexie). */
+/** Metadatos opcionales al registrar entrada de mercancía (remoto / Dexie). */
 export interface StockEntradaMeta {
   proveedor?: string;
   proveedorCodigo?: string;
@@ -304,7 +304,7 @@ export interface Sale {
   usuarioId: string;
   /** Nombre del cajero al momento de la venta (ticket / historial). */
   usuarioNombre?: string;
-  /** Tienda (ruta Firestore `sucursales/{id}/sales/...`); para ticket / reimpresión. */
+  /** Tienda (`sucursal_id` en `public.sales`); para ticket / reimpresión. */
   sucursalId?: string;
   /** Solo ventas `pendiente`: % desc. global del carrito al guardar (retomar en POS). */
   posResumeGlobalDiscount?: number;
@@ -330,7 +330,7 @@ export interface CajaRetiroEfectivo {
   usuarioNombre: string;
 }
 
-/** Registro de apertura/cierre de caja por sucursal (`sucursales/{id}/cajaSesiones/...`). */
+/** Registro de apertura/cierre de caja por sucursal (`public.caja_sesiones`). */
 export interface CajaSesion {
   id: string;
   sucursalId?: string;
@@ -380,7 +380,7 @@ export interface Payment {
 
 export type SaleStatus = 'pendiente' | 'completada' | 'cancelada' | 'facturada';
 
-/** Traspaso tienda→tienda (documentos en Firestore por sucursal). */
+/** Traspaso tienda→tienda (tablas incoming/outgoing transfers por sucursal). */
 export type StoreTransferEstado = 'pendiente' | 'recibida';
 
 export interface StoreTransferLine {
@@ -764,7 +764,7 @@ export interface AppState {
   
   // Toast notifications
   toasts: Toast[];
-  /** `logToAppEvents`: solo si true se guarda en Firestore (panel de eventos). Por defecto no se registra. */
+  /** `logToAppEvents`: solo si true se guarda en `public.app_events` (panel de eventos). Por defecto no se registra. */
   addToast: (toast: Omit<Toast, 'id'> & { logToAppEvents?: boolean }) => void;
   removeToast: (id: string) => void;
   

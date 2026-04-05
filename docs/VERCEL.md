@@ -1,52 +1,38 @@
 # Desplegar en Vercel (variables de entorno)
 
-Si ves en consola:
-
-`Falta variable de entorno VITE_FIREBASE_API_KEY...`
-
-es porque **en Vercel no están configuradas** las variables que Vite inyecta al compilar. El archivo `.env` solo existe en tu PC; **nunca se sube** (está en `.gitignore`).
+El archivo `.env` solo existe en su PC; **no se sube** a git (está en `.gitignore`). En Vercel debe configurar las mismas variables para que Vite las inyecte al compilar.
 
 ## 0. Rutas del SPA (`/inventario`, etc.)
 
-En la raíz del repo hay un `vercel.json` que redirige las rutas a `index.html`. Sin eso, al recargar o entrar directo a una URL interna el servidor devuelve **404**.
+En la raíz del repo hay un `vercel.json` que redirige las rutas a `index.html`. Sin eso, al recargar una URL interna el servidor puede devolver **404**.
 
-## 1. Añadir variables en Vercel
+## 1. Variables en Vercel
 
-1. Entra a [Vercel Dashboard](https://vercel.com/dashboard) → tu proyecto (ej. **servipos**).
+1. [Vercel Dashboard](https://vercel.com/dashboard) → su proyecto.
 2. **Settings** → **Environment Variables**.
-3. Crea **una entrada por variable** (copia los valores desde Firebase Console → ⚙️ *Configuración del proyecto* → *Tus aplicaciones* → app web).
+3. Cree **una entrada por variable** (valores desde Supabase → **Project Settings** → **API**).
 
 | Nombre (Key) | Valor |
 |--------------|--------|
-| `VITE_FIREBASE_API_KEY` | *apiKey* |
-| `VITE_FIREBASE_AUTH_DOMAIN` | *authDomain* |
-| `VITE_FIREBASE_PROJECT_ID` | *projectId* |
-| `VITE_FIREBASE_STORAGE_BUCKET` | *storageBucket* |
-| `VITE_FIREBASE_MESSAGING_SENDER_ID` | *messagingSenderId* |
-| `VITE_FIREBASE_APP_ID` | *appId* |
-| `VITE_SERVIPARTZ_EMAIL_DOMAIN` | `servipartz.com` (o el dominio de correo que uses para login) |
+| `VITE_SUPABASE_URL` | Project URL (`https://xxxx.supabase.co`) |
+| `VITE_SUPABASE_ANON_KEY` | anon public key |
+| `VITE_SERVIPARTZ_EMAIL_DOMAIN` | `servipartz.com` (o el dominio de correo corto que use) |
+| `VITE_SUCURSAL_IDS` | Lista separada por comas, ej. `olivares,principal` |
+| `VITE_DEFAULT_SUCURSAL_ID` | Uno de los ids anteriores |
 
-4. Marca al menos **Production** (y **Preview** si quieres que ramas/PR también funcionen).
-5. Guarda.
+4. Marque al menos **Production** (y **Preview** si desea).
+5. Guarde y **vuelva a desplegar** (Deployments → Redeploy); sin redeploy el bundle sigue sin las variables nuevas.
 
-## 2. Volver a desplegar
+## 2. Supabase Auth: URL autorizada
 
-- **Deployments** → último deploy → menú **⋯** → **Redeploy** (sin usar caché si quieres forzar).
+Para que el login funcione en `https://su-app.vercel.app` (o dominio propio):
 
-Sin un redeploy, el bundle sigue compilado **sin** esas variables.
+1. Supabase Dashboard → **Authentication** → **URL Configuration**.
+2. En **Site URL** y **Redirect URLs** incluya el origen del front (p. ej. `https://servipos.vercel.app`).
 
-## 3. Firebase Authentication: dominio autorizado
+## 3. Comprobar
 
-Para que el login funcione en `https://servipos.vercel.app` (o tu dominio):
+- Abra la URL del deploy: no debe fallar por variables `VITE_SUPABASE_*` faltantes.
+- Opcional: `npm run verify:supabase` en local con el mismo `.env` que copiará a Vercel.
 
-1. [Firebase Console](https://console.firebase.google.com/) → tu proyecto → **Authentication** → **Settings** → **Authorized domains**.
-2. Añade: `servipos.vercel.app` (sin `https://`).
-3. Si usas dominio propio, añádelo también.
-
-## 4. Comprobar
-
-Abre la URL del deploy y revisa la consola: no debe aparecer el error de `VITE_FIREBASE_*`.
-
----
-
-**Nota:** Los nombres deben ser **exactamente** los de la tabla (prefijo `VITE_` incluido). Vite solo expone al cliente las variables que empiezan por `VITE_`.
+Los nombres deben coincidir **exactamente** (prefijo `VITE_` incluido). Vite solo expone al cliente variables que empiezan por `VITE_`.

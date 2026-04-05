@@ -1,5 +1,5 @@
 /**
- * Detects permission denied from Supabase (RLS, PostgREST) or legacy Firebase-style errors.
+ * Detects permission denied from Supabase (RLS, PostgREST) or legacy-style error codes.
  */
 export function isRemotePermissionDenied(err: unknown): boolean {
   if (err instanceof Error) {

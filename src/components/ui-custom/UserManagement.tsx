@@ -168,7 +168,7 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
           role: form.role,
           sucursalId: form.sucursalId.trim() || null,
         });
-        addToast({ type: 'success', message: 'Usuario creado en Firebase' });
+        addToast({ type: 'success', message: 'Usuario creado en Supabase' });
       } else if (editingId) {
         await updateFirestoreDirectoryUser(editingId, {
           name: form.name,
@@ -237,7 +237,7 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
               )}
             >
               <Users className={cn('text-cyan-400', embedded ? 'h-4 w-4 sm:h-5 sm:w-5' : 'h-5 w-5')} />
-              Usuarios (Firebase)
+              Usuarios (Supabase)
             </CardTitle>
             <Button
               type="button"
@@ -257,8 +257,8 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
           >
             <p className="mb-2 text-[11px] text-slate-600 dark:text-slate-500 sm:text-xs">
               Los accesos se crean con el mismo dominio de correo que en el inicio de sesión. La
-              contraseña de usuarios existentes se gestiona desde Firebase o recuperación de
-              correo.
+              contraseña de usuarios existentes se gestiona desde Supabase Auth (recuperación por
+              correo).
             </p>
             <div className="overflow-x-auto overscroll-x-contain rounded-lg border border-slate-200/80 dark:border-slate-800/60 [-webkit-overflow-scrolling:touch] touch-pan-x">
               <Table className={embedded ? 'text-sm' : undefined}>

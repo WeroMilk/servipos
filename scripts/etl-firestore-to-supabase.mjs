@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Importa un export de Firestore (JSON o NDJSON de `export-firestore-full.mjs`) a Supabase.
+ * Importa un export histórico de Firestore (JSON con `documents: [{path,data}]` o NDJSON) a Supabase.
  *
  * Requiere variables de entorno:
  *   SUPABASE_URL              — URL del proyecto (ej. https://xxx.supabase.co)
@@ -45,7 +45,7 @@ function parseArgs() {
   return out;
 }
 
-/** Convierte valores serializados por export-firestore-full a JSON puro. */
+/** Convierte valores serializados por export Firestore (Timestamps, etc.) a JSON puro. */
 function normalizeFsValue(v) {
   if (v === null || v === undefined) return null;
   if (typeof v === 'object' && v !== null && v.__fs === 'Timestamp') {

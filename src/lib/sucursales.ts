@@ -1,5 +1,5 @@
 // ============================================
-// IDs de sucursal (multi-tienda, un solo proyecto Firebase)
+// IDs de sucursal (multi-tienda; deben coincidir con `public.sucursales` en Supabase)
 // ============================================
 
 /** Primer ID = sucursal por defecto (admin sin selección, migración Dexie, ejemplos). */

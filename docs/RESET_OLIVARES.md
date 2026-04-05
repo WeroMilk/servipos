@@ -1,69 +1,32 @@
-# Reiniciar sucursal Olivares (ventas, inventario, checador)
+# Vaciar datos de prueba (sucursal Olivares) en Supabase
 
-Objetivo: dejar **Olivares** en cero en **Firestore**: ventas, inventario (productos + movimientos), **todos** los documentos bajo `counters` de esa tienda, y **fichajes del checador** ligados a Olivares. **No borra Matriz** ni el documento `sucursales/olivares` (nombre de la tienda).
+Antes usaba scripts contra **Firestore**; el catálogo vive ahora en **Postgres** (`public.products`, etc.).
 
-## Script automático (recomendado)
+## Opción A: SQL Editor (recomendado)
 
-1. Firebase Console → **Project settings** → **Service accounts** → **Generate new private key** (JSON). No lo subas a git.
+En Supabase → **SQL Editor**, con cuidado (irreversible), borre filas por `sucursal_id`, por ejemplo:
 
-2. PowerShell:
-
-   ```powershell
-   $env:GOOGLE_APPLICATION_CREDENTIALS="C:\ruta\a\tu-service-account.json"
-   cd c:\Users\alfon\proyectos\app
-   npm run reset:olivares:dry
-   npm run reset:olivares
-   ```
-
-3. Otra sucursal u otro proyecto:
-
-   ```powershell
-   node scripts/reset-olivares-firestore.mjs --sucursal=olivares --project=servipartzpos-26417
-   ```
-
-### Qué hace el script en Firestore
-
-| Ruta | Acción |
-|------|--------|
-| `sucursales/{id}/sales` | Vacía toda la colección (`recursiveDelete`) |
-| `sucursales/{id}/inventoryMovements` | Idem |
-| `sucursales/{id}/products` | Idem (inventario/catálogo **de esa tienda**) |
-| `sucursales/{id}/counters` | Vacía **toda** la subcolección (folio diario y cualquier otro contador) |
-| `checadorRegistros` | Borra docs con `sucursalId == {id}` |
-| `checadorRegistros` (legado) | Borra docs **sin** `sucursalId` (null/vacío) si `userId` está en `users` con `sucursalId == {id}` |
-
-Si un cajero ya no es de Olivares pero su perfil en `users` sigue con `sucursalId: olivares`, sus fichajes “sin sucursal” también se borrarán en ese paso; conviene tener el perfil al día.
-
-## IndexedDB (cada navegador / PWA)
-
-El script **no** toca datos locales. En Chrome → F12 → **Application** → **IndexedDB** → `POSMexicoDB`, borra filas con `sucursalId === "olivares"` en `sales`, `clients`, `quotations`, `invoices` si quieres cero también en el dispositivo.
-
-## Manual (CLI Firebase)
-
-```bash
-firebase firestore:delete "sucursales/olivares/sales" --recursive --project TU_PROJECT_ID
-firebase firestore:delete "sucursales/olivares/inventoryMovements" --recursive --project TU_PROJECT_ID
-firebase firestore:delete "sucursales/olivares/products" --recursive --project TU_PROJECT_ID
-firebase firestore:delete "sucursales/olivares/counters" --recursive --project TU_PROJECT_ID
+```sql
+-- Sustituya 'olivares' por el id real de la tienda.
+delete from public.products where sucursal_id = 'olivares';
+delete from public.sales where sucursal_id = 'olivares';
+-- …otras tablas con sucursal_id según necesite
 ```
 
-El checador por `sucursalId` y el legado conviene hacerlo con el script o desde la consola con consultas.
+Respete el orden de claves foráneas (hijos antes que padres si aplica). Para un reset completo de una sucursal puede usar las utilidades en la app (admin) o borrar en el orden inverso a las FK del esquema en `supabase/migrations/`.
 
-## Comprobación
+## Opción B: Table Editor
 
-- Tienda **Olivares**: sin ventas, sin productos en Firestore hasta volver a cargar catálogo, checador limpio para esa sucursal.
-- **Matriz**: intacta si solo se usó `sucursales/olivares/...` y consultas de checador filtradas a Olivares.
+Elimine o edite filas manualmente en **Table Editor** filtrando por `sucursal_id`.
 
-## Volver a llenar el inventario de Olivares
+## Reimportar catálogo
 
-La app **no** sube sola los Excel del escritorio: hay que ejecutar el script (con cuenta de servicio) **sin** `--dry-run`. El ID de sucursal en el comando debe ser **exactamente** el ID del documento en Firestore (ej. `olivares` o `Olivares`, según lo que creaste).
+Tras vaciar, puede volver a cargar inventario + lista de precios con:
 
-```powershell
-$env:GOOGLE_APPLICATION_CREDENTIALS="C:\ruta\service-account.json"
-cd ruta\al\repo\servipos
-node scripts/import-olivares-inventory.mjs --dir="C:\Users\...\inventario abril 2026 servipartz olivares" --precios="C:\ruta\precios.xlsx" --sucursal=olivares
-```
+`npm run import:olivares-to-supabase -- --dir="..." --rtf="..." --sucursal=olivares`
 
-Primero conviene `--dry-run` y revisar totales. Si en consola Firebase la ruta es `sucursales/Olivares/products` (mayúscula), usa `--sucursal=Olivares`.
+(con `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` en el entorno).
 
-**Si la pantalla muestra 0 productos pero en consola sí hay documentos:** abre F12 → Consola y busca errores `permission-denied`; el perfil `users/{uid}` debe tener `role: admin` (o `gerente` solo para su propia `sucursalId`) y las reglas desplegadas (`firebase deploy --only firestore:rules`).
+## Nota
+
+No commitee claves `service_role`; úselas solo en su máquina o CI seguro.

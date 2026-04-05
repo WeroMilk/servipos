@@ -309,7 +309,7 @@ export function Header() {
                 isSyncing
                   ? 'Actualizando contador…'
                   : enModoNube
-                    ? 'Tienda en la nube (Firestore): inventario y ventas se leen y guardan en Firebase. El contador de «pendientes» de IndexedDB no aplica en este modo. Pulse para comprobar conexión.'
+                    ? 'Tienda en la nube (Supabase): inventario y ventas se leen y guardan en la base de datos. El contador de «pendientes» de IndexedDB no aplica en este modo. Pulse para comprobar conexión.'
                     : pendingDisplay > 0
                       ? `${pendingDisplay} fila(s) en IndexedDB con sync «pendiente» (modo solo local). Pulse para recalcular.`
                       : 'Ningún pendiente en la cola local. Pulse para comprobar de nuevo.'

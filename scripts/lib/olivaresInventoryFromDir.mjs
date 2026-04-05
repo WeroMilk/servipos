@@ -1,6 +1,6 @@
 /**
  * Lectura de inventario Olivares desde carpeta de .xlsx (una hoja por categoría).
- * Compartido: import-olivares-inventory.mjs, import-olivares-to-supabase.mjs
+ * Compartido con import-olivares-to-supabase.mjs
  */
 
 import { readdirSync } from 'node:fs';
