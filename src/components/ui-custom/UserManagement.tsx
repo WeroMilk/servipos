@@ -37,18 +37,21 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import type { User } from '@/types';
+import type { Sucursal, User, UserRole } from '@/types';
 import {
   createAuthUserAndProfile,
   subscribeFirestoreDirectoryUsers,
   updateFirestoreDirectoryUser,
 } from '@/lib/firestore/usersDirectoryFirestore';
 import { subscribeSucursales } from '@/lib/firestore/sucursalesMetaFirestore';
-import type { Sucursal } from '@/types';
 import { useAuthStore, useAppStore } from '@/stores';
 import { normalizeServipartzEmail } from '@/lib/servipartzAuth';
 import { cn } from '@/lib/utils';
 import { ROLE_LABELS } from '@/lib/userPermissions';
+
+function normalizeRoleForSelect(r: UserRole | undefined): UserRole {
+  return r === 'admin' || r === 'gerente' || r === 'cashier' ? r : 'cashier';
+}
 
 type FormMode = 'create' | 'edit';
 
@@ -353,7 +356,7 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
                           </Select>
                         </TableCell>
                         <TableCell className={cn('text-slate-600 dark:text-slate-400', embedded && 'py-1.5')}>
-                          {ROLE_LABELS[u.role]}
+                          {ROLE_LABELS[normalizeRoleForSelect(u.role)]}
                         </TableCell>
                         <TableCell>
                           <span
@@ -499,7 +502,7 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
             <div className="space-y-2">
               <Label>Rol</Label>
               <Select
-                value={form.role}
+                value={normalizeRoleForSelect(form.role)}
                 onValueChange={(v) => setForm((f) => ({ ...f, role: v as User['role'] }))}
               >
                 <SelectTrigger className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">

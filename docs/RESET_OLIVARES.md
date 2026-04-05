@@ -21,11 +21,21 @@ Elimine o edite filas manualmente en **Table Editor** filtrando por `sucursal_id
 
 ## Reimportar catálogo
 
-Tras vaciar, puede volver a cargar inventario + lista de precios con:
+**Desde CSV mergeado** (`data/precios-merged-olivares.csv`, columnas de listas sin IVA):
 
-`npm run import:olivares-to-supabase -- --dir="..." --rtf="..." --sucursal=olivares`
+```bash
+set SUPABASE_URL=https://xxxx.supabase.co
+set SUPABASE_SERVICE_ROLE_KEY=eyJ...
+npm run import:csv-olivares-to-supabase -- --csv=./data/precios-merged-olivares.csv --sucursal=olivares
+```
+
+**Desde Excel + RTF** (inventario real por carpeta + lista Crystal): véase [IMPORT_OLIVARES_INVENTARIO.md](./IMPORT_OLIVARES_INVENTARIO.md).
+
+`npm run import:olivares-to-supabase -- --dir="..." --rtf="..." --sucursal=olivares --ultimo-gana`
 
 (con `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` en el entorno).
+
+Migración `20260405120005_olivares_sucursal.sql`: crea/actualiza la fila `sucursales.id = olivares` y asigna perfiles zavala/gabriel a esa tienda con roles admin/cajero.
 
 ## Nota
 

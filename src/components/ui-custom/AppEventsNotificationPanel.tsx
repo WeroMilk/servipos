@@ -176,8 +176,7 @@ export function AppEventsNotificationPanel({ dock = 'header' }: AppEventsNotific
             <ul className="m-0 list-none p-0">
               {visibleEvents.length === 0 ? (
                 <li className="px-3 py-6 text-center text-xs text-slate-600 dark:text-slate-500">
-                  Aún no hay eventos registrados o no hay permisos de lectura en Firestore (
-                  <code className="text-slate-600 dark:text-slate-400">appEvents</code>).
+                  Aún no hay eventos registrados.
                 </li>
               ) : (
                 visibleEvents.map((ev) => (

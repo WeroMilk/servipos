@@ -8,6 +8,35 @@ import {
 import { normalizeClaveProdServ, normalizeClaveUnidadSat } from '@/lib/satCatalog';
 import { getSupabase } from '@/lib/supabaseClient';
 
+/** PostgREST devuelve como máximo 1000 filas por defecto; hay que paginar. */
+const PRODUCTS_FETCH_PAGE = 1000;
+
+async function fetchAllProductRowsForSucursal(sucursalId: string): Promise<{
+  rows: { id: string; doc: Record<string, unknown> }[];
+  error: Error | null;
+}> {
+  const supabase = getSupabase();
+  const all: { id: string; doc: Record<string, unknown> }[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from('products')
+      .select('id, doc')
+      .eq('sucursal_id', sucursalId)
+      .order('id', { ascending: true })
+      .range(from, from + PRODUCTS_FETCH_PAGE - 1);
+    if (error) {
+      console.error('Supabase products:', error);
+      return { rows: [], error: new Error(error.message) };
+    }
+    const rows = (data ?? []) as { id: string; doc: Record<string, unknown> }[];
+    all.push(...rows);
+    if (rows.length < PRODUCTS_FETCH_PAGE) break;
+    from += PRODUCTS_FETCH_PAGE;
+  }
+  return { rows: all, error: null };
+}
+
 function firestoreTimestampToDate(value: unknown): Date {
   if (typeof value === 'string' && value.length > 0) {
     const d = new Date(value);
@@ -124,24 +153,19 @@ export function subscribeProductCatalog(
   const supabase = getSupabase();
 
   const load = async () => {
-    const { data, error } = await supabase
-      .from('products')
-      .select('id, doc')
-      .eq('sucursal_id', sucursalId);
+    const { rows, error } = await fetchAllProductRowsForSucursal(sucursalId);
     if (error) {
-      console.error('Supabase products:', error);
       lastProducts = [];
       catalogListeners.forEach((l) => l([]));
       catalogErrorListeners.forEach((fn) => {
         try {
-          fn(new Error(error.message));
+          fn(error);
         } catch (e) {
           console.error(fn, e);
         }
       });
       return;
     }
-    const rows = (data ?? []) as { id: string; doc: Record<string, unknown> }[];
     lastProducts = rows
       .filter((r) => r.doc && (r.doc as { activo?: boolean }).activo !== false)
       .map((r) => docToProduct(r))
@@ -409,8 +433,9 @@ export async function resolveDestProductIdForTransfer(
   }
   const sk = (sku ?? '').trim();
   if (!sk) return null;
-  const { data: rows } = await supabase.from('products').select('id, doc').eq('sucursal_id', destSucursalId);
-  const matches = (rows ?? []).filter(
+  const { rows: allRows, error: fe } = await fetchAllProductRowsForSucursal(destSucursalId);
+  if (fe) return null;
+  const matches = allRows.filter(
     (r) =>
       String((r.doc as { sku?: string })?.sku ?? '').trim() === sk &&
       (r.doc as { activo?: boolean }).activo !== false
@@ -423,9 +448,9 @@ export async function getProductByBarcodeFirestore(
   sucursalId: string,
   codigoBarras: string
 ): Promise<Product | null> {
-  const supabase = getSupabase();
-  const { data: rows } = await supabase.from('products').select('id, doc').eq('sucursal_id', sucursalId);
-  const hit = (rows ?? []).find((r) => String((r.doc as { codigoBarras?: string })?.codigoBarras ?? '') === codigoBarras);
+  const { rows, error } = await fetchAllProductRowsForSucursal(sucursalId);
+  if (error) return null;
+  const hit = rows.find((r) => String((r.doc as { codigoBarras?: string })?.codigoBarras ?? '') === codigoBarras);
   if (!hit) return null;
   return docToProduct(hit as { id: string; doc: Record<string, unknown> });
 }

@@ -59,6 +59,11 @@ export class RouteErrorBoundary extends Component<Props, State> {
       return (
         <div className="flex min-h-[12rem] flex-1 flex-col items-center justify-center gap-4 rounded-xl border border-red-500/30 bg-red-100/80 p-6 text-center dark:bg-red-950/20">
           <p className="text-sm font-medium text-red-800 dark:text-red-200">Algo salió mal al cargar esta pantalla.</p>
+          {import.meta.env.DEV && this.state.error ? (
+            <p className="max-w-lg break-words rounded-md border border-red-500/20 bg-red-50/80 px-2 py-1.5 text-left font-mono text-[11px] text-red-900 dark:bg-red-950/40 dark:text-red-100">
+              {this.state.error.message}
+            </p>
+          ) : null}
           <p className="max-w-md text-xs text-slate-600 dark:text-slate-500">
             Puedes reintentar o usar el menú para ir a otra sección. Si el problema continúa, recarga la página
             (F5).

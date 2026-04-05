@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Building2,
   Receipt,
@@ -103,8 +103,26 @@ export function Configuracion() {
     (canEditListaPreciosCliente ? 1 : 0) +
     (canVerHistorialAbasto ? 1 : 0);
   const totalTabs = 4 + adminExtraTabs;
-  
+
+  const allowedConfigTabs = useMemo(() => {
+    const t: string[] = ['fiscal', 'empresa', 'certificados', 'nominas'];
+    if (canManageSucursales) t.push('sucursales');
+    if (canManageUsers) {
+      t.push('usuarios');
+      t.push('permisos');
+    }
+    if (canEditListaPreciosCliente) t.push('inventario-listas');
+    if (canVerHistorialAbasto) t.push('historial-abasto');
+    return t;
+  }, [canManageSucursales, canManageUsers, canEditListaPreciosCliente, canVerHistorialAbasto]);
+
   const [activeTab, setActiveTab] = useState('fiscal');
+
+  useEffect(() => {
+    if (!allowedConfigTabs.includes(activeTab)) {
+      setActiveTab('fiscal');
+    }
+  }, [allowedConfigTabs, activeTab]);
 
   const [nominaPruebaForm, setNominaPruebaForm] = useState<NominaPruebaDraftForm>(() =>
     loadNominaDraftFromStorage()

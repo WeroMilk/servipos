@@ -8,14 +8,11 @@
  *   Regular / técnico / mayoreo − / mayoreo + = los otros cuatro, de mayor a menor.
  *   Se guardan sin IVA en doc.preciosPorListaCliente y preciosListaIncluyenIva: false.
  *
- * Requiere:
- *   SUPABASE_URL
- *   SUPABASE_SERVICE_ROLE_KEY
+ * Requiere: SUPABASE_URL (o VITE_SUPABASE_URL en .env) y SUPABASE_SERVICE_ROLE_KEY (service_role, NO anon).
+ * Carga automática: `.env` y `.env.local` en la raíz del repo (igual que import CSV).
  *
- * Uso (Git Bash / PowerShell):
- *   export SUPABASE_URL=https://xxxx.supabase.co
- *   export SUPABASE_SERVICE_ROLE_KEY=eyJ...
- *   node scripts/import-olivares-to-supabase.mjs --dir="C:/Users/.../inventario abril 2026..." --rtf="C:/Users/.../lista de precios.rtf" --sucursal=olivares
+ * Uso:
+ *   npm run import:olivares-to-supabase -- --dir="..." --rtf="..." --sucursal=olivares --ultimo-gana
  *
  * Opciones:
  *   --dry-run
@@ -27,10 +24,12 @@
  *   --pad-5
  *   --sucursal-nombre=...  Texto para crear fila en public.sucursales si no existe (default: id capitalizado)
  *   --batch=150
+ *   --export-sin-rtf=./ruta.csv   CSV SKU,Nombre,Archivo para filas sin match en RTF
  */
 
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 import {
   parsePreciosRtf,
@@ -41,6 +40,46 @@ import {
   LIST_KEYS,
 } from './lib/olivaresRtfPrecios.mjs';
 import { mergeRowsFromDir, disambiguateNombres, buildDescripcion } from './lib/olivaresInventoryFromDir.mjs';
+
+function loadEnvFiles() {
+  for (const name of ['.env', '.env.local']) {
+    const p = join(process.cwd(), name);
+    if (!existsSync(p)) continue;
+    try {
+      const raw = readFileSync(p, 'utf8');
+      for (const line of raw.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        const eq = trimmed.indexOf('=');
+        if (eq === -1) continue;
+        const key = trimmed.slice(0, eq).trim();
+        let val = trimmed.slice(eq + 1).trim();
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+          val = val.slice(1, -1);
+        }
+        if (key) process.env[key] = val;
+      }
+    } catch {
+      /* noop */
+    }
+  }
+  if (!process.env.SUPABASE_URL && process.env.VITE_SUPABASE_URL) {
+    process.env.SUPABASE_URL = process.env.VITE_SUPABASE_URL;
+  }
+}
+
+loadEnvFiles();
+
+function jwtPayloadRole(token) {
+  try {
+    const parts = String(token).split('.');
+    if (parts.length !== 3) return null;
+    const json = Buffer.from(parts[1], 'base64url').toString('utf8');
+    return JSON.parse(json).role ?? null;
+  } catch {
+    return null;
+  }
+}
 
 function parseArgs() {
   const out = {
@@ -56,6 +95,8 @@ function parseArgs() {
     sinIvaEnRtf: false,
     pad5: false,
     batch: 150,
+    /** Ruta CSV: SKUs sin match en RTF (SKU,Nombre,Archivo). */
+    exportSinRtf: '',
   };
   for (const a of process.argv.slice(2)) {
     if (a === '--dry-run' || a === '--dryrun') out.dryRun = true;
@@ -70,6 +111,7 @@ function parseArgs() {
     else if (a.startsWith('--sucursal-nombre=')) out.sucursalNombre = a.slice('--sucursal-nombre='.length).trim();
     else if (a.startsWith('--iva=')) out.ivaPct = Number(a.slice('--iva='.length)) || 16;
     else if (a.startsWith('--batch=')) out.batch = Math.max(1, parseInt(a.slice('--batch='.length), 10) || 150);
+    else if (a.startsWith('--export-sin-rtf=')) out.exportSinRtf = a.slice('--export-sin-rtf='.length).trim();
   }
   return out;
 }
@@ -127,6 +169,29 @@ async function ensureSucursal(supabase, sucursalId, nombreDisplay) {
   if (error) throw new Error(`No se pudo crear sucursal: ${error.message}`);
 }
 
+/** Evita `.in('id', [...])` masivo: URL demasiado larga → `fetch failed` en Node. */
+async function fetchExistingCreatedMap(supabase, sucursalId) {
+  const map = new Map();
+  let from = 0;
+  const pageSize = 1000;
+  while (true) {
+    const { data, error } = await supabase
+      .from('products')
+      .select('id, doc')
+      .eq('sucursal_id', sucursalId)
+      .range(from, from + pageSize - 1);
+    if (error) throw new Error(error.message);
+    const rows = data ?? [];
+    for (const row of rows) {
+      const ca = row.doc && typeof row.doc.createdAt === 'string' ? row.doc.createdAt : null;
+      if (ca) map.set(row.id, ca);
+    }
+    if (rows.length < pageSize) break;
+    from += pageSize;
+  }
+  return map;
+}
+
 async function flushProducts(supabase, rows, batchSize) {
   for (let i = 0; i < rows.length; i += batchSize) {
     const chunk = rows.slice(i, i + batchSize);
@@ -155,7 +220,20 @@ async function main() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!args.dryRun && (!url || !key)) {
-    console.error('Defina SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY (o use --dry-run).');
+    console.error(
+      'Falta SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY.\n' +
+        '  En la raíz del proyecto, archivo .env.local (una línea, sin espacio tras =):\n' +
+        '  SUPABASE_SERVICE_ROLE_KEY=eyJ...\n' +
+        '  (Supabase → Settings → API → service_role; NO use la clave anon.)\n' +
+        '  SUPABASE_URL se toma de .env o de VITE_SUPABASE_URL.'
+    );
+    process.exit(1);
+  }
+  if (!args.dryRun && key && jwtPayloadRole(key) !== 'service_role') {
+    console.error(
+      'La clave no es service_role. No use VITE_SUPABASE_ANON_KEY.\n' +
+        'Use la clave "service_role" del panel de Supabase.'
+    );
     process.exit(1);
   }
 
@@ -197,7 +275,7 @@ async function main() {
   for (const r of rows) {
     const hit = matchRowToPrecios(preciosMap, idx.preciosByNombre, idx.preciosByNombreLoose, r.sku, r.nombre);
     if (!hit) {
-      missingPrecio.push(r.sku);
+      missingPrecio.push({ sku: r.sku, nombre: r.nombre, archivo: r.sourceFile });
       continue;
     }
     matched++;
@@ -223,8 +301,15 @@ async function main() {
   console.error(`Productos a escribir: ${toUpsert.length}`);
 
   if (args.strictPrecios && missingPrecio.length > 0) {
-    console.error('Primeros SKUs sin RTF:', missingPrecio.slice(0, 40).join(', '));
+    console.error('Primeros SKUs sin RTF:', missingPrecio.slice(0, 40).map((m) => m.sku).join(', '));
     throw new Error(`--strict-precios: ${missingPrecio.length} producto(s) sin lista de precios.`);
+  }
+
+  if (args.exportSinRtf && missingPrecio.length > 0) {
+    const esc = (s) => `"${String(s).replace(/"/g, '""')}"`;
+    const lines = ['SKU,Nombre,Archivo_xlsx', ...missingPrecio.map((m) => `${esc(m.sku)},${esc(m.nombre)},${esc(m.archivo)}`)];
+    writeFileSync(args.exportSinRtf, lines.join('\n'), 'utf8');
+    console.error(`Lista de sin RTF exportada: ${args.exportSinRtf} (${missingPrecio.length} filas).`);
   }
 
   if (args.dryRun) {
@@ -240,24 +325,7 @@ async function main() {
 
   const supabase = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 
-  const existingCreated = new Map();
-  {
-    const idList = [...new Set(toUpsert.map((x) => x.id))];
-    const chunk = 500;
-    for (let i = 0; i < idList.length; i += chunk) {
-      const slice = idList.slice(i, i + chunk);
-      const { data, error } = await supabase
-        .from('products')
-        .select('id, doc')
-        .eq('sucursal_id', args.sucursal)
-        .in('id', slice);
-      if (error) throw new Error(error.message);
-      for (const row of data ?? []) {
-        const ca = row.doc && typeof row.doc.createdAt === 'string' ? row.doc.createdAt : null;
-        if (ca) existingCreated.set(row.id, ca);
-      }
-    }
-  }
+  const existingCreated = await fetchExistingCreatedMap(supabase, args.sucursal);
 
   for (const row of toUpsert) {
     const prev = existingCreated.get(row.id);
@@ -275,11 +343,16 @@ async function main() {
 
   console.error(`\nListo: ${toUpsert.length} producto(s) en public.products (sucursal_id=${args.sucursal}).`);
   if (missingPrecio.length) {
-    console.error(`Advertencia: ${missingPrecio.length} SKU(s) sin match en RTF → no importados.`);
+    console.error(
+      `Advertencia: ${missingPrecio.length} SKU(s) sin match en RTF → no importados. Use --export-sin-rtf=./data/sin-precio-rtf.csv para listarlos.`
+    );
   }
 }
 
 main().catch((e) => {
   console.error(e);
+  if (e && typeof e === 'object' && 'cause' in e && e.cause) {
+    console.error('Cause:', e.cause);
+  }
   process.exit(1);
 });

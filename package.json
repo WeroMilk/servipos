@@ -14,6 +14,7 @@
     "combinar:precios-csv": "node scripts/combinar-precios-csv.mjs",
     "etl:firestore-to-supabase": "node scripts/etl-firestore-to-supabase.mjs",
     "import:olivares-to-supabase": "node scripts/import-olivares-to-supabase.mjs",
+    "import:csv-olivares-to-supabase": "node scripts/import-csv-precios-olivares-to-supabase.mjs",
     "supabase:db:push": "supabase db push"
   },
   "dependencies": {

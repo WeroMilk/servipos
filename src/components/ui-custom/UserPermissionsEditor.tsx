@@ -96,6 +96,18 @@ export function UserPermissionsEditor({ embedded = false }: UserPermissionsEdito
     [users, selectedId]
   );
 
+  /** Evita value sin SelectItem (lista vacía o id obsoleto) → crash de Radix. */
+  const userSelectValue = useMemo(() => {
+    if (!selectedId) return '__none__';
+    return users.some((u) => u.id === selectedId) ? selectedId : '__none__';
+  }, [selectedId, users]);
+
+  useEffect(() => {
+    if (selectedId && !users.some((u) => u.id === selectedId)) {
+      setSelectedId(null);
+    }
+  }, [users, selectedId]);
+
   const syncDraftFromUser = useCallback((u: User) => {
     setDraftRole(u.role);
     const custom = u.useCustomPermissions === true;
@@ -184,14 +196,17 @@ export function UserPermissionsEditor({ embedded = false }: UserPermissionsEdito
             <div className="space-y-1">
               <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">Usuario</Label>
               <Select
-                value={selectedId ?? ''}
-                onValueChange={(v) => setSelectedId(v || null)}
+                value={userSelectValue}
+                onValueChange={(v) => setSelectedId(v === '__none__' ? null : v)}
                 disabled={loadingList}
               >
                 <SelectTrigger className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">
                   <SelectValue placeholder={loadingList ? 'Cargando…' : 'Seleccione…'} />
                 </SelectTrigger>
                 <SelectContent className="max-h-[min(60dvh,20rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900">
+                  <SelectItem value="__none__" className="text-slate-900 dark:text-slate-100">
+                    Seleccione…
+                  </SelectItem>
                   {users.map((u) => (
                     <SelectItem key={u.id} value={u.id} className="text-slate-900 dark:text-slate-100">
                       {u.name} ({u.email || u.username})

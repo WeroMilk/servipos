@@ -15,6 +15,13 @@ function conIvaTieneCentavos(p) {
 
 /**
  * Cinco precios con IVA → mapa por lista (mismas claves que la app).
+ *
+ * Reglas de negocio (resumen):
+ * - Cananea: precio con centavos (ej. $22.45); empates → el menor; sin centavos → el menor de los cinco.
+ * - Regular: el más caro entre los cuatro restantes.
+ * - Técnico: el siguiente (2.º más caro).
+ * - Mayoreo −: segundo más barato (mayoreo_menos).
+ * - Mayoreo +: el más barato (mayoreo_mas).
  */
 export function mapFiveConIvaPricesToLists(pricesConIva) {
   const arr = pricesConIva.slice(0, 5);
