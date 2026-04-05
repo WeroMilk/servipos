@@ -4,6 +4,7 @@ import { mapProfileRowToUser, userFromAuthOnly } from '@/lib/mapFirestoreUser';
 import { useSucursalContextStore } from '@/stores/sucursalContextStore';
 import { reportAppEvent } from '@/lib/appEventLog';
 import { userHasPermission } from '@/lib/userPermissions';
+import type { Session } from '@supabase/supabase-js';
 import { getSupabase } from '@/lib/supabaseClient';
 
 async function loadUserProfile(userId: string, email: string | null): Promise<User> {
@@ -71,55 +72,68 @@ export const useAuthStore = create<AuthStore>((set) => ({
   },
 }));
 
+/**
+ * Aplica sesión → store. Debe ejecutarse FUERA del callback de `onAuthStateChange`
+ * (p. ej. vía setTimeout) para no bloquear el lock de Auth al llamar a `supabase.from(...)`.
+ * @see https://github.com/supabase/supabase-js — evitar async/await dentro del callback.
+ */
+async function applyAuthSession(session: Session | null): Promise<void> {
+  if (!session?.user) {
+    const prev = useAuthStore.getState().user;
+    useSucursalContextStore.getState().setActiveSucursalId(null);
+    if (prev) {
+      reportAppEvent({
+        kind: 'info',
+        source: 'auth',
+        title: 'Sesión finalizada',
+        detail: prev.email,
+        meta: { userId: prev.id, role: prev.role },
+      });
+    }
+    useAuthStore.setState({
+      user: null,
+      isAuthenticated: false,
+      authReady: true,
+    });
+    return;
+  }
+  try {
+    const user = await loadUserProfile(session.user.id, session.user.email ?? null);
+    useAuthStore.setState({ user, isAuthenticated: true, authReady: true });
+    reportAppEvent({
+      kind: 'success',
+      source: 'auth',
+      title: 'Sesión iniciada',
+      detail: user.email,
+      meta: { userId: user.id, role: user.role },
+    });
+  } catch (e) {
+    console.error('Error cargando perfil:', e);
+    const user = userFromAuthOnly(session.user.id, session.user.email ?? null);
+    useAuthStore.setState({
+      user,
+      isAuthenticated: true,
+      authReady: true,
+    });
+    reportAppEvent({
+      kind: 'warning',
+      source: 'auth',
+      title: 'Sesión iniciada (perfil incompleto)',
+      detail: user.email,
+      meta: { userId: user.id },
+    });
+  }
+}
+
 /** Suscripción global: sesión Supabase + perfil en `profiles`. */
 export function subscribeSupabaseAuth(): () => void {
   const supabase = getSupabase();
-  const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
-    if (event === 'SIGNED_OUT' || !session?.user) {
-      const prev = useAuthStore.getState().user;
-      useSucursalContextStore.getState().setActiveSucursalId(null);
-      if (prev) {
-        reportAppEvent({
-          kind: 'info',
-          source: 'auth',
-          title: 'Sesión finalizada',
-          detail: prev.email,
-          meta: { userId: prev.id, role: prev.role },
-        });
-      }
-      useAuthStore.setState({
-        user: null,
-        isAuthenticated: false,
-        authReady: true,
-      });
-      return;
-    }
-    try {
-      const user = await loadUserProfile(session.user.id, session.user.email ?? null);
-      useAuthStore.setState({ user, isAuthenticated: true, authReady: true });
-      reportAppEvent({
-        kind: 'success',
-        source: 'auth',
-        title: 'Sesión iniciada',
-        detail: user.email,
-        meta: { userId: user.id, role: user.role },
-      });
-    } catch (e) {
-      console.error('Error cargando perfil:', e);
-      const user = userFromAuthOnly(session.user.id, session.user.email ?? null);
-      useAuthStore.setState({
-        user,
-        isAuthenticated: true,
-        authReady: true,
-      });
-      reportAppEvent({
-        kind: 'warning',
-        source: 'auth',
-        title: 'Sesión iniciada (perfil incompleto)',
-        detail: user.email,
-        meta: { userId: user.id },
-      });
-    }
+  const { data } = supabase.auth.onAuthStateChange((event, session) => {
+    setTimeout(() => {
+      // Solo renovación de JWT: no llamar a PostgREST dentro del flujo de auth.
+      if (event === 'TOKEN_REFRESHED') return;
+      void applyAuthSession(session);
+    }, 0);
   });
   return () => {
     data.subscription.unsubscribe();
