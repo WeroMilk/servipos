@@ -30,12 +30,18 @@ export const useAuthStore = create<AuthStore>((set) => ({
       const supabase = getSupabase();
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
-        console.error('Supabase Auth:', error.message);
+        const expectedAuthFailure =
+          /invalid login|invalid credentials|email not confirmed|user not found/i.test(error.message);
+        if (import.meta.env.DEV && !expectedAuthFailure) {
+          console.error('Supabase Auth:', error.message);
+        }
         return false;
       }
       return true;
     } catch (err) {
-      console.error('Login:', err);
+      if (import.meta.env.DEV) {
+        console.error('Login:', err);
+      }
       return false;
     }
   },
