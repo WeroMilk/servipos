@@ -117,7 +117,7 @@ export function DashboardPeriodPopover({
             onValueChange={(v) => {
               if (v === 'day' || v === 'week' || v === 'month') onGranularityChange(v);
             }}
-            variant="outline"
+            variant="default"
             size="sm"
             className="mt-2 grid w-full grid-cols-3 gap-1 rounded-lg bg-[#2d2d2d] p-1"
           >

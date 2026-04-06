@@ -5,6 +5,7 @@ import {
   getQuotationById,
   createQuotation,
   updateQuotation,
+  createSale,
   convertQuotationToSale,
   generateQuotationFolio,
   deleteQuotation,
@@ -13,6 +14,12 @@ import {
 import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 import { reportHookFailure } from '@/lib/appEventLog';
+import {
+  createQuotationFirestore,
+  deleteQuotationFirestore,
+  subscribeQuotationsCatalog,
+  updateQuotationFirestore,
+} from '@/lib/firestore/quotationsFirestore';
 
 // ============================================
 // HOOK DE COTIZACIONES
@@ -39,7 +46,16 @@ export function useQuotations() {
   }, [effectiveSucursalId]);
 
   useEffect(() => {
-    loadQuotations();
+    if (effectiveSucursalId) {
+      setLoading(true);
+      const unsub = subscribeQuotationsCatalog(effectiveSucursalId, (rows) => {
+        setQuotations(rows);
+        setError(null);
+        setLoading(false);
+      });
+      return unsub;
+    }
+    void loadQuotations();
   }, [loadQuotations]);
 
   const addQuotation = async (
@@ -47,6 +63,12 @@ export function useQuotations() {
   ): Promise<Quotation | undefined> => {
     try {
       const sid = getEffectiveSucursalId();
+      if (sid) {
+        return await createQuotationFirestore(sid, {
+          ...quotation,
+          sucursalId: sid,
+        });
+      }
       const folio = await generateQuotationFolio(sid);
       const id = await createQuotation({ ...quotation, folio, sucursalId: sid });
       await loadQuotations();
@@ -60,6 +82,10 @@ export function useQuotations() {
 
   const editQuotation = async (id: string, updates: Partial<Quotation>) => {
     try {
+      if (effectiveSucursalId) {
+        await updateQuotationFirestore(effectiveSucursalId, id, updates);
+        return;
+      }
       await updateQuotation(id, updates);
       await loadQuotations();
     } catch (err) {
@@ -76,6 +102,45 @@ export function useQuotations() {
   ) => {
     try {
       const sucursalId = getEffectiveSucursalId();
+      if (sucursalId) {
+        const q = quotations.find((x) => x.id === quotationId);
+        if (!q) throw new Error('Cotización no encontrada');
+        const { id: saleId } = await createSale(
+          {
+            folio: '',
+            clienteId: q.clienteId,
+            cliente: q.cliente,
+            productos: q.productos.map((it) => ({
+              id: crypto.randomUUID(),
+              productId: it.productId,
+              productoNombre: it.producto?.nombre?.trim() || undefined,
+              cantidad: it.cantidad,
+              precioUnitario: it.precioUnitario,
+              descuento: it.descuento,
+              impuesto: it.impuesto,
+              subtotal: it.subtotal,
+              total: it.total,
+            })),
+            subtotal: q.subtotal,
+            descuento: q.descuento,
+            impuestos: q.impuestos,
+            total: q.total,
+            formaPago: '01',
+            metodoPago: 'PUE',
+            pagos: [],
+            estado: 'pendiente',
+            notas: `Convertido de cotización ${q.folio}`,
+            usuarioId,
+            usuarioNombre,
+          },
+          { sucursalId }
+        );
+        await updateQuotationFirestore(sucursalId, quotationId, {
+          estado: 'convertida',
+          ventaId: saleId,
+        });
+        return saleId;
+      }
       const saleId = await convertQuotationToSale(quotationId, usuarioId, sucursalId, usuarioNombre);
       await loadQuotations();
       return saleId;
@@ -88,6 +153,10 @@ export function useQuotations() {
 
   const removeQuotation = async (id: string) => {
     try {
+      if (effectiveSucursalId) {
+        await deleteQuotationFirestore(effectiveSucursalId, id);
+        return;
+      }
       await deleteQuotation(id);
       await loadQuotations();
     } catch (err) {
@@ -99,6 +168,13 @@ export function useQuotations() {
 
   const revertToPending = async (quotationId: string) => {
     try {
+      if (effectiveSucursalId) {
+        await updateQuotationFirestore(effectiveSucursalId, quotationId, {
+          estado: 'pendiente',
+          ventaId: undefined,
+        });
+        return;
+      }
       await revertQuotationToPending(quotationId);
       await loadQuotations();
     } catch (err) {

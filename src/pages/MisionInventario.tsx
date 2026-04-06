@@ -23,6 +23,7 @@ import {
   loadMissionDoneIds,
   loadMissionProductIds,
   loadUsedIdsInDay,
+  loadUsedIdsInDayAllUsers,
   MAX_MISSION_SIZE,
   mergeAllUsersMissionDoneInCycle,
   mergeMissionDoneIdsInCycle,
@@ -118,6 +119,8 @@ export function MisionInventario() {
       }
     }
     const used = loadUsedIdsInDay(user.id, missionPartitionKey);
+    const usedGlobal = loadUsedIdsInDayAllUsers(missionPartitionKey);
+    usedGlobal.forEach((id) => used.add(id));
     const seed =
       typeof crypto !== 'undefined' && crypto.randomUUID ?
         crypto.randomUUID()
@@ -203,6 +206,8 @@ export function MisionInventario() {
     );
     const newPk = newMissionPartitionKeyAfterComplete();
     const used = loadUsedIdsInDay(user.id, newPk);
+    const usedGlobal = loadUsedIdsInDayAllUsers(newPk);
+    usedGlobal.forEach((id) => used.add(id));
     const seed =
       typeof crypto !== 'undefined' && crypto.randomUUID ?
         crypto.randomUUID()
@@ -423,7 +428,7 @@ export function MisionInventario() {
         </DialogContent>
       </Dialog>
 
-      <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-4 overflow-y-auto overscroll-contain pb-6 [-webkit-overflow-scrolling:touch]">
+      <div className="flex min-h-0 w-full max-w-none flex-1 flex-col gap-4 overflow-y-auto overscroll-contain pb-6 [-webkit-overflow-scrolling:touch]">
         {totalActivos > 0 ? (
           <Card className="border-emerald-500/25 bg-gradient-to-br from-emerald-500/8 to-teal-500/5 dark:from-emerald-500/12 dark:to-teal-500/8">
             <CardHeader className="pb-2">

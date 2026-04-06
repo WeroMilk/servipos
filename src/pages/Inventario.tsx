@@ -994,6 +994,11 @@ export function Inventario() {
     [products]
   );
 
+  const skuCount = useMemo(
+    () => products.filter((p) => String(p.sku ?? '').trim().length > 0).length,
+    [products]
+  );
+
   const pool = useMemo(() => {
     return searchQuery.trim() ? searchResults : products;
   }, [searchQuery, searchResults, products]);
@@ -1268,9 +1273,9 @@ export function Inventario() {
             </div>
             <div className="min-w-0">
               <p className="text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl">
-                {products.filter((p) => p.codigoBarras).length}
+                {skuCount}
               </p>
-              <p className="text-[10px] text-slate-600 dark:text-slate-500 sm:text-xs">Códigos</p>
+              <p className="text-[10px] text-slate-600 dark:text-slate-500 sm:text-xs">SKU</p>
             </div>
           </CardContent>
         </button>

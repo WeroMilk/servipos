@@ -120,7 +120,7 @@ export function subscribeSucursales(onList: (list: Sucursal[]) => void): () => v
   };
   void load();
   const ch = supabase
-    .channel('sucursales-list')
+    .channel(`sucursales-list-${Math.random().toString(36).slice(2)}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'sucursales' }, () => {
       void load();
     })
@@ -147,7 +147,7 @@ export function subscribeSucursalesCatalog(onList: (list: Sucursal[]) => void): 
   };
   void load();
   const ch = supabase
-    .channel('sucursales-catalog')
+    .channel(`sucursales-catalog-${Math.random().toString(36).slice(2)}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'sucursales' }, () => {
       void load();
     })
@@ -213,6 +213,8 @@ export async function reactivateSucursal(id: string): Promise<void> {
 
 const BRANCH_TABLES = [
   'sales',
+  'quotations',
+  'invoices',
   'inventory_movements',
   'products',
   'counters',

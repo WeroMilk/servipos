@@ -7,7 +7,7 @@ const INVENTORY_MISSIONS_EXCLUDED_USERNAMES = new Set<string>([]);
  * Ver Misiones aunque el rol no sea cajero (cuenta operativa de cajero en tienda).
  * Útil si el usuario sigue como admin en Firestore pero debe llevar el ciclo de misiones.
  */
-const INVENTORY_MISSIONS_ALLOW_USERNAME = new Set(['gabriel', 'julian']);
+const INVENTORY_MISSIONS_ALLOW_USERNAME = new Set(['gabriel', 'julian', 'zavala']);
 
 /** Todos los permisos conocidos (orden estable para UI). */
 export const ALL_PERMISSIONS: Permission[] = [

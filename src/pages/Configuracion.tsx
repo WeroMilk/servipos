@@ -319,6 +319,11 @@ export function Configuracion() {
     'h-11 border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 text-base leading-normal text-slate-900 dark:text-slate-100 sm:h-8 sm:text-sm lg:h-7 lg:py-1 lg:text-xs';
   const selectClass =
     'h-11 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 px-3 py-2 text-base leading-normal text-slate-900 dark:text-slate-100 sm:h-8 sm:py-1 sm:text-sm lg:h-7 lg:py-1 lg:text-xs';
+  const csdFileInputClass = cn(
+    fieldClass,
+    'py-1 file:mr-2 file:rounded-md file:bg-slate-300 file:px-3 file:py-1 file:text-slate-700',
+    'hover:file:bg-slate-300/80 dark:file:bg-slate-700 dark:file:text-slate-100 dark:hover:file:bg-slate-600'
+  );
 
   /** Pestañas tipo subrayado (activa = borde inferior cyan), sin bloque de fondo. */
   const configuracionTabTriggerClass = cn(
@@ -818,8 +823,7 @@ export function Configuracion() {
                     <Input
                       type="file"
                       accept=".cer"
-                      disabled
-                      className={cn(fieldClass, 'py-1')}
+                      className={csdFileInputClass}
                     />
                   </div>
                   <div className="space-y-1">
@@ -827,15 +831,13 @@ export function Configuracion() {
                     <Input
                       type="file"
                       accept=".key"
-                      disabled
-                      className={cn(fieldClass, 'py-1')}
+                      className={csdFileInputClass}
                     />
                   </div>
                   <div className="space-y-1 sm:col-span-2">
                     <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">Contraseña de la llave</Label>
                     <Input
                       type="password"
-                      disabled
                       placeholder="••••••••"
                       className={fieldClass}
                     />
@@ -845,8 +847,7 @@ export function Configuracion() {
                   <Button
                     type="button"
                     size="sm"
-                    disabled
-                    className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white opacity-50"
+                    className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
                   >
                     <Lock className="mr-2 h-4 w-4" />
                     Configurar CSD

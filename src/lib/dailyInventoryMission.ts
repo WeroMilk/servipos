@@ -177,6 +177,28 @@ export function loadUsedIdsInDay(userId: string, dateKey: string): Set<string> {
   }
 }
 
+/** IDs sorteados hoy por cualquier usuario en este navegador (misma partición) para reducir traslapes. */
+export function loadUsedIdsInDayAllUsers(dateKey: string): Set<string> {
+  const out = new Set<string>();
+  if (typeof localStorage === 'undefined') return out;
+  const suffix = `_${dateKey}`;
+  const marker = `${STORAGE_PREFIX}_used_v2_`;
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (!k || !k.startsWith(marker) || !k.endsWith(suffix)) continue;
+    try {
+      const raw = localStorage.getItem(k);
+      if (!raw) continue;
+      const arr = JSON.parse(raw) as unknown;
+      if (!Array.isArray(arr)) continue;
+      arr.filter((x): x is string => typeof x === 'string').forEach((id) => out.add(id));
+    } catch {
+      /* ignore */
+    }
+  }
+  return out;
+}
+
 export function saveUsedIdsInDay(userId: string, dateKey: string, used: Set<string>): void {
   if (typeof localStorage === 'undefined') return;
   try {

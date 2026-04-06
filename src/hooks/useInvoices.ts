@@ -14,6 +14,13 @@ import {
 import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 import { reportHookFailure } from '@/lib/appEventLog';
+import {
+  createInvoiceFirestore,
+  deleteInvoiceFirestore,
+  subscribeInvoicesCatalog,
+  updateInvoiceFirestore,
+} from '@/lib/firestore/invoicesFirestore';
+import { patchSaleInvoiceFirestore } from '@/lib/firestore/salesFirestore';
 
 // ============================================
 // HOOK DE FACTURAS
@@ -41,7 +48,16 @@ export function useInvoices() {
   }, [effectiveSucursalId]);
 
   useEffect(() => {
-    loadInvoices();
+    if (effectiveSucursalId) {
+      setLoading(true);
+      const unsub = subscribeInvoicesCatalog(effectiveSucursalId, (rows) => {
+        setInvoices(rows);
+        setError(null);
+        setLoading(false);
+      });
+      return unsub;
+    }
+    void loadInvoices();
   }, [loadInvoices]);
 
   const addInvoice = async (
@@ -55,29 +71,36 @@ export function useInvoices() {
 
       if (cfg.modoPruebaFiscal) {
         const { serie, folio } = await reservePruebaInvoiceFolio();
-        const id = await createInvoice(
-          {
-            ...invoice,
-            serie,
-            folio,
-            esPrueba: true,
-          },
-          { sucursalId }
-        );
+        const payload = { ...invoice, serie, folio, esPrueba: true };
+        const id = sucursalId
+          ? await createInvoiceFirestore(sucursalId, payload)
+          : await createInvoice(payload, { sucursalId });
+        if (sucursalId && payload.ventaId) {
+          await patchSaleInvoiceFirestore(sucursalId, payload.ventaId, {
+            facturaId: id,
+            estado: 'facturada',
+          });
+        }
         await loadInvoices();
         return id;
       }
 
       const { serie, folio } = await allocateNextInvoiceFolio();
-      const id = await createInvoice(
-        {
-          ...invoice,
-          serie,
-          folio: folio.toString(),
-          esPrueba: false,
-        },
-        { sucursalId }
-      );
+      const payload = {
+        ...invoice,
+        serie,
+        folio: folio.toString(),
+        esPrueba: false,
+      };
+      const id = sucursalId
+        ? await createInvoiceFirestore(sucursalId, payload)
+        : await createInvoice(payload, { sucursalId });
+      if (sucursalId && payload.ventaId) {
+        await patchSaleInvoiceFirestore(sucursalId, payload.ventaId, {
+          facturaId: id,
+          estado: 'facturada',
+        });
+      }
       await loadInvoices();
       return id;
     } catch (err) {
@@ -89,6 +112,22 @@ export function useInvoices() {
   const cancel = async (id: string, motivo: string) => {
     try {
       const sucursalId = getEffectiveSucursalId();
+      if (sucursalId) {
+        const inv = invoices.find((x) => x.id === id);
+        if (!inv) throw new Error('Factura no encontrada');
+        await updateInvoiceFirestore(sucursalId, id, {
+          estado: 'cancelada',
+          motivoCancelacion: motivo,
+          fechaCancelacion: new Date(),
+        });
+        if (inv.ventaId) {
+          await patchSaleInvoiceFirestore(sucursalId, inv.ventaId, {
+            facturaId: null,
+            estado: 'completada',
+          });
+        }
+        return;
+      }
       await cancelInvoice(id, motivo, { sucursalId });
       await loadInvoices();
     } catch (err) {
@@ -100,6 +139,15 @@ export function useInvoices() {
 
   const removeInvoice = async (id: string) => {
     try {
+      if (effectiveSucursalId) {
+        const inv = invoices.find((x) => x.id === id);
+        if (!inv) return;
+        if (inv.estado === 'timbrada') {
+          throw new Error('No se puede eliminar una factura ya timbrada ante el SAT.');
+        }
+        await deleteInvoiceFirestore(effectiveSucursalId, id);
+        return;
+      }
       await deleteInvoiceRecord(id);
       await loadInvoices();
     } catch (err) {
