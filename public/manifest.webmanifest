@@ -10,13 +10,13 @@
   "theme_color": "#0f172a",
   "icons": [
     {
-      "src": "./servipartz-logo.svg",
+      "src": "./servipartz-logo-v2.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "./servipartz-logo.svg",
+      "src": "./servipartz-logo-v2.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "maskable"

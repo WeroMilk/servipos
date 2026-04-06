@@ -80,7 +80,7 @@ export function Sidebar() {
             srcSet={BRAND_LOGO_SRCSET}
             sizes="40px"
             alt=""
-            className="h-full w-full object-contain [image-rendering:auto] [image-rendering:-webkit-optimize-contrast]"
+            className="h-full w-full object-cover scale-[1.06] [image-rendering:auto] [image-rendering:-webkit-optimize-contrast]"
             width={44}
             height={44}
             decoding="async"

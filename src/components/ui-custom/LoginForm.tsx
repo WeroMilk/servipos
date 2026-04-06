@@ -120,7 +120,7 @@ export function LoginForm() {
                 srcSet={BRAND_LOGO_SRCSET}
                 sizes="(max-width: 640px) 80px, 96px"
                 alt="SERVIPARTZ"
-                className="h-full w-full object-contain [image-rendering:auto] [image-rendering:-webkit-optimize-contrast]"
+                className="h-full w-full object-cover scale-[1.06] [image-rendering:auto] [image-rendering:-webkit-optimize-contrast]"
                 width={112}
                 height={112}
                 decoding="async"

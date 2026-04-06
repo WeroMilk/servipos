@@ -37,7 +37,9 @@ import { cn } from '@/lib/utils';
 import { AdminSucursalSwitcher } from '@/components/ui-custom/AdminSucursalSwitcher';
 import { AppEventsNotificationPanel } from '@/components/ui-custom/AppEventsNotificationPanel';
 import { BRAND_LOGO_SRCSET, BRAND_LOGO_URL } from '@/lib/branding';
-import { ROLE_LABELS } from '@/lib/userPermissions';
+import { ROLE_LABELS, userCanSeeInventoryMissions, userCanSeeMissionProgressOnly } from '@/lib/userPermissions';
+import { MAIN_NAV_ITEMS } from '@/lib/mainNavItems';
+import { SHOW_CHECADOR_NAV } from '@/lib/featureFlags';
 import { useCajaPosHeaderStore } from '@/stores/cajaPosHeaderStore';
 import { useVentasAbiertasPosHeaderStore } from '@/stores/ventasAbiertasPosHeaderStore';
 import { useInventarioHeaderStore } from '@/stores/inventarioHeaderStore';
@@ -235,6 +237,14 @@ export function Header() {
       normalizedName === 'gabriel' ||
       emailLocalPart === 'gabriel');
 
+  const mobileNavItems = MAIN_NAV_ITEMS.filter((item) => {
+    if (item.to === '/checador' && !SHOW_CHECADOR_NAV) return false;
+    if (item.to === '/mision-inventario') {
+      return userCanSeeInventoryMissions(user) || userCanSeeMissionProgressOnly(user);
+    }
+    return hasPermission(item.permission);
+  });
+
   return (
     <>
       <header
@@ -256,7 +266,7 @@ export function Header() {
               srcSet={BRAND_LOGO_SRCSET}
               sizes="32px"
               alt=""
-              className="h-8 w-8 shrink-0 rounded-md object-contain [image-rendering:auto] [image-rendering:-webkit-optimize-contrast]"
+              className="h-8 w-8 shrink-0 rounded-md object-cover scale-[1.06] [image-rendering:auto] [image-rendering:-webkit-optimize-contrast]"
               width={32}
               height={32}
               loading="eager"
@@ -295,7 +305,7 @@ export function Header() {
                 srcSet={BRAND_LOGO_SRCSET}
                 sizes="32px"
                 alt=""
-                className="h-8 w-8 shrink-0 rounded-md object-contain [image-rendering:auto] [image-rendering:-webkit-optimize-contrast]"
+                className="h-8 w-8 shrink-0 rounded-md object-cover scale-[1.06] [image-rendering:auto] [image-rendering:-webkit-optimize-contrast]"
                 width={32}
                 height={32}
                 loading="eager"
@@ -440,6 +450,47 @@ export function Header() {
 
             <div className="min-w-0">
               <AdminSucursalSwitcher />
+            </div>
+
+            <div>
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Navegación
+              </p>
+              <div className="grid grid-cols-1 gap-2">
+                {mobileNavItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive =
+                    item.to === '/'
+                      ? location.pathname === '/' || location.pathname === ''
+                      : location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
+                  const label =
+                    item.to === '/mision-inventario' &&
+                    userCanSeeMissionProgressOnly(user) &&
+                    !userCanSeeInventoryMissions(user)
+                      ? 'Progreso inventario'
+                      : item.label;
+
+                  return (
+                    <Button
+                      key={item.to}
+                      type="button"
+                      variant="outline"
+                      className={cn(
+                        'w-full justify-start rounded-xl border-slate-300 dark:border-slate-600',
+                        isActive &&
+                          'border-cyan-500/45 bg-cyan-500/10 text-cyan-700 dark:border-cyan-500/45 dark:bg-cyan-500/15 dark:text-cyan-300'
+                      )}
+                      onClick={() => {
+                        closeMobileMenu();
+                        navigate(item.to);
+                      }}
+                    >
+                      <Icon className="mr-2 h-4 w-4" />
+                      {label}
+                    </Button>
+                  );
+                })}
+              </div>
             </div>
 
             {showPosHeaderTools ? (

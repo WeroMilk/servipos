@@ -820,46 +820,90 @@ export function POS() {
 
     const startScanner = async () => {
       try {
-        const scanner = new Html5Qrcode(mobileScannerElementIdRef.current);
-        mobileScannerRef.current = scanner;
+        const onScanSuccess = async (decodedText: string) => {
+          const now = Date.now();
+          if (now < mobileScannerCooldownUntilRef.current) return;
+          mobileScannerCooldownUntilRef.current = now + 300;
+          if (mobileScannerScanHandledRef.current) return;
+          mobileScannerScanHandledRef.current = true;
 
-        await scanner.start(
-          { facingMode: 'environment' },
-          {
-            fps: 10,
-            qrbox: { width: 260, height: 140 },
-          },
-          async (decodedText) => {
-            const now = Date.now();
-            if (now < mobileScannerCooldownUntilRef.current) return;
-            mobileScannerCooldownUntilRef.current = now + 300;
-            if (mobileScannerScanHandledRef.current) return;
-            mobileScannerScanHandledRef.current = true;
-
-            const barcode = decodedText.trim();
-            if (!barcode) {
-              mobileScannerScanHandledRef.current = false;
-              return;
-            }
-
-            const product = await searchByBarcode(barcode);
-            if (product) {
-              playScannerFeedback('success');
-              handleAddProduct(product);
-            } else {
-              playScannerFeedback('notFound');
-              addToast({
-                type: 'warning',
-                message: `No se encontró producto para el código ${barcode}`,
-              });
-            }
-
-            setMobileScannerOpen(false);
-          },
-          () => {
-            // Ignorar errores por frame; el callback de éxito gestiona el flujo.
+          const barcode = decodedText.trim();
+          if (!barcode) {
+            mobileScannerScanHandledRef.current = false;
+            return;
           }
-        );
+
+          const product = await searchByBarcode(barcode);
+          if (product) {
+            playScannerFeedback('success');
+            handleAddProduct(product);
+          } else {
+            playScannerFeedback('notFound');
+            addToast({
+              type: 'warning',
+              message: `No se encontró producto para el código ${barcode}`,
+            });
+          }
+
+          setMobileScannerOpen(false);
+        };
+
+        const onScanError = () => {
+          // Ignorar errores por frame; el callback de éxito gestiona el flujo.
+        };
+
+        const scannerConfig = {
+          fps: 10,
+          qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+            const w = Math.max(180, Math.min(320, Math.floor(viewfinderWidth * 0.9)));
+            const h = Math.max(90, Math.min(180, Math.floor(viewfinderHeight * 0.45)));
+            return { width: w, height: h };
+          },
+          // Ayuda en móviles con stream 16:9 (especialmente Android/iOS)
+          aspectRatio: 16 / 9,
+        };
+
+        let cameras: { id: string; label: string }[] = [];
+        try {
+          cameras = await Html5Qrcode.getCameras();
+        } catch {
+          cameras = [];
+        }
+
+        const preferredBackCameraId =
+          cameras.find((c) => /back|rear|environment|trasera/i.test(c.label))?.id ??
+          cameras[cameras.length - 1]?.id;
+        const firstCameraId = cameras[0]?.id;
+
+        const attempts: Array<string | { facingMode: string | { exact: string } }> = [];
+        if (preferredBackCameraId) attempts.push(preferredBackCameraId);
+        attempts.push({ facingMode: { exact: 'environment' } });
+        attempts.push({ facingMode: 'environment' });
+        if (firstCameraId && firstCameraId !== preferredBackCameraId) attempts.push(firstCameraId);
+        attempts.push({ facingMode: 'user' });
+
+        let started = false;
+        let lastError: unknown = null;
+
+        for (const cameraConfig of attempts) {
+          if (cancelled) return;
+          const scanner = new Html5Qrcode(mobileScannerElementIdRef.current);
+          try {
+            await scanner.start(cameraConfig, scannerConfig, onScanSuccess, onScanError);
+            mobileScannerRef.current = scanner;
+            started = true;
+            break;
+          } catch (err) {
+            lastError = err;
+            try {
+              await scanner.clear();
+            } catch {
+              // Ignorar; probaremos siguiente configuración de cámara.
+            }
+          }
+        }
+
+        if (!started) throw lastError ?? new Error('No camera start strategy succeeded');
       } catch (error) {
         if (!cancelled) {
           const raw = error instanceof Error ? error.message : String(error);
@@ -868,11 +912,24 @@ export function POS() {
             normalized.includes('permission') ||
             normalized.includes('notallowed') ||
             normalized.includes('denied');
+          const notFound =
+            normalized.includes('notfound') ||
+            normalized.includes('devicesnotfound') ||
+            normalized.includes('no camera') ||
+            normalized.includes('camera not found');
+          const insecureContext =
+            normalized.includes('secure context') ||
+            normalized.includes('only secure origins are allowed') ||
+            normalized.includes('insecure');
           addToast({
             type: 'error',
             message: denied
               ? 'No se pudo acceder a la cámara. Verifique permisos de cámara en el navegador.'
-              : 'No se pudo iniciar el escáner de cámara en este dispositivo.',
+              : insecureContext
+                ? 'La cámara requiere conexión segura (HTTPS). Abra la app en HTTPS para usar el escáner.'
+                : notFound
+                  ? 'No se detectó cámara disponible en este dispositivo o navegador.'
+                  : 'No se pudo iniciar el escáner de cámara. Intente cerrar otras apps que usen cámara y vuelva a abrir.',
           });
           setMobileScannerOpen(false);
         }
