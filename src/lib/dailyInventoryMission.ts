@@ -237,6 +237,67 @@ export function saveMissionDoneIds(userId: string, dateKey: string, done: Set<st
   }
 }
 
+export type MissionCloudStatePartition = {
+  doneIds: string[];
+  productIds: string[];
+  usedIds: string[];
+};
+
+export type MissionCloudStateDoc = {
+  activePartitionKey: string | null;
+  partitions: Record<string, MissionCloudStatePartition>;
+};
+
+/** Exporta estado de misión del usuario (localStorage) para sincronizar en nube. */
+export function exportMissionStateForUser(userId: string): MissionCloudStateDoc {
+  const result: MissionCloudStateDoc = { activePartitionKey: loadActiveMissionPartitionKey(userId), partitions: {} };
+  if (typeof localStorage === 'undefined') return result;
+  const donePrefix = `${STORAGE_PREFIX}_${userId}_`;
+  const listPrefix = `${STORAGE_PREFIX}_list_v2_${userId}_`;
+  const usedPrefix = `${STORAGE_PREFIX}_used_v2_${userId}_`;
+  const ensure = (pk: string): MissionCloudStatePartition => {
+    if (!result.partitions[pk]) {
+      result.partitions[pk] = { doneIds: [], productIds: [], usedIds: [] };
+    }
+    return result.partitions[pk]!;
+  };
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (!k) continue;
+    try {
+      if (k.startsWith(donePrefix)) {
+        const pk = k.slice(donePrefix.length);
+        ensure(pk).doneIds = [...loadMissionDoneIds(userId, pk)];
+      } else if (k.startsWith(listPrefix)) {
+        const pk = k.slice(listPrefix.length);
+        ensure(pk).productIds = loadMissionProductIds(userId, pk) ?? [];
+      } else if (k.startsWith(usedPrefix)) {
+        const pk = k.slice(usedPrefix.length);
+        ensure(pk).usedIds = [...loadUsedIdsInDay(userId, pk)];
+      }
+    } catch {
+      /* ignore bad localStorage rows */
+    }
+  }
+  return result;
+}
+
+/** Importa estado de misión desde nube al almacenamiento local del dispositivo. */
+export function importMissionStateForUser(userId: string, doc: MissionCloudStateDoc | null | undefined): void {
+  if (!doc) return;
+  if (doc.activePartitionKey && doc.activePartitionKey.trim()) {
+    saveActiveMissionPartitionKey(userId, doc.activePartitionKey.trim());
+  }
+  const parts = doc.partitions ?? {};
+  for (const [pkRaw, payload] of Object.entries(parts)) {
+    const pk = pkRaw.trim();
+    if (!pk) continue;
+    if (Array.isArray(payload?.doneIds)) saveMissionDoneIds(userId, pk, new Set(payload.doneIds));
+    if (Array.isArray(payload?.productIds)) saveMissionProductIds(userId, pk, payload.productIds);
+    if (Array.isArray(payload?.usedIds)) saveUsedIdsInDay(userId, pk, new Set(payload.usedIds));
+  }
+}
+
 /**
  * Une los IDs marcados como revisados por **todos** los usuarios en este navegador (localStorage),
  * en el ciclo bimestral que contiene `dateKey`. Sirve para la vista solo-progreso del admin.

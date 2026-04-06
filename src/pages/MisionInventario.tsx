@@ -30,6 +30,8 @@ import { useAuthStore, useAppStore } from '@/stores';
 import {
   addUsedIdsToDay,
   DEFAULT_MISSION_SIZE,
+  exportMissionStateForUser,
+  importMissionStateForUser,
   loadMissionDoneIds,
   loadMissionProductIds,
   loadUsedIdsInDay,
@@ -45,6 +47,7 @@ import {
   saveMissionDoneIds,
   saveMissionProductIds,
 } from '@/lib/dailyInventoryMission';
+import { getUserStateDocOnce, saveUserStateDoc } from '@/lib/firestore/stateDocsFirestore';
 import { formatDateKeyMx, getMexicoDateKey } from '@/lib/quincenaMx';
 import { printThermalMissionComplete, printThermalMissionInventoryReport } from '@/lib/printTicket';
 import {
@@ -71,6 +74,7 @@ export function MisionInventario() {
   const [missionCompleteDialogOpen, setMissionCompleteDialogOpen] = useState(false);
   const [nextMissionCount, setNextMissionCount] = useState(DEFAULT_MISSION_SIZE);
   const [missionPartitionKey, setMissionPartitionKey] = useState<string | null>(null);
+  const [missionCloudReady, setMissionCloudReady] = useState(false);
 
   const fullMission = userCanSeeInventoryMissions(user);
   const progressOnly = userCanSeeMissionProgressOnly(user);
@@ -96,6 +100,44 @@ export function MisionInventario() {
   }, []);
 
   useEffect(() => {
+    setMissionCloudReady(false);
+    if (!user?.id || !effectiveSucursalId) {
+      setMissionCloudReady(true);
+      return;
+    }
+    let cancelled = false;
+    void getUserStateDocOnce<{
+      activePartitionKey: string | null;
+      partitions: Record<string, { doneIds: string[]; productIds: string[]; usedIds: string[] }>;
+    }>(effectiveSucursalId, user.id, 'inventory_mission_state')
+      .then((doc) => {
+        if (cancelled) return;
+        importMissionStateForUser(user.id, doc ?? undefined);
+      })
+      .catch((e) => {
+        console.warn('[MisionInventario] No se pudo cargar estado nube de misión:', e);
+      })
+      .finally(() => {
+        if (!cancelled) setMissionCloudReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, effectiveSucursalId]);
+
+  useEffect(() => {
+    if (!missionCloudReady) return;
+    if (!user?.id || !effectiveSucursalId) return;
+    const t = window.setTimeout(() => {
+      const doc = exportMissionStateForUser(user.id);
+      void saveUserStateDoc(effectiveSucursalId, user.id, 'inventory_mission_state', doc).catch((e) => {
+        console.warn('[MisionInventario] No se pudo guardar estado nube de misión:', e);
+      });
+    }, 250);
+    return () => window.clearTimeout(t);
+  }, [missionCloudReady, user?.id, effectiveSucursalId, missionPartitionKey, missionIds, done]);
+
+  useEffect(() => {
     if (progressOnly) {
       setMissionPartitionKey(null);
       return;
@@ -103,7 +145,7 @@ export function MisionInventario() {
     if (!user?.id || products.length === 0) return;
     const key = resolveStickyMissionPartitionKey(user.id, products, dateKey);
     setMissionPartitionKey(key);
-  }, [progressOnly, user?.id, products, dateKey]);
+  }, [progressOnly, user?.id, products, dateKey, missionCloudReady]);
 
   useEffect(() => {
     if (!user?.id || !missionPartitionKey) return;
@@ -139,7 +181,7 @@ export function MisionInventario() {
     const ids = pickRandomMissionIdsFromProducts(products, DEFAULT_MISSION_SIZE, used, seed);
     saveMissionProductIds(user.id, missionPartitionKey, ids);
     setMissionIds(ids);
-  }, [progressOnly, user?.id, missionPartitionKey, products]);
+  }, [progressOnly, user?.id, missionPartitionKey, products, missionCloudReady]);
 
   const misionList = useMemo(() => {
     const map = new Map(products.map((p) => [p.id, p]));
@@ -300,6 +342,12 @@ export function MisionInventario() {
               totalEnMision,
             });
             addUsedIdsToDay(user.id, missionPartitionKey, completedIds);
+            if (effectiveSucursalId) {
+              const doc = exportMissionStateForUser(user.id);
+              void saveUserStateDoc(effectiveSucursalId, user.id, 'inventory_mission_state', doc).catch(() => {
+                /* noop */
+              });
+            }
             addToast({
               type: 'success',
               message: `¡Listo! Completaste esta misión (${totalEnMision} artículos).`,
@@ -339,7 +387,9 @@ export function MisionInventario() {
   }
 
   const missionsReady =
-    missionPartitionKey != null && (missionIds.length > 0 || (!loading && totalActivos === 0));
+    missionCloudReady &&
+    missionPartitionKey != null &&
+    (missionIds.length > 0 || (!loading && totalActivos === 0));
 
   return (
     <PageShell title={progressOnly ? 'Progreso de inventario' : 'Misiones de inventario'}>

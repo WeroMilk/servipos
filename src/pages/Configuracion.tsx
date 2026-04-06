@@ -46,8 +46,14 @@ import {
   normClaveNomina,
   parseNominaMoneyInput,
 } from '@/lib/nominaDeduccionesEstimadas';
+import {
+  getSucursalStateDocOnce,
+  saveSucursalStateDoc,
+} from '@/lib/firestore/stateDocsFirestore';
 
 const NOMINA_STORAGE_KEY = 'servipartz-nomina-prueba-draft';
+const SUCURSAL_DOC_INVENTORY_LISTS = 'inventory_lists';
+const SUCURSAL_DOC_NOMINA_PRUEBA_DRAFT = 'nomina_prueba_draft';
 
 function loadNominaDraftFromStorage(): NominaPruebaDraftForm {
   try {
@@ -136,6 +142,7 @@ export function Configuracion() {
   const [nominaPruebaForm, setNominaPruebaForm] = useState<NominaPruebaDraftForm>(() =>
     loadNominaDraftFromStorage()
   );
+  const [nominaCloudReady, setNominaCloudReady] = useState(false);
 
   /** Texto en edición para Gravado/Exento (evita que el 0 bloquee borrar y escribir). */
   const [nominaPercDraft, setNominaPercDraft] = useState<Record<string, string>>({});
@@ -195,12 +202,76 @@ export function Configuracion() {
   }, [config]);
 
   useEffect(() => {
+    let cancelled = false;
+    const sid = effectiveSucursalId?.trim();
+    if (!sid) return;
+    void getSucursalStateDocOnce<{ categorias?: string[]; proveedores?: string[] }>(
+      sid,
+      SUCURSAL_DOC_INVENTORY_LISTS
+    )
+      .then((doc) => {
+        if (cancelled || !doc) return;
+        if (Array.isArray(doc.categorias)) setCategoriasInventario(doc.categorias);
+        if (Array.isArray(doc.proveedores)) setProveedoresInventario(doc.proveedores);
+      })
+      .catch((e) => {
+        console.warn('[Configuracion] No se pudo cargar listas de inventario desde nube:', e);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveSucursalId, setCategoriasInventario, setProveedoresInventario]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const sid = effectiveSucursalId?.trim();
+    setNominaCloudReady(false);
+    if (!sid) {
+      setNominaCloudReady(true);
+      return;
+    }
+    void getSucursalStateDocOnce<NominaPruebaDraftForm>(sid, SUCURSAL_DOC_NOMINA_PRUEBA_DRAFT)
+      .then((doc) => {
+        if (cancelled || !doc) return;
+        setNominaPruebaForm((prev) => ({
+          receptor: { ...prev.receptor, ...doc.receptor },
+          periodo: { ...prev.periodo, ...doc.periodo },
+          percepciones:
+            Array.isArray(doc.percepciones) && doc.percepciones.length > 0 ? doc.percepciones : prev.percepciones,
+          deducciones:
+            Array.isArray(doc.deducciones) && doc.deducciones.length > 0 ? doc.deducciones : prev.deducciones,
+        }));
+      })
+      .catch((e) => {
+        console.warn('[Configuracion] No se pudo cargar borrador de nómina desde nube:', e);
+      })
+      .finally(() => {
+        if (!cancelled) setNominaCloudReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveSucursalId]);
+
+  useEffect(() => {
     try {
       localStorage.setItem(NOMINA_STORAGE_KEY, JSON.stringify(nominaPruebaForm));
     } catch {
       /* noop */
     }
   }, [nominaPruebaForm]);
+
+  useEffect(() => {
+    if (!nominaCloudReady) return;
+    const sid = effectiveSucursalId?.trim();
+    if (!sid) return;
+    const t = window.setTimeout(() => {
+      void saveSucursalStateDoc(sid, SUCURSAL_DOC_NOMINA_PRUEBA_DRAFT, nominaPruebaForm).catch((e) => {
+        console.warn('[Configuracion] No se pudo guardar borrador de nómina en nube:', e);
+      });
+    }, 350);
+    return () => window.clearTimeout(t);
+  }, [nominaPruebaForm, effectiveSucursalId, nominaCloudReady]);
 
   useEffect(() => {
     setNominaPruebaForm((f) => {
@@ -266,10 +337,32 @@ export function Configuracion() {
     setDraftProveedores(proveedoresInventario.join('\n'));
   }, [activeTab, categoriasInventario, proveedoresInventario]);
 
-  const handleSaveInventarioListas = () => {
-    setCategoriasInventario(draftCategorias.split('\n'));
-    setProveedoresInventario(draftProveedores.split('\n'));
-    addToast({ type: 'success', message: 'Listas de inventario guardadas en este equipo.' });
+  const handleSaveInventarioListas = async () => {
+    const categorias = draftCategorias.split('\n');
+    const proveedores = draftProveedores.split('\n');
+    setCategoriasInventario(categorias);
+    setProveedoresInventario(proveedores);
+    const sid = effectiveSucursalId?.trim();
+    if (sid) {
+      try {
+        await saveSucursalStateDoc(sid, SUCURSAL_DOC_INVENTORY_LISTS, { categorias, proveedores });
+      } catch (e) {
+        addToast({
+          type: 'warning',
+          message:
+            e instanceof Error
+              ? `Se guardó local, pero no en nube: ${e.message}`
+              : 'Se guardó local, pero no se pudo guardar en nube.',
+        });
+        return;
+      }
+    }
+    addToast({
+      type: 'success',
+      message: sid
+        ? 'Listas de inventario guardadas en nube y en este equipo.'
+        : 'Listas de inventario guardadas en este equipo.',
+    });
   };
 
   const handlePrintNominaPrueba = async () => {

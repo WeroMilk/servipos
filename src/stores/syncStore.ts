@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { SyncState } from '@/types';
 import { getPendingSyncCount } from '@/db/database';
+import { probeSucursalCloudRoundtrip } from '@/lib/firestore/stateDocsFirestore';
 
 // ============================================
 // STORE DE SINCRONIZACIÓN (ONLINE/OFFLINE)
@@ -11,7 +12,7 @@ interface SyncStore extends SyncState {
   setOnline: (online: boolean) => void;
   setSyncing: (syncing: boolean) => void;
   updatePendingCount: () => Promise<void>;
-  sync: () => Promise<void>;
+  sync: (sucursalId?: string | null) => Promise<void>;
   checkConnection: () => void;
 }
 
@@ -38,7 +39,7 @@ export const useSyncStore = create<SyncStore>()(
         set({ pendingCount: count });
       },
 
-      sync: async () => {
+      sync: async (sucursalId?: string | null) => {
         const { isOnline, isSyncing } = get();
 
         if (!isOnline || isSyncing) return;
@@ -46,6 +47,10 @@ export const useSyncStore = create<SyncStore>()(
         set({ isSyncing: true });
 
         try {
+          const sid = sucursalId?.trim();
+          if (sid) {
+            await probeSucursalCloudRoundtrip(sid);
+          }
           await get().updatePendingCount();
           set({
             isSyncing: false,

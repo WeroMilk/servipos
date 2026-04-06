@@ -328,7 +328,7 @@ export function Header() {
             <AdminSucursalSwitcher />
             <button
               type="button"
-              onClick={() => void sync()}
+              onClick={() => void sync(effectiveSucursalId)}
               disabled={!isOnline || isSyncing}
               title={
                 isSyncing
@@ -504,7 +504,7 @@ export function Header() {
 
             <button
               type="button"
-              onClick={() => void sync()}
+              onClick={() => void sync(effectiveSucursalId)}
               disabled={!isOnline || isSyncing}
               className={cn(syncButtonClass, 'w-full justify-center')}
             >
