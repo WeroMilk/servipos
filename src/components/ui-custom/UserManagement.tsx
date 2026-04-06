@@ -240,7 +240,7 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
               )}
             >
               <Users className={cn('text-cyan-400', embedded ? 'h-4 w-4 sm:h-5 sm:w-5' : 'h-5 w-5')} />
-              Usuarios (Supabase)
+              Usuarios
             </CardTitle>
             <Button
               type="button"

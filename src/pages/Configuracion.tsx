@@ -1567,34 +1567,13 @@ export function Configuracion() {
 
         {canEditListaPreciosCliente && (
           <TabsContent value="inventario-listas" className={cn(configuracionTabsPanelClass, 'w-full')}>
-            <Card className="w-full min-w-0 border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 xl:flex xl:min-h-0 xl:flex-1 xl:flex-col xl:overflow-hidden">
+            <Card className="w-full min-w-0 gap-0 border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 xl:flex xl:min-h-0 xl:flex-1 xl:flex-col xl:overflow-hidden">
               <CardHeader className="shrink-0 space-y-1 px-3 py-2 sm:px-4">
                 <CardTitle className="text-base text-slate-900 dark:text-slate-100 sm:text-base">
                   Categorías y proveedores (inventario)
                 </CardTitle>
-                {null}
               </CardHeader>
               <CardContent className="flex flex-col gap-3 p-3 pt-0 sm:p-4 sm:pt-0 xl:min-h-0 xl:flex-1 xl:overflow-hidden">
-                <div className="flex flex-col gap-2 rounded-lg border border-slate-200/90 bg-slate-100/50 p-3 dark:border-slate-700/80 dark:bg-slate-900/40 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="hidden min-w-0 space-y-0.5">
-                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                      Precios por lista (Regular, Técnico, …) con IVA incluido
-                    </p>
-                    <p className="text-xs text-slate-600 dark:text-slate-400">
-                      Por defecto está activado: los importes de lista en catálogo son precio al público (con IVA) y el
-                      POS desglosa el impuesto sin volver a cargarlo. Desactívelo solo si sus listas están capturadas
-                      sin IVA. Requiere configuración fiscal guardada por sucursal para persistir el cambio.
-                    </p>
-                  </div>
-                  <Switch
-                    checked={config ? config.preciosListaIncluyenIva !== false : true}
-                    disabled={!config}
-                    onCheckedChange={(v) => {
-                      void updateConfig({ preciosListaIncluyenIva: v });
-                    }}
-                    className="shrink-0 data-[state=checked]:bg-cyan-600"
-                  />
-                </div>
                 <div className="flex flex-col gap-4 xl:min-h-0 xl:flex-1 xl:flex-row xl:gap-4">
                   <div className="flex min-h-[12rem] flex-col gap-2 xl:min-h-0 xl:flex-1">
                     <Label className="shrink-0 text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
