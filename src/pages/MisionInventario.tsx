@@ -45,7 +45,7 @@ import {
   saveMissionDoneIds,
   saveMissionProductIds,
 } from '@/lib/dailyInventoryMission';
-import { formatDateKeyMx, getBimonthCycleInfo, getMexicoDateKey, isMexicoSunday } from '@/lib/quincenaMx';
+import { formatDateKeyMx, getBimonthCycleInfo, getMexicoDateKey } from '@/lib/quincenaMx';
 import { printThermalMissionComplete, printThermalMissionInventoryReport } from '@/lib/printTicket';
 import {
   buildMissionDayTicketLines,
