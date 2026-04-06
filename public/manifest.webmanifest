@@ -19,7 +19,7 @@
       "src": "./servipartz-logo.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any"
+      "purpose": "maskable"
     }
   ]
 }
