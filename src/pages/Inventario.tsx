@@ -369,6 +369,8 @@ export function Inventario() {
   const [deletingProduct, setDeletingProduct] = useState(false);
   const [preciosDialogOpen, setPreciosDialogOpen] = useState(false);
   const [preciosDialogProduct, setPreciosDialogProduct] = useState<Product | null>(null);
+  const [preciosDialogListaStr, setPreciosDialogListaStr] = useState(emptyPreciosListaStr);
+  const [preciosDialogSaving, setPreciosDialogSaving] = useState(false);
   const [productEntradasHist, setProductEntradasHist] = useState<InventoryMovement[]>([]);
   const [productEntradasHistLoading, setProductEntradasHistLoading] = useState(false);
   const [editPreciosSectionOpen, setEditPreciosSectionOpen] = useState(false);
@@ -931,11 +933,41 @@ export function Inventario() {
   const openPreciosDialog = useCallback(
     (product: Product) => {
       const p = productById.get(product.id) ?? product;
+      const pl = emptyPreciosListaStr();
+      for (const id of CLIENT_PRICE_LIST_ORDER) {
+        const v = p.preciosPorListaCliente?.[id];
+        pl[id] = v != null && Number.isFinite(v) ? String(v) : '';
+      }
+      setPreciosDialogListaStr(pl);
       setPreciosDialogProduct(p);
       setPreciosDialogOpen(true);
     },
     [productById]
   );
+
+  const handleSavePreciosDialog = async () => {
+    const p = preciosDialogProduct;
+    if (!p) return;
+    const fresh = productById.get(p.id) ?? p;
+    const preciosPorListaCliente = parsePreciosListaForm(preciosDialogListaStr);
+    setPreciosDialogSaving(true);
+    try {
+      await editProduct(fresh.id, {
+        preciosPorListaCliente: preciosPorListaCliente ?? {},
+      });
+      addToast({ type: 'success', message: 'Precios por lista actualizados', logToAppEvents: true });
+      setPreciosDialogOpen(false);
+      setPreciosDialogProduct(null);
+    } catch (err: unknown) {
+      addToast({
+        type: 'error',
+        message: err instanceof Error ? err.message : 'No se pudieron guardar los precios',
+        logToAppEvents: true,
+      });
+    } finally {
+      setPreciosDialogSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (!preciosDialogOpen || !preciosDialogProduct) {
@@ -2922,12 +2954,15 @@ export function Inventario() {
         open={preciosDialogOpen}
         onOpenChange={(open) => {
           setPreciosDialogOpen(open);
-          if (!open) setPreciosDialogProduct(null);
+          if (!open) {
+            setPreciosDialogProduct(null);
+            setPreciosDialogListaStr(emptyPreciosListaStr());
+          }
         }}
       >
         <DialogContent className="flex max-h-[min(92dvh,44rem)] w-full min-w-0 max-w-[min(96vw,44rem)] flex-col gap-0 overflow-hidden border-slate-200 bg-slate-100 p-0 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
           <DialogHeader className="shrink-0 space-y-1 border-b border-slate-200 px-4 pb-3 pt-4 dark:border-slate-800/80">
-            <DialogTitle>Precios e historial de entradas</DialogTitle>
+            <DialogTitle>Precios por lista e historial</DialogTitle>
             {preciosDialogProduct ? (
               <DialogDescription className="text-left text-slate-600 dark:text-slate-400">
                 <span className="font-medium text-slate-800 dark:text-slate-200">{preciosDialogProduct.nombre}</span>
@@ -2936,6 +2971,36 @@ export function Inventario() {
             ) : null}
           </DialogHeader>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3">
+            <div className="mb-4 space-y-3 rounded-lg border border-slate-200 bg-slate-200/50 p-3 dark:border-slate-700 dark:bg-slate-800/40">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-700 dark:text-slate-300">
+                Precios por tipo de cliente (sin IVA)
+              </p>
+              <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-500 [text-wrap:pretty]">
+                Si deja vacío un campo, en el POS se usa el precio de venta del artículo con el % de la lista en
+                Configuración → Precios por cliente.
+              </p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {CLIENT_PRICE_LIST_ORDER.map((id) => (
+                  <div key={id} className="space-y-1">
+                    <Label className="text-xs text-slate-600 dark:text-slate-400">
+                      {CLIENT_PRICE_LABELS[id]}
+                    </Label>
+                    <Input
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="—"
+                      disabled={preciosDialogSaving}
+                      value={preciosDialogListaStr[id]}
+                      onChange={(e) =>
+                        setPreciosDialogListaStr((prev) => ({ ...prev, [id]: e.target.value }))
+                      }
+                      className="h-9 border-slate-300 dark:border-slate-700 bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <div className="mb-4 space-y-3 rounded-lg border border-cyan-500/25 bg-cyan-500/10 p-3 dark:border-cyan-500/30 dark:bg-cyan-500/10">
               <p className="text-xs font-semibold uppercase tracking-wide text-cyan-800 dark:text-cyan-200">
                 Referencia de precios (con IVA)
@@ -2976,11 +3041,6 @@ export function Inventario() {
                   <span className="font-medium">con IVA</span>.
                 </p>
               )}
-              <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-500">
-                Para precios por lista de cliente (regular, técnico, mayoreo…), use{' '}
-                <span className="font-medium text-slate-700 dark:text-slate-300">Editar producto</span> → sección
-                Precios.
-              </p>
             </div>
 
             <div className="mt-2 border-t border-slate-200 pt-4 dark:border-slate-800">
@@ -3057,17 +3117,27 @@ export function Inventario() {
               )}
             </div>
           </div>
-          <DialogFooter className="shrink-0 border-t border-slate-200 px-4 py-3 dark:border-slate-800/80">
+          <DialogFooter className="shrink-0 flex flex-col gap-2 border-t border-slate-200 px-4 py-3 sm:flex-row sm:justify-end dark:border-slate-800/80">
             <Button
               type="button"
               variant="outline"
+              disabled={preciosDialogSaving}
               onClick={() => {
                 setPreciosDialogOpen(false);
                 setPreciosDialogProduct(null);
+                setPreciosDialogListaStr(emptyPreciosListaStr());
               }}
               className="border-slate-300 dark:border-slate-600"
             >
               Cerrar
+            </Button>
+            <Button
+              type="button"
+              disabled={!preciosDialogProduct || preciosDialogSaving}
+              onClick={() => void handleSavePreciosDialog()}
+              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+            >
+              {preciosDialogSaving ? 'Guardando…' : 'Guardar precios'}
             </Button>
           </DialogFooter>
         </DialogContent>

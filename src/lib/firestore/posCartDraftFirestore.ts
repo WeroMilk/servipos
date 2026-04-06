@@ -41,12 +41,13 @@ export async function savePosCartDraft(
   sucursalId: string,
   userId: string,
   cart: CartDraftSnapshot
-): Promise<void> {
+): Promise<number> {
   const supabase = getSupabase();
   const nowIso = new Date().toISOString();
+  const updatedAtMs = Date.now();
   const doc: PosCartDraftDoc = {
     cart,
-    updatedAtMs: Date.now(),
+    updatedAtMs,
   };
   const { error } = await supabase.from('pos_carts').upsert(
     {
@@ -58,19 +59,16 @@ export async function savePosCartDraft(
     { onConflict: 'sucursal_id,user_id' }
   );
   if (error) throw new Error(error.message);
+  return updatedAtMs;
 }
 
+/** Solo Realtime: la carga inicial la hace el hook para evitar carreras con otra petición en paralelo. */
 export function subscribePosCartDraft(
   sucursalId: string,
   userId: string,
   onData: (doc: PosCartDraftDoc | null) => void
 ): () => void {
   const supabase = getSupabase();
-  const load = async () => {
-    const doc = await getPosCartDraftOnce(sucursalId, userId);
-    onData(doc);
-  };
-  void load();
   let channel: RealtimeChannel | null = supabase
     .channel(`pos-cart-${sucursalId}-${userId}`)
     .on(
