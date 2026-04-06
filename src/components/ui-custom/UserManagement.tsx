@@ -258,11 +258,6 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
               embedded ? 'p-2 sm:p-3 sm:pt-0' : 'p-3 sm:p-4 sm:pt-0'
             )}
           >
-            <p className="mb-2 text-[11px] text-slate-600 dark:text-slate-500 sm:text-xs">
-              Los accesos se crean con el mismo dominio de correo que en el inicio de sesión. La
-              contraseña de usuarios existentes se gestiona desde Supabase Auth (recuperación por
-              correo).
-            </p>
             <div className="overflow-x-auto overscroll-x-contain rounded-lg border border-slate-200/80 dark:border-slate-800/60 [-webkit-overflow-scrolling:touch] touch-pan-x">
               <Table className={embedded ? 'text-sm' : undefined}>
                 <TableHeader>

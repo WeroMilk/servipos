@@ -417,6 +417,48 @@ export function printThermalMissionInventoryReport(input: {
   openAndPrintHtml(html, 'width=360,height=720', 250);
 }
 
+/** Comprobante de abono a cuenta por cobrar (80 mm). */
+export function printThermalClientAbonoReceipt(input: {
+  fechaLabel: string;
+  sucursalId?: string;
+  cajeroNombre?: string;
+  clienteNombre: string;
+  montoAbono: number;
+  saldoAnterior: number;
+  saldoNuevo: number;
+}): void {
+  const lines = getThermalTicketSucursalFooterLines(input.sucursalId);
+  const pie =
+    lines?.length ?
+      `<div class="pie-sucursal"><div class="titulo-suc">${escapeHtml(lines[0]!)}</div>${lines
+        .slice(1)
+        .map((ln) => `<div>${escapeHtml(ln)}</div>`)
+        .join('')}</div>`
+    : '';
+  const cajero = input.cajeroNombre?.trim() ? escapeHtml(input.cajeroNombre.trim()) : '—';
+  const cliente = input.clienteNombre.trim() ? escapeHtml(input.clienteNombre.trim()) : 'Cliente';
+  const saldoNuevo = Math.max(0, Number(input.saldoNuevo) || 0);
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Comprobante de abono</title>
+<style>${THERMAL_BASE_STYLES}</style></head><body>
+  <h1>COMPROBANTE DE ABONO</h1>
+  <div class="meta">
+    ${escapeHtml(input.fechaLabel)}<br/>
+    Cliente: ${cliente}<br/>
+    Cajero: ${cajero}
+  </div>
+  <div class="tot" style="border-top:none;padding-top:8px;font-size:21px;line-height:1.5;">
+    <div>Saldo anterior: ${formatMoney(Number(input.saldoAnterior) || 0)}</div>
+    <div>Abono recibido: ${formatMoney(Number(input.montoAbono) || 0)}</div>
+    <div style="margin-top:6px;font-size:26px;"><strong>Saldo actual: ${formatMoney(saldoNuevo)}</strong></div>
+  </div>
+  <p style="margin-top:12px;font-size:19px;line-height:1.4;text-align:center;">
+    Gracias. Conserve este comprobante como respaldo de su pago.
+  </p>
+  ${pie}
+</body></html>`;
+  openAndPrintHtml(html, 'width=360,height=720', 250);
+}
+
 /** Resumen del día para cierre de caja (80 mm). */
 export function printThermalDailySalesReport(input: {
   fechaLabel: string;

@@ -129,15 +129,16 @@ export async function fetchInventoryMovementsByProductIdFirestore(
 
 export async function fetchRecentInventoryMovementsOnce(
   sucursalId: string,
-  maxDocs = DEFAULT_LIMIT
+  maxDocs: number | null = DEFAULT_LIMIT
 ): Promise<InventoryMovement[]> {
   const supabase = getSupabase();
-  const { data: rows } = await supabase
+  let query = supabase
     .from('inventory_movements')
     .select('id, doc, created_at')
     .eq('sucursal_id', sucursalId)
-    .order('created_at', { ascending: false })
-    .limit(maxDocs);
+    .order('created_at', { ascending: false });
+  if (maxDocs != null) query = query.limit(maxDocs);
+  const { data: rows } = await query;
   return (rows ?? []).map((r) =>
     movementDocToMovement(r.id, r.doc as Record<string, unknown>)
   );
@@ -146,16 +147,17 @@ export async function fetchRecentInventoryMovementsOnce(
 export function subscribeInventoryMovements(
   sucursalId: string,
   onUpdate: (movements: InventoryMovement[]) => void,
-  maxDocs = DEFAULT_LIMIT
+  maxDocs: number | null = DEFAULT_LIMIT
 ): () => void {
   const supabase = getSupabase();
   const load = async () => {
-    const { data: rows, error } = await supabase
+    let query = supabase
       .from('inventory_movements')
       .select('id, doc, created_at')
       .eq('sucursal_id', sucursalId)
-      .order('created_at', { ascending: false })
-      .limit(maxDocs);
+      .order('created_at', { ascending: false });
+    if (maxDocs != null) query = query.limit(maxDocs);
+    const { data: rows, error } = await query;
     if (error) {
       console.error('inventoryMovements:', error);
       onUpdate([]);

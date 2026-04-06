@@ -59,6 +59,8 @@ interface CartState {
     globalDiscount: number;
     precioClienteListaId: ClientPriceListId;
   }) => void;
+  /** Reemplaza el carrito con un borrador persistido (nube/local), normalizando campos faltantes. */
+  replaceCartDraft: (draft: Partial<CartDraftSnapshot> | null | undefined) => void;
 
   // Cálculos (Number() evita NaN → formatMoney muestra $0.00)
   getSubtotal: () => number;
@@ -69,17 +71,53 @@ interface CartState {
   getTotalPagado: () => number;
 }
 
-export const useCartStore = create<CartState>((set, get) => ({
-  // Estado inicial
+export type CartDraftSnapshot = {
+  items: CartItem[];
+  client: Client | null;
+  discount: number;
+  formaPago: string;
+  metodoPago: string;
+  pagos: { formaPago: string; monto: number; referencia?: string }[];
+  notas: string;
+  transferenciaDestinoSucursalId: string;
+  precioClienteListaId: ClientPriceListId;
+};
+
+const EMPTY_CART_DRAFT: CartDraftSnapshot = {
   items: [],
   client: null,
   discount: 0,
-  formaPago: '01', // Efectivo
+  formaPago: '01',
   metodoPago: 'PUE',
   pagos: [],
   notas: '',
   transferenciaDestinoSucursalId: '',
   precioClienteListaId: 'regular',
+};
+
+function sanitizeCartDraft(draft: Partial<CartDraftSnapshot> | null | undefined): CartDraftSnapshot {
+  if (!draft) return { ...EMPTY_CART_DRAFT };
+  const listId = draft.precioClienteListaId;
+  return {
+    items: Array.isArray(draft.items) ? draft.items : [],
+    client: draft.client ?? null,
+    discount: Number.isFinite(Number(draft.discount)) ? Number(draft.discount) : 0,
+    formaPago: typeof draft.formaPago === 'string' && draft.formaPago.trim() ? draft.formaPago : '01',
+    metodoPago: typeof draft.metodoPago === 'string' && draft.metodoPago.trim() ? draft.metodoPago : 'PUE',
+    pagos: Array.isArray(draft.pagos) ? draft.pagos : [],
+    notas: typeof draft.notas === 'string' ? draft.notas : '',
+    transferenciaDestinoSucursalId:
+      typeof draft.transferenciaDestinoSucursalId === 'string' ? draft.transferenciaDestinoSucursalId : '',
+    precioClienteListaId:
+      listId === 'regular' || listId === 'tecnico' || listId === 'mayoreo' || listId === 'mayoreoPlus' || listId === 'cananea'
+        ? listId
+        : 'regular',
+  };
+}
+
+export const useCartStore = create<CartState>((set, get) => ({
+  // Estado inicial
+  ...EMPTY_CART_DRAFT,
 
   // Acciones
   addItem: (product: Product, quantity: number = 1) => {
@@ -173,17 +211,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   },
 
   clearCart: () => {
-    set({
-      items: [],
-      client: null,
-      discount: 0,
-      formaPago: '01',
-      metodoPago: 'PUE',
-      pagos: [],
-      notas: '',
-      transferenciaDestinoSucursalId: '',
-      precioClienteListaId: 'regular',
-    });
+    set({ ...EMPTY_CART_DRAFT });
   },
 
   replaceCartForOpenSaleResume: (params) => {
@@ -198,6 +226,10 @@ export const useCartStore = create<CartState>((set, get) => ({
       notas: '',
       transferenciaDestinoSucursalId: '',
     });
+  },
+
+  replaceCartDraft: (draft) => {
+    set(sanitizeCartDraft(draft));
   },
 
   getSubtotal: () => subtotalAfterLineDiscounts(get().items, get().precioClienteListaId),

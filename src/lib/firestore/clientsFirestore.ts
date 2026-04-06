@@ -51,6 +51,23 @@ export function docToClient(sucursalId: string, id: string, d: Record<string, un
       d.saldoAdeudado != null && Number.isFinite(Number(d.saldoAdeudado))
         ? Math.max(0, Math.round(Number(d.saldoAdeudado) * 100) / 100)
         : undefined,
+    ultimoAbonoMonto:
+      d.ultimoAbonoMonto != null && Number.isFinite(Number(d.ultimoAbonoMonto))
+        ? Math.max(0, Math.round(Number(d.ultimoAbonoMonto) * 100) / 100)
+        : undefined,
+    ultimoAbonoAt: d.ultimoAbonoAt != null ? firestoreTimestampToDate(d.ultimoAbonoAt) : undefined,
+    ultimoAbonoSaldoAnterior:
+      d.ultimoAbonoSaldoAnterior != null && Number.isFinite(Number(d.ultimoAbonoSaldoAnterior))
+        ? Math.max(0, Math.round(Number(d.ultimoAbonoSaldoAnterior) * 100) / 100)
+        : undefined,
+    ultimoAbonoSaldoNuevo:
+      d.ultimoAbonoSaldoNuevo != null && Number.isFinite(Number(d.ultimoAbonoSaldoNuevo))
+        ? Math.max(0, Math.round(Number(d.ultimoAbonoSaldoNuevo) * 100) / 100)
+        : undefined,
+    ultimoAbonoUsuarioNombre:
+      d.ultimoAbonoUsuarioNombre != null && String(d.ultimoAbonoUsuarioNombre).trim() !== ''
+        ? String(d.ultimoAbonoUsuarioNombre).trim()
+        : undefined,
     notasInternas:
       d.notasInternas != null && String(d.notasInternas).trim() !== ''
         ? String(d.notasInternas)
@@ -178,6 +195,25 @@ export async function updateClientFirestore(
   if (updates.saldoAdeudado !== undefined) {
     const v = Number(updates.saldoAdeudado);
     doc.saldoAdeudado = Number.isFinite(v) ? Math.max(0, Math.round(v * 100) / 100) : null;
+  }
+  if (updates.ultimoAbonoMonto !== undefined) {
+    const v = Number(updates.ultimoAbonoMonto);
+    doc.ultimoAbonoMonto = Number.isFinite(v) ? Math.max(0, Math.round(v * 100) / 100) : null;
+  }
+  if (updates.ultimoAbonoAt !== undefined) {
+    doc.ultimoAbonoAt = updates.ultimoAbonoAt ? new Date(updates.ultimoAbonoAt).toISOString() : null;
+  }
+  if (updates.ultimoAbonoSaldoAnterior !== undefined) {
+    const v = Number(updates.ultimoAbonoSaldoAnterior);
+    doc.ultimoAbonoSaldoAnterior = Number.isFinite(v) ? Math.max(0, Math.round(v * 100) / 100) : null;
+  }
+  if (updates.ultimoAbonoSaldoNuevo !== undefined) {
+    const v = Number(updates.ultimoAbonoSaldoNuevo);
+    doc.ultimoAbonoSaldoNuevo = Number.isFinite(v) ? Math.max(0, Math.round(v * 100) / 100) : null;
+  }
+  if (updates.ultimoAbonoUsuarioNombre !== undefined) {
+    const t = updates.ultimoAbonoUsuarioNombre?.trim();
+    doc.ultimoAbonoUsuarioNombre = t ? t : null;
   }
   if (updates.notasInternas !== undefined) {
     const t = updates.notasInternas?.trim();

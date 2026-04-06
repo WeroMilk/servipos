@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Wallet, ShoppingCart, Ban } from 'lucide-react';
+import { Wallet, ShoppingCart, Ban, Printer } from 'lucide-react';
 import { PageShell } from '@/components/ui-custom/PageShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,6 +38,8 @@ import type { Client, Sale, SaleItem } from '@/types';
 import { formatMoney } from '@/lib/utils';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
+import { printThermalClientAbonoReceipt } from '@/lib/printTicket';
+import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 
 function saldoCliente(c: Client): number {
   const v = Number(c.saldoAdeudado);
@@ -62,12 +64,29 @@ function lineaDescripcion(item: SaleItem): string {
   return n || 'Artículo';
 }
 
+function ultimoAbonoBadgeLabel(c: Client): string | null {
+  if (!c.ultimoAbonoAt || c.ultimoAbonoMonto == null) return null;
+  const d = c.ultimoAbonoAt instanceof Date ? c.ultimoAbonoAt : new Date(c.ultimoAbonoAt);
+  if (!Number.isFinite(d.getTime())) return null;
+  const now = new Date();
+  const sameDay =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+  const when = sameDay
+    ? `hoy ${formatInAppTimezone(d, { timeStyle: 'short' })}`
+    : formatInAppTimezone(d, { dateStyle: 'short', timeStyle: 'short' });
+  return `Último abono: ${when}`;
+}
+
 export function CuentasPorCobrar() {
   const navigate = useNavigate();
   const { clients, loading: loadingClients, registrarAbonoCuenta } = useClients();
   const { sales, loading: loadingSales, cancelSale } = useSales(500);
   const { addToast } = useAppStore();
   const hasPermission = useAuthStore((s) => s.hasPermission);
+  const user = useAuthStore((s) => s.user);
+  const { effectiveSucursalId } = useEffectiveSucursalId();
   const puedeIrPos = hasPermission('ventas:crear');
 
   const deudores = useMemo(() => {
@@ -118,7 +137,20 @@ export function CuentasPorCobrar() {
     }
     setAbonoBusy(true);
     try {
-      await registrarAbonoCuenta(abonoCliente.id, m);
+      const saldoAnterior = saldoCliente(abonoCliente);
+      await registrarAbonoCuenta(abonoCliente.id, m, {
+        usuarioNombre: user?.name?.trim() || user?.email || undefined,
+      });
+      const saldoNuevo = Math.max(0, Math.round((saldoAnterior - m) * 100) / 100);
+      printThermalClientAbonoReceipt({
+        fechaLabel: formatInAppTimezone(new Date(), { dateStyle: 'short', timeStyle: 'short' }),
+        sucursalId: effectiveSucursalId,
+        cajeroNombre: user?.name?.trim() || user?.email || undefined,
+        clienteNombre: abonoCliente.nombre,
+        montoAbono: m,
+        saldoAnterior,
+        saldoNuevo,
+      });
       addToast({ type: 'success', message: `Abono registrado: ${formatMoney(m)}`, logToAppEvents: true });
       cerrarAbono();
     } catch (e: unknown) {
@@ -159,10 +191,7 @@ export function CuentasPorCobrar() {
   };
 
   return (
-    <PageShell
-      title="Cuentas por cobrar"
-      subtitle="Aquí aparecen el saldo global por cliente y los tickets cuyo cobro no cubrió el total (PPD con abonos parciales o venta en «Pendiente de pago»). Las ventas al contado completas no generan fila con saldo."
-    >
+    <PageShell title="Cuentas por cobrar">
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200/80 bg-slate-50/90 px-3 py-2.5 dark:border-slate-800/50 dark:bg-slate-900/50 sm:px-4">
           <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
@@ -251,7 +280,7 @@ export function CuentasPorCobrar() {
                 Abonos por cliente
               </p>
               <p className="text-[11px] text-slate-600 dark:text-slate-400 sm:text-xs">
-                Los abonos reducen el saldo global del cliente sin generar ticket de venta.
+                Los abonos reducen el saldo global del cliente y generan comprobante térmico para el cliente.
               </p>
             </div>
             {loadingClients ? (
@@ -266,7 +295,7 @@ export function CuentasPorCobrar() {
                   <TableRow className="border-slate-200 dark:border-slate-800 hover:bg-transparent">
                     <TableHead className="text-slate-700 dark:text-slate-300">Cliente</TableHead>
                     <TableHead className="text-right text-slate-700 dark:text-slate-300">Saldo</TableHead>
-                    <TableHead className="w-[1%] text-slate-700 dark:text-slate-300">Abono</TableHead>
+                    <TableHead className="w-[1%] text-slate-700 dark:text-slate-300">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -279,23 +308,58 @@ export function CuentasPorCobrar() {
                             {c.telefono.trim()}
                           </span>
                         ) : null}
+                        {ultimoAbonoBadgeLabel(c) ? (
+                          <span className="mt-1 inline-flex rounded-full border border-cyan-500/35 bg-cyan-500/10 px-2 py-0.5 text-[11px] font-medium text-cyan-700 dark:border-cyan-500/30 dark:bg-cyan-500/15 dark:text-cyan-300">
+                            {ultimoAbonoBadgeLabel(c)}
+                          </span>
+                        ) : null}
                       </TableCell>
                       <TableCell className="text-right text-base font-semibold tabular-nums text-amber-700 dark:text-amber-400">
                         {formatMoney(saldoCliente(c))}
                       </TableCell>
                       <TableCell>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="whitespace-nowrap border-slate-300 dark:border-slate-600"
-                          onClick={() => {
-                            setAbonoCliente(c);
-                            setAbonoMonto('');
-                          }}
-                        >
-                          Abonar
-                        </Button>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="whitespace-nowrap border-slate-300 dark:border-slate-600"
+                            onClick={() => {
+                              setAbonoCliente(c);
+                              setAbonoMonto('');
+                            }}
+                          >
+                            Abonar
+                          </Button>
+                          {c.ultimoAbonoMonto != null &&
+                          c.ultimoAbonoAt &&
+                          c.ultimoAbonoSaldoAnterior != null &&
+                          c.ultimoAbonoSaldoNuevo != null ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="whitespace-nowrap border-cyan-500/40 text-cyan-700 hover:bg-cyan-500/10 dark:border-cyan-500/35 dark:text-cyan-300 dark:hover:bg-cyan-500/15"
+                              onClick={() =>
+                                printThermalClientAbonoReceipt({
+                                  fechaLabel: formatInAppTimezone(c.ultimoAbonoAt!, {
+                                    dateStyle: 'short',
+                                    timeStyle: 'short',
+                                  }),
+                                  sucursalId: effectiveSucursalId,
+                                  cajeroNombre: c.ultimoAbonoUsuarioNombre || undefined,
+                                  clienteNombre: c.nombre,
+                                  montoAbono: c.ultimoAbonoMonto!,
+                                  saldoAnterior: c.ultimoAbonoSaldoAnterior!,
+                                  saldoNuevo: c.ultimoAbonoSaldoNuevo!,
+                                })
+                              }
+                            >
+                              <Printer className="mr-1.5 h-3.5 w-3.5" />
+                              Reimprimir último abono
+                            </Button>
+                          ) : null}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

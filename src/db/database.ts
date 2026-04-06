@@ -501,8 +501,10 @@ export async function deleteProduct(id: string): Promise<void> {
 
 // Stock local: ver `dexieStock.updateStockDexie`; ventas usan `updateStockUnified` (Firestore si hay sucursal).
 
-export async function getInventoryMovementsList(limit = 500): Promise<InventoryMovement[]> {
-  return db.inventoryMovements.orderBy('createdAt').reverse().limit(limit).toArray();
+export async function getInventoryMovementsList(limit: number | null = 500): Promise<InventoryMovement[]> {
+  const query = db.inventoryMovements.orderBy('createdAt').reverse();
+  if (limit == null) return query.toArray();
+  return query.limit(limit).toArray();
 }
 
 /** Movimientos de un producto: Firestore si hay sucursal; si no, Dexie. Más recientes primero. */
@@ -1224,7 +1226,7 @@ export async function adjustClientSaldoAdeudado(
 export async function registrarAbonoACuentaCliente(
   clienteId: string,
   monto: number,
-  options?: { sucursalId?: string }
+  options?: { sucursalId?: string; usuarioNombre?: string }
 ): Promise<void> {
   const m = Math.round(Number(monto) * 100) / 100;
   if (!clienteId || clienteId === MOSTRADOR_CLIENT_ID) throw new Error('Cliente no válido');
@@ -1237,12 +1239,22 @@ export async function registrarAbonoACuentaCliente(
 
   const next = Math.max(0, Math.round((current - m) * 100) / 100);
   const sid = options?.sucursalId?.trim();
+  const now = new Date();
+  const usuarioNombre = options?.usuarioNombre?.trim();
+  const patch = {
+    saldoAdeudado: next,
+    ultimoAbonoMonto: m,
+    ultimoAbonoAt: now,
+    ultimoAbonoSaldoAnterior: current,
+    ultimoAbonoSaldoNuevo: next,
+    ultimoAbonoUsuarioNombre: usuarioNombre || undefined,
+  } as const;
   if (sid) {
-    await updateClientFirestore(sid, clienteId, { saldoAdeudado: next });
+    await updateClientFirestore(sid, clienteId, patch);
   }
   await db.clients.update(clienteId, {
-    saldoAdeudado: next,
-    updatedAt: new Date(),
+    ...patch,
+    updatedAt: now,
     syncStatus: sid ? 'synced' : 'pending',
   });
 }

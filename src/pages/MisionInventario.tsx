@@ -13,6 +13,16 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { PageShell } from '@/components/ui-custom/PageShell';
 import { useProducts } from '@/hooks/useProducts';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
@@ -73,6 +83,7 @@ export function MisionInventario() {
   const [stockCantidadStr, setStockCantidadStr] = useState('');
   const [stockComentario, setStockComentario] = useState('');
   const [stockSaving, setStockSaving] = useState(false);
+  const [pendingUncheckProduct, setPendingUncheckProduct] = useState<Product | null>(null);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -269,13 +280,9 @@ export function MisionInventario() {
     }
   }, [stockDialogProduct, stockCantidadStr, stockComentario, user?.id, adjustStock, addToast]);
 
-  const toggle = useCallback(
+  const applyToggleCheck = useCallback(
     (p: Product) => {
       if (!user?.id || !missionPartitionKey) return;
-      if (done.has(p.id)) {
-        const ok = window.confirm('¿Deseas quitar el check de este artículo?');
-        if (!ok) return;
-      }
       setDone((prev) => {
         const next = new Set(prev);
         const wasAllDone = misionList.length > 0 && misionList.every((x) => prev.has(x.id));
@@ -318,29 +325,66 @@ export function MisionInventario() {
     ]
   );
 
+  const toggle = useCallback(
+    (p: Product) => {
+      if (done.has(p.id)) {
+        setPendingUncheckProduct(p);
+        return;
+      }
+      applyToggleCheck(p);
+    },
+    [done, applyToggleCheck]
+  );
+
   if (!allowed) {
     return <Navigate to="/" replace />;
   }
-
-  const subParts = [
-    formatDateKeyMx(dateKey),
-    isMexicoSunday(dateKey) ? 'Domingo: misma partición que el sábado' : null,
-    `Ciclo ${cycleInfo.cycleLabelEs}`,
-    totalActivos > 0 ? `Catálogo: ${revisadosEnCiclo}/${totalActivos} artículos revisados en el ciclo` : null,
-  ].filter(Boolean);
 
   const missionsReady =
     missionPartitionKey != null && (missionIds.length > 0 || (!loading && totalActivos === 0));
 
   return (
-    <PageShell
-      title={progressOnly ? 'Progreso de inventario' : 'Misiones de inventario'}
-      subtitle={
-        progressOnly
-          ? `${subParts.join(' · ')}.`
-          : `${subParts.join(' · ')}.`
-      }
-    >
+    <PageShell title={progressOnly ? 'Progreso de inventario' : 'Misiones de inventario'}>
+      <AlertDialog
+        open={pendingUncheckProduct != null}
+        onOpenChange={(open) => {
+          if (!open) setPendingUncheckProduct(null);
+        }}
+      >
+        <AlertDialogContent className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Quitar check del artículo?</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-600 dark:text-slate-400">
+              Se marcará otra vez como pendiente en esta misión.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {pendingUncheckProduct ? (
+            <div className="rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-left">
+              <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                {pendingUncheckProduct.nombre}
+              </p>
+              <p className="text-xs text-slate-600 dark:text-slate-400">
+                SKU {pendingUncheckProduct.sku}
+              </p>
+            </div>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800">
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-amber-600 text-white hover:bg-amber-500 dark:bg-amber-500 dark:hover:bg-amber-400"
+              onClick={() => {
+                if (pendingUncheckProduct) applyToggleCheck(pendingUncheckProduct);
+                setPendingUncheckProduct(null);
+              }}
+            >
+              Sí, quitar check
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <Dialog open={stockDialogOpen} onOpenChange={(o) => {
         setStockDialogOpen(o);
         if (!o) setStockDialogProduct(null);
@@ -439,11 +483,6 @@ export function MisionInventario() {
               <CardTitle className="text-lg text-slate-900 dark:text-slate-100">
                 Progreso global del inventario
               </CardTitle>
-              <CardDescription>
-                {progressOnly
-                  ? `Artículos activos marcados al menos una vez en este ciclo (${cycleInfo.cycleLabelEs}) en este navegador, sumando a todos los usuarios que usan misiones aquí.`
-                  : `Artículos activos marcados al menos una vez en este ciclo (${cycleInfo.cycleLabelEs}).`}
-              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-end justify-between gap-2">
@@ -501,10 +540,6 @@ export function MisionInventario() {
             )}
             Imprimir movimientos del día (ticket)
           </Button>
-          <p className="text-center text-xs text-slate-500 dark:text-slate-500">
-            Resumen térmico de tus entradas, salidas y cambios de catálogo de hoy. Al terminar una misión se imprime un
-            comprobante de misión completada.
-          </p>
         </div>
           </>
         ) : null}

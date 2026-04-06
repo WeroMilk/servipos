@@ -186,10 +186,6 @@ export function UserPermissionsEditor({ embedded = false }: UserPermissionsEdito
             <Shield className="h-4 w-4 shrink-0 text-cyan-500 sm:h-5 sm:w-5" />
             Permisos por usuario
           </CardTitle>
-          <p className="text-sm font-normal text-slate-600 dark:text-slate-400 sm:text-xs">
-            Elija un usuario, asigne rol (Administrador, Gerente o Cajero) y, si lo necesita, active permisos
-            personalizados para marcar pantallas y acciones una a una. Dos cajeros pueden tener listas distintas.
-          </p>
         </CardHeader>
         <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3 pt-0 sm:p-4 sm:pt-0">
           <div className="grid shrink-0 gap-2 sm:grid-cols-2">

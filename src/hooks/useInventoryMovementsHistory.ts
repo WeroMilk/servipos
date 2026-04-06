@@ -9,16 +9,17 @@ const LIMIT = 500;
 /**
  * Historial de movimientos de inventario (Firestore en sucursal, Dexie en local).
  * `enabled` evita suscripción/carga hasta que el usuario abre el panel (p. ej. diálogo).
+ * `limit`: número máximo; `null` = sin límite (todos los movimientos).
  */
-export function useInventoryMovementsHistory(enabled: boolean) {
+export function useInventoryMovementsHistory(enabled: boolean, limit: number | null = LIMIT) {
   const { effectiveSucursalId } = useEffectiveSucursalId();
   const [movements, setMovements] = useState<InventoryMovement[]>([]);
   const [loading, setLoading] = useState(false);
 
   const refreshLocal = useCallback(async () => {
-    const rows = await getInventoryMovementsList(LIMIT);
+    const rows = await getInventoryMovementsList(limit);
     setMovements(rows);
-  }, []);
+  }, [limit]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -28,13 +29,13 @@ export function useInventoryMovementsHistory(enabled: boolean) {
       const unsub = subscribeInventoryMovements(effectiveSucursalId, (rows) => {
         setMovements(rows);
         setLoading(false);
-      }, LIMIT);
+      }, limit);
       return unsub;
     }
 
     let cancelled = false;
     setLoading(true);
-    getInventoryMovementsList(LIMIT)
+    getInventoryMovementsList(limit)
       .then((rows) => {
         if (!cancelled) {
           setMovements(rows);
@@ -50,7 +51,7 @@ export function useInventoryMovementsHistory(enabled: boolean) {
     return () => {
       cancelled = true;
     };
-  }, [enabled, effectiveSucursalId]);
+  }, [enabled, effectiveSucursalId, limit]);
 
   return { movements, loading, refreshLocal };
 }

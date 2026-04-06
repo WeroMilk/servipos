@@ -6,7 +6,7 @@ import { useAuthStore, useSyncStore } from '@/stores';
 import { cn } from '@/lib/utils';
 import { MAIN_NAV_ITEMS } from '@/lib/mainNavItems';
 import { SHOW_CHECADOR_NAV } from '@/lib/featureFlags';
-import { BRAND_LOGO_URL } from '@/lib/branding';
+import { BRAND_LOGO_SRCSET, BRAND_LOGO_URL } from '@/lib/branding';
 import {
   ROLE_LABELS,
   userCanSeeInventoryMissions,
@@ -74,14 +74,17 @@ export function Sidebar() {
         aria-label="Ir al panel de inicio"
         title="SERVIPARTZ POS · inicio"
       >
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg ring-1 ring-slate-300/80 dark:ring-slate-700/50 sm:h-11 sm:w-11">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg ring-1 ring-slate-300/80 dark:ring-slate-700/50 sm:h-10 sm:w-10">
           <img
             src={BRAND_LOGO_URL}
+            srcSet={BRAND_LOGO_SRCSET}
+            sizes="40px"
             alt=""
-            className="h-full w-full object-cover"
+            className="h-full w-full object-contain [image-rendering:auto] [image-rendering:-webkit-optimize-contrast]"
             width={44}
             height={44}
             decoding="async"
+            loading="eager"
           />
         </div>
         <div className="hidden min-w-0 leading-tight xl:block">

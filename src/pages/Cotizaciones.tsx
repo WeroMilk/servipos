@@ -235,6 +235,8 @@ export function Cotizaciones() {
   const [revertConfirmOpen, setRevertConfirmOpen] = useState(false);
   const [revertTarget, setRevertTarget] = useState<Quotation | null>(null);
   const [reverting, setReverting] = useState(false);
+  const [deleteQuotationTarget, setDeleteQuotationTarget] = useState<Quotation | null>(null);
+  const [deletingQuotation, setDeletingQuotation] = useState(false);
 
   const filteredProducts = useMemo(() => {
     const q = productSearchQuery.trim().toLowerCase();
@@ -247,19 +249,24 @@ export function Cotizaciones() {
     );
   }, [products, productSearchQuery]);
 
-  const handleDeleteQuotation = async (q: Quotation) => {
-    const ok = window.confirm(
-      `¿Eliminar la cotización ${q.folio}? Esta acción no se puede deshacer.`
-    );
-    if (!ok) return;
+  const handleDeleteQuotation = (q: Quotation) => {
+    setDeleteQuotationTarget(q);
+  };
+
+  const confirmDeleteQuotation = async () => {
+    if (!deleteQuotationTarget) return;
+    setDeletingQuotation(true);
     try {
-      await removeQuotation(q.id);
+      await removeQuotation(deleteQuotationTarget.id);
       addToast({ type: 'success', message: 'Cotización eliminada' });
+      setDeleteQuotationTarget(null);
     } catch (e) {
       addToast({
         type: 'error',
         message: e instanceof Error ? e.message : 'No se pudo eliminar',
       });
+    } finally {
+      setDeletingQuotation(false);
     }
   };
 
@@ -1148,6 +1155,39 @@ export function Cotizaciones() {
               className="bg-amber-600 text-white hover:bg-amber-500"
             >
               {reverting ? 'Guardando…' : 'Volver a pendiente'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={deleteQuotationTarget != null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteQuotationTarget(null);
+        }}
+      >
+        <AlertDialogContent className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar cotización?</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-600 dark:text-slate-400">
+              {deleteQuotationTarget
+                ? `Se eliminará la cotización ${deleteQuotationTarget.folio}. Esta acción no se puede deshacer.`
+                : 'Esta acción no se puede deshacer.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingQuotation} className="border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-800">
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deletingQuotation}
+              className="bg-red-600 text-white hover:bg-red-700"
+              onClick={(e) => {
+                e.preventDefault();
+                void confirmDeleteQuotation();
+              }}
+            >
+              {deletingQuotation ? 'Eliminando…' : 'Sí, eliminar'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

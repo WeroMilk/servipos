@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/select';
 import { useAuthStore, useAppStore, getResolvedIsDark } from '@/stores';
 import { cn } from '@/lib/utils';
-import { BRAND_LOGO_URL } from '@/lib/branding';
+import { BRAND_LOGO_SRCSET, BRAND_LOGO_URL } from '@/lib/branding';
 import { getServipartzEmailDomain, SERVIPARTZ_LOGIN_USERNAMES } from '@/lib/servipartzAuth';
 import { LoadingIndicator } from './LoadingIndicator';
 
@@ -117,11 +117,14 @@ export function LoginForm() {
             <div className="mb-3 flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl shadow-lg shadow-cyan-500/15 ring-1 ring-slate-300/80 dark:shadow-cyan-500/20 dark:ring-slate-700/50 sm:mb-4 sm:h-24 sm:w-24">
               <img
                 src={BRAND_LOGO_URL}
+                srcSet={BRAND_LOGO_SRCSET}
+                sizes="(max-width: 640px) 80px, 96px"
                 alt="SERVIPARTZ"
-                className="h-full w-full object-cover"
+                className="h-full w-full object-contain [image-rendering:auto] [image-rendering:-webkit-optimize-contrast]"
                 width={112}
                 height={112}
                 decoding="async"
+                loading="eager"
               />
             </div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">SERVIPARTZ POS</h1>

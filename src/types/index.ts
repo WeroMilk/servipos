@@ -268,6 +268,12 @@ export interface Client {
    * Se incrementa al cobrar con adeudo y puede reducirse con abonos en Cuentas por cobrar.
    */
   saldoAdeudado?: number;
+  /** Último abono registrado (para reimpresión de comprobante). */
+  ultimoAbonoMonto?: number;
+  ultimoAbonoAt?: Date;
+  ultimoAbonoSaldoAnterior?: number;
+  ultimoAbonoSaldoNuevo?: number;
+  ultimoAbonoUsuarioNombre?: string;
   /** Notas solo para el equipo (no se muestran al cliente ni en CFDI). */
   notasInternas?: string;
   /** Aislamiento por tienda en datos locales (Dexie). */

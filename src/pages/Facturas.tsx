@@ -26,6 +26,16 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Table,
   TableBody,
   TableCell,
@@ -122,21 +132,28 @@ export function Facturas() {
   const [emailOpen, setEmailOpen] = useState(false);
   const [emailSubject, setEmailSubject] = useState('');
   const [emailBody, setEmailBody] = useState('');
+  const [deleteInvoiceTarget, setDeleteInvoiceTarget] = useState<Invoice | null>(null);
+  const [deletingInvoice, setDeletingInvoice] = useState(false);
 
-  const handleDeleteInvoice = async (inv: Invoice) => {
-    const ok = window.confirm(
-      `¿Eliminar del historial la factura ${inv.serie}-${inv.folio}? Solo se permite si no está timbrada.`
-    );
-    if (!ok) return;
+  const handleDeleteInvoice = (inv: Invoice) => {
+    setDeleteInvoiceTarget(inv);
+  };
+
+  const confirmDeleteInvoice = async () => {
+    if (!deleteInvoiceTarget) return;
+    setDeletingInvoice(true);
     try {
-      await removeInvoice(inv.id);
+      await removeInvoice(deleteInvoiceTarget.id);
       addToast({ type: 'success', message: 'Factura eliminada del historial local', logToAppEvents: true });
+      setDeleteInvoiceTarget(null);
     } catch (e) {
       addToast({
         type: 'error',
         message: e instanceof Error ? e.message : 'No se pudo eliminar',
         logToAppEvents: true,
       });
+    } finally {
+      setDeletingInvoice(false);
     }
   };
 
@@ -979,6 +996,37 @@ export function Facturas() {
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={deleteInvoiceTarget != null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteInvoiceTarget(null);
+        }}
+      >
+        <AlertDialogContent className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar factura del historial?</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-600 dark:text-slate-400">
+              {deleteInvoiceTarget
+                ? `Factura ${deleteInvoiceTarget.serie}-${deleteInvoiceTarget.folio}. Solo se permite si no está timbrada.`
+                : 'Solo se permite si no está timbrada.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingInvoice}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deletingInvoice}
+              className="bg-red-600 text-white hover:bg-red-700"
+              onClick={(e) => {
+                e.preventDefault();
+                void confirmDeleteInvoice();
+              }}
+            >
+              {deletingInvoice ? 'Eliminando…' : 'Sí, eliminar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <SendEmailDialog
         open={emailOpen}

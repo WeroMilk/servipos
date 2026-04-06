@@ -256,9 +256,10 @@ export function useClients() {
   }, [effectiveSucursalId, loadClients]);
 
   const registrarAbonoCuenta = useCallback(
-    async (clienteId: string, monto: number) => {
+    async (clienteId: string, monto: number, options?: { usuarioNombre?: string }) => {
       await registrarAbonoACuentaCliente(clienteId, monto, {
         sucursalId: effectiveSucursalId ?? undefined,
+        usuarioNombre: options?.usuarioNombre,
       });
       await refresh();
     },

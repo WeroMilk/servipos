@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { Navigate } from 'react-router-dom';
 import {
   Building2,
   Receipt,
@@ -86,7 +87,15 @@ export function Configuracion() {
   const { config, isConfigured, saveConfig, updateConfig, refresh } = useFiscalConfig();
   const { effectiveSucursalId } = useEffectiveSucursalId();
   const { addToast } = useAppStore();
-  const { hasPermission } = useAuthStore();
+  const { hasPermission, user } = useAuthStore();
+  const normalizedUsername = (user?.username ?? '').trim().toLowerCase();
+  const normalizedName = (user?.name ?? '').trim().toLowerCase();
+  const emailLocalPart = (user?.email ?? '').split('@')[0]?.trim().toLowerCase() ?? '';
+  const isGabrielCashierBlocked =
+    user?.role === 'cashier' &&
+    (normalizedUsername === 'gabriel' ||
+      normalizedName === 'gabriel' ||
+      emailLocalPart === 'gabriel');
   const canManageUsers = hasPermission('usuarios:gestionar');
   const canManageSucursales = hasPermission('sucursales:gestionar');
   const canEditListaPreciosCliente = hasPermission('configuracion:editar');
@@ -320,9 +329,9 @@ export function Configuracion() {
   const selectClass =
     'h-11 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 px-3 py-2 text-base leading-normal text-slate-900 dark:text-slate-100 sm:h-8 sm:py-1 sm:text-sm lg:h-7 lg:py-1 lg:text-xs';
   const csdFileInputClass = cn(
-    fieldClass,
-    'py-1 file:mr-2 file:rounded-md file:bg-slate-300 file:px-3 file:py-1 file:text-slate-700',
-    'hover:file:bg-slate-300/80 dark:file:bg-slate-700 dark:file:text-slate-100 dark:hover:file:bg-slate-600'
+    'h-11 border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 px-2 text-base leading-normal text-slate-900 dark:text-slate-100 sm:h-10 sm:text-sm',
+    'file:mr-2 file:h-9 sm:file:h-8 file:rounded-full file:border-0 file:bg-gradient-to-r file:from-cyan-500 file:to-blue-600 file:px-3.5 file:text-sm file:font-semibold file:text-white',
+    'hover:file:from-cyan-400 hover:file:to-blue-500 dark:hover:file:from-cyan-400 dark:hover:file:to-blue-500'
   );
 
   /** Pestañas tipo subrayado (activa = borde inferior cyan), sin bloque de fondo. */
@@ -354,6 +363,8 @@ export function Configuracion() {
     0
   );
   const netoNominaPreview = totalPercepcionesNomina - totalDeduccionesNomina;
+
+  if (isGabrielCashierBlocked) return <Navigate to="/" replace />;
 
   return (
     <PageShell
@@ -460,12 +471,6 @@ export function Configuracion() {
                 <Receipt className="h-4 w-4 shrink-0 text-cyan-400 sm:h-5 sm:w-5 lg:h-4 lg:w-4" />
                 Datos fiscales CFDI 4.0
               </CardTitle>
-              {effectiveSucursalId?.trim() ? (
-                <p className="text-xs leading-snug text-slate-600 dark:text-slate-400 lg:text-[11px]">
-                  Se guardan en la nube por tienda (sucursal activa): los mismos datos se muestran en todos los
-                  dispositivos con acceso a esta sucursal.
-                </p>
-              ) : null}
             </CardHeader>
             <CardContent className="flex flex-col gap-2 p-3 pt-0 sm:p-4 sm:pt-0 sm:pb-4 lg:gap-1.5 lg:p-2 lg:pt-0 lg:pb-3">
               <div className="min-w-0 w-full">
@@ -898,7 +903,7 @@ export function Configuracion() {
 
         <TabsContent value="nominas" className={configuracionTabsPanelClass}>
           <div className="flex w-full min-w-0 flex-col gap-3 xl:grid xl:min-h-0 xl:grid-cols-2 xl:items-start xl:gap-3 xl:overflow-hidden">
-            <Card className="w-full min-w-0 shrink-0 border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 xl:min-h-0 xl:max-h-[min(100dvh-9.5rem,920px)] xl:overflow-hidden xl:flex xl:flex-col">
+            <Card className="w-full min-w-0 shrink-0 gap-0 border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 xl:min-h-0 xl:max-h-[min(100dvh-9.5rem,920px)] xl:overflow-hidden xl:flex xl:flex-col">
               <CardHeader className="shrink-0 space-y-0 px-3 py-1.5 sm:px-4 lg:py-1">
                 <CardTitle className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100 sm:text-base lg:text-sm">
                   <Wallet className="h-4 w-4 shrink-0 text-cyan-400 sm:h-5 sm:w-5 lg:h-4 lg:w-4" />
@@ -1431,7 +1436,7 @@ export function Configuracion() {
             </Card>
 
             <div className="flex w-full min-w-0 flex-col gap-2 xl:sticky xl:top-0 xl:max-h-[min(100dvh-9.5rem,920px)] xl:self-start">
-              <Card className="w-full border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
+              <Card className="w-full gap-0 border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
                 <CardHeader className="space-y-0 px-3 py-1.5 sm:px-4 lg:py-1">
                   <CardTitle className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100 sm:text-base lg:text-sm">
                     <Receipt className="h-4 w-4 shrink-0 text-cyan-400 lg:h-4 lg:w-4" />
@@ -1567,16 +1572,11 @@ export function Configuracion() {
                 <CardTitle className="text-base text-slate-900 dark:text-slate-100 sm:text-base">
                   Categorías y proveedores (inventario)
                 </CardTitle>
-                <p className="text-sm font-normal text-slate-600 dark:text-slate-400 sm:text-xs">
-                  Una línea por categoría o por proveedor. Se usan en los desplegables al crear o editar productos.
-                  Valores iniciales orientados a refaccionaria de electrodomésticos; puede adaptarlos aquí. En
-                  proveedores puede usar <span className="font-mono text-[11px]">CODIGO|NOMBRE</span> para código
-                  interno; en el producto se guarda solo el nombre y podrá buscar por código en Inventario.
-                </p>
+                {null}
               </CardHeader>
               <CardContent className="flex flex-col gap-3 p-3 pt-0 sm:p-4 sm:pt-0 xl:min-h-0 xl:flex-1 xl:overflow-hidden">
                 <div className="flex flex-col gap-2 rounded-lg border border-slate-200/90 bg-slate-100/50 p-3 dark:border-slate-700/80 dark:bg-slate-900/40 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0 space-y-0.5">
+                  <div className="hidden min-w-0 space-y-0.5">
                     <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
                       Precios por lista (Regular, Técnico, …) con IVA incluido
                     </p>

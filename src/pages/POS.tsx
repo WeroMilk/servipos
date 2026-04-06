@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Search,
+  ScanLine,
   Plus,
   Minus,
   Trash2,
@@ -18,6 +19,7 @@ import {
   ClipboardCheck,
   ClipboardList,
 } from 'lucide-react';
+import { Html5Qrcode } from 'html5-qrcode';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -53,6 +55,7 @@ import {
   clearVentasAbiertasPosHeaderBridge,
 } from '@/stores/ventasAbiertasPosHeaderStore';
 import { useProductSearch, useSales, useClients, useEffectiveSucursalId, useCajaSesion } from '@/hooks';
+import { usePosCartCloudSync } from '@/hooks/usePosCartCloudSync';
 import { CajaPosToolbar, type CajaPosToolbarHandle } from '@/components/caja/CajaPosToolbar';
 import type { Client, Product, FormaPago, Payment, Sale, Sucursal, CartItem } from '@/types';
 import { FORMAS_PAGO_UI } from '@/types';
@@ -155,6 +158,7 @@ export function POS() {
   const { addSale, sales: salesCatalog, completePendingSale, cancelSale: ejecutarCancelacionVenta } =
     useSales(500);
   const { effectiveSucursalId } = useEffectiveSucursalId();
+  usePosCartCloudSync({ userId: user?.id, sucursalId: effectiveSucursalId });
   const cajaSesion = useCajaSesion({ sucursalId: effectiveSucursalId });
   const cajaToolbarRef = useRef<CajaPosToolbarHandle>(null);
 
@@ -500,10 +504,16 @@ export function POS() {
   const [unitPriceEditStep, setUnitPriceEditStep] = useState<'pin' | 'price'>('pin');
   const [unitPricePinInput, setUnitPricePinInput] = useState('');
   const [unitPriceInput, setUnitPriceInput] = useState('');
+  const [mobileScannerOpen, setMobileScannerOpen] = useState(false);
+  const [mobileScannerBusy, setMobileScannerBusy] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const productSearchWrapRef = useRef<HTMLDivElement>(null);
+  const mobileScannerRef = useRef<Html5Qrcode | null>(null);
+  const mobileScannerScanHandledRef = useRef(false);
+  const mobileScannerCooldownUntilRef = useRef(0);
+  const mobileScannerElementIdRef = useRef('pos-mobile-scanner');
 
-  const { results: searchResults, search: searchProducts } = useProductSearch();
+  const { results: searchResults, search: searchProducts, searchByBarcode } = useProductSearch();
   const { clients, refresh: refreshClients } = useClients();
 
   const clientesFiltradosParaCxc = useMemo(() => {
@@ -729,7 +739,7 @@ export function POS() {
     setMontoRecibidoInput('');
   };
 
-  const handleAddProduct = (product: Product) => {
+  const handleAddProduct = useCallback((product: Product) => {
     try {
       addItem(product, 1);
       setSearchQuery('');
@@ -741,7 +751,145 @@ export function POS() {
         message: error instanceof Error ? error.message : 'Error al agregar',
       });
     }
-  };
+  }, [addItem, addToast]);
+
+  const stopMobileScanner = useCallback(async () => {
+    const scanner = mobileScannerRef.current;
+    mobileScannerScanHandledRef.current = false;
+    mobileScannerCooldownUntilRef.current = 0;
+    if (!scanner) return;
+
+    try {
+      if (scanner.isScanning) {
+        await scanner.stop();
+      }
+    } catch (error) {
+      console.warn('[POS] No se pudo detener escáner móvil:', error);
+    }
+
+    try {
+      await scanner.clear();
+    } catch (error) {
+      console.warn('[POS] No se pudo limpiar escáner móvil:', error);
+    }
+
+    mobileScannerRef.current = null;
+  }, []);
+
+  const playScannerFeedback = useCallback((kind: 'success' | 'notFound') => {
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      navigator.vibrate(kind === 'success' ? 70 : [40, 55, 40]);
+    }
+
+    const AudioCtx =
+      typeof window !== 'undefined' ? (window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext) : undefined;
+    if (!AudioCtx) return;
+
+    try {
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = kind === 'success' ? 1040 : 520;
+      gain.gain.value = 0.03;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      if (kind === 'success') {
+        osc.stop(ctx.currentTime + 0.08);
+      } else {
+        osc.stop(ctx.currentTime + 0.12);
+      }
+      setTimeout(() => {
+        void ctx.close().catch(() => undefined);
+      }, 140);
+    } catch {
+      // Si falla audio en el navegador/dispositivo, la vibración ya cubre feedback.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!mobileScannerOpen) {
+      void stopMobileScanner();
+      return;
+    }
+
+    let cancelled = false;
+    setMobileScannerBusy(true);
+    mobileScannerScanHandledRef.current = false;
+
+    const startScanner = async () => {
+      try {
+        const scanner = new Html5Qrcode(mobileScannerElementIdRef.current);
+        mobileScannerRef.current = scanner;
+
+        await scanner.start(
+          { facingMode: 'environment' },
+          {
+            fps: 10,
+            qrbox: { width: 260, height: 140 },
+          },
+          async (decodedText) => {
+            const now = Date.now();
+            if (now < mobileScannerCooldownUntilRef.current) return;
+            mobileScannerCooldownUntilRef.current = now + 300;
+            if (mobileScannerScanHandledRef.current) return;
+            mobileScannerScanHandledRef.current = true;
+
+            const barcode = decodedText.trim();
+            if (!barcode) {
+              mobileScannerScanHandledRef.current = false;
+              return;
+            }
+
+            const product = await searchByBarcode(barcode);
+            if (product) {
+              playScannerFeedback('success');
+              handleAddProduct(product);
+            } else {
+              playScannerFeedback('notFound');
+              addToast({
+                type: 'warning',
+                message: `No se encontró producto para el código ${barcode}`,
+              });
+            }
+
+            setMobileScannerOpen(false);
+          },
+          () => {
+            // Ignorar errores por frame; el callback de éxito gestiona el flujo.
+          }
+        );
+      } catch (error) {
+        if (!cancelled) {
+          const raw = error instanceof Error ? error.message : String(error);
+          const normalized = raw.toLowerCase();
+          const denied =
+            normalized.includes('permission') ||
+            normalized.includes('notallowed') ||
+            normalized.includes('denied');
+          addToast({
+            type: 'error',
+            message: denied
+              ? 'No se pudo acceder a la cámara. Verifique permisos de cámara en el navegador.'
+              : 'No se pudo iniciar el escáner de cámara en este dispositivo.',
+          });
+          setMobileScannerOpen(false);
+        }
+      } finally {
+        if (!cancelled) {
+          setMobileScannerBusy(false);
+        }
+      }
+    };
+
+    void startScanner();
+
+    return () => {
+      cancelled = true;
+      void stopMobileScanner();
+    };
+  }, [mobileScannerOpen, stopMobileScanner, searchByBarcode, handleAddProduct, addToast, playScannerFeedback]);
 
   const handleBuscarTicketDevolucion = async () => {
     const raw = devolucionFolioInput.trim();
@@ -1770,15 +1918,32 @@ export function POS() {
         >
           <div className={cn('shrink-0 p-2 sm:p-3', panelClass)}>
             <div className="relative" ref={productSearchWrapRef}>
-              <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-600 dark:text-slate-500 sm:left-3 sm:h-5 sm:w-5" />
-              <Input
-                ref={searchInputRef}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onFocus={() => setShowProductSearch(true)}
-                placeholder="Buscar (F2) · SKU, código, nombre"
-                className="h-10 border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 pl-9 text-base text-slate-900 dark:text-slate-100 placeholder:text-slate-600 focus:border-cyan-500/50 sm:h-11 sm:pl-10 md:text-sm"
-              />
+              <div className="flex items-center gap-2">
+                <div className="relative min-w-0 flex-1">
+                  <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-600 dark:text-slate-500 sm:left-3 sm:h-5 sm:w-5" />
+                  <Input
+                    ref={searchInputRef}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onFocus={() => setShowProductSearch(true)}
+                    placeholder="Buscar (F2) · SKU, código, nombre"
+                    className="h-10 border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 pl-9 text-base text-slate-900 dark:text-slate-100 placeholder:text-slate-600 focus:border-cyan-500/50 sm:h-11 sm:pl-10 md:text-sm"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10 shrink-0 border-slate-300 bg-slate-100 px-3 text-slate-700 hover:bg-slate-200/80 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:hidden"
+                  onClick={() => {
+                    setShowProductSearch(false);
+                    searchInputRef.current?.blur();
+                    setMobileScannerOpen(true);
+                  }}
+                >
+                  <ScanLine className="mr-1 h-4 w-4" />
+                  Escanear
+                </Button>
+              </div>
 
               {showProductSearch && searchResults.length > 0 && (
                 <div
@@ -2969,6 +3134,29 @@ export function POS() {
                   {c.rfc ? <p className="text-xs text-slate-600 dark:text-slate-500">RFC: {c.rfc}</p> : null}
                 </button>
               ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={mobileScannerOpen} onOpenChange={setMobileScannerOpen}>
+        <DialogContent className="w-[min(calc(100vw-1.5rem),24rem)] border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 lg:hidden">
+          <DialogHeader>
+            <DialogTitle>Escanear producto</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Apunte la cámara al código de barras del producto.
+            </p>
+            <div className="overflow-hidden rounded-xl border border-slate-300 bg-slate-200/70 dark:border-slate-700 dark:bg-slate-800/60">
+              <div id={mobileScannerElementIdRef.current} className="min-h-[16rem] w-full" />
+            </div>
+            {mobileScannerBusy ? (
+              <p className="text-xs text-slate-600 dark:text-slate-400">Iniciando cámara…</p>
+            ) : (
+              <p className="text-xs text-slate-600 dark:text-slate-400">
+                Al detectar un código válido, se agrega al carrito y la cámara se cierra.
+              </p>
+            )}
           </div>
         </DialogContent>
       </Dialog>

@@ -36,7 +36,7 @@ import {
 import { cn } from '@/lib/utils';
 import { AdminSucursalSwitcher } from '@/components/ui-custom/AdminSucursalSwitcher';
 import { AppEventsNotificationPanel } from '@/components/ui-custom/AppEventsNotificationPanel';
-import { BRAND_LOGO_URL } from '@/lib/branding';
+import { BRAND_LOGO_SRCSET, BRAND_LOGO_URL } from '@/lib/branding';
 import { ROLE_LABELS } from '@/lib/userPermissions';
 import { useCajaPosHeaderStore } from '@/stores/cajaPosHeaderStore';
 import { useVentasAbiertasPosHeaderStore } from '@/stores/ventasAbiertasPosHeaderStore';
@@ -226,6 +226,15 @@ export function Header() {
         : 'bg-slate-200/80 text-slate-600 hover:bg-slate-300/80 dark:bg-slate-800/50 dark:text-slate-400 dark:hover:bg-slate-700/50'
   );
 
+  const normalizedUsername = (user?.username ?? '').trim().toLowerCase();
+  const normalizedName = (user?.name ?? '').trim().toLowerCase();
+  const emailLocalPart = (user?.email ?? '').split('@')[0]?.trim().toLowerCase() ?? '';
+  const hideProfileButton =
+    user?.role === 'cashier' &&
+    (normalizedUsername === 'gabriel' ||
+      normalizedName === 'gabriel' ||
+      emailLocalPart === 'gabriel');
+
   return (
     <>
       <header
@@ -244,10 +253,13 @@ export function Header() {
           >
             <img
               src={BRAND_LOGO_URL}
+              srcSet={BRAND_LOGO_SRCSET}
+              sizes="32px"
               alt=""
-              className="h-8 w-8 shrink-0 rounded-md object-contain"
+              className="h-8 w-8 shrink-0 rounded-md object-contain [image-rendering:auto] [image-rendering:-webkit-optimize-contrast]"
               width={32}
               height={32}
+              loading="eager"
             />
           </Link>
           {inventarioToolbarButtons ? (
@@ -280,10 +292,13 @@ export function Header() {
             >
               <img
                 src={BRAND_LOGO_URL}
+                srcSet={BRAND_LOGO_SRCSET}
+                sizes="32px"
                 alt=""
-                className="h-8 w-8 shrink-0 rounded-md object-contain"
+                className="h-8 w-8 shrink-0 rounded-md object-contain [image-rendering:auto] [image-rendering:-webkit-optimize-contrast]"
                 width={32}
                 height={32}
+                loading="eager"
               />
             </Link>
             <p className="hidden text-xs font-semibold tracking-[0.18em] text-slate-500 xl:block xl:text-sm">
@@ -367,15 +382,19 @@ export function Header() {
                 <DropdownMenuLabel className="text-slate-900 dark:text-slate-100">Mi Cuenta</DropdownMenuLabel>
                 <DropdownMenuSeparator className="bg-slate-200 dark:bg-slate-800" />
 
-                <DropdownMenuItem
-                  className="cursor-pointer text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
-                  onClick={() => navigate('/configuracion')}
-                >
-                  <User className="mr-2 h-4 w-4" />
-                  Perfil
-                </DropdownMenuItem>
+                {!hideProfileButton ? (
+                  <>
+                    <DropdownMenuItem
+                      className="cursor-pointer text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                      onClick={() => navigate('/configuracion')}
+                    >
+                      <User className="mr-2 h-4 w-4" />
+                      Perfil
+                    </DropdownMenuItem>
 
-                <DropdownMenuSeparator className="bg-slate-200 dark:bg-slate-800" />
+                    <DropdownMenuSeparator className="bg-slate-200 dark:bg-slate-800" />
+                  </>
+                ) : null}
 
                 <DropdownMenuItem
                   className="cursor-pointer text-red-600 hover:bg-red-500/10 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
@@ -466,18 +485,20 @@ export function Header() {
             ) : null}
 
             <div className="mt-auto flex flex-col gap-2 border-t border-slate-200/80 pt-4 dark:border-slate-800/80">
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full justify-start rounded-xl border-slate-300 dark:border-slate-600"
-                onClick={() => {
-                  closeMobileMenu();
-                  navigate('/configuracion');
-                }}
-              >
-                <User className="mr-2 h-4 w-4" />
-                Perfil
-              </Button>
+              {!hideProfileButton ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-start rounded-xl border-slate-300 dark:border-slate-600"
+                  onClick={() => {
+                    closeMobileMenu();
+                    navigate('/configuracion');
+                  }}
+                >
+                  <User className="mr-2 h-4 w-4" />
+                  Perfil
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 variant="outline"

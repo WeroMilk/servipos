@@ -365,11 +365,14 @@ export function Inventario() {
   const [movementsHistoryOpen, setMovementsHistoryOpen] = useState(false);
   const [clearMovementsConfirmOpen, setClearMovementsConfirmOpen] = useState(false);
   const [clearingMovements, setClearingMovements] = useState(false);
+  const [deleteProductTarget, setDeleteProductTarget] = useState<Product | null>(null);
+  const [deletingProduct, setDeletingProduct] = useState(false);
   const [preciosDialogOpen, setPreciosDialogOpen] = useState(false);
   const [preciosDialogProduct, setPreciosDialogProduct] = useState<Product | null>(null);
   const [productEntradasHist, setProductEntradasHist] = useState<InventoryMovement[]>([]);
   const [productEntradasHistLoading, setProductEntradasHistLoading] = useState(false);
   const [editPreciosSectionOpen, setEditPreciosSectionOpen] = useState(false);
+  const [inventoryBootstrapping, setInventoryBootstrapping] = useState(true);
 
   const isAdmin = user?.role === 'admin';
   const {
@@ -708,20 +711,27 @@ export function Inventario() {
     }
   };
 
-  const handleDeleteProduct = async (product: Product) => {
-    if (!confirm(`¿Está seguro de eliminar ${product.nombre}?`)) return;
-    
+  const handleDeleteProduct = (product: Product) => {
+    setDeleteProductTarget(product);
+  };
+
+  const confirmDeleteProduct = async () => {
+    if (!deleteProductTarget) return;
+    setDeletingProduct(true);
     try {
-      await removeProduct(product.id);
+      await removeProduct(deleteProductTarget.id);
       reportAppEvent({
         kind: 'warning',
         source: 'inventario:producto',
-        title: `Producto dado de baja · ${product.nombre}`,
-        detail: `SKU ${product.sku}`,
+        title: `Producto dado de baja · ${deleteProductTarget.nombre}`,
+        detail: `SKU ${deleteProductTarget.sku}`,
       });
       addToast({ type: 'success', message: 'Producto eliminado exitosamente', logToAppEvents: false });
+      setDeleteProductTarget(null);
     } catch (error: any) {
       addToast({ type: 'error', message: error.message, logToAppEvents: true });
+    } finally {
+      setDeletingProduct(false);
     }
   };
 
@@ -988,6 +998,23 @@ export function Inventario() {
       ),
     [products]
   );
+  const isInventoryLoadingUi = loading || inventoryBootstrapping;
+
+  useEffect(() => {
+    if (productsError) {
+      setInventoryBootstrapping(false);
+      return;
+    }
+    if (products.length > 0) {
+      setInventoryBootstrapping(false);
+      return;
+    }
+    if (loading) return;
+    const t = window.setTimeout(() => {
+      setInventoryBootstrapping(false);
+    }, 2500);
+    return () => window.clearTimeout(t);
+  }, [loading, products.length, productsError]);
 
   const stockBajoCount = useMemo(
     () => products.filter(isStockBajo).length,
@@ -1087,8 +1114,7 @@ export function Inventario() {
   );
 
   const modeHint: Record<InventoryMode, string> = {
-    productos:
-      'Por defecto por nombre (A-Z). Use los encabezados de la tabla o el selector en móvil para ordenar por SKU, precio, stock o categoría.',
+    productos: '',
     stock: 'Stock en cero, por debajo del mínimo, o por debajo del 15% del mínimo configurado.',
     valor: 'Lista ordenada por precio de venta (mayor primero). Use los encabezados para cambiar criterio o sentido.',
     codigos: 'Nombre y SKU. Edita el SKU y guarda al salir del campo.',
@@ -1210,7 +1236,13 @@ export function Inventario() {
               <Package className="h-4 w-4 text-cyan-400 sm:h-5 sm:w-5" />
             </div>
             <div className="min-w-0">
-              <p className="text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl">{products.length}</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl">
+                {isInventoryLoadingUi ? (
+                  <span className="inline-flex h-5 w-5 animate-spin rounded-full border-2 border-cyan-500/30 border-t-cyan-500 align-middle sm:h-6 sm:w-6" />
+                ) : (
+                  products.length
+                )}
+              </p>
               <p className="text-[10px] text-slate-600 dark:text-slate-500 sm:text-xs">Productos</p>
             </div>
           </CardContent>
@@ -1230,7 +1262,13 @@ export function Inventario() {
               <AlertTriangle className="h-4 w-4 text-amber-400 sm:h-5 sm:w-5" />
             </div>
             <div className="min-w-0">
-              <p className="text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl">{stockBajoCount}</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl">
+                {isInventoryLoadingUi ? (
+                  <span className="inline-flex h-5 w-5 animate-spin rounded-full border-2 border-amber-500/30 border-t-amber-500 align-middle sm:h-6 sm:w-6" />
+                ) : (
+                  stockBajoCount
+                )}
+              </p>
               <p className="text-[10px] text-slate-600 dark:text-slate-500 sm:text-xs">Stock bajo</p>
             </div>
           </CardContent>
@@ -1251,7 +1289,11 @@ export function Inventario() {
             </div>
             <div className="min-w-0">
               <p className="truncate text-base font-bold tabular-nums text-slate-900 dark:text-slate-100 sm:text-lg">
-                {formatMoney(valorInventarioTotal)}
+                {isInventoryLoadingUi ? (
+                  <span className="inline-flex h-5 w-5 animate-spin rounded-full border-2 border-emerald-500/30 border-t-emerald-500 align-middle sm:h-6 sm:w-6" />
+                ) : (
+                  formatMoney(valorInventarioTotal)
+                )}
               </p>
               <p className="text-[10px] text-slate-600 dark:text-slate-500 sm:text-xs">Valor</p>
             </div>
@@ -1273,7 +1315,11 @@ export function Inventario() {
             </div>
             <div className="min-w-0">
               <p className="text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl">
-                {skuCount}
+                {isInventoryLoadingUi ? (
+                  <span className="inline-flex h-5 w-5 animate-spin rounded-full border-2 border-violet-500/30 border-t-violet-500 align-middle sm:h-6 sm:w-6" />
+                ) : (
+                  skuCount
+                )}
               </p>
               <p className="text-[10px] text-slate-600 dark:text-slate-500 sm:text-xs">SKU</p>
             </div>
@@ -1364,7 +1410,11 @@ export function Inventario() {
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <div className="shrink-0 pb-1">
           <CardTitle className="text-sm text-slate-900 dark:text-slate-100 sm:text-base">Lista de productos</CardTitle>
-          <p className="mt-0.5 text-[11px] text-slate-600 dark:text-slate-500 sm:text-xs">{modeHint[inventoryMode]}</p>
+          {modeHint[inventoryMode] ? (
+            <p className="mt-0.5 text-[11px] text-slate-600 dark:text-slate-500 sm:text-xs">
+              {modeHint[inventoryMode]}
+            </p>
+          ) : null}
           <div className="mt-2 flex items-center gap-2 md:hidden">
             <Select
               value={inventorySort.key}
@@ -1405,10 +1455,10 @@ export function Inventario() {
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800/70 bg-slate-50 dark:bg-slate-950/40 shadow-inner">
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
             <div className="space-y-3 p-3 md:hidden">
-              {loading ? (
+              {isInventoryLoadingUi ? (
                 <div className="flex flex-col items-center justify-center gap-2 py-12">
                   <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-cyan-500/30 border-t-cyan-500" />
-                  <p className="text-xs text-slate-600 dark:text-slate-500">Cargando productos…</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-500">Cargando tu inventario…</p>
                 </div>
               ) : displayProducts.length === 0 ? (
                 <p className="py-10 text-center text-sm text-slate-600 dark:text-slate-500">
@@ -1563,8 +1613,8 @@ export function Inventario() {
 
             <div className="hidden min-w-0 md:block">
               <Table
-                containerClassName="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch] touch-pan-x"
-                className="table-fixed w-full min-w-[720px]"
+                containerClassName="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch] touch-pan-x pb-1"
+                className="table-fixed w-full min-w-[660px]"
               >
                 {inventoryMode === 'codigos' ? (
                   <colgroup>
@@ -1650,7 +1700,7 @@ export function Inventario() {
                             : null}
                           </button>
                         </TableHead>
-                        <TableHead className="sticky top-0 z-10 w-24 bg-white/95 dark:bg-slate-950/95 text-right text-slate-600 dark:text-slate-400 backdrop-blur-sm">
+                        <TableHead className="sticky right-0 top-0 z-20 w-24 bg-white/95 dark:bg-slate-950/95 text-right text-slate-600 dark:text-slate-400 backdrop-blur-sm">
                           Acciones
                         </TableHead>
                       </>
@@ -1761,7 +1811,7 @@ export function Inventario() {
                             : null}
                           </button>
                         </TableHead>
-                        <TableHead className="sticky top-0 z-10 w-14 min-w-[3.5rem] bg-white/95 dark:bg-slate-950/95 text-right text-slate-600 dark:text-slate-400 backdrop-blur-sm">
+                        <TableHead className="sticky right-0 top-0 z-20 w-14 min-w-[3.5rem] bg-white/95 dark:bg-slate-950/95 text-right text-slate-600 dark:text-slate-400 backdrop-blur-sm">
                           Acciones
                         </TableHead>
                       </>
@@ -1769,13 +1819,16 @@ export function Inventario() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {loading ? (
+                  {isInventoryLoadingUi ? (
                     <TableRow>
                       <TableCell
                         colSpan={inventoryMode === 'codigos' ? 4 : 6}
                         className="py-8 text-center"
                       >
-                        <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-cyan-500/30 border-t-cyan-500" />
+                        <div className="mx-auto flex flex-col items-center gap-2">
+                          <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500/30 border-t-cyan-500" />
+                          <p className="text-xs text-slate-600 dark:text-slate-500">Cargando tu inventario…</p>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ) : displayProducts.length === 0 ? (
@@ -1814,7 +1867,7 @@ export function Inventario() {
                             {product.categoria || 'Sin categoría'}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="sticky right-0 z-[1] bg-slate-50 text-right dark:bg-slate-950/95">
                           <InventoryProductActions
                             editLabel="Editar producto"
                             onEdit={() => openEditDialog(product)}
@@ -1864,7 +1917,7 @@ export function Inventario() {
                             {product.categoria || 'Sin categoría'}
                           </Badge>
                         </TableCell>
-                        <TableCell className="w-14 min-w-[3.5rem] text-right">
+                        <TableCell className="sticky right-0 z-[1] w-14 min-w-[3.5rem] bg-slate-50 text-right dark:bg-slate-950/95">
                           <InventoryProductActions
                             onEdit={() => openEditDialog(product)}
                             onPrecios={() => openPreciosDialog(product)}
@@ -3182,6 +3235,42 @@ export function Inventario() {
               className="bg-red-600 text-white hover:bg-red-500"
             >
               {clearingMovements ? 'Borrando…' : 'Vaciar todo'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={deleteProductTarget != null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteProductTarget(null);
+        }}
+      >
+        <AlertDialogContent className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar este producto?</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-600 dark:text-slate-400">
+              {deleteProductTarget
+                ? `Se dará de baja «${deleteProductTarget.nombre}» (SKU ${deleteProductTarget.sku}).`
+                : 'Se dará de baja el producto seleccionado.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              disabled={deletingProduct}
+              className="border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-800"
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deletingProduct}
+              className="bg-red-600 text-white hover:bg-red-700"
+              onClick={(e) => {
+                e.preventDefault();
+                void confirmDeleteProduct();
+              }}
+            >
+              {deletingProduct ? 'Eliminando…' : 'Sí, eliminar'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
