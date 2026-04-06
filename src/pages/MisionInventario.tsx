@@ -333,8 +333,8 @@ export function MisionInventario() {
       title={progressOnly ? 'Progreso de inventario' : 'Misiones de inventario'}
       subtitle={
         progressOnly
-          ? `${subParts.join(' · ')}. Vista de supervisión: avance agregado en este navegador (todas las cuentas que usan misiones en este equipo). No incluye listas de revisión.`
-          : `${subParts.join(' · ')}. Cada misión son ${DEFAULT_MISSION_SIZE} artículos al azar; si un día no alcanzan, al día siguiente verán la misma lista y el mismo avance. Tras completarla pueden pedir otra misión; las sucesivas en el mismo periodo evitan repetir lo ya sorteado cuando el catálogo lo permite.`
+          ? `${subParts.join(' · ')}.`
+          : `${subParts.join(' · ')}.`
       }
     >
       <Dialog open={stockDialogOpen} onOpenChange={(o) => {
@@ -438,7 +438,7 @@ export function MisionInventario() {
               <CardDescription>
                 {progressOnly
                   ? `Artículos activos marcados al menos una vez en este ciclo (${cycleInfo.cycleLabelEs}) en este navegador, sumando a todos los usuarios que usan misiones aquí.`
-                  : `Artículos activos que ya marcaste al menos una vez en este ciclo bimestral (${cycleInfo.cycleLabelEs}). Suma revisiones de todas las misiones y días (en este dispositivo).`}
+                  : `Artículos activos marcados al menos una vez en este ciclo (${cycleInfo.cycleLabelEs}).`}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -464,10 +464,6 @@ export function MisionInventario() {
         <Card className="border-cyan-500/20 bg-gradient-to-br from-cyan-500/5 to-blue-500/5 dark:from-cyan-500/10 dark:to-blue-500/5">
           <CardHeader className="pb-2">
             <CardTitle className="text-lg text-slate-900 dark:text-slate-100">Misión actual</CardTitle>
-            <CardDescription>
-              Artículos elegidos al azar (al iniciar el día suele ser {DEFAULT_MISSION_SIZE}; si pides otra misión,
-              entre {MIN_MISSION_SIZE} y {MAX_MISSION_SIZE}). El orden es el del sorteo.
-            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-end justify-between gap-2">
@@ -507,20 +503,6 @@ export function MisionInventario() {
           </p>
         </div>
           </>
-        ) : null}
-
-        {!progressOnly && totalActivos > 0 ? (
-          <Card className="border-slate-200/80 dark:border-slate-800/60">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base text-slate-900 dark:text-slate-100">
-                Contexto del ciclo (~{cycleInfo.daysInCycle} días)
-              </CardTitle>
-              <CardDescription>
-                Día {cycleInfo.dayIndex + 1} de {cycleInfo.daysInCycle} en el calendario del ciclo. El progreso global
-                arriba es la referencia principal para cubrir todo el catálogo.
-              </CardDescription>
-            </CardHeader>
-          </Card>
         ) : null}
 
         {!progressOnly ? (
@@ -623,7 +605,7 @@ export function MisionInventario() {
         {!progressOnly && total > 0 ? (
           <p className="text-center text-xs leading-relaxed text-slate-500 dark:text-slate-500">
             {canAdjustStockMission
-              ? 'Si el stock no coincide, use Editar para ajustar la cantidad y dejar comentario; con permiso de inventario completo también puede abrir la ficha en Inventario.'
+              ? 'Si el stock no coincide, use Editar para ajustar la cantidad y dejar comentario. Gracias.'
               : 'Si encuentra diferencias de stock, avise a un encargado o use Inventario (si tiene permiso) para ajustar.'}
           </p>
         ) : null}
