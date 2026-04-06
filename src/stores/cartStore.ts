@@ -109,7 +109,11 @@ function sanitizeCartDraft(draft: Partial<CartDraftSnapshot> | null | undefined)
     transferenciaDestinoSucursalId:
       typeof draft.transferenciaDestinoSucursalId === 'string' ? draft.transferenciaDestinoSucursalId : '',
     precioClienteListaId:
-      listId === 'regular' || listId === 'tecnico' || listId === 'mayoreo' || listId === 'mayoreoPlus' || listId === 'cananea'
+      listId === 'regular' ||
+      listId === 'tecnico' ||
+      listId === 'mayoreo_menos' ||
+      listId === 'mayoreo_mas' ||
+      listId === 'cananea'
         ? listId
         : 'regular',
   };

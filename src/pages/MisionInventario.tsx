@@ -45,7 +45,7 @@ import {
   saveMissionDoneIds,
   saveMissionProductIds,
 } from '@/lib/dailyInventoryMission';
-import { formatDateKeyMx, getBimonthCycleInfo, getMexicoDateKey } from '@/lib/quincenaMx';
+import { formatDateKeyMx, getMexicoDateKey } from '@/lib/quincenaMx';
 import { printThermalMissionComplete, printThermalMissionInventoryReport } from '@/lib/printTicket';
 import {
   buildMissionDayTicketLines,
@@ -140,8 +140,6 @@ export function MisionInventario() {
     saveMissionProductIds(user.id, missionPartitionKey, ids);
     setMissionIds(ids);
   }, [progressOnly, user?.id, missionPartitionKey, products]);
-
-  const cycleInfo = useMemo(() => getBimonthCycleInfo(dateKey), [dateKey]);
 
   const misionList = useMemo(() => {
     const map = new Map(products.map((p) => [p.id, p]));
