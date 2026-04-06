@@ -15,6 +15,7 @@
     "etl:firestore-to-supabase": "node scripts/etl-firestore-to-supabase.mjs",
     "import:olivares-to-supabase": "node scripts/import-olivares-to-supabase.mjs",
     "import:csv-olivares-to-supabase": "node scripts/import-csv-precios-olivares-to-supabase.mjs",
+    "etl:olivares-csv-py": "python scripts/python/olivares_xlsx_rtf_to_csv.py",
     "supabase:db:push": "supabase db push"
   },
   "dependencies": {

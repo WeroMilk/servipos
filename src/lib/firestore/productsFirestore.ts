@@ -6,6 +6,7 @@ import {
   pickBestPrecioVentaRawFromFirestoreDoc,
 } from '@/lib/precioListaNorm';
 import { normalizeClaveProdServ, normalizeClaveUnidadSat } from '@/lib/satCatalog';
+import { normSkuBarcode } from '@/lib/productCatalogUniqueness';
 import { getSupabase } from '@/lib/supabaseClient';
 
 /** PostgREST devuelve como máximo 1000 filas por defecto; hay que paginar. */
@@ -446,11 +447,28 @@ export async function resolveDestProductIdForTransfer(
 
 export async function getProductByBarcodeFirestore(
   sucursalId: string,
-  codigoBarras: string
+  codigoLeido: string
 ): Promise<Product | null> {
   const { rows, error } = await fetchAllProductRowsForSucursal(sucursalId);
   if (error) return null;
-  const hit = rows.find((r) => String((r.doc as { codigoBarras?: string })?.codigoBarras ?? '') === codigoBarras);
-  if (!hit) return null;
-  return docToProduct(hit as { id: string; doc: Record<string, unknown> });
+  const key = normSkuBarcode(codigoLeido);
+  if (!key) return null;
+
+  const activo = (d: Record<string, unknown>) => (d as { activo?: boolean }).activo !== false;
+
+  const byBarras = rows.find((r) => {
+    if (!activo(r.doc)) return false;
+    const bar = String((r.doc as { codigoBarras?: string }).codigoBarras ?? '');
+    return normSkuBarcode(bar) === key;
+  });
+  if (byBarras) return docToProduct(byBarras as { id: string; doc: Record<string, unknown> });
+
+  /** Mismo valor en SKU (p. ej. import sin llenar código de barras). */
+  const bySku = rows.find((r) => {
+    if (!activo(r.doc)) return false;
+    const sku = String((r.doc as { sku?: string }).sku ?? '');
+    return normSkuBarcode(sku) === key;
+  });
+  if (!bySku) return null;
+  return docToProduct(bySku as { id: string; doc: Record<string, unknown> });
 }

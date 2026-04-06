@@ -232,6 +232,8 @@ async function main() {
   const iNombre = idx('Nombre');
   const iPv = idx('precioVenta_sin_IVA');
   const iJson = idx('preciosPorListaCliente_json');
+  const iExistencia = idx('Existencia');
+  const iCategoria = idx('Categoria');
   if (iSku < 0 || iNombre < 0 || iPv < 0) {
     throw new Error('CSV debe incluir columnas: SKU, Nombre, precioVenta_sin_IVA');
   }
@@ -248,6 +250,8 @@ async function main() {
   ].map((n) => header.indexOf(n));
   const widthCandidates = [iSku, iNombre, iPv, ...listaCols.filter((i) => i >= 0)];
   if (iJson >= 0) widthCandidates.push(iJson);
+  if (iExistencia >= 0) widthCandidates.push(iExistencia);
+  if (iCategoria >= 0) widthCandidates.push(iCategoria);
   const minCells = Math.max(...widthCandidates) + 1;
 
   for (let li = 1; li < lines.length; li++) {
@@ -265,6 +269,11 @@ async function main() {
       continue;
     }
 
+    const existencia = iExistencia >= 0 ? numCell(cells[iExistencia]) : 0;
+    const categoriaRaw = iCategoria >= 0 ? String(cells[iCategoria] ?? '').trim() : '';
+    const categoria = categoriaRaw || 'General';
+    const unidadMedida = categoria === 'SERVICIOS' ? 'E48' : 'H87';
+
     const doc = {
       sku,
       codigoBarras: null,
@@ -273,14 +282,14 @@ async function main() {
       precioVenta: pv,
       precioCompra: null,
       impuesto: 16,
-      existencia: 0,
+      existencia,
       existenciaMinima: 0,
-      categoria: 'General',
+      categoria,
       proveedor: null,
       preciosPorListaCliente: lista,
       preciosListaIncluyenIva: false,
       imagen: null,
-      unidadMedida: 'H87',
+      unidadMedida,
       claveProdServ: null,
       activo: true,
       createdAt: nowIso,

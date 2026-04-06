@@ -55,6 +55,46 @@ npm run import:olivares-to-supabase -- \
   --ultimo-gana
 ```
 
+## CSV con Python (`olivares_xlsx_rtf_to_csv.py`)
+
+Genera `data/olivares-import.csv` para **`npm run import:csv-olivares-to-supabase`**. Requiere: `pip install -r scripts/python/requirements.txt`.
+
+### Git Bash en Windows (rutas y saltos de línea)
+
+En **Git Bash**, `cd C:\Users\...` **no funciona**: la barra invertida escapa la siguiente letra (`\U`, `\a`, etc.) y la ruta se rompe. Use:
+
+- Carpeta del proyecto: `cd ~/proyectos/SERVIpos` o `cd /c/Users/alfon/proyectos/SERVIpos`
+- Disco y rutas: prefijo **`/c/Users/...`** (no `C:\...`)
+- Varios argumentos en varias líneas: barra invertida final **`\`** al final de cada línea (no el acento grave **`` ` ``** de PowerShell)
+
+El CSV **por defecto** solo incluye filas con precio encontrado en el RTF (~1371). Los **2660** artículos del Excel sí se leen siempre; el resto queda listado en `--export-sin-rtf`. Para generar un CSV con **los 2660** (los que no tienen RTF llevan precio y listas en `0`) y poder subirlos todos a Supabase, añada **`--incluir-sin-precio-rtf`**. El import `import:csv-olivares-to-supabase` ahora usa columnas **Existencia** y **Categoria** si vienen en el CSV.
+
+**Una sola línea (Git Bash):**
+
+```bash
+cd ~/proyectos/SERVIpos && python scripts/python/olivares_xlsx_rtf_to_csv.py --dir="/c/Users/alfon/Downloads/inventario abril 2026 servipartz olivares" --rtf="/c/Users/alfon/Downloads/lista de precios.rtf" --out="./data/olivares-import.csv" --ultimo-gana --regla-precios=mas-recientes --incluir-sin-precio-rtf --export-sin-rtf="./data/olivares-sin-precio-rtf.csv"
+```
+
+**Varias líneas (Git Bash):**
+
+```bash
+cd ~/proyectos/SERVIpos
+python scripts/python/olivares_xlsx_rtf_to_csv.py \
+  --dir="/c/Users/alfon/Downloads/inventario abril 2026 servipartz olivares" \
+  --rtf="/c/Users/alfon/Downloads/lista de precios.rtf" \
+  --out="./data/olivares-import.csv" \
+  --ultimo-gana \
+  --regla-precios=mas-recientes \
+  --incluir-sin-precio-rtf \
+  --export-sin-rtf="./data/olivares-sin-precio-rtf.csv"
+```
+
+Luego:
+
+```bash
+npm run import:csv-olivares-to-supabase -- --csv=./data/olivares-import.csv --sucursal=olivares
+```
+
 ### Opciones útiles
 
 | Flag | Uso |

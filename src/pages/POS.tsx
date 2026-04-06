@@ -827,13 +827,14 @@ export function POS() {
           if (mobileScannerScanHandledRef.current) return;
           mobileScannerScanHandledRef.current = true;
 
-          const barcode = decodedText.trim();
-          if (!barcode) {
+          const codigoLeido = decodedText.trim();
+          if (!codigoLeido) {
             mobileScannerScanHandledRef.current = false;
             return;
           }
 
-          const product = await searchByBarcode(barcode);
+          /** Busca por código de barras (normalizado); si no hay match, por SKU igual al leído. */
+          const product = await searchByBarcode(codigoLeido);
           if (product) {
             playScannerFeedback('success');
             handleAddProduct(product);
@@ -841,7 +842,7 @@ export function POS() {
             playScannerFeedback('notFound');
             addToast({
               type: 'warning',
-              message: `No se encontró producto para el código ${barcode}`,
+              message: `No hay producto con ese código de barras (ni SKU coincidente): ${codigoLeido}`,
             });
           }
 

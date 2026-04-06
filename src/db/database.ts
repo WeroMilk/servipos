@@ -31,6 +31,7 @@ import { SERIE_FACTURA_PRUEBA, SERIE_NOMINA_PRUEBA } from '@/lib/fiscalConstants
 import { getDefaultSucursalIdForNewData } from '@/lib/sucursales';
 import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
 import { saleItemsQtyByProductId } from '@/lib/posOpenSaleResume';
+import { normSkuBarcode } from '@/lib/productCatalogUniqueness';
 
 const MOSTRADOR_CLIENT_ID = 'mostrador';
 
@@ -449,8 +450,29 @@ export async function getProductById(id: string): Promise<Product | undefined> {
   return await db.products.get(id);
 }
 
-export async function getProductByBarcode(codigoBarras: string): Promise<Product | undefined> {
-  return await db.products.where('codigoBarras').equals(codigoBarras).first();
+export async function getProductByBarcode(codigoLeido: string): Promise<Product | undefined> {
+  const key = normSkuBarcode(codigoLeido);
+  if (!key) return undefined;
+
+  let p =
+    (await db.products.where('codigoBarras').equals(key).first()) ??
+    (await db.products.where('codigoBarras').equals(codigoLeido.trim()).first());
+  if (p?.activo === false) p = undefined;
+
+  if (!p) {
+    p = await db.products
+      .filter(
+        (x) =>
+          x.activo === true && normSkuBarcode(String(x.codigoBarras ?? '')) === key
+      )
+      .first();
+  }
+  if (!p) {
+    p = await db.products
+      .filter((x) => x.activo === true && normSkuBarcode(String(x.sku ?? '')) === key)
+      .first();
+  }
+  return p;
 }
 
 export async function getProductBySku(sku: string): Promise<Product | undefined> {
