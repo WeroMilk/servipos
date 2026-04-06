@@ -272,6 +272,10 @@ export function MisionInventario() {
   const toggle = useCallback(
     (p: Product) => {
       if (!user?.id || !missionPartitionKey) return;
+      if (done.has(p.id)) {
+        const ok = window.confirm('¿Deseas quitar el check de este artículo?');
+        if (!ok) return;
+      }
       setDone((prev) => {
         const next = new Set(prev);
         const wasAllDone = misionList.length > 0 && misionList.every((x) => prev.has(x.id));
