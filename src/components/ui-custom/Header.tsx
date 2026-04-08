@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type TouchEvent } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   LogOut,
@@ -15,6 +15,7 @@ import {
   Printer,
   Download,
   Plus,
+  X,
 } from 'lucide-react';
 import { useAuthStore, useSyncStore, useAppStore, getResolvedIsDark } from '@/stores';
 import { Button } from '@/components/ui/button';
@@ -27,12 +28,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { AdminSucursalSwitcher } from '@/components/ui-custom/AdminSucursalSwitcher';
 import { AppEventsNotificationPanel } from '@/components/ui-custom/AppEventsNotificationPanel';
@@ -57,6 +58,9 @@ export function Header() {
   const toggleTheme = useAppStore((s) => s.toggleTheme);
   const resolvedDark = useAppStore((s) => getResolvedIsDark(s));
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const firstMobileNavItemRef = useRef<HTMLButtonElement | null>(null);
+  const swipeStartXRef = useRef<number | null>(null);
+  const swipeStartYRef = useRef<number | null>(null);
 
   const handleLogout = async () => {
     setMobileMenuOpen(false);
@@ -74,6 +78,49 @@ export function Header() {
     if (!user) return;
     void useSyncStore.getState().updatePendingCount();
   }, [user?.id, effectiveSucursalId]);
+
+  // Evita overlays "huérfanos" al navegar desde otros atajos móviles.
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const id = window.setTimeout(() => {
+      firstMobileNavItemRef.current?.focus();
+    }, 40);
+    return () => window.clearTimeout(id);
+  }, [mobileMenuOpen]);
+
+  const handleSheetTouchStart = (event: TouchEvent<HTMLDivElement>) => {
+    const touch = event.touches[0];
+    if (!touch) return;
+    swipeStartXRef.current = touch.clientX;
+    swipeStartYRef.current = touch.clientY;
+  };
+
+  const handleSheetTouchMove = (event: TouchEvent<HTMLDivElement>) => {
+    if (!mobileMenuOpen) return;
+    const touch = event.touches[0];
+    const startX = swipeStartXRef.current;
+    const startY = swipeStartYRef.current;
+    if (!touch || startX === null || startY === null) return;
+
+    const deltaX = touch.clientX - startX;
+    const deltaY = touch.clientY - startY;
+    const isHorizontalSwipe = Math.abs(deltaX) > Math.abs(deltaY) + 12;
+    const closeThreshold = 72;
+    if (isHorizontalSwipe && deltaX > closeThreshold) {
+      setMobileMenuOpen(false);
+      swipeStartXRef.current = null;
+      swipeStartYRef.current = null;
+    }
+  };
+
+  const handleSheetTouchEnd = () => {
+    swipeStartXRef.current = null;
+    swipeStartYRef.current = null;
+  };
 
   const showPosHeaderTools =
     location.pathname === '/pos' && hasPermission('ventas:crear');
@@ -284,11 +331,24 @@ export function Header() {
             variant="outline"
             size="icon"
             className="h-10 w-10 shrink-0 rounded-xl border-slate-300 dark:border-slate-600"
-            aria-label="Abrir menú"
+            aria-label={mobileMenuOpen ? 'Cerrar menú' : 'Abrir menú'}
             aria-expanded={mobileMenuOpen}
-            onClick={() => setMobileMenuOpen(true)}
+            onClick={() => setMobileMenuOpen((prev) => !prev)}
           >
-            <Menu className="h-5 w-5" />
+            <span className="relative block h-5 w-5">
+              <Menu
+                className={cn(
+                  'absolute inset-0 h-5 w-5 transition-all duration-200 ease-out',
+                  mobileMenuOpen ? 'rotate-90 scale-0 opacity-0' : 'rotate-0 scale-100 opacity-100'
+                )}
+              />
+              <X
+                className={cn(
+                  'absolute inset-0 h-5 w-5 transition-all duration-200 ease-out',
+                  mobileMenuOpen ? 'rotate-0 scale-100 opacity-100' : '-rotate-90 scale-0 opacity-0'
+                )}
+              />
+            </span>
           </Button>
         </div>
 
@@ -419,22 +479,24 @@ export function Header() {
         </div>
       </header>
 
-      <Dialog open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-        <DialogContent
-          useDialogDescription
+      <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+        <SheetContent
+          side="right"
           showCloseButton
-          overlayClassName="z-[180]"
+          onTouchStart={handleSheetTouchStart}
+          onTouchMove={handleSheetTouchMove}
+          onTouchEnd={handleSheetTouchEnd}
           className={cn(
-            '!fixed !top-0 !right-0 !bottom-0 !left-auto z-[181] flex h-dvh max-h-dvh w-[min(22rem,calc(100vw-0.5rem))] max-w-none min-w-0 !translate-x-0 !translate-y-0 flex-col gap-0 rounded-none rounded-l-2xl border-y-0 border-r-0 border-l border-slate-200 bg-white py-4 pl-4 pr-10 shadow-xl dark:border-slate-800 dark:bg-slate-950 sm:pr-12',
-            'max-h-[100dvh] overflow-hidden sm:max-w-[22rem]'
+            'flex h-dvh max-h-dvh flex-col gap-0 rounded-none rounded-l-2xl border-y-0 border-r-0 border-l border-slate-200 py-4 pl-4 pr-10 dark:border-slate-800 sm:pr-12',
+            'max-h-[100dvh] overflow-hidden'
           )}
         >
-          <DialogHeader className="shrink-0 space-y-1 border-b border-slate-200/80 pb-3 pr-2 text-left dark:border-slate-800/80">
-            <DialogTitle className="text-base text-slate-900 dark:text-slate-100">Menú</DialogTitle>
-            <DialogDescription className="text-xs text-slate-600 dark:text-slate-400">
+          <SheetHeader className="shrink-0 space-y-1 border-b border-slate-200/80 pb-3 pr-2 text-left dark:border-slate-800/80">
+            <SheetTitle className="text-base text-slate-900 dark:text-slate-100">Menú</SheetTitle>
+            <SheetDescription className="text-xs text-slate-600 dark:text-slate-400">
               Tienda, sincronización, cuenta y accesos del punto de venta.
-            </DialogDescription>
-          </DialogHeader>
+            </SheetDescription>
+          </SheetHeader>
 
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-y-contain py-4 pr-2">
             {user ? (
@@ -459,6 +521,7 @@ export function Header() {
               <div className="grid grid-cols-1 gap-2">
                 {mobileNavItems.map((item) => {
                   const Icon = item.icon;
+                  const isFirstItem = item.to === mobileNavItems[0]?.to;
                   const isActive =
                     item.to === '/'
                       ? location.pathname === '/' || location.pathname === ''
@@ -473,6 +536,7 @@ export function Header() {
                   return (
                     <Button
                       key={item.to}
+                      ref={isFirstItem ? firstMobileNavItemRef : undefined}
                       type="button"
                       variant="outline"
                       className={cn(
@@ -561,8 +625,8 @@ export function Header() {
               </Button>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
     </>
   );
 }
