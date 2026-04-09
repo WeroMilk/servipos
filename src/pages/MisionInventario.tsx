@@ -525,53 +525,58 @@ export function MisionInventario() {
       </Dialog>
 
       <div className="flex min-h-0 w-full max-w-none flex-1 flex-col gap-4 overflow-y-auto overscroll-contain pb-6 [-webkit-overflow-scrolling:touch]">
-        {totalActivos > 0 ? (
-          <Card className="border-emerald-500/25 bg-gradient-to-br from-emerald-500/8 to-teal-500/5 dark:from-emerald-500/12 dark:to-teal-500/8">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg text-slate-900 dark:text-slate-100">
-                Progreso global del inventario
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-end justify-between gap-2">
-                <p className="text-3xl font-bold tabular-nums text-emerald-800 dark:text-emerald-200">
-                  {revisadosEnCiclo}
-                  <span className="text-lg font-semibold text-slate-500 dark:text-slate-500">/{totalActivos}</span>
-                </p>
-                <span className="text-sm font-medium text-slate-600 dark:text-slate-400">{pctGlobal}%</span>
-              </div>
-              <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 transition-[width] duration-300"
-                  style={{ width: `${pctGlobal}%` }}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        ) : null}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {totalActivos > 0 ? (
+            <Card className="border-emerald-500/25 bg-gradient-to-br from-emerald-500/8 to-teal-500/5 dark:from-emerald-500/12 dark:to-teal-500/8">
+              <CardHeader className="px-4 pb-1 pt-3">
+                <CardTitle className="text-base text-slate-900 dark:text-slate-100">
+                  Progreso global del inventario
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 px-4 pb-3">
+                <div className="flex items-end justify-between gap-2">
+                  <p className="text-2xl font-bold tabular-nums text-emerald-800 dark:text-emerald-200">
+                    {revisadosEnCiclo}
+                    <span className="text-base font-semibold text-slate-500 dark:text-slate-500">/{totalActivos}</span>
+                  </p>
+                  <span className="text-xs font-medium text-slate-600 dark:text-slate-400">{pctGlobal}%</span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 transition-[width] duration-300"
+                    style={{ width: `${pctGlobal}%` }}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {!progressOnly ? (
+            <Card className="border-cyan-500/20 bg-gradient-to-br from-cyan-500/5 to-blue-500/5 dark:from-cyan-500/10 dark:to-blue-500/5">
+              <CardHeader className="px-4 pb-1 pt-3">
+                <CardTitle className="text-base text-slate-900 dark:text-slate-100">Misión actual</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 px-4 pb-3">
+                <div className="flex items-end justify-between gap-2">
+                  <p className="text-2xl font-bold tabular-nums text-cyan-700 dark:text-cyan-300">
+                    {hechos}
+                    <span className="text-base font-semibold text-slate-500 dark:text-slate-500">/{total}</span>
+                  </p>
+                  <span className="text-xs font-medium text-slate-600 dark:text-slate-400">{pct}%</span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 transition-[width] duration-300"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
+        </div>
 
         {!progressOnly ? (
           <>
-        <Card className="border-cyan-500/20 bg-gradient-to-br from-cyan-500/5 to-blue-500/5 dark:from-cyan-500/10 dark:to-blue-500/5">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg text-slate-900 dark:text-slate-100">Misión actual</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-end justify-between gap-2">
-              <p className="text-3xl font-bold tabular-nums text-cyan-700 dark:text-cyan-300">
-                {hechos}
-                <span className="text-lg font-semibold text-slate-500 dark:text-slate-500">/{total}</span>
-              </p>
-              <span className="text-sm font-medium text-slate-600 dark:text-slate-400">{pct}%</span>
-            </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 transition-[width] duration-300"
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-          </CardContent>
-        </Card>
 
         <div className="flex flex-col gap-2">
           <Button
