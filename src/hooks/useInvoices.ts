@@ -14,6 +14,7 @@ import {
 import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 import { reportHookFailure } from '@/lib/appEventLog';
+import { buildCfdi40XmlString } from '@/lib/cfdiXmlString';
 import {
   createInvoiceFirestore,
   deleteInvoiceFirestore,
@@ -232,81 +233,8 @@ export function useCFDIGenerator() {
     if (!config) {
       throw new Error('No hay configuración fiscal');
     }
-
-    const fechaEmision = new Date(invoice.fechaEmision).toISOString().slice(0, 19);
-    const pruebaComment = invoice.esPrueba ? '\n<!-- Documento de prueba: sin timbrado ni validez ante el SAT -->\n' : '';
-
-    // Construir XML CFDI 4.0 (simplificado)
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>${pruebaComment}
-<cfdi:Comprobante 
-  xmlns:cfdi="http://www.sat.gob.mx/cfd/4"
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://www.sat.gob.mx/cfd/4 http://www.sat.gob.mx/sitio_internet/cfd/4/cfdv40.xsd"
-  Version="4.0"
-  Serie="${invoice.serie}"
-  Folio="${invoice.folio}"
-  Fecha="${fechaEmision}"
-  FormaPago="${invoice.formaPago}"
-  MetodoPago="${invoice.metodoPago}"
-  SubTotal="${invoice.subtotal.toFixed(2)}"
-  Descuento="${invoice.descuento.toFixed(2)}"
-  Moneda="MXN"
-  Total="${invoice.total.toFixed(2)}"
-  TipoDeComprobante="I"
-  Exportacion="01"
-  LugarExpedicion="${invoice.lugarExpedicion}">
-  
-  <cfdi:Emisor 
-    Rfc="${config.rfc}" 
-    Nombre="${config.razonSocial}" 
-    RegimenFiscal="${config.regimenFiscal}"/>
-  
-  <cfdi:Receptor 
-    Rfc="${invoice.cliente?.rfc || 'XAXX010101000'}" 
-    Nombre="${invoice.cliente?.razonSocial || invoice.cliente?.nombre || 'Público en General'}" 
-    DomicilioFiscalReceptor="${invoice.cliente?.codigoPostal || invoice.lugarExpedicion}" 
-    RegimenFiscalReceptor="${invoice.cliente?.regimenFiscal || '616'}" 
-    UsoCFDI="${invoice.cliente?.usoCfdi || 'S01'}"/>
-  
-  <cfdi:Conceptos>
-    ${invoice.productos.map(item => `
-    <cfdi:Concepto 
-      ClaveProdServ="${item.claveProdServ || '01010101'}"
-      Cantidad="${item.cantidad.toFixed(2)}"
-      ClaveUnidad="${item.claveUnidad || 'H87'}"
-      Descripcion="${item.descripcion}"
-      ValorUnitario="${item.precioUnitario.toFixed(2)}"
-      Importe="${item.subtotal.toFixed(2)}"
-      Descuento="${item.descuento.toFixed(2)}"
-      ObjetoImp="02">
-      <cfdi:Impuestos>
-        <cfdi:Traslados>
-          <cfdi:Traslado 
-            Base="${(item.subtotal - item.descuento).toFixed(2)}"
-            Impuesto="002"
-            TipoFactor="Tasa"
-            TasaOCuota="0.160000"
-            Importe="${item.impuestosTrasladados.reduce((sum, tax) => sum + tax.importe, 0).toFixed(2)}"/>
-        </cfdi:Traslados>
-      </cfdi:Impuestos>
-    </cfdi:Concepto>
-    `).join('')}
-  </cfdi:Conceptos>
-  
-  <cfdi:Impuestos TotalImpuestosTrasladados="${invoice.impuestosTrasladados.toFixed(2)}">
-    <cfdi:Traslados>
-      <cfdi:Traslado 
-        Base="${(invoice.subtotal - invoice.descuento).toFixed(2)}"
-        Impuesto="002"
-        TipoFactor="Tasa"
-        TasaOCuota="0.160000"
-        Importe="${invoice.impuestosTrasladados.toFixed(2)}"/>
-    </cfdi:Traslados>
-  </cfdi:Impuestos>
-  
-</cfdi:Comprobante>`;
-
-    return xml;
+    const emisor = invoice.emisor?.rfc ? invoice.emisor : config;
+    return buildCfdi40XmlString({ ...invoice, emisor });
   };
 
   return { generateXML };

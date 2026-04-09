@@ -47,7 +47,7 @@ export async function exportInvoiceCfdiToPdf(
 
   const body = frameDoc.body;
   const canvas = await html2canvas(body, {
-    scale: 2,
+    scale: 1.75,
     useCORS: true,
     logging: false,
     windowWidth: body.scrollWidth,
@@ -60,19 +60,21 @@ export async function exportInvoiceCfdiToPdf(
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' });
   const pageW = pdf.internal.pageSize.getWidth();
   const pageH = pdf.internal.pageSize.getHeight();
-  const imgW = pageW;
-  const imgH = (canvas.height * imgW) / canvas.width;
-  const imgData = canvas.toDataURL('image/jpeg', 0.9);
+  const margin = 28;
+  const maxW = pageW - 2 * margin;
+  const maxH = pageH - 2 * margin;
+  const imgData = canvas.toDataURL('image/jpeg', 0.92);
 
-  let heightLeft = imgH - pageH;
-  pdf.addImage(imgData, 'JPEG', 0, 0, imgW, imgH);
-
-  while (heightLeft > 0) {
-    const position = heightLeft - imgH;
-    pdf.addPage();
-    pdf.addImage(imgData, 'JPEG', 0, position, imgW, imgH);
-    heightLeft -= pageH;
+  let drawW = maxW;
+  let drawH = (canvas.height * drawW) / canvas.width;
+  if (drawH > maxH) {
+    drawH = maxH;
+    drawW = (canvas.width * drawH) / canvas.height;
   }
+  const x = (pageW - drawW) / 2;
+  const y = margin;
+
+  pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
 
   const name = fileBaseName.endsWith('.pdf') ? fileBaseName : `${fileBaseName}.pdf`;
   pdf.save(name);
