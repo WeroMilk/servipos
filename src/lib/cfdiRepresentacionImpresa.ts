@@ -18,7 +18,7 @@ import {
   type Invoice,
 } from '@/types';
 
-const AVISO_FISCAL_PRUEBA = 'DOCUMENTO DE PRUEBA — SIN VALIDEZ FISCAL ANTE EL SAT';
+const AVISO_FISCAL_PRUEBA = 'DOCUMENTO DE PRUEBA - SIN VALIDEZ FISCAL ANTE EL SAT';
 
 function escHtml(s: string): string {
   return s
@@ -29,21 +29,21 @@ function escHtml(s: string): string {
 }
 
 function regimenLabel(clave: string | undefined): string {
-  if (!clave?.trim()) return '—';
+  if (!clave?.trim()) return '-';
   const r = REGIMENES_FISCALES.find((x) => x.clave === clave);
-  return r ? `${escHtml(r.clave)} — ${escHtml(r.descripcion)}` : escHtml(clave);
+  return r ? `${escHtml(r.clave)} - ${escHtml(r.descripcion)}` : escHtml(clave);
 }
 
 function usoCfdiLabel(clave: string | undefined): string {
-  if (!clave?.trim()) return '—';
+  if (!clave?.trim()) return '-';
   const u = USOS_CFDI.find((x) => x.clave === clave);
-  return u ? `${escHtml(u.clave)} — ${escHtml(u.descripcion)}` : escHtml(clave);
+  return u ? `${escHtml(u.clave)} - ${escHtml(u.descripcion)}` : escHtml(clave);
 }
 
 function formaPagoLabel(clave: string | undefined): string {
-  if (!clave?.trim()) return '—';
+  if (!clave?.trim()) return '-';
   const f = FORMAS_PAGO.find((x) => x.clave === clave);
-  return f ? `${escHtml(f.clave)} — ${escHtml(f.descripcion)}` : escHtml(clave);
+  return f ? `${escHtml(f.clave)} - ${escHtml(f.descripcion)}` : escHtml(clave);
 }
 
 /** Una línea tipo factura impresa (mayúsculas): calle, colonia, CP, tel., municipio/estado. */
@@ -66,7 +66,7 @@ function buildDireccionClassica(emisor: FiscalConfig): string {
     parts.push(d.pais.trim());
   }
   if (parts.length === 0 && cp) parts.push(`C.P. ${cp}`);
-  return parts.join(' ').toUpperCase() || '—';
+  return parts.join(' ').toUpperCase() || '-';
 }
 
 /** «Ciudad, Estado a 8 de abril de 2026» (zona horaria de la app). */
@@ -192,6 +192,17 @@ table.clasica .cps { font-size: 5.75pt; color: #333; }
 .sellos .muestra-tag { font-weight: 600; color: #666; }
 .sellos .mono { font-family: Consolas, 'Courier New', monospace; }
 body .doc-brand-foot { margin-top: 4px !important; padding-top: 3px !important; font-size: 5.5pt !important; line-height: 1.2 !important; }
+@media print {
+  html, body {
+    font-family: Arial, Helvetica, sans-serif !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .xml-panel pre,
+  .sellos .mono {
+    font-family: "Courier New", Courier, monospace !important;
+  }
+}
 `;
 
 export async function buildInvoiceCfdiPrintDocumentHtml(inv: Invoice): Promise<string> {
@@ -230,8 +241,8 @@ export async function buildInvoiceCfdiPrintDocumentHtml(inv: Invoice): Promise<s
       errorCorrectionLevel: 'M',
     });
     const cap = qrEsMuestra
-      ? 'Formato verificación SAT (muestra). El portal no validará este UUID hasta timbrar.'
-      : 'Verificación SAT (CBB).';
+      ? 'Formato verificacion SAT (muestra). El portal no validara este UUID hasta timbrar.'
+      : 'Verificacion SAT (CBB).';
     qrBlock = `<div class="qr-zona"><img src="${dataUrl}" width="92" height="92" alt="QR CFDI" /><div class="qr-caption">${escHtml(cap)}</div></div>`;
   } else {
     qrBlock = `<div class="qr-zona"><div class="qr-caption">${escHtml('Sin RFC emisor no se puede generar el QR.')}</div></div>`;
@@ -241,14 +252,14 @@ export async function buildInvoiceCfdiPrintDocumentHtml(inv: Invoice): Promise<s
   const xmlMax = 2600;
   const xmlCut =
     xmlFull.length > xmlMax
-      ? `${xmlFull.slice(0, xmlMax)}\n<!-- …continúa; descargue el XML completo… -->`
+      ? `${xmlFull.slice(0, xmlMax)}\n<!-- ...continua; descargue el XML completo... -->`
       : xmlFull;
   const xmlExcerptHtml = escHtml(xmlCut);
 
   const productos = inv.productos ?? [];
   const rowsConceptos = productos
     .map((it) => {
-      const desc = (it.descripcion || '').trim() || '—';
+      const desc = (it.descripcion || '').trim() || '-';
       const cps = (it.claveProdServ || '01010101').trim();
       const cu = (it.claveUnidad || 'H87').trim();
       const cpsNote =
@@ -273,7 +284,7 @@ export async function buildInvoiceCfdiPrintDocumentHtml(inv: Invoice): Promise<s
   const aviso = inv.esPrueba
     ? `<div class="aviso-prueba">${escHtml(AVISO_FISCAL_PRUEBA)}</div>`
     : inv.estado !== 'timbrada'
-      ? `<div class="aviso-prueba">CFDI sin timbrar — sin validez fiscal ante el SAT hasta timbrarlo con un PAC autorizado.</div>`
+      ? `<div class="aviso-prueba">CFDI sin timbrar - sin validez fiscal ante el SAT hasta timbrarlo con un PAC autorizado.</div>`
       : '';
 
   const addrClassica = escHtml(buildDireccionClassica(emisor));
@@ -284,7 +295,7 @@ export async function buildInvoiceCfdiPrintDocumentHtml(inv: Invoice): Promise<s
 
   const uuidLinea = inv.uuid?.trim()
     ? escHtml(inv.uuid)
-    : `${escHtml(CFDI_MUESTRA_UUID)} <span class="muestra-tag">(muestra — sin timbrar)</span>`;
+    : `${escHtml(CFDI_MUESTRA_UUID)} <span class="muestra-tag">(muestra - sin timbrar)</span>`;
 
   const noCert = inv.certificado?.trim()
     ? `<div class="sellos" style="border-top:none;padding-top:2px;margin-top:2px;"><div class="lbl">No. de serie del CSD del emisor</div><div class="mono">${escHtml(inv.certificado!.slice(0, 72))}${inv.certificado!.length > 72 ? '…' : ''}</div></div>`
@@ -303,7 +314,7 @@ export async function buildInvoiceCfdiPrintDocumentHtml(inv: Invoice): Promise<s
           ${cadenaMostrar ? `<div class="lbl">Cadena original (SAT)</div><div class="mono">${escHtml(cadenaMostrar)}</div>` : ''}
         </div>`
       : `<div class="sellos">
-          <div class="lbl">Sello digital del emisor <span class="muestra-tag">(PAC de prueba — no válido SAT)</span></div>
+          <div class="lbl">Sello digital del emisor <span class="muestra-tag">(PAC de prueba - no valido SAT)</span></div>
           <div class="mono">${escHtml('||D3M0P4CPRU3B4S3LL0D1G1T4LD3L3M1S0RXXXXXXXXXXXXXXXXXXXXXXXXXXXX||')}</div>
           <div class="lbl">Sello digital del SAT <span class="muestra-tag">(muestra)</span></div>
           <div class="mono">${escHtml('||S4T0000000000000000000000000000000000000000000000000000000000000000||')}</div>
@@ -316,13 +327,13 @@ ${aviso}
 <div class="hdr-row">
   <div class="hdr-emisor">
     <div class="rfc-line">RFC: ${escHtml(emisor.rfc)}</div>
-    <div class="nombre-emisor">${escHtml(emisor.nombreComercial?.trim() || emisor.razonSocial || '—')}</div>
+    <div class="nombre-emisor">${escHtml(emisor.nombreComercial?.trim() || emisor.razonSocial || '-')}</div>
     <div class="addr-line">${addrClassica}</div>
     <div class="lugar-fecha">${lugarFechaLinea}</div>
   </div>
   <div class="folio-caja">
     <div class="tit">FACTURA</div>
-    <div class="meta">CFDI 4.0 · Tipo I · Moneda MXN</div>
+    <div class="meta">CFDI 4.0 | Tipo I | Moneda MXN</div>
     <div class="fl">Folio: <span class="${folioValorClass}">${escHtml(inv.serie)} ${escHtml(inv.folio)}</span></div>
   </div>
 </div>
@@ -333,9 +344,9 @@ ${aviso}
   <div class="row"><span class="k">NOMBRE:</span><span class="v">${escHtml(nombreRec)}</span></div>
   <div class="row"><span class="k">RFC CLIENTE:</span><span class="v">${escHtml(rfcRec)}</span></div>
   <div class="meta-rec">
-    C.P.: ${escHtml(cpRec || '—')} · Régimen fiscal: ${regimenLabel(regRec)} · Uso CFDI: ${usoCfdiLabel(uso)} ·
-    Lugar de expedición: ${escHtml(inv.lugarExpedicion || emisor.lugarExpedicion || '—')} ·
-    Fecha y hora de emisión: ${escHtml(formatInAppTimezone(inv.fechaEmision, { dateStyle: 'full', timeStyle: 'short' }))}
+    C.P.: ${escHtml(cpRec || '-')} | Regimen fiscal: ${regimenLabel(regRec)} | Uso CFDI: ${usoCfdiLabel(uso)} |
+    Lugar de expedicion: ${escHtml(inv.lugarExpedicion || emisor.lugarExpedicion || '-')} |
+    Fecha y hora de emision: ${escHtml(formatInAppTimezone(inv.fechaEmision, { dateStyle: 'full', timeStyle: 'short' }))}
   </div>
 </div>
 
@@ -358,16 +369,16 @@ ${aviso}
 <div class="pie-grid">
   <div class="pie-izq">
     <div class="caja-total-letra"><strong>Total con letra</strong><br/>${escHtml(montoALetrasMXN(inv.total))}</div>
-    <p class="aduanero-sicofi">NÚMERO Y FECHA DE DOCUMENTO ADUANERO: ______ (solo importación 1.ª mano) · NÚMERO DE APROBACIÓN SICOFI: ______</p>
+    <p class="aduanero-sicofi">NUMERO Y FECHA DE DOCUMENTO ADUANERO: ______ (solo importacion 1a. mano) | NUMERO DE APROBACION SICOFI: ______</p>
     <div class="qr-xml-row">
       ${qrBlock}
       <div class="xml-panel">
-        <div class="xml-hdr">Vista previa XML CFDI 4.0 (mismo contenido que el archivo descargable)</div>
+        <div class="xml-hdr">Vista previa XML CFDI 4.0 (mismo contenido que el archivo .xml)</div>
         <pre>${xmlExcerptHtml}</pre>
       </div>
     </div>
     <div class="pago-caja">${escHtml(metodoPagoTexto)}</div>
-    <p class="cfdi-nota">Forma de pago: ${formaPagoLabel(inv.formaPago)}. ${inv.esPrueba || inv.estado !== 'timbrada' ? 'Sin validez fiscal hasta timbrar con PAC; el QR usa formato del SAT solo como demostración.' : 'CFDI timbrado: valide el XML y el portal del SAT.'}</p>
+    <p class="cfdi-nota">Forma de pago: ${formaPagoLabel(inv.formaPago)}. ${inv.esPrueba || inv.estado !== 'timbrada' ? 'Sin validez fiscal hasta timbrar con PAC; el QR usa formato del SAT solo como demostracion.' : 'CFDI timbrado: valide el XML y el portal del SAT.'}</p>
   </div>
   <div class="pie-der">
     <div class="tot-wrap">
@@ -391,7 +402,10 @@ ${selloSatBlock}
   const foot = buildLetterFooterHtml(inv.sucursalId ?? null);
   const title = `Factura ${inv.serie}-${inv.folio}`;
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${escHtml(title)}</title>
+  return `<!DOCTYPE html><html lang="es-MX"><head>
+<meta charset="utf-8"/>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+<title>${escHtml(title)}</title>
 <style>${FACTURA_PRINT_STYLES}</style></head><body>
 ${inner}
 ${foot}

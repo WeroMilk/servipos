@@ -72,7 +72,9 @@ export type OpenCfdiLetterPrintOptions = {
 /** Documento tamaño carta (CFDI / nómina / carta desde `printLetterDocument`). */
 export function openCfdiLetterPrint(html: string, options?: OpenCfdiLetterPrintOptions): void {
   const printDelayMs = options?.printDelayMs ?? 380;
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  /** BOM UTF-8: en Windows muchas impresoras/PDF drivers asumen ANSI si no hay BOM y arruinan acentos y símbolos. */
+  const htmlUtf8 = html.startsWith('\uFEFF') ? html : `\uFEFF${html}`;
+  const blob = new Blob([htmlUtf8], { type: 'text/html;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const revoke = () => {
     try {

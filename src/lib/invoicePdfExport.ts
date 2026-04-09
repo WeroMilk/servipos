@@ -20,7 +20,8 @@ export async function exportInvoiceCfdiToPdf(
   const frameDoc = iframe.contentDocument!;
   const win = iframe.contentWindow!;
   frameDoc.open();
-  frameDoc.write(html);
+  const htmlUtf8 = html.startsWith('\uFEFF') ? html : `\uFEFF${html}`;
+  frameDoc.write(htmlUtf8);
   frameDoc.close();
 
   await new Promise<void>((resolve) => {
