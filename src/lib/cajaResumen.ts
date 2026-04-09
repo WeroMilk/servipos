@@ -3,6 +3,11 @@ import { FORMAS_PAGO } from '@/types';
 
 const FORMAS_SIN_COBRO_CIERRE = new Set<FormaPago>(['TTS', 'DEV', 'COT', 'PPC']);
 
+/** Estados que sí cuentan como venta cobrada para arqueo/cierre. */
+function saleCuentaEnCaja(sale: Sale): boolean {
+  return sale.estado === 'completada' || sale.estado === 'facturada';
+}
+
 function sumaMontosPagosRegistrados(pagos: Sale['pagos'] | undefined): number {
   return (pagos ?? []).reduce((a, p) => a + (Number(p.monto) || 0), 0);
 }
@@ -16,7 +21,7 @@ function sumaMontosPagosRegistrados(pagos: Sale['pagos'] | undefined): number {
  * - **PPD** sin líneas: último recurso, un pago por `total` con `formaPago` de cabecera (mezclas mal guardadas pueden sesgar).
  */
 export function pagosParaResumenCaja(sale: Sale): { formaPago: FormaPago; monto: number }[] {
-  if (sale.estado !== 'completada') return [];
+  if (!saleCuentaEnCaja(sale)) return [];
 
   const registrados = sale.pagos ?? [];
   if (sumaMontosPagosRegistrados(registrados) > 0.01) {
@@ -75,7 +80,7 @@ export function efectivoEsperadoMenosRetiros(
 }
 
 export function filterVentasCompletadasSesion(ventas: Sale[]): Sale[] {
-  return ventas.filter((s) => s.estado === 'completada');
+  return ventas.filter((s) => saleCuentaEnCaja(s));
 }
 
 /**
@@ -84,7 +89,7 @@ export function filterVentasCompletadasSesion(ventas: Sale[]): Sale[] {
  * esa cantidad si aplica.
  */
 export function efectivoNetoEnCajaPorVenta(sale: Sale): number {
-  if (sale.estado !== 'completada') return 0;
+  if (!saleCuentaEnCaja(sale)) return 0;
   let cobroEfectivo = 0;
   for (const p of pagosParaResumenCaja(sale)) {
     if (p.formaPago === '01') cobroEfectivo += p.monto;
@@ -95,7 +100,7 @@ export function efectivoNetoEnCajaPorVenta(sale: Sale): number {
 
 /** Cobros distintos de efectivo (para avisar que no hay devolución en caja desde este ticket). */
 export function cobrosNoEfectivoResumen(sale: Sale): { clave: FormaPago; monto: number }[] {
-  if (sale.estado !== 'completada') return [];
+  if (!saleCuentaEnCaja(sale)) return [];
   const out: { clave: FormaPago; monto: number }[] = [];
   for (const p of pagosParaResumenCaja(sale)) {
     if (p.formaPago !== '01' && p.monto > 0.005) out.push({ clave: p.formaPago, monto: p.monto });
