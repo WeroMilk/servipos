@@ -20,7 +20,7 @@ Sistema de Punto de Venta (POS) completo, profesional y 100% funcional, enfocado
 - **Clientes**: Base de datos de clientes con datos fiscales
 - **Reportes y Dashboard**: Visualización de métricas y estadísticas
 - **Sincronización Online/Offline**: Funciona sin internet y sincroniza al reconectar
-- **Multi-usuario**: Roles de administrador y cajero; el administrador gestiona usuarios en Configuración
+- **Control de acceso**: Autenticación y permisos configurables desde Supabase
 
 ### Tecnologías
 
@@ -81,20 +81,13 @@ Guía paso a paso: **[docs/VERCEL.md](docs/VERCEL.md)** (incluye URL autorizada 
 
 ## Uso
 
-### Credenciales iniciales
+### Acceso inicial
 
-| Usuario | Contraseña | Rol |
-|---------|------------|-----|
-| zavala | sombra123+ | Administrador |
-| gabriel | veneno123+ | Administrador |
-
-En **producción (Supabase)**, el rol y la sucursal vienen de `public.profiles`. Para que un usuario admin opere en la misma sucursal, configure `role = 'admin'` y el `sucursal_id` correcto (desde **Configuración -> Usuarios** o SQL/Studio en Supabase).
-
-Al cargar la app se migran las cuentas antiguas (`admin` / `cajero`) a las anteriores.
+Configure las cuentas de acceso directamente en Supabase Auth y administre permisos/sucursal con `public.profiles` de acuerdo con su política interna.
 
 ### Configuración Inicial
 
-1. **Iniciar sesión** con las credenciales indicadas
+1. **Iniciar sesión** con una cuenta activa en Supabase Auth
 2. **Configurar datos fiscales** en el menú Configuración:
    - RFC del negocio
    - Razón social
@@ -330,7 +323,6 @@ location.reload();
 
 ## Seguridad
 
-- Contraseñas almacenadas en texto plano (demo) - **Cambiar en producción**
 - Usar bcrypt o similar para hashing de contraseñas
 - Implementar HTTPS en producción
 - Validar todos los inputs del usuario
