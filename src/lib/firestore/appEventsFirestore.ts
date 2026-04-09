@@ -107,8 +107,10 @@ export function subscribeAppEvents(max: number, onList: (list: AppEventLogRecord
     onList(list);
   };
   void load();
+  // Avoid topic collisions when multiple UI instances mount (mobile/header/sidebar).
+  const channelName = `app-events-${crypto.randomUUID()}`;
   const ch = supabase
-    .channel('app-events')
+    .channel(channelName)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'app_events' }, () => {
       void load();
     })
