@@ -17,13 +17,11 @@ import type { CajaSesionHookValue } from '@/hooks/useCajaSesion';
 import { cn, formatMoney } from '@/lib/utils';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { printThermalCajaCierre, printThermalDailySalesReport } from '@/lib/printTicket';
-import { getMexicoDateKey, startOfDayFromDateKey } from '@/lib/quincenaMx';
 import {
   fetchSalesByCajaSesion,
-  fetchSalesForMexicoDateKey,
 } from '@/lib/firestore/salesFirestore';
 import { registrarRetiroEfectivoFirestore } from '@/lib/firestore/cajaFirestore';
-import { cancelSale, completePendingSale, getSalesByDateRange } from '@/db/database';
+import { cancelSale, completePendingSale } from '@/db/database';
 import {
   computeCajaEfectivoEsperado,
   efectivoEsperadoMenosRetiros,
@@ -59,20 +57,6 @@ export type CajaPosToolbarHandle = {
   openArqueoDialog: () => void;
   openRetiroEfectivoDialog: () => void;
 };
-
-async function ventasDelDiaCalendario(
-  isCloud: boolean,
-  sucursalId: string | null | undefined
-): Promise<Sale[]> {
-  const dayKey = getMexicoDateKey();
-  if (isCloud && sucursalId) {
-    return fetchSalesForMexicoDateKey(sucursalId, dayKey);
-  }
-  const start = startOfDayFromDateKey(dayKey);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
-  return getSalesByDateRange(start, end);
-}
 
 export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarProps>(
   function CajaPosToolbar(
@@ -445,12 +429,12 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
       printThermalDailySalesReport({
         fechaLabel: formatInAppTimezone(new Date(), { dateStyle: 'full', timeStyle: 'short' }),
         sucursalId: effectiveSucursalId ?? undefined,
-        ventas: ventasDia,
+        ventas: ventasPrint,
       });
 
       addToast({
         type: 'success',
-        message: 'Caja cerrada. Comprobante y reporte del día listos para imprimir.',
+        message: 'Caja cerrada. Comprobante y reporte de la sesión listos para imprimir.',
         logToAppEvents: true,
       });
       setCloseDialog(false);
@@ -493,15 +477,14 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
       retirosEfectivo: activa.retirosEfectivo?.length ? activa.retirosEfectivo : undefined,
       ticketKind: 'arqueo_previo',
     });
-    const ventasDia = await ventasDelDiaCalendario(isCloud, effectiveSucursalId ?? null);
     printThermalDailySalesReport({
       fechaLabel: formatInAppTimezone(ahora, { dateStyle: 'full', timeStyle: 'short' }),
       sucursalId: effectiveSucursalId ?? undefined,
-      ventas: ventasDia,
+      ventas: ventasSesion,
     });
     addToast({
       type: 'success',
-      message: 'Arqueo previo y reporte del día listos para imprimir.',
+      message: 'Arqueo previo y reporte de la sesión listos para imprimir.',
       logToAppEvents: true,
     });
     setArqueoDialog(false);
@@ -697,7 +680,8 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
             <DialogTitle className="lg:text-base">Arqueo previo</DialogTitle>
             <DialogDescription className="text-left text-slate-600 dark:text-slate-400 lg:text-xs lg:leading-snug">
               Efectivo esperado (incluye descuento por retiros de la sesión), detalle de retiros y total
-              tarjetas. Al imprimir se genera el arqueo de la sesión y el reporte de ventas del día calendario.
+              tarjetas. Al imprimir se genera el arqueo de la sesión y el reporte de ventas de esta misma sesión
+              (apertura a cierre de caja).
             </DialogDescription>
           </DialogHeader>
           {activa && previewCierre ? (
