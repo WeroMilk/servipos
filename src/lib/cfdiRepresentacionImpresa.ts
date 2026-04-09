@@ -91,13 +91,13 @@ function unidadCortaSat(clave: string | undefined): string {
 }
 
 const FACTURA_PRINT_STYLES = `
-@page { size: letter; margin: 8mm 10mm; }
+@page { size: letter; margin: 9mm 11mm; }
 * { box-sizing: border-box; }
 body {
   font-family: Arial, Helvetica, 'Liberation Sans', sans-serif;
-  font-size: 7.25pt;
+  font-size: 7.5pt;
   color: #000;
-  line-height: 1.2;
+  line-height: 1.38;
   margin: 0 auto;
   max-width: 7.5in;
   padding: 0;
@@ -105,53 +105,71 @@ body {
   print-color-adjust: exact;
 }
 .aviso-prueba {
-  margin: 0 0 4px;
-  padding: 4px 6px;
+  margin: 0 0 8px;
+  padding: 6px 8px;
   border: 1.5px solid #b45309;
   background: #fffbeb;
   color: #92400e;
   font-weight: 700;
-  font-size: 7pt;
+  font-size: 7.25pt;
   text-align: center;
+  line-height: 1.35;
 }
-.hdr-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 2px; }
-.hdr-emisor { flex: 1; min-width: 0; }
-.rfc-line { font-size: 9.5pt; font-weight: 700; margin-bottom: 2px; letter-spacing: 0.02em; }
-.nombre-emisor { font-size: 8pt; font-weight: 700; margin-bottom: 3px; line-height: 1.15; }
-.addr-line { font-size: 6.75pt; text-transform: uppercase; line-height: 1.25; word-wrap: break-word; }
-.lugar-fecha { font-size: 7.25pt; margin-top: 5px; font-weight: 600; }
-.folio-caja { flex: 0 0 128px; border: 2px solid #000; text-align: center; padding: 6px 5px; }
-.folio-caja .tit { font-size: 11pt; font-weight: 800; letter-spacing: 0.12em; }
-.folio-caja .meta { font-size: 5.75pt; margin-top: 4px; line-height: 1.2; font-weight: 600; }
-.folio-caja .fl { margin-top: 5px; font-size: 8pt; font-weight: 700; }
+.hdr-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; margin-bottom: 8px; }
+.hdr-emisor { flex: 1; min-width: 0; padding-right: 4px; }
+.rfc-line { font-size: 9.5pt; font-weight: 700; margin-bottom: 4px; letter-spacing: 0.02em; }
+.nombre-emisor { font-size: 8.25pt; font-weight: 700; margin-bottom: 5px; line-height: 1.32; }
+.addr-line { font-size: 7pt; text-transform: uppercase; line-height: 1.4; word-wrap: break-word; }
+.lugar-fecha { font-size: 7.35pt; margin-top: 10px; font-weight: 600; line-height: 1.35; }
+.folio-caja { flex: 0 0 120px; border: 2px solid #000; text-align: center; padding: 7px 6px; }
+.folio-caja .tit { font-size: 10.5pt; font-weight: 800; letter-spacing: 0.1em; }
+.folio-caja .meta { font-size: 6pt; margin-top: 5px; line-height: 1.35; font-weight: 600; }
+.folio-caja .fl { margin-top: 7px; font-size: 7.75pt; font-weight: 700; line-height: 1.3; }
 .folio-caja .fl-valor { font-weight: 800; }
 .folio-caja .fl-valor.prueba { color: #c00; }
-.ley-apocrifa { font-size: 6pt; text-align: center; margin: 4px 0 5px; font-style: italic; line-height: 1.2; }
-.cliente-box { margin-bottom: 4px; }
-.cliente-box .row { display: flex; align-items: baseline; gap: 6px; margin: 3px 0; font-size: 7.5pt; border-bottom: 1px solid #000; padding-bottom: 2px; min-height: 1.1em; }
+.ley-apocrifa { font-size: 6.25pt; text-align: center; margin: 8px 0 8px; font-style: italic; line-height: 1.4; }
+.cliente-box { margin-bottom: 8px; }
+.cliente-box .row { display: flex; align-items: baseline; gap: 8px; margin: 5px 0; font-size: 7.65pt; border-bottom: 1px solid #000; padding-bottom: 5px; min-height: 1.15em; }
 .cliente-box .row .k { font-weight: 700; flex: 0 0 auto; }
 .cliente-box .row .v { flex: 1; min-width: 0; }
-.meta-rec { font-size: 6pt; color: #111; margin-top: 3px; line-height: 1.25; }
-table.clasica { width: 100%; border-collapse: collapse; margin: 4px 0 6px; font-size: 6.75pt; table-layout: fixed; }
-table.clasica th, table.clasica td { border: 1px solid #000; padding: 2px 4px; vertical-align: top; }
-table.clasica th { font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; font-size: 6.25pt; }
+.meta-rec {
+  display: grid;
+  grid-template-columns: minmax(7.5em, max-content) 1fr;
+  column-gap: 12px;
+  row-gap: 6px;
+  align-items: start;
+  font-size: 6.85pt;
+  color: #111;
+  margin-top: 8px;
+  padding: 8px 10px;
+  line-height: 1.4;
+  background: #f9fafb;
+  border: 1px solid #ccc;
+  border-radius: 2px;
+}
+.meta-rec .mk { font-weight: 700; }
+.meta-rec .mv { word-wrap: break-word; hyphens: auto; }
+table.clasica { width: 100%; border-collapse: collapse; margin: 8px 0 10px; font-size: 7pt; table-layout: fixed; }
+table.clasica th, table.clasica td { border: 1px solid #000; padding: 5px 6px; vertical-align: top; line-height: 1.35; }
+table.clasica th { font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; font-size: 6.5pt; padding: 6px 6px; }
 table.clasica col.c-qty { width: 9%; }
 table.clasica col.c-u { width: 11%; }
 table.clasica col.c-desc { width: 48%; }
 table.clasica col.c-pu { width: 15%; }
 table.clasica col.c-imp { width: 17%; }
 table.clasica .num { text-align: right; white-space: nowrap; }
-table.clasica .cps { font-size: 5.75pt; color: #333; }
-.pie-grid { display: flex; gap: 8px; align-items: stretch; margin-top: 2px; }
-.pie-izq { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.pie-der { flex: 0 0 200px; }
-.caja-total-letra { border: 1px solid #000; padding: 4px 6px; font-size: 6.75pt; min-height: 2.4em; }
-.caja-total-letra strong { display: block; margin-bottom: 2px; font-size: 6pt; text-transform: uppercase; letter-spacing: 0.04em; }
-.aduanero-sicofi { font-size: 5.75pt; font-style: italic; line-height: 1.2; margin: 0; }
-.qr-xml-row { display: flex; gap: 6px; align-items: flex-start; margin-top: 2px; }
+table.clasica .cps { font-size: 6pt; color: #333; }
+table.clasica tbody tr.filler td { height: 1.1em; padding-top: 4px; padding-bottom: 4px; }
+.pie-grid { display: flex; gap: 12px; align-items: stretch; margin-top: 8px; }
+.pie-izq { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.pie-der { flex: 0 0 208px; }
+.caja-total-letra { border: 1px solid #000; padding: 7px 9px; font-size: 7pt; min-height: 2.6em; line-height: 1.38; }
+.caja-total-letra strong { display: block; margin-bottom: 5px; font-size: 6.25pt; text-transform: uppercase; letter-spacing: 0.04em; }
+.aduanero-sicofi { font-size: 6pt; font-style: italic; line-height: 1.38; margin: 0; }
+.qr-xml-row { display: flex; gap: 12px; align-items: flex-start; margin-top: 4px; }
 .qr-zona { flex: 0 0 auto; }
 .qr-zona img { display: block; }
-.qr-caption { font-size: 5.5pt; margin-top: 2px; max-width: 92px; line-height: 1.15; text-align: center; }
+.qr-caption { font-size: 5.75pt; margin-top: 5px; max-width: 100px; line-height: 1.3; text-align: center; }
 .xml-panel {
   flex: 1;
   min-width: 0;
@@ -159,39 +177,41 @@ table.clasica .cps { font-size: 5.75pt; color: #333; }
   background: #fafafa;
   display: flex;
   flex-direction: column;
-  max-height: 118px;
+  max-height: 128px;
 }
 .xml-panel .xml-hdr {
-  font-size: 5.75pt;
+  font-size: 6.1pt;
   font-weight: 700;
-  padding: 2px 5px;
+  padding: 5px 7px;
   background: #e5e5e5;
   border-bottom: 1px solid #000;
   text-transform: uppercase;
+  line-height: 1.35;
 }
 .xml-panel pre {
   margin: 0;
-  padding: 4px 5px;
+  padding: 7px 8px;
   font-family: Consolas, 'Courier New', monospace;
-  font-size: 5.25pt;
-  line-height: 1.08;
+  font-size: 5.6pt;
+  line-height: 1.22;
   white-space: pre-wrap;
   word-break: break-all;
   overflow: hidden;
   flex: 1;
-  max-height: 98px;
+  max-height: 104px;
 }
-.pago-caja { border: 1px solid #000; padding: 4px 6px; font-size: 7.25pt; font-weight: 700; text-align: center; }
-.tot-wrap { border: 1px solid #000; padding: 6px 8px; font-size: 8.5pt; height: 100%; }
-.tot-line { display: flex; justify-content: space-between; gap: 8px; margin: 3px 0; padding: 1px 0; font-size: 8pt; }
-.tot-line.gran { border-top: 3px double #000; margin-top: 6px; padding-top: 5px; font-weight: 800; font-size: 10pt; }
-.vigencia { font-size: 5.75pt; margin: 5px 0 3px; line-height: 1.25; text-align: justify; }
-.cfdi-nota { font-size: 5.75pt; color: #333; margin: 0; line-height: 1.2; }
-.sellos { margin-top: 4px; font-size: 5pt; word-break: break-all; color: #111; border-top: 1px solid #888; padding-top: 4px; line-height: 1.1; }
-.sellos .lbl { font-weight: 700; font-size: 5.5pt; margin-top: 3px; }
+.pago-caja { border: 1px solid #000; padding: 7px 10px; font-size: 7.35pt; font-weight: 700; text-align: center; line-height: 1.35; }
+.tot-wrap { border: 1px solid #000; padding: 8px 10px; font-size: 8.5pt; height: 100%; }
+.tot-line { display: flex; justify-content: space-between; gap: 10px; margin: 5px 0; padding: 2px 0; font-size: 8pt; line-height: 1.35; }
+.tot-line.gran { border-top: 3px double #000; margin-top: 10px; padding-top: 8px; font-weight: 800; font-size: 10.5pt; }
+.vigencia { font-size: 6pt; margin: 10px 0 6px; line-height: 1.42; text-align: justify; }
+.cfdi-nota { font-size: 6pt; color: #333; margin: 0; line-height: 1.4; }
+.sellos { margin-top: 8px; font-size: 5.15pt; word-break: break-all; color: #111; border-top: 1px solid #888; padding-top: 8px; line-height: 1.38; }
+.sellos .lbl { font-weight: 700; font-size: 5.75pt; margin-top: 8px; }
+.sellos .lbl:first-child { margin-top: 0; }
 .sellos .muestra-tag { font-weight: 600; color: #666; }
-.sellos .mono { font-family: Consolas, 'Courier New', monospace; }
-body .doc-brand-foot { margin-top: 4px !important; padding-top: 3px !important; font-size: 5.5pt !important; line-height: 1.2 !important; }
+.sellos .mono { font-family: Consolas, 'Courier New', monospace; line-height: 1.42; }
+body .doc-brand-foot { margin-top: 10px !important; padding-top: 6px !important; font-size: 5.75pt !important; line-height: 1.38 !important; }
 @media print {
   html, body {
     font-family: Arial, Helvetica, sans-serif !important;
@@ -274,11 +294,12 @@ export async function buildInvoiceCfdiPrintDocumentHtml(inv: Invoice): Promise<s
     })
     .join('');
 
-  const maxFilasRelleno = 4;
+  /** Pocas filas en blanco: solo relleno mínimo cuando hay muy pocos conceptos (evita media página vacía). */
   const filasOcupadas = productos.length > 0 ? productos.length : 1;
-  const filasVacias = Math.min(maxFilasRelleno, Math.max(0, 8 - filasOcupadas));
+  const filasVacias =
+    filasOcupadas >= 4 ? 0 : Math.min(1, Math.max(0, 3 - filasOcupadas));
   const filasRelleno = Array.from({ length: filasVacias }, () => {
-    return '<tr><td class="num">&nbsp;</td><td></td><td></td><td class="num"></td><td class="num"></td></tr>';
+    return '<tr class="filler"><td class="num">&nbsp;</td><td></td><td></td><td class="num"></td><td class="num"></td></tr>';
   }).join('');
 
   const aviso = inv.esPrueba
@@ -344,9 +365,11 @@ ${aviso}
   <div class="row"><span class="k">NOMBRE:</span><span class="v">${escHtml(nombreRec)}</span></div>
   <div class="row"><span class="k">RFC CLIENTE:</span><span class="v">${escHtml(rfcRec)}</span></div>
   <div class="meta-rec">
-    C.P.: ${escHtml(cpRec || '-')} | Regimen fiscal: ${regimenLabel(regRec)} | Uso CFDI: ${usoCfdiLabel(uso)} |
-    Lugar de expedicion: ${escHtml(inv.lugarExpedicion || emisor.lugarExpedicion || '-')} |
-    Fecha y hora de emision: ${escHtml(formatInAppTimezone(inv.fechaEmision, { dateStyle: 'full', timeStyle: 'short' }))}
+    <span class="mk">C.P.</span><span class="mv">${escHtml(cpRec || '-')}</span>
+    <span class="mk">Régimen fiscal</span><span class="mv">${regimenLabel(regRec)}</span>
+    <span class="mk">Uso CFDI</span><span class="mv">${usoCfdiLabel(uso)}</span>
+    <span class="mk">Lugar de expedición</span><span class="mv">${escHtml(inv.lugarExpedicion || emisor.lugarExpedicion || '-')}</span>
+    <span class="mk">Fecha y hora de emisión</span><span class="mv">${escHtml(formatInAppTimezone(inv.fechaEmision, { dateStyle: 'full', timeStyle: 'short' }))}</span>
   </div>
 </div>
 

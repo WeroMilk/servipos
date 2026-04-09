@@ -65,6 +65,8 @@ import { useAuthStore, useAppStore } from '@/stores';
 import { cancelSale } from '@/db/database';
 import { saleListaCancelacionEtiqueta } from '@/lib/saleCancelacion';
 import { saleIsInvoiced } from '@/lib/saleInvoiced';
+import { parrafosAyudaCancelacionVentaAdmin } from '@/lib/cancelacionVentaAdminUi';
+import { efectivoNetoEnCajaPorVenta } from '@/lib/cajaResumen';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -287,14 +289,16 @@ export function Dashboard() {
     if (!saleToCancel) return;
     setSaleCancelBusy(true);
     try {
-      await cancelSale(saleToCancel.id, {
+      const saleCanceled = saleToCancel;
+      await cancelSale(saleCanceled.id, {
         motivo: 'Cancelación desde panel (administrador)',
         ...(effectiveSucursalId ? { sucursalId: effectiveSucursalId } : {}),
         cancelacionMotivo: 'panel',
       });
+      const efDev = efectivoNetoEnCajaPorVenta(saleCanceled);
       addToast({
         type: 'success',
-        message: 'Venta cancelada. Inventario restaurado; el importe ya no cuenta en totales.',
+        message: `Venta cancelada. Inventario reintegrado.${efDev > 0.005 ? ` Devolución en efectivo: ${formatMoney(efDev)}.` : ''} El ticket ya no cuenta en totales.`,
         logToAppEvents: true,
       });
       setSaleCancelOpen(false);
@@ -1105,13 +1109,22 @@ export function Dashboard() {
         <AlertDialogContent className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
           <AlertDialogHeader>
             <AlertDialogTitle>¿Cancelar esta venta?</AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-600 dark:text-slate-400">
-              El ticket{' '}
-              <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
-                {saleToCancel?.folio ?? '—'}
-              </span>{' '}
-              quedará como venta cancelada, se reintegrará el inventario y el importe no se contará en totales del
-              día. El registro no se elimina.
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
+                <p>
+                  Ticket{' '}
+                  <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
+                    {saleToCancel?.folio ?? '—'}
+                  </span>
+                </p>
+                {saleToCancel ? (
+                  <ul className="list-disc space-y-1.5 pl-5">
+                    {parrafosAyudaCancelacionVentaAdmin(saleToCancel).map((t, i) => (
+                      <li key={i}>{t}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

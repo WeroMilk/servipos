@@ -78,6 +78,31 @@ export function filterVentasCompletadasSesion(ventas: Sale[]): Sale[] {
   return ventas.filter((s) => s.estado === 'completada');
 }
 
+/**
+ * Efectivo neto que la venta dejó en caja (cobros en 01 menos cambio). Al cancelar la venta,
+ * el **efectivo esperado** del cierre baja en este monto: el cajero debe **devolver al cliente**
+ * esa cantidad si aplica.
+ */
+export function efectivoNetoEnCajaPorVenta(sale: Sale): number {
+  if (sale.estado !== 'completada') return 0;
+  let cobroEfectivo = 0;
+  for (const p of pagosParaResumenCaja(sale)) {
+    if (p.formaPago === '01') cobroEfectivo += p.monto;
+  }
+  const cambio = Number(sale.cambio) || 0;
+  return Math.round((cobroEfectivo - cambio) * 100) / 100;
+}
+
+/** Cobros distintos de efectivo (para avisar que no hay devolución en caja desde este ticket). */
+export function cobrosNoEfectivoResumen(sale: Sale): { clave: FormaPago; monto: number }[] {
+  if (sale.estado !== 'completada') return [];
+  const out: { clave: FormaPago; monto: number }[] = [];
+  for (const p of pagosParaResumenCaja(sale)) {
+    if (p.formaPago !== '01' && p.monto > 0.005) out.push({ clave: p.formaPago, monto: p.monto });
+  }
+  return out;
+}
+
 export function resumenBrutoSesion(ventas: Sale[]): { tickets: number; total: number } {
   const ok = filterVentasCompletadasSesion(ventas);
   return {

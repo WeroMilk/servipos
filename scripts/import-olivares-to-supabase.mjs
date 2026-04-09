@@ -21,7 +21,8 @@
  *   --strict-precios       Falla si un producto no tiene match en el RTF
  *   --iva=16
  *   --sin-iva-en-rtf
- *   --pad-5
+ *   --no-pad               No rellenar a 5 precios si el RTF trae menos líneas (comportamiento antiguo)
+ *   --pad-5                Forzar relleno (es el comportamiento por defecto)
  *   --sucursal-nombre=...  Texto para crear fila en public.sucursales si no existe (default: id capitalizado)
  *   --batch=150
  *   --export-sin-rtf=./ruta.csv   CSV SKU,Nombre,Archivo para filas sin match en RTF
@@ -93,7 +94,7 @@ function parseArgs() {
     strictPrecios: false,
     ivaPct: 16,
     sinIvaEnRtf: false,
-    pad5: false,
+    pad5: true,
     batch: 150,
     /** Ruta CSV: SKUs sin match en RTF (SKU,Nombre,Archivo). */
     exportSinRtf: '',
@@ -104,6 +105,7 @@ function parseArgs() {
     else if (a === '--incluir-ref-id') out.incluirRefId = true;
     else if (a === '--strict-precios') out.strictPrecios = true;
     else if (a === '--sin-iva-en-rtf') out.sinIvaEnRtf = true;
+    else if (a === '--no-pad') out.pad5 = false;
     else if (a === '--pad-5') out.pad5 = true;
     else if (a.startsWith('--dir=')) out.dir = a.slice('--dir='.length).trim();
     else if (a.startsWith('--rtf=')) out.rtf = a.slice('--rtf='.length).trim();

@@ -130,11 +130,63 @@ function parseMxDateTime(str) {
   return new Date(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss)).getTime();
 }
 
+/** `t` es marca de tiempo real (ms), no índice secuencial del RTF. */
+function isRealTimestampMs(t) {
+  return typeof t === 'number' && t > 946684800000; // > 2000-01-01
+}
+
+/**
+ * Elige los 5 importes con IVA que alimentan `mapFiveConIvaPricesToLists`:
+ * - Con fechas en el bloque: se usa el **día calendario más reciente**; dentro de ese día, las **últimas 5** capturas (por hora).
+ * - Si ese día tiene menos de 5 líneas, se completan con las capturas **inmediatamente anteriores** en el tiempo hasta llegar a 5.
+ * - Sin fechas parseables: orden del RTF y se toman las **últimas 5** líneas con precio.
+ * - Si tras lo anterior hay **menos de 5** valores (p. ej. el RTF solo trae una línea nueva),
+ *   con `pad5` se repite el **último** precio de la secuencia hasta completar 5 (por defecto en `parsePreciosRtf`).
+ */
+function pickFivePricesFromRows(rows, pad5) {
+  if (rows.length === 0) return null;
+
+  const real = rows.filter((r) => isRealTimestampMs(r.t));
+  const bySeq = [...rows].sort((a, b) => a.t - b.t);
+
+  let chosen = [];
+
+  if (real.length === 0) {
+    chosen = bySeq.map((r) => r.price).slice(-5);
+  } else {
+    const sortedAll = [...real].sort((a, b) => a.t - b.t);
+    const maxT = sortedAll[sortedAll.length - 1].t;
+    const maxD = new Date(maxT);
+    const dayStart = new Date(maxD.getFullYear(), maxD.getMonth(), maxD.getDate()).getTime();
+    const dayEnd = dayStart + 86400000;
+
+    const sameDay = sortedAll.filter((r) => r.t >= dayStart && r.t < dayEnd);
+
+    if (sameDay.length >= 5) {
+      chosen = sameDay.slice(-5).map((r) => r.price);
+    } else if (sameDay.length > 0) {
+      const before = sortedAll.filter((r) => r.t < dayStart);
+      const merged = [...before, ...sameDay];
+      chosen = merged.slice(-5).map((r) => r.price);
+    } else {
+      chosen = sortedAll.slice(-5).map((r) => r.price);
+    }
+  }
+
+  if (chosen.length < 5 && pad5 && chosen.length > 0) {
+    const last = chosen[chosen.length - 1];
+    while (chosen.length < 5) chosen.push(last);
+  }
+
+  return chosen.length >= 5 ? chosen : null;
+}
+
 /**
  * @returns {Map<string, { nombre: string, preciosConIva: Record<string, number> }>}
  */
 export function parsePreciosRtf(rtfText, opts = {}) {
-  const pad5 = opts.pad5 === true;
+  /** Por defecto sí: Crystal a veces exporta pocas líneas si solo cambió un importe. */
+  const pad5 = opts.pad5 !== false;
   const s = stripRtfPictBlocks(rtfText);
   const map = new Map();
 
@@ -172,13 +224,8 @@ export function parsePreciosRtf(rtfText, opts = {}) {
 
     if (rows.length === 0) continue;
 
-    const ordered = [...rows].sort((a, b) => a.t - b.t);
-    let pricesConIva = ordered.map((r) => r.price).slice(0, 5);
-    if (pricesConIva.length < 5 && pad5 && pricesConIva.length > 0) {
-      const last = pricesConIva[pricesConIva.length - 1];
-      while (pricesConIva.length < 5) pricesConIva.push(last);
-    }
-    if (pricesConIva.length < 5) continue;
+    const pricesConIva = pickFivePricesFromRows(rows, pad5);
+    if (!pricesConIva) continue;
 
     const preciosConIva = mapFiveConIvaPricesToLists(pricesConIva);
     if (!preciosConIva) continue;

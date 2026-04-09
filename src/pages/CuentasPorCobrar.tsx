@@ -40,6 +40,8 @@ import { formatInAppTimezone } from '@/lib/appTimezone';
 import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
 import { printThermalClientAbonoReceipt } from '@/lib/printTicket';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
+import { parrafosAyudaCancelacionVentaAdmin } from '@/lib/cancelacionVentaAdminUi';
+import { efectivoNetoEnCajaPorVenta } from '@/lib/cajaResumen';
 
 function saldoCliente(c: Client): number {
   const v = Number(c.saldoAdeudado);
@@ -86,6 +88,7 @@ export function CuentasPorCobrar() {
   const { addToast } = useAppStore();
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const user = useAuthStore((s) => s.user);
+  const isAdmin = user?.role === 'admin';
   const { effectiveSucursalId } = useEffectiveSucursalId();
   const puedeIrPos = hasPermission('ventas:crear');
 
@@ -166,15 +169,17 @@ export function CuentasPorCobrar() {
 
   const confirmarCancelarTicket = async () => {
     if (!ticketSeleccionado) return;
+    const saleSnap = ticketSeleccionado.sale;
     setCancelTicketBusy(true);
     try {
-      await cancelSale(ticketSeleccionado.sale.id, {
+      await cancelSale(saleSnap.id, {
         motivo: 'Cancelación desde cuentas por cobrar',
         cancelacionMotivo: 'panel',
       });
+      const efDev = efectivoNetoEnCajaPorVenta(saleSnap);
       addToast({
         type: 'success',
-        message: `Venta ${ticketSeleccionado.sale.folio} cancelada; inventario reintegrado.`,
+        message: `Venta ${saleSnap.folio} cancelada. Inventario reintegrado.${efDev > 0.005 ? ` Devolución en efectivo: ${formatMoney(efDev)}.` : ''}`,
         logToAppEvents: true,
       });
       setCancelTicketConfirmOpen(false);
@@ -453,18 +458,25 @@ export function CuentasPorCobrar() {
                 Abrir venta
               </Button>
             ) : null}
-            <Button
-              type="button"
-              variant="destructive"
-              className="bg-red-600 hover:bg-red-700"
-              disabled={Boolean(ticketSeleccionado?.sale.facturaId)}
-              onClick={() => setCancelTicketConfirmOpen(true)}
-            >
-              <Ban className="mr-2 h-4 w-4" />
-              Cancelar venta
-            </Button>
+            {isAdmin ? (
+              <Button
+                type="button"
+                variant="destructive"
+                className="bg-red-600 hover:bg-red-700"
+                disabled={Boolean(ticketSeleccionado?.sale.facturaId)}
+                onClick={() => setCancelTicketConfirmOpen(true)}
+              >
+                <Ban className="mr-2 h-4 w-4" />
+                Cancelar venta
+              </Button>
+            ) : null}
           </DialogFooter>
-          {ticketSeleccionado?.sale.facturaId ? (
+          {!isAdmin ? (
+            <p className="text-center text-xs text-slate-500 dark:text-slate-400">
+              Solo un administrador puede cancelar ventas desde esta pantalla.
+            </p>
+          ) : null}
+          {isAdmin && ticketSeleccionado?.sale.facturaId ? (
             <p className="text-center text-xs text-slate-500 dark:text-slate-400">
               Las ventas ya facturadas no se pueden cancelar desde aquí.
             </p>
@@ -476,9 +488,26 @@ export function CuentasPorCobrar() {
         <AlertDialogContent className="border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900">
           <AlertDialogHeader>
             <AlertDialogTitle>¿Cancelar esta venta?</AlertDialogTitle>
-            <AlertDialogDescription className="text-left text-slate-600 dark:text-slate-400">
-              Se anulará el ticket, se reintegrará el inventario y se ajustará el saldo del cliente. Esta acción no
-              aplica si la venta ya está timbrada en factura.
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-left text-sm text-slate-600 dark:text-slate-400">
+                {ticketSeleccionado ? (
+                  <>
+                    <p>
+                      Ticket{' '}
+                      <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
+                        {ticketSeleccionado.sale.folio}
+                      </span>
+                    </p>
+                    <ul className="list-disc space-y-1.5 pl-5">
+                      {parrafosAyudaCancelacionVentaAdmin(ticketSeleccionado.sale).map((t, i) => (
+                        <li key={i}>{t}</li>
+                      ))}
+                    </ul>
+                  </>
+                ) : (
+                  <p>Confirme la cancelación.</p>
+                )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

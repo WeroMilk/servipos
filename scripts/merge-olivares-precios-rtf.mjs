@@ -2,7 +2,14 @@
 /**
  * Une el inventario exportado (CSV SERVIPARTZ) con "lista de precios.rtf" (Crystal Reports).
  *
- * Del RTF se toman los 5 importes **con IVA** (pesos) y se asignan así:
+ * Del RTF se toman los 5 importes **con IVA** (pesos) de la **fecha más reciente**:
+ * por cada producto se usa el día calendario con la última captura y, dentro de ese día,
+ * las **últimas 5** líneas con precio (si hay menos de 5 ese día, se rellenan con capturas
+ * anteriores en el tiempo). Si aún hay menos de 5 líneas, **por defecto** se repite el último
+ * precio hasta completar 5 (caso típico: solo actualizaron un importe en el RTF). Use `--no-pad`
+ * para omitir productos incompletos como antes.
+ *
+ * Esos cinco importes se asignan así:
  *   1) Cananea: el precio con IVA que **tiene centavos** (no termina en .00); si hay varios con
  *      centavos, el **menor** de ellos; si **ninguno** tiene centavos, cananea = el **menor** de los cinco.
  *   2) Regular, técnico, mayoreo −, mayoreo +: los **cuatro** restantes, de **mayor a menor**
@@ -37,7 +44,7 @@ function parseArgs() {
     outPath: join(__dirname, '..', 'data', 'precios-merged-olivares.csv'),
     ivaPct: 16,
     sinIvaEnRtf: false,
-    pad5: false,
+    pad5: true,
   };
   for (const a of process.argv.slice(2)) {
     if (a.startsWith('--csv=')) out.csv = a.slice('--csv='.length).trim();
@@ -45,6 +52,7 @@ function parseArgs() {
     else if (a.startsWith('--out=')) out.outPath = a.slice('--out='.length).trim();
     else if (a.startsWith('--iva=')) out.ivaPct = Number(a.slice('--iva='.length)) || 16;
     else if (a === '--sin-iva-en-rtf') out.sinIvaEnRtf = true;
+    else if (a === '--no-pad') out.pad5 = false;
     else if (a === '--pad-5') out.pad5 = true;
   }
   return out;
@@ -119,7 +127,9 @@ function main() {
 
   const rtfText = loadRtfTextFromFile(args.rtf);
   const preciosMap = parsePreciosRtf(rtfText, { pad5: args.pad5 });
-  console.error(`Productos con precios en RTF (por SKU): ${preciosMap.size}${args.pad5 ? ' (--pad-5 activo)' : ''}`);
+  console.error(
+    `Productos con precios en RTF (por SKU): ${preciosMap.size}${args.pad5 ? ' (relleno a 5 precios si faltan líneas)' : ' (--no-pad: solo bloques con 5+ capturas usables)'}`
+  );
 
   const idx = buildPrecioIndexes(preciosMap);
   if (idx.nombreDup.length) {
