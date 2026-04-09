@@ -58,6 +58,32 @@ export type CajaPosToolbarHandle = {
   openRetiroEfectivoDialog: () => void;
 };
 
+function isWithinCajaSesionWindow(sale: Sale, sesion: NonNullable<CajaSesionHookValue['activa']>): boolean {
+  const saleAt = sale.createdAt?.getTime?.() ?? NaN;
+  const openedAt = sesion.openedAt?.getTime?.() ?? NaN;
+  const closedAt = sesion.closedAt?.getTime?.() ?? null;
+  if (!Number.isFinite(saleAt) || !Number.isFinite(openedAt)) return false;
+  if (saleAt < openedAt) return false;
+  if (Number.isFinite(closedAt ?? NaN) && saleAt >= (closedAt as number)) return false;
+  return true;
+}
+
+/**
+ * Ventas de sesión:
+ * - Prioridad: `cajaSesionId` exacto.
+ * - Fallback: ventas sin `cajaSesionId` dentro de la ventana apertura→cierre de la sesión.
+ */
+function collectSalesForCajaSesion(
+  source: Sale[],
+  sesion: NonNullable<CajaSesionHookValue['activa']>
+): Sale[] {
+  return source.filter((s) => {
+    const sid = (s.cajaSesionId ?? '').trim();
+    if (sid) return sid === sesion.id;
+    return isWithinCajaSesionWindow(s, sesion);
+  });
+}
+
 export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarProps>(
   function CajaPosToolbar(
     { sales, canUse, sucursalId: effectiveSucursalId, caja, showStatusBar = true },
@@ -78,10 +104,7 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
   const [retiroNotas, setRetiroNotas] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const ventasSesion = useMemo(
-    () => (activa ? sales.filter((s) => s.cajaSesionId === activa.id) : []),
-    [sales, activa]
-  );
+  const ventasSesion = useMemo(() => (activa ? collectSalesForCajaSesion(sales, activa) : []), [sales, activa]);
 
   const previewCierre = useMemo(() => {
     if (!activa) return null;
@@ -388,7 +411,14 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
           closedByUserId: userId,
           closedByNombre: userNombre,
         });
-        ventasPrint = await fetchSalesByCajaSesion(effectiveSucursalId, activa.id);
+        const ventasBySid = await fetchSalesByCajaSesion(effectiveSucursalId, activa.id);
+        const ventasFallbackWindow = collectSalesForCajaSesion(sales, activa);
+        const seen = new Set<string>();
+        ventasPrint = [...ventasBySid, ...ventasFallbackWindow].filter((v) => {
+          if (seen.has(v.id)) return false;
+          seen.add(v.id);
+          return true;
+        });
       } else {
         await closeCaja({
           sesionId: activa.id,

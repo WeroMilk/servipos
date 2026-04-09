@@ -1,4 +1,4 @@
-import { buildLetterFooterHtml } from '@/lib/documentPrintBranding';
+import { buildLetterFooterHtml, getBrandLogoAbsoluteUrl } from '@/lib/documentPrintBranding';
 import { montoALetrasMXN } from '@/lib/montoALetras';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { formatMoney } from '@/lib/utils';
@@ -114,6 +114,18 @@ body {
   font-size: 7.25pt;
   text-align: center;
   line-height: 1.35;
+}
+.hdr-logo {
+  flex: 0 0 62px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+.hdr-logo img {
+  display: block;
+  width: 58px;
+  height: 58px;
+  object-fit: contain;
 }
 .hdr-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; margin-bottom: 8px; }
 .hdr-emisor { flex: 1; min-width: 0; padding-right: 4px; }
@@ -249,6 +261,7 @@ export async function buildInvoiceCfdiPrintDocumentHtml(inv: Invoice): Promise<s
           selloDigitalEmisor: inv.selloDigital,
         })
       : null;
+  const brandLogoUrl = escHtml(getBrandLogoAbsoluteUrl());
   const qrEsMuestra = !qrUrlReal;
   const qrUrl = buildInvoiceCfdiQrUrl(inv);
 
@@ -346,6 +359,7 @@ export async function buildInvoiceCfdiPrintDocumentHtml(inv: Invoice): Promise<s
   const inner = `
 ${aviso}
 <div class="hdr-row">
+  <div class="hdr-logo"><img src="${brandLogoUrl}" alt="SERVIPARTZ" /></div>
   <div class="hdr-emisor">
     <div class="rfc-line">RFC: ${escHtml(emisor.rfc)}</div>
     <div class="nombre-emisor">${escHtml(emisor.nombreComercial?.trim() || emisor.razonSocial || '-')}</div>
@@ -558,6 +572,9 @@ const NOMINA_ONE_PAGE_STYLES = `
 @page { size: letter; margin: 5mm 7mm; }
 * { box-sizing: border-box; }
 body { font-family: Arial, Helvetica, sans-serif; font-size: 7.5pt; line-height: 1.22; color: #111; margin: 0; }
+.brand-top { display: flex; align-items: flex-start; gap: 10px; margin: 0 0 6px; }
+.brand-top .brand-logo { width: 54px; height: 54px; object-fit: contain; flex: 0 0 54px; }
+.brand-top .brand-title { font-size: 9pt; font-weight: 700; letter-spacing: 0.03em; margin-top: 4px; }
 h1 { font-size: 11pt; margin: 0 0 4px; }
 .meta { font-size: 7.5pt; margin-bottom: 6px; }
 .aviso-prueba {
@@ -614,6 +631,7 @@ export function buildNominaPruebaPrintDocumentHtml(input: NominaPruebaPrintInput
     .join(', ');
 
   const foot = buildLetterFooterHtml(input.sucursalId ?? null);
+  const brandLogoUrl = escHtml(getBrandLogoAbsoluteUrl());
 
   const rowsPercep = percepciones
     .map(
@@ -631,6 +649,10 @@ export function buildNominaPruebaPrintDocumentHtml(input: NominaPruebaPrintInput
 
   const inner = `
 <div class="aviso-prueba">${escHtml(AVISO_FISCAL_PRUEBA)}</div>
+<div class="brand-top">
+  <img class="brand-logo" src="${brandLogoUrl}" alt="SERVIPARTZ" />
+  <div class="brand-title">SERVIPARTZ</div>
+</div>
 <h1>Recibo de nómina</h1>
 <p class="meta"><strong>Serie:</strong> ${escHtml(serie)} &nbsp;|&nbsp; <strong>Folio:</strong> ${escHtml(folio)} &nbsp;|&nbsp; <strong>Fecha:</strong> ${escHtml(fecha)} &nbsp;|&nbsp; <strong>Tipo:</strong> Nómina (CFDI 4.0 — representación impresa)</p>
 
