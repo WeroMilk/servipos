@@ -60,9 +60,10 @@ import { PageShell } from '@/components/ui-custom/PageShell';
 import { SendEmailDialog } from '@/components/ui-custom/SendEmailDialog';
 import { AVISO_DOC_FISCAL_PRUEBA } from '@/lib/printTicket';
 import { printInvoiceCfdiRepresentacion } from '@/lib/cfdiRepresentacionImpresa';
+import { exportInvoiceCfdiToPdf } from '@/lib/invoicePdfExport';
 import { formatInAppTimezone } from '@/lib/appTimezone';
-import { getDocumentFooterLinesForSucursal } from '@/lib/ticketSucursalFooter';
-import jsPDF from 'jspdf';
+import { getInvoiceById } from '@/db/database';
+import { getInvoiceFirestore } from '@/lib/firestore/invoicesFirestore';
 
 const statusColors: Record<string, string> = {
   pendiente: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
@@ -166,6 +167,8 @@ export function Facturas() {
     usoCfdi: 'G03',
   });
   const [salePickerQuery, setSalePickerQuery] = useState('');
+  /** Tras crear la factura, abre el diálogo de impresión (representación impresa CFDI). */
+  const [printAfterCreate, setPrintAfterCreate] = useState(true);
 
   const handleGenerateInvoice = async () => {
     if (!selectedSale) {
@@ -222,8 +225,8 @@ export function Facturas() {
         estado: 'pendiente' as const,
       };
 
-      await addInvoice(invoiceData as any);
-      
+      const newId = await addInvoice(invoiceData as any);
+
       setShowAddDialog(false);
       resetForm();
       addToast({
@@ -233,6 +236,28 @@ export function Facturas() {
           : 'Factura generada exitosamente',
         logToAppEvents: true,
       });
+
+      if (printAfterCreate) {
+        const created = effectiveSucursalId
+          ? await getInvoiceFirestore(effectiveSucursalId, newId)
+          : await getInvoiceById(newId);
+        if (created?.emisor?.rfc) {
+          printInvoiceCfdiRepresentacion(created);
+        } else if (created) {
+          addToast({
+            type: 'error',
+            message: 'Factura guardada pero faltan datos del emisor para imprimir. Use Imprimir en el menú de la factura.',
+            logToAppEvents: true,
+          });
+        } else {
+          addToast({
+            type: 'error',
+            message:
+              'Factura creada; no se pudo cargar para imprimir de inmediato. Use «Imprimir representación» en la lista.',
+            logToAppEvents: true,
+          });
+        }
+      }
     } catch (error: any) {
       addToast({ type: 'error', message: error.message, logToAppEvents: true });
     }
@@ -261,87 +286,21 @@ export function Facturas() {
     URL.revokeObjectURL(url);
   };
 
-  const handleGeneratePDF = (invoice: Invoice) => {
-    if (!invoice.emisor) {
+  const handleGeneratePDF = async (invoice: Invoice) => {
+    if (!invoice.emisor?.rfc) {
       addToast({ type: 'error', message: 'La factura no tiene datos del emisor' });
       return;
     }
-    const productosPdf = invoice.productos ?? [];
-    const doc = new jsPDF();
-    const sucForFooter = invoice.sucursalId ?? effectiveSucursalId ?? null;
-
-    let y = 20;
-    doc.setFontSize(20);
-    doc.text('FACTURA', 105, y, { align: 'center' });
-    y = 28;
-    if (invoice.esPrueba) {
-      doc.setFontSize(8.5);
-      doc.setTextColor(180, 83, 9);
-      const avisoLines = doc.splitTextToSize(AVISO_DOC_FISCAL_PRUEBA, 170);
-      doc.text(avisoLines, 105, y, { align: 'center' });
-      y += avisoLines.length * 4.5 + 8;
-      doc.setTextColor(0, 0, 0);
-    } else {
-      y = 36;
+    try {
+      await exportInvoiceCfdiToPdf(invoice, `Factura_${invoice.serie}_${invoice.folio}`);
+      addToast({ type: 'success', message: 'PDF descargado (formato factura clásica)', logToAppEvents: true });
+    } catch (e) {
+      addToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'No se pudo generar el PDF',
+        logToAppEvents: true,
+      });
     }
-
-    doc.setFontSize(12);
-    doc.text(`Serie: ${invoice.serie}`, 20, y);
-    doc.text(`Folio: ${invoice.folio}`, 20, y + 10);
-    doc.text(
-      `Fecha: ${formatInAppTimezone(invoice.fechaEmision, { dateStyle: 'medium' })}`,
-      20,
-      y + 20
-    );
-
-    const yEmisor = y + 36;
-    doc.setFontSize(14);
-    doc.text('EMISOR', 20, yEmisor);
-    doc.setFontSize(10);
-    doc.text(`RFC: ${invoice.emisor.rfc}`, 20, yEmisor + 10);
-    doc.text(`Nombre: ${invoice.emisor.razonSocial}`, 20, yEmisor + 20);
-
-    const yRec = yEmisor + 40;
-    doc.setFontSize(14);
-    doc.text('RECEPTOR', 20, yRec);
-    doc.setFontSize(10);
-    doc.text(`RFC: ${invoice.cliente?.rfc || 'XAXX010101000'}`, 20, yRec + 10);
-    doc.text(`Nombre: ${invoice.cliente?.nombre || 'Público en General'}`, 20, yRec + 20);
-
-    const yConceptos = yRec + 40;
-    doc.setFontSize(14);
-    doc.text('CONCEPTOS', 20, yConceptos);
-
-    y = yConceptos + 10;
-    productosPdf.forEach((item) => {
-      doc.setFontSize(9);
-      doc.text(`${item.descripcion} - ${item.cantidad} x ${formatMoney(item.precioUnitario)}`, 20, y);
-      doc.text(formatMoney(item.total), 180, y, { align: 'right' });
-      y += 10;
-    });
-    
-    // Totales
-    doc.setFontSize(12);
-    let yTot = y + 10;
-    doc.text(`Subtotal: ${formatMoney(invoice.subtotal)}`, 140, yTot);
-    yTot += 10;
-    doc.text(`IVA: ${formatMoney(invoice.impuestosTrasladados)}`, 140, yTot);
-    yTot += 10;
-    doc.text(`Total: ${formatMoney(invoice.total)}`, 140, yTot);
-    yTot += 14;
-
-    doc.setFontSize(8);
-    doc.setTextColor(60, 60, 60);
-    getDocumentFooterLinesForSucursal(sucForFooter).forEach((line) => {
-      if (yTot > 275) {
-        doc.addPage();
-        yTot = 20;
-      }
-      doc.text(line, 20, yTot);
-      yTot += 5;
-    });
-
-    doc.save(`Factura_${invoice.serie}_${invoice.folio}.pdf`);
   };
 
   const resetForm = () => {
@@ -643,7 +602,7 @@ export function Facturas() {
                               Ver XML
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              onClick={() => handleGeneratePDF(invoice)}
+                              onClick={() => void handleGeneratePDF(invoice)}
                               className="text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:bg-slate-800 hover:text-slate-900 dark:text-slate-100"
                             >
                               <Download className="mr-2 h-4 w-4" />
@@ -833,6 +792,24 @@ export function Facturas() {
                         ))}
                       </select>
                     </div>
+
+                    <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-300/80 bg-slate-200/40 p-3 dark:border-slate-700 dark:bg-slate-800/40">
+                      <input
+                        type="checkbox"
+                        checked={printAfterCreate}
+                        onChange={(e) => setPrintAfterCreate(e.target.checked)}
+                        className="mt-1 h-4 w-4 shrink-0 rounded border-slate-400 text-cyan-600 focus:ring-cyan-500"
+                      />
+                      <span className="text-sm text-slate-700 dark:text-slate-300">
+                        <span className="font-medium text-slate-900 dark:text-slate-100">
+                          Imprimir representación al crear
+                        </span>
+                        <span className="mt-0.5 block text-xs text-slate-600 dark:text-slate-500">
+                          Abre la ventana de impresión en cuanto se genere la factura (mismo formato que «Imprimir
+                          representación» en la lista).
+                        </span>
+                      </span>
+                    </label>
 
                     {/* Resumen de la venta */}
                     <div className="p-4 rounded-lg bg-slate-200/80 dark:bg-slate-800/50 space-y-2">

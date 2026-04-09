@@ -106,6 +106,21 @@ export async function deleteInvoiceFirestore(sucursalId: string, invoiceId: stri
   if (error) throw new Error(error.message);
 }
 
+export async function getInvoiceFirestore(
+  sucursalId: string,
+  invoiceId: string
+): Promise<Invoice | null> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('invoices')
+    .select('id, doc')
+    .eq('sucursal_id', sucursalId)
+    .eq('id', invoiceId)
+    .maybeSingle();
+  if (error || !data?.doc) return null;
+  return mapInvoice(sucursalId, data.id, data.doc as Record<string, unknown>);
+}
+
 export function subscribeInvoicesCatalog(
   sucursalId: string,
   onData: (rows: Invoice[]) => void

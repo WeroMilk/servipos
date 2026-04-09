@@ -11,7 +11,6 @@ import {
   USOS_CFDI,
   type FiscalConfig,
   type Invoice,
-  type InvoiceItem,
 } from '@/types';
 
 const AVISO_FISCAL_PRUEBA = 'DOCUMENTO DE PRUEBA — SIN VALIDEZ FISCAL ANTE EL SAT';
@@ -42,76 +41,112 @@ function formaPagoLabel(clave: string | undefined): string {
   return f ? `${escHtml(f.clave)} — ${escHtml(f.descripcion)}` : escHtml(clave);
 }
 
-function unidadLabel(clave: string | undefined): string {
-  if (!clave?.trim()) return '—';
-  const u = CLAVES_UNIDAD.find((x) => x.clave === clave);
-  return u ? escHtml(`${u.clave} (${u.descripcion})`) : escHtml(clave);
-}
-
-function domicilioFiscalTexto(emisor: FiscalConfig): string {
+/** Una línea tipo factura impresa (mayúsculas): calle, colonia, CP, tel., municipio/estado. */
+function buildDireccionClassica(emisor: FiscalConfig): string {
   const d = emisor.direccion;
-  if (!d) return emisor.lugarExpedicion ? `C.P. ${escHtml(emisor.lugarExpedicion)}` : '—';
-  const parts = [
-    d.calle,
-    d.numeroExterior ? `# ${d.numeroExterior}` : '',
-    d.numeroInterior ? `Int. ${d.numeroInterior}` : '',
-    d.colonia,
-    d.codigoPostal ? `C.P. ${d.codigoPostal}` : '',
-    d.ciudad || d.municipio,
-    d.estado,
-    d.pais,
-  ].filter(Boolean);
-  return escHtml(parts.join(', '));
+  const parts: string[] = [];
+  if (d?.calle?.trim()) {
+    let line = d.calle.trim();
+    if (d.numeroExterior?.trim()) line += ` No. ${d.numeroExterior.trim()}`;
+    if (d.numeroInterior?.trim()) line += ` Int. ${d.numeroInterior.trim()}`;
+    parts.push(line);
+  }
+  if (d?.colonia?.trim()) parts.push(`COL. ${d.colonia.trim()}`);
+  const cp = d?.codigoPostal?.trim() || emisor.lugarExpedicion?.trim();
+  if (cp) parts.push(`C.P. ${cp}`);
+  if (emisor.telefono?.trim()) parts.push(`TEL: ${emisor.telefono.trim()}`);
+  const munEst = [d?.municipio, d?.estado].filter(Boolean).join(' ');
+  if (munEst) parts.push(munEst);
+  if (d?.pais?.trim() && d.pais.trim().toLowerCase() !== 'méxico' && d.pais.trim().toLowerCase() !== 'mexico') {
+    parts.push(d.pais.trim());
+  }
+  if (parts.length === 0 && cp) parts.push(`C.P. ${cp}`);
+  return parts.join(' ').toUpperCase() || '—';
 }
 
-function lineaIva(item: InvoiceItem): number {
-  return item.impuestosTrasladados?.reduce((s, t) => s + (t.importe || 0), 0) ?? 0;
+/** «Ciudad, Estado a 8 de abril de 2026» (zona horaria de la app). */
+function buildLugarFechaEmisionLinea(emisor: FiscalConfig, fechaEmision: Date): string {
+  const d = emisor.direccion;
+  const city = d?.municipio?.trim() || d?.ciudad?.trim() || '';
+  const estado = d?.estado?.trim() || '';
+  const lug = city && estado ? `${city}, ${estado}` : city || estado || 'México';
+  const fechaLarga = formatInAppTimezone(fechaEmision, {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+  return `${lug} a ${fechaLarga}`;
+}
+
+function unidadMedidaFactura(clave: string | undefined): string {
+  const c = (clave || 'H87').trim();
+  const u = CLAVES_UNIDAD.find((x) => x.clave === c);
+  return u ? `${u.clave} — ${u.descripcion}` : c;
 }
 
 const FACTURA_PRINT_STYLES = `
-@page { size: letter; margin: 10mm 12mm; }
+@page { size: letter; margin: 12mm 14mm; }
 * { box-sizing: border-box; }
-body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 9pt; color: #111; line-height: 1.35; margin: 0; }
+body {
+  font-family: Arial, Helvetica, 'Liberation Sans', sans-serif;
+  font-size: 8.5pt;
+  color: #000;
+  line-height: 1.25;
+  margin: 0 auto;
+  max-width: 7.35in;
+  padding: 0 0 10px;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
 .aviso-prueba {
-  margin: 0 0 10px;
-  padding: 8px 10px;
+  margin: 0 0 8px;
+  padding: 6px 8px;
   border: 2px solid #b45309;
   background: #fffbeb;
   color: #92400e;
   font-weight: 700;
-  font-size: 8.5pt;
+  font-size: 8pt;
   text-align: center;
 }
-.grid-top { display: grid; grid-template-columns: 1fr 200px; gap: 12px; align-items: start; margin-bottom: 10px; }
-.emisor-nombre { font-weight: 700; font-size: 11pt; margin-bottom: 4px; }
-.emisor-lines { font-size: 8.5pt; }
-.folio-box { border: 2px solid #111; text-align: center; padding: 8px 6px; }
-.folio-box .tipo { font-size: 14pt; font-weight: 800; letter-spacing: 0.06em; }
-.folio-box .sf { font-size: 10pt; font-weight: 700; margin-top: 4px; }
-.folio-box .uuid { font-size: 6.5pt; word-break: break-all; margin-top: 6px; text-align: left; }
-.receptor { border: 1px solid #333; padding: 8px; margin-bottom: 10px; font-size: 8.5pt; }
-.receptor strong { display: block; margin-bottom: 4px; font-size: 9pt; }
-table.conceptos { width: 100%; border-collapse: collapse; font-size: 7.5pt; margin-bottom: 10px; }
-table.conceptos th, table.conceptos td { border: 1px solid #333; padding: 4px 3px; vertical-align: top; }
-table.conceptos th { background: #f1f5f9; font-weight: 600; }
-.num { text-align: right; white-space: nowrap; }
-.footer-split { display: grid; grid-template-columns: 1fr 160px; gap: 12px; align-items: start; }
-.total-letra { font-size: 8pt; font-weight: 600; margin-bottom: 6px; border: 1px solid #333; padding: 6px; }
-.pago-info { font-size: 8pt; margin-bottom: 8px; }
-.qr-wrap { margin-top: 8px; text-align: left; }
-.qr-wrap img { display: block; }
-.qr-placeholder {
-  border: 1px dashed #64748b;
-  padding: 8px;
-  font-size: 7.5pt;
-  color: #475569;
-  max-width: 200px;
-}
-.totales { border: 1px solid #333; padding: 8px; font-size: 9pt; }
-.totales div { display: flex; justify-content: space-between; margin: 3px 0; }
-.totales .grand { font-weight: 800; font-size: 11pt; border-top: 1px solid #333; margin-top: 6px; padding-top: 6px; }
-.leyenda { font-size: 6.5pt; color: #444; margin-top: 8px; line-height: 1.35; max-width: 320px; }
-.sellos { margin-top: 12px; font-size: 5.5pt; word-break: break-all; color: #333; border-top: 1px solid #ccc; padding-top: 8px; }
+.hdr-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; margin-bottom: 4px; }
+.hdr-emisor { flex: 1; min-width: 0; }
+.rfc-line { font-size: 11pt; font-weight: 700; margin-bottom: 4px; letter-spacing: 0.03em; }
+.nombre-emisor { font-size: 9.5pt; font-weight: 700; margin-bottom: 6px; line-height: 1.2; }
+.addr-line { font-size: 8pt; text-transform: uppercase; line-height: 1.35; word-wrap: break-word; }
+.lugar-fecha { font-size: 8.5pt; margin-top: 10px; font-weight: 600; }
+.folio-caja { flex: 0 0 150px; border: 2px solid #000; text-align: center; padding: 10px 8px; }
+.folio-caja .tit { font-size: 13pt; font-weight: 800; letter-spacing: 0.14em; }
+.folio-caja .fl { margin-top: 10px; font-size: 9.5pt; font-weight: 700; }
+.folio-caja .fl-valor { font-weight: 800; }
+.folio-caja .fl-valor.prueba { color: #c00; }
+.ley-apocrifa { font-size: 6.5pt; text-align: center; margin: 8px 0 10px; font-style: italic; }
+.cliente-box { margin-bottom: 8px; }
+.cliente-box .row { display: flex; align-items: baseline; gap: 8px; margin: 6px 0; font-size: 9pt; border-bottom: 1px solid #000; padding-bottom: 3px; min-height: 1.25em; }
+.cliente-box .row .k { font-weight: 700; flex: 0 0 auto; }
+.cliente-box .row .v { flex: 1; min-width: 0; }
+.meta-rec { font-size: 7pt; color: #111; margin-top: 6px; line-height: 1.35; }
+table.clasica { width: 100%; border-collapse: collapse; margin: 8px 0 12px; font-size: 8pt; }
+table.clasica th, table.clasica td { border: 1px solid #000; padding: 4px 5px; vertical-align: top; }
+table.clasica th { font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; font-size: 7.5pt; }
+table.clasica .num { text-align: right; white-space: nowrap; }
+table.clasica .cps { font-size: 6.5pt; color: #333; }
+.pie-grid { display: flex; gap: 14px; align-items: flex-start; margin-top: 2px; }
+.pie-izq { flex: 1.12; min-width: 0; }
+.pie-der { flex: 0 0 40%; max-width: 248px; }
+.caja-total-letra { border: 1px solid #000; padding: 6px 8px; margin-bottom: 8px; font-size: 8pt; min-height: 3.4em; }
+.caja-total-letra strong { display: block; margin-bottom: 4px; font-size: 7pt; text-transform: uppercase; letter-spacing: 0.06em; }
+.aduanero { font-size: 6.5pt; font-style: italic; margin-bottom: 8px; line-height: 1.35; }
+.qr-zona { margin: 6px 0; }
+.qr-zona img { display: block; }
+.qr-placeholder { border: 1px dashed #444; padding: 10px; font-size: 7pt; max-width: 176px; line-height: 1.3; }
+.sicofi { font-size: 8pt; margin: 8px 0 4px; }
+.pago-caja { border: 1px solid #000; padding: 8px 10px; font-size: 8.5pt; font-weight: 700; text-align: center; margin-top: 8px; }
+.tot-wrap { border: 1px solid #000; padding: 10px 12px; font-size: 9.5pt; }
+.tot-line { display: flex; justify-content: space-between; gap: 12px; margin: 5px 0; padding: 2px 0; }
+.tot-line.gran { border-top: 3px double #000; margin-top: 10px; padding-top: 8px; font-weight: 800; font-size: 11pt; }
+.vigencia { font-size: 6.5pt; margin: 12px 0 6px; line-height: 1.4; text-align: justify; }
+.cfdi-nota { font-size: 6.5pt; color: #333; margin-top: 8px; line-height: 1.35; max-width: 100%; }
+.sellos { margin-top: 10px; font-size: 5.5pt; word-break: break-all; color: #222; border-top: 1px solid #999; padding-top: 8px; }
 .sellos .lbl { font-weight: 700; font-size: 6pt; margin-top: 6px; }
 `;
 
@@ -148,30 +183,35 @@ export async function buildInvoiceCfdiPrintDocumentHtml(inv: Invoice): Promise<s
       margin: 1,
       errorCorrectionLevel: 'M',
     });
-    qrBlock = `<div class="qr-wrap"><img src="${dataUrl}" width="132" height="132" alt="QR SAT" /><div style="font-size:6.5pt;margin-top:4px;">Verificación SAT (CBB)</div></div>`;
+    qrBlock = `<div class="qr-zona"><img src="${dataUrl}" width="132" height="132" alt="QR SAT" /><div style="font-size:6.5pt;margin-top:4px;">Verificación SAT (CBB)</div></div>`;
   } else {
-    qrBlock = `<div class="qr-placeholder">Código bidimensional (CBB): se genera cuando el CFDI está timbrado ante el SAT (UUID y sello digital del emisor). Este documento ${inv.esPrueba ? 'es de prueba' : 'no incluye timbre'}.</div>`;
+    qrBlock = `<div class="qr-zona qr-placeholder">Código bidimensional (CBB): se genera cuando el CFDI está timbrado ante el SAT (UUID y sello digital del emisor). Este documento ${inv.esPrueba ? 'es de prueba' : 'no incluye timbre'}.</div>`;
   }
 
   const productos = inv.productos ?? [];
-  const rows = productos
+  const rowsConceptos = productos
     .map((it) => {
       const desc = (it.descripcion || '').trim() || '—';
       const cps = (it.claveProdServ || '01010101').trim();
       const cu = (it.claveUnidad || 'H87').trim();
-      const ivaL = lineaIva(it);
+      const cpsNote =
+        cps !== '01010101' ? ` <span class="cps">(${escHtml(cps)})</span>` : '';
       return `<tr>
-        <td>${escHtml(cps)}</td>
-        <td>${unidadLabel(cu)}</td>
-        <td class="num">${escHtml(String(it.cantidad))}</td>
-        <td>${escHtml(desc)}</td>
+        <td class="num">${escHtml(Number(it.cantidad).toFixed(2))}</td>
+        <td>${escHtml(unidadMedidaFactura(cu))}</td>
+        <td class="desc">${escHtml(desc)}${cpsNote}</td>
         <td class="num">${formatMoney(it.precioUnitario)}</td>
-        <td class="num">${formatMoney(it.descuento || 0)}</td>
-        <td class="num">${formatMoney(ivaL)}</td>
-        <td class="num">${formatMoney(it.total)}</td>
+        <td class="num">${formatMoney(it.subtotal)}</td>
       </tr>`;
     })
     .join('');
+
+  const MIN_FILAS_TABLA = 12;
+  const filasOcupadas = productos.length > 0 ? productos.length : 1;
+  const filasVacias = Math.max(0, MIN_FILAS_TABLA - filasOcupadas);
+  const filasRelleno = Array.from({ length: filasVacias }, () => {
+    return '<tr><td class="num">&nbsp;</td><td></td><td></td><td class="num"></td><td class="num"></td></tr>';
+  }).join('');
 
   const aviso = inv.esPrueba
     ? `<div class="aviso-prueba">${escHtml(AVISO_FISCAL_PRUEBA)}</div>`
@@ -179,15 +219,18 @@ export async function buildInvoiceCfdiPrintDocumentHtml(inv: Invoice): Promise<s
       ? `<div class="aviso-prueba">CFDI sin timbrar — sin validez fiscal ante el SAT hasta timbrarlo con un PAC autorizado.</div>`
       : '';
 
-  const nombreEmisorMostrar =
-    emisor.nombreComercial?.trim() || emisor.razonSocial || 'Emisor';
+  const addrClassica = escHtml(buildDireccionClassica(emisor));
+  const lugarFechaLinea = escHtml(buildLugarFechaEmisionLinea(emisor, inv.fechaEmision));
+  const folioValorClass = inv.esPrueba ? 'fl-valor prueba' : 'fl-valor';
+  const metodoPagoTexto =
+    inv.metodoPago === 'PPD' ? 'Pago en parcialidades o diferido' : 'Pago en una sola exhibición';
 
-  const uuidHtml = inv.uuid
-    ? `<div class="uuid"><strong>Folio fiscal:</strong><br/>${escHtml(inv.uuid)}</div>`
-    : `<div class="uuid"><strong>Folio fiscal:</strong> Pendiente de asignación al timbrar</div>`;
+  const uuidBloque = inv.uuid
+    ? `<div class="sellos" style="border-top:none;padding-top:4px;margin-top:6px;"><div class="lbl">Folio fiscal (UUID)</div><div>${escHtml(inv.uuid)}</div></div>`
+    : '';
 
   const noCert = inv.certificado?.trim()
-    ? `<div class="uuid" style="margin-top:4px;"><strong>No. serie CSD emisor:</strong><br/>${escHtml(inv.certificado!.slice(0, 64))}${inv.certificado!.length > 64 ? '…' : ''}</div>`
+    ? `<div class="sellos" style="border-top:none;padding-top:0;margin-top:4px;"><div class="lbl">No. de serie del CSD del emisor</div><div>${escHtml(inv.certificado!.slice(0, 88))}${inv.certificado!.length > 88 ? '…' : ''}</div></div>`
     : '';
 
   const cadenaMostrar =
@@ -198,73 +241,75 @@ export async function buildInvoiceCfdiPrintDocumentHtml(inv: Invoice): Promise<s
   const selloSatBlock =
     inv.estado === 'timbrada' && inv.selloDigital
       ? `<div class="sellos">
-          <div class="lbl">Sello digital del CFDI (emisor)</div>
+          <div class="lbl">Sello digital del emisor</div>
           <div>${escHtml(inv.selloDigital)}</div>
           ${cadenaMostrar ? `<div class="lbl">Cadena original del complemento de certificación digital del SAT</div><div>${escHtml(cadenaMostrar)}</div>` : ''}
         </div>`
-      : `<div class="sellos"><div class="lbl">Sello digital y cadena original del SAT</div><div>Se mostrarán íntegramente en el CFDI timbrado por su PAC.</div></div>`;
+      : `<div class="sellos"><div class="lbl">Sello digital y cadena original del SAT</div><div>Aparecerán en el XML timbrado por su PAC.</div></div>`;
 
   const inner = `
 ${aviso}
-<div class="grid-top">
-  <div>
-    <div class="emisor-nombre">${escHtml(nombreEmisorMostrar)}</div>
-    <div class="emisor-lines">
-      <div><strong>RFC:</strong> ${escHtml(emisor.rfc)}</div>
-      <div><strong>Régimen fiscal:</strong> ${regimenLabel(emisor.regimenFiscal)}</div>
-      <div><strong>Domicilio fiscal:</strong> ${domicilioFiscalTexto(emisor)}</div>
-      <div><strong>Lugar de expedición:</strong> ${escHtml(inv.lugarExpedicion || emisor.lugarExpedicion || '—')}</div>
-    </div>
+<div class="hdr-row">
+  <div class="hdr-emisor">
+    <div class="rfc-line">RFC: ${escHtml(emisor.rfc)}</div>
+    <div class="nombre-emisor">${escHtml(emisor.nombreComercial?.trim() || emisor.razonSocial || '—')}</div>
+    <div class="addr-line">${addrClassica}</div>
+    <div class="lugar-fecha">${lugarFechaLinea}</div>
   </div>
-  <div class="folio-box">
-    <div class="tipo">FACTURA</div>
-    <div class="sf">Serie ${escHtml(inv.serie)} &nbsp; Folio ${escHtml(inv.folio)}</div>
-    ${uuidHtml}
-    ${noCert}
-    <div class="uuid" style="margin-top:6px;"><strong>Fecha y hora de emisión:</strong><br/>${escHtml(formatInAppTimezone(inv.fechaEmision, { dateStyle: 'full', timeStyle: 'short' }))}</div>
+  <div class="folio-caja">
+    <div class="tit">FACTURA</div>
+    <div class="fl">Folio: <span class="${folioValorClass}">${escHtml(inv.serie)} ${escHtml(inv.folio)}</span></div>
   </div>
 </div>
 
-<div class="receptor">
-  <strong>Receptor</strong>
-  <div><strong>Nombre:</strong> ${escHtml(nombreRec)}</div>
-  <div><strong>RFC:</strong> ${escHtml(rfcRec)}</div>
-  <div><strong>Domicilio fiscal (C.P.):</strong> ${escHtml(cpRec || '—')}</div>
-  <div><strong>Régimen fiscal del receptor:</strong> ${regimenLabel(regRec)}</div>
-  <div><strong>Uso CFDI:</strong> ${usoCfdiLabel(uso)}</div>
+<p class="ley-apocrifa">La reproducción apócrifa de este comprobante constituye un delito en los términos de las disposiciones fiscales.</p>
+
+<div class="cliente-box">
+  <div class="row"><span class="k">NOMBRE:</span><span class="v">${escHtml(nombreRec)}</span></div>
+  <div class="row"><span class="k">RFC CLIENTE:</span><span class="v">${escHtml(rfcRec)}</span></div>
+  <div class="meta-rec">
+    C.P.: ${escHtml(cpRec || '—')} · Régimen fiscal: ${regimenLabel(regRec)} · Uso CFDI: ${usoCfdiLabel(uso)} ·
+    Lugar de expedición: ${escHtml(inv.lugarExpedicion || emisor.lugarExpedicion || '—')} ·
+    Fecha y hora de emisión: ${escHtml(formatInAppTimezone(inv.fechaEmision, { dateStyle: 'full', timeStyle: 'short' }))}
+  </div>
 </div>
 
-<table class="conceptos">
+<table class="clasica">
   <thead>
     <tr>
-      <th>Clave prod/serv</th>
-      <th>Unidad</th>
-      <th class="num">Cant.</th>
+      <th class="num">Cantidad</th>
+      <th>Unidad de medida</th>
       <th>Descripción</th>
-      <th class="num">Valor unit.</th>
-      <th class="num">Desc.</th>
-      <th class="num">IVA trasl.</th>
+      <th class="num">P. unitario</th>
       <th class="num">Importe</th>
     </tr>
   </thead>
-  <tbody>${rows || `<tr><td colspan="8">Sin conceptos</td></tr>`}</tbody>
+  <tbody>${rowsConceptos || `<tr><td colspan="5" class="desc">Sin conceptos</td></tr>`}${filasRelleno}</tbody>
 </table>
 
-<div class="footer-split">
-  <div>
-    <div class="total-letra"><strong>TOTAL CON LETRA:</strong> ${escHtml(montoALetrasMXN(inv.total))}</div>
-    <div class="pago-info"><strong>Forma de pago:</strong> ${formaPagoLabel(inv.formaPago)}<br/>
-    <strong>Método de pago:</strong> ${inv.metodoPago === 'PPD' ? 'PPD — Pago en parcialidades o diferido' : 'PUE — Pago en una sola exhibición'}</div>
+<div class="pie-grid">
+  <div class="pie-izq">
+    <div class="caja-total-letra"><strong>Total con letra</strong><br/>${escHtml(montoALetrasMXN(inv.total))}</div>
+    <p class="aduanero">NÚMERO Y FECHA DE DOCUMENTO ADUANERO: _____________________________<br/>
+    <span>(solo aplica en la importación de mercancías respecto de las que realicen ventas de primera mano)</span></p>
     ${qrBlock}
-    <p class="leyenda">Este documento es una representación impresa de un CFDI 4.0. La validez fiscal ante el SAT la otorga el XML timbrado (UUID, sellos y cadena original). Cualquier discrepancia debe resolverse con el archivo XML y la verificación en el portal del SAT.</p>
+    <div class="sicofi">NÚMERO DE APROBACIÓN SICOFI: _____________________________</div>
+    <div class="pago-caja">${escHtml(metodoPagoTexto)}</div>
+    <p class="cfdi-nota">Forma de pago: ${formaPagoLabel(inv.formaPago)}. Representación impresa de CFDI 4.0; la validez fiscal la determina el XML timbrado y la verificación en el portal del SAT.</p>
   </div>
-  <div class="totales">
-    <div><span>Subtotal</span><span>${formatMoney(inv.subtotal)}</span></div>
-    <div><span>Descuento</span><span>${formatMoney(inv.descuento)}</span></div>
-    <div><span>IVA trasladado</span><span>${formatMoney(inv.impuestosTrasladados)}</span></div>
-    <div class="grand"><span>TOTAL</span><span>${formatMoney(inv.total)}</span></div>
+  <div class="pie-der">
+    <div class="tot-wrap">
+      <div class="tot-line"><span>SUBTOTAL</span><span>${formatMoney(inv.subtotal)}</span></div>
+      <div class="tot-line"><span>DESCUENTO</span><span>${formatMoney(inv.descuento)}</span></div>
+      <div class="tot-line"><span>IVA</span><span>${formatMoney(inv.impuestosTrasladados)}</span></div>
+      <div class="tot-line gran"><span>TOTAL</span><span>${formatMoney(inv.total)}</span></div>
+    </div>
   </div>
 </div>
+
+<p class="vigencia">Este comprobante tendrá una vigencia de dos años contando a partir de la fecha de aprobación de la asignación de folios, la cual es: __/__/____</p>
+${uuidBloque}
+${noCert}
 ${selloSatBlock}
 `;
 
