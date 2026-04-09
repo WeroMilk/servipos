@@ -75,9 +75,9 @@ Los archivos compilados se encuentran en la carpeta `dist/`.
 
 ### Despliegue en Vercel
 
-La app **requiere** las variables `VITE_FIREBASE_*` en tiempo de build. En Vercel debes definirlas en **Settings → Environment Variables** y luego **Redeploy**; el `.env` local no se sube al repositorio.
+La app **requiere** variables `VITE_SUPABASE_*` en tiempo de build. En Vercel debes definirlas en **Settings -> Environment Variables** y luego **Redeploy**; el `.env` local no se sube al repositorio.
 
-Guía paso a paso: **[docs/VERCEL.md](docs/VERCEL.md)** (incluye dominio autorizado en Firebase Auth).
+Guía paso a paso: **[docs/VERCEL.md](docs/VERCEL.md)** (incluye URL autorizada en Supabase Auth y checklist predeploy).
 
 ## Uso
 
@@ -88,7 +88,7 @@ Guía paso a paso: **[docs/VERCEL.md](docs/VERCEL.md)** (incluye dominio autoriz
 | zavala | sombra123+ | Administrador |
 | gabriel | veneno123+ | Administrador |
 
-En **producción (Firebase)**, el rol y la tienda vienen del documento `users/{UID}` en Firestore. Para que un usuario coincida con otro admin en la misma sucursal, asigne el mismo `sucursalId` y `role: "admin"` (desde **Configuración → Usuarios** o desde la consola de Firebase).
+En **producción (Supabase)**, el rol y la sucursal vienen de `public.profiles`. Para que un usuario admin opere en la misma sucursal, configure `role = 'admin'` y el `sucursal_id` correcto (desde **Configuración -> Usuarios** o SQL/Studio en Supabase).
 
 Al cargar la app se migran las cuentas antiguas (`admin` / `cajero`) a las anteriores.
 

@@ -36,3 +36,24 @@ Para que el login funcione en `https://su-app.vercel.app` (o dominio propio):
 - Opcional: `npm run verify:supabase` en local con el mismo `.env` que copiará a Vercel.
 
 Los nombres deben coincidir **exactamente** (prefijo `VITE_` incluido). Vite solo expone al cliente variables que empiezan por `VITE_`.
+
+## 4. Hardening de Edge Function (Supabase)
+
+La función `admin-create-user` ahora valida origen por allowlist. Configure en Supabase:
+
+- **Project Settings -> Edge Functions -> Secrets**
+- `ADMIN_CREATE_USER_ALLOWED_ORIGINS` con lista CSV de orígenes permitidos.
+
+Ejemplo:
+
+`https://servipos.vercel.app,https://servipos-git-main-tu-org.vercel.app`
+
+Si no define esta variable, la función rechazará requests por seguridad.
+
+## 5. Checklist de release (obligatorio)
+
+1. `npm run verify:supabase`
+2. Verificar en Vercel todas las `VITE_*` requeridas
+3. Confirmar `Site URL` y `Redirect URLs` en Supabase Auth
+4. Confirmar secret `ADMIN_CREATE_USER_ALLOWED_ORIGINS` en Supabase Edge Functions
+5. Redeploy en Vercel y prueba smoke de login + alta de usuario admin + flujo POS básico

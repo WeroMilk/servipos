@@ -12,6 +12,28 @@ export type ReportAppEventInput = {
   meta?: Record<string, unknown>;
 };
 
+export type AppEventErrorCode =
+  | 'auth'
+  | 'rls'
+  | 'timeout'
+  | 'network'
+  | 'validation'
+  | 'not_found'
+  | 'unknown';
+
+function classifyErrorCode(err: unknown): AppEventErrorCode {
+  const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+  if (/jwt|token|session|invalid login|invalid credentials|unauthorized|forbidden|auth/i.test(msg)) {
+    return 'auth';
+  }
+  if (/rls|row-level security|permission|denied|policy|42501|pgrst301/i.test(msg)) return 'rls';
+  if (/timeout|timed out|etimedout|abort/i.test(msg)) return 'timeout';
+  if (/network|failed to fetch|offline|econn|enotfound/i.test(msg)) return 'network';
+  if (/invalid|validation|required|faltan|missing|formato/i.test(msg)) return 'validation';
+  if (/not found|no encontrado|404/i.test(msg)) return 'not_found';
+  return 'unknown';
+}
+
 /**
  * Registra un evento global (todos los usuarios lo ven en el panel).
  * No relanza errores: fallos de red / reglas se ignoran en UI.
@@ -40,10 +62,12 @@ export function reportAppEvent(input: ReportAppEventInput): void {
 /** Errores en hooks / capa de datos (cuando no hay toast). */
 export function reportHookFailure(source: string, operation: string, err: unknown): void {
   const msg = err instanceof Error ? err.message : String(err);
+  const errorCode = classifyErrorCode(err);
   reportAppEvent({
     kind: 'error',
     source,
     title: operation,
     detail: msg,
+    meta: { errorCode },
   });
 }
