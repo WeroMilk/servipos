@@ -30,6 +30,7 @@ import {
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
@@ -57,6 +58,7 @@ export function Header() {
   const toggleTheme = useAppStore((s) => s.toggleTheme);
   const resolvedDark = useAppStore((s) => getResolvedIsDark(s));
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileEventsOpen, setMobileEventsOpen] = useState(false);
   const firstMobileNavItemRef = useRef<HTMLButtonElement | null>(null);
   const swipeStartXRef = useRef<number | null>(null);
   const swipeStartYRef = useRef<number | null>(null);
@@ -91,7 +93,13 @@ export function Header() {
     return () => window.clearTimeout(id);
   }, [mobileMenuOpen]);
 
+  useEffect(() => {
+    if (mobileMenuOpen) return;
+    setMobileEventsOpen(false);
+  }, [mobileMenuOpen]);
+
   const handleSheetTouchStart = (event: TouchEvent<HTMLDivElement>) => {
+    if (mobileEventsOpen) return;
     const touch = event.touches[0];
     if (!touch) return;
     swipeStartXRef.current = touch.clientX;
@@ -99,7 +107,7 @@ export function Header() {
   };
 
   const handleSheetTouchMove = (event: TouchEvent<HTMLDivElement>) => {
-    if (!mobileMenuOpen) return;
+    if (!mobileMenuOpen || mobileEventsOpen) return;
     const touch = event.touches[0];
     const startX = swipeStartXRef.current;
     const startY = swipeStartYRef.current;
@@ -117,6 +125,7 @@ export function Header() {
   };
 
   const handleSheetTouchEnd = () => {
+    if (mobileEventsOpen) return;
     swipeStartXRef.current = null;
     swipeStartYRef.current = null;
   };
@@ -492,10 +501,13 @@ export function Header() {
         >
           <SheetHeader className="shrink-0 space-y-2 border-b border-slate-200/80 pb-3 pr-2 text-left dark:border-slate-800/80">
             <SheetTitle className="text-base text-slate-900 dark:text-slate-100">Menú</SheetTitle>
+            <SheetDescription className="sr-only">
+              Menú móvil con navegación, estado de sincronización y accesos de la cuenta.
+            </SheetDescription>
             {user && hasPermission('reportes:ver') ? (
               <div className="flex items-center justify-between gap-2 rounded-xl border border-slate-200/80 bg-slate-50/50 px-3 py-2 dark:border-slate-800/60 dark:bg-slate-900/40">
                 <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Eventos</span>
-                <AppEventsNotificationPanel dock="header" />
+                <AppEventsNotificationPanel dock="header" onPopoverOpenChange={setMobileEventsOpen} />
               </div>
             ) : null}
           </SheetHeader>

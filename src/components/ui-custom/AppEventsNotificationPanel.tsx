@@ -52,9 +52,13 @@ function kindStyles(k: AppEventLogRecord['kind']): string {
 type AppEventsNotificationPanelProps = {
   /** `sidebar`: popover hacia la derecha (barra lateral). `header`: alineado al header (móvil). */
   dock?: 'header' | 'sidebar';
+  onPopoverOpenChange?: (open: boolean) => void;
 };
 
-export function AppEventsNotificationPanel({ dock = 'header' }: AppEventsNotificationPanelProps) {
+export function AppEventsNotificationPanel({
+  dock = 'header',
+  onPopoverOpenChange,
+}: AppEventsNotificationPanelProps) {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const { eventsLastSeenAtMs, markEventsPanelSeen } = useNotificationStore();
@@ -85,9 +89,10 @@ export function AppEventsNotificationPanel({ dock = 'header' }: AppEventsNotific
   const handleOpenChange = useCallback(
     (next: boolean) => {
       setOpen(next);
+      onPopoverOpenChange?.(next);
       if (next) markEventsPanelSeen();
     },
-    [markEventsPanelSeen]
+    [markEventsPanelSeen, onPopoverOpenChange]
   );
 
   const handleClearAll = useCallback(async () => {
@@ -172,6 +177,13 @@ export function AppEventsNotificationPanel({ dock = 'header' }: AppEventsNotific
             className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain py-1 [-webkit-overflow-scrolling:touch] [touch-action:pan-y]"
             role="region"
             aria-label="Lista de eventos"
+            onTouchStartCapture={(e) => {
+              // En móvil, evita que el gesto se propague al Sheet padre y bloquee el scroll.
+              e.stopPropagation();
+            }}
+            onTouchMoveCapture={(e) => {
+              e.stopPropagation();
+            }}
           >
             <ul className="m-0 list-none p-0">
               {visibleEvents.length === 0 ? (
