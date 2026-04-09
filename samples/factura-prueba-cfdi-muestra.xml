@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Mismo formato que genera SERVIpos (hook useCFDIGenerator en src/hooks/useInvoices.ts). Datos ficticios solo para revisar estructura. -->
+<!-- Documento de prueba: sin timbrado ni validez ante el SAT -->
+<cfdi:Comprobante 
+  xmlns:cfdi="http://www.sat.gob.mx/cfd/4"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.sat.gob.mx/cfd/4 http://www.sat.gob.mx/sitio_internet/cfd/4/cfdv40.xsd"
+  Version="4.0"
+  Serie="PRUEBA"
+  Folio="1"
+  Fecha="2026-04-08T12:00:00"
+  FormaPago="01"
+  MetodoPago="PUE"
+  SubTotal="100.00"
+  Descuento="0.00"
+  Moneda="MXN"
+  Total="116.00"
+  TipoDeComprobante="I"
+  Exportacion="01"
+  LugarExpedicion="83100">
+  
+  <cfdi:Emisor 
+    Rfc="AAA010101AAA" 
+    Nombre="EMPRESA DE DEMOSTRACION SA DE CV" 
+    RegimenFiscal="601"/>
+  
+  <cfdi:Receptor 
+    Rfc="XAXX010101000" 
+    Nombre="Publico en General" 
+    DomicilioFiscalReceptor="83100" 
+    RegimenFiscalReceptor="616" 
+    UsoCFDI="S01"/>
+  
+  <cfdi:Conceptos>
+    
+    <cfdi:Concepto 
+      ClaveProdServ="01010101"
+      Cantidad="1.00"
+      ClaveUnidad="H87"
+      Descripcion="Producto o servicio de muestra (SERVIpos)"
+      ValorUnitario="100.00"
+      Importe="100.00"
+      Descuento="0.00"
+      ObjetoImp="02">
+      <cfdi:Impuestos>
+        <cfdi:Traslados>
+          <cfdi:Traslado 
+            Base="100.00"
+            Impuesto="002"
+            TipoFactor="Tasa"
+            TasaOCuota="0.160000"
+            Importe="16.00"/>
+        </cfdi:Traslados>
+      </cfdi:Impuestos>
+    </cfdi:Concepto>
+    
+  </cfdi:Conceptos>
+  
+  <cfdi:Impuestos TotalImpuestosTrasladados="16.00">
+    <cfdi:Traslados>
+      <cfdi:Traslado 
+        Base="100.00"
+        Impuesto="002"
+        TipoFactor="Tasa"
+        TasaOCuota="0.160000"
+        Importe="16.00"/>
+    </cfdi:Traslados>
+  </cfdi:Impuestos>
+  
+</cfdi:Comprobante>
