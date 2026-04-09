@@ -425,7 +425,6 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
         ticketKind: 'cierre',
       });
 
-      const ventasDia = await ventasDelDiaCalendario(isCloud, effectiveSucursalId ?? null);
       printThermalDailySalesReport({
         fechaLabel: formatInAppTimezone(new Date(), { dateStyle: 'full', timeStyle: 'short' }),
         sucursalId: effectiveSucursalId ?? undefined,
