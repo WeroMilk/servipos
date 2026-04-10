@@ -62,7 +62,17 @@ import {
 import { useProductSearch, useSales, useClients, useEffectiveSucursalId, useCajaSesion } from '@/hooks';
 import { usePosCartCloudSync } from '@/hooks/usePosCartCloudSync';
 import { CajaPosToolbar, type CajaPosToolbarHandle } from '@/components/caja/CajaPosToolbar';
-import type { Client, Product, FormaPago, Payment, Sale, Sucursal, CartItem } from '@/types';
+import type {
+  Client,
+  Product,
+  FormaPago,
+  Payment,
+  Sale,
+  SaleItem,
+  Sucursal,
+  CartItem,
+  QuotationItem,
+} from '@/types';
 import { FORMAS_PAGO_UI } from '@/types';
 import {
   getSaleByFolio,
@@ -106,6 +116,60 @@ import {
   type DevolucionLineInput,
 } from '@/lib/salePartialReturnCompute';
 import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
+
+function buildProductStubFromResumeFields(args: {
+  productId: string;
+  nombreHint?: string;
+  precioUnitario: number;
+  impuesto: number;
+  unidadMedida?: string;
+  claveProdServ?: string;
+}): Product {
+  const epoch = new Date(0);
+  const base = args.nombreHint?.trim() || 'Artículo';
+  return {
+    id: args.productId,
+    sku: '—',
+    nombre: `${base} (fuera de catálogo)`,
+    precioVenta: Number(args.precioUnitario) || 0,
+    impuesto: Number.isFinite(args.impuesto) ? args.impuesto : 16,
+    existencia: 0,
+    existenciaMinima: 0,
+    unidadMedida: args.unidadMedida?.trim() || 'H87',
+    claveProdServ: args.claveProdServ,
+    activo: false,
+    createdAt: epoch,
+    updatedAt: epoch,
+    syncStatus: 'pending',
+  };
+}
+
+/** Catálogo actual, producto embebido en el ticket o sustituto mínimo para poder cobrar. */
+function productFromSaleLineForResume(line: SaleItem, fromCatalog: Product | undefined): Product {
+  if (fromCatalog) return fromCatalog;
+  if (line.producto?.id === line.productId) return line.producto;
+  return buildProductStubFromResumeFields({
+    productId: line.productId,
+    nombreHint: line.producto?.nombre || line.productoNombre,
+    precioUnitario: line.precioUnitario,
+    impuesto: line.impuesto,
+    unidadMedida: line.producto?.unidadMedida,
+    claveProdServ: line.producto?.claveProdServ,
+  });
+}
+
+function productFromQuotationLineForResume(line: QuotationItem, fromCatalog: Product | undefined): Product {
+  if (fromCatalog) return fromCatalog;
+  if (line.producto?.id === line.productId) return line.producto;
+  return buildProductStubFromResumeFields({
+    productId: line.productId,
+    nombreHint: line.producto?.nombre,
+    precioUnitario: line.precioUnitario,
+    impuesto: line.impuesto,
+    unidadMedida: line.producto?.unidadMedida,
+    claveProdServ: line.producto?.claveProdServ,
+  });
+}
 
 // ============================================
 // PUNTO DE VENTA (POS) — Vista tipo app: lg+ sin scroll del contenedor (solo carrito / panel cobro); móvil conserva scroll vertical.
@@ -214,6 +278,9 @@ export function POS() {
     cancelSale: ejecutarCancelacionVenta,
     partialReturnSale: ejecutarDevolucionParcial,
   } = useSales(500);
+  /** Evita depender de `salesCatalog` en el efecto de deep link (re-ejecución = doble toast). */
+  const salesCatalogNavRef = useRef(salesCatalog);
+  salesCatalogNavRef.current = salesCatalog;
   const { effectiveSucursalId } = useEffectiveSucursalId();
   usePosCartCloudSync({ userId: user?.id, sucursalId: effectiveSucursalId });
   const cajaSesion = useCajaSesion({ sucursalId: effectiveSucursalId });
@@ -1011,6 +1078,46 @@ export function POS() {
 
   const digitos4TarjetaPendiente = () => tarjetaUltimos4.replace(/\D/g, '').slice(0, 4);
 
+  /**
+   * Total que quedará cubierto al pulsar «Completar venta» (incluye lo que aún está solo en el campo,
+   * igual que `handleProcessSale`), para habilitar el botón sin usar «Agregar».
+   */
+  const totalPagadoIncluyeCampoMonto = useMemo(() => {
+    if (formaPago === 'PPC' || esTraspasoTienda) return totalPagadoVenta;
+    if (cobroTarjetaPue) return totalPagadoVenta;
+
+    const norm = montoRecibidoInput.replace(',', '.').trim();
+    if (!norm) return totalPagadoVenta;
+    const extra = parseFloat(norm);
+    if (!Number.isFinite(extra) || extra <= 0) return totalPagadoVenta;
+
+    if (metodoPago === 'PPD') {
+      const fpLinea = ppdAbonoFormaPago;
+      if (esFormaTarjeta(fpLinea) && digitos4TarjetaPendiente().length !== 4) {
+        return totalPagadoVenta;
+      }
+      return totalPagadoVenta + extra;
+    }
+    if (metodoPago === 'PUE' && !esFormaDevolucion && !esFormaCotizacion) {
+      if (esFormaTarjeta(formaPago) && digitos4TarjetaPendiente().length !== 4) {
+        return totalPagadoVenta;
+      }
+      return totalPagadoVenta + extra;
+    }
+    return totalPagadoVenta;
+  }, [
+    totalPagadoVenta,
+    montoRecibidoInput,
+    formaPago,
+    metodoPago,
+    ppdAbonoFormaPago,
+    esTraspasoTienda,
+    cobroTarjetaPue,
+    tarjetaUltimos4,
+    esFormaDevolucion,
+    esFormaCotizacion,
+  ]);
+
   const toastTarjeta4Requeridos = () =>
     addToast({
       type: 'warning',
@@ -1593,20 +1700,25 @@ export function POS() {
     setResumeOpenBusy(true);
     try {
       const cartItems: CartItem[] = [];
+      let lineasFueraDeCatalogo = 0;
       for (const line of sale.productos ?? []) {
-        const product = await resolveProductForResume(line.productId);
-        if (!product) {
-          addToast({
-            type: 'error',
-            message: `No se encontró el producto en catálogo (ID ${line.productId.slice(0, 8)}…).`,
-          });
-          return;
-        }
+        const fromCatalog = await resolveProductForResume(line.productId);
+        const product = productFromSaleLineForResume(line, fromCatalog);
+        if (!fromCatalog && !(line.producto?.id === line.productId)) lineasFueraDeCatalogo += 1;
         cartItems.push({
           product,
           quantity: line.cantidad,
           discount: line.descuento,
           precioUnitarioOverride: line.precioUnitario,
+        });
+      }
+      if (lineasFueraDeCatalogo > 0) {
+        addToast({
+          type: 'warning',
+          message:
+            lineasFueraDeCatalogo === 1
+              ? 'Un artículo ya no está en el catálogo; se muestra con el nombre y precio guardados en el ticket.'
+              : `${lineasFueraDeCatalogo} artículos ya no están en el catálogo; se muestran con los datos guardados en el ticket.`,
         });
       }
       let clientePos = clientFromSaleForPos(sale);
@@ -1647,6 +1759,9 @@ export function POS() {
   const resumeOpenSaleRef = useRef(resumeOpenSale);
   resumeOpenSaleRef.current = resumeOpenSale;
 
+  /** Evita doble apertura/toast si el efecto corre dos veces con el mismo state (Strict Mode o deps). */
+  const posDeepLinkHandledRef = useRef<string | null>(null);
+
   useEffect(() => {
     const st = location.state as {
       posPreselectClienteId?: string;
@@ -1654,14 +1769,30 @@ export function POS() {
     } | null | undefined;
     const ventaId = st?.posAbrirVentaId?.trim();
     const cid = st?.posPreselectClienteId?.trim();
-    if (!ventaId && (!cid || cid === 'mostrador')) return;
+    if (!ventaId && (!cid || cid === 'mostrador')) {
+      posDeepLinkHandledRef.current = null;
+      return;
+    }
+
+    const navKey = ventaId
+      ? `venta:${ventaId}`
+      : cid && cid !== 'mostrador'
+        ? `cli:${cid}`
+        : null;
+    if (navKey && posDeepLinkHandledRef.current === navKey) {
+      return;
+    }
+    if (navKey) {
+      posDeepLinkHandledRef.current = navKey;
+    }
 
     navigate('.', { replace: true, state: null });
 
     void (async () => {
       try {
         if (ventaId) {
-          let sale: Sale | undefined = salesCatalog.find((s) => s.id === ventaId);
+          const cat = salesCatalogNavRef.current;
+          let sale: Sale | undefined = cat.find((s) => s.id === ventaId);
           if (!sale && effectiveSucursalId) {
             sale = (await getSaleByIdFirestore(effectiveSucursalId, ventaId)) ?? undefined;
           }
@@ -1720,7 +1851,7 @@ export function POS() {
         addToast({ type: 'error', message: 'No se pudo abrir la venta o el cliente en el POS.' });
       }
     })();
-  }, [location.state, navigate, salesCatalog, effectiveSucursalId, setClient, addToast, setMobileTab]);
+  }, [location.state, navigate, effectiveSucursalId, setClient, addToast, setMobileTab]);
 
   const ejecutarPasarCxcConCliente = async (vs: Sale, clienteRow: Client) => {
     setPasarCxcBusyId(vs.id);
@@ -1807,20 +1938,25 @@ export function POS() {
         return;
       }
       const cartItems: CartItem[] = [];
+      let lineasFueraDeCatalogo = 0;
       for (const line of q.productos) {
-        const product = await resolveProductForResume(line.productId);
-        if (!product) {
-          addToast({
-            type: 'error',
-            message: `No se encontró el producto en catálogo (ID ${line.productId.slice(0, 8)}…).`,
-          });
-          return;
-        }
+        const fromCatalog = await resolveProductForResume(line.productId);
+        const product = productFromQuotationLineForResume(line, fromCatalog);
+        if (!fromCatalog && !(line.producto?.id === line.productId)) lineasFueraDeCatalogo += 1;
         cartItems.push({
           product,
           quantity: line.cantidad,
           discount: line.descuento,
           precioUnitarioOverride: line.precioUnitario,
+        });
+      }
+      if (lineasFueraDeCatalogo > 0) {
+        addToast({
+          type: 'warning',
+          message:
+            lineasFueraDeCatalogo === 1
+              ? 'Un artículo de la cotización ya no está en el catálogo; se muestra con el precio guardado.'
+              : `${lineasFueraDeCatalogo} artículos ya no están en el catálogo; se muestran con los datos de la cotización.`,
         });
       }
       let clientePos = clientFromQuotationForPos(q);
@@ -3898,7 +4034,7 @@ export function POS() {
                         ? digitos4TarjetaPendiente().length !== 4
                         : puedeVentaConSaldoPendiente
                           ? false
-                          : totalPagadoVenta < cobroReferencia)
+                          : totalPagadoIncluyeCampoMonto + 0.004 < cobroReferencia)
                   }
                   className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white sm:w-auto"
                 >
