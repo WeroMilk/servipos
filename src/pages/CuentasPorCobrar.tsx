@@ -98,11 +98,6 @@ export function CuentasPorCobrar() {
     return rows;
   }, [clients]);
 
-  const totalAdeudado = useMemo(
-    () => deudores.reduce((s, c) => s + saldoCliente(c), 0),
-    [deudores]
-  );
-
   const ticketsConSaldo = useMemo(() => {
     const rows = sales
       .filter((s) => s.estado === 'completada')
@@ -111,6 +106,13 @@ export function CuentasPorCobrar() {
     rows.sort((a, b) => b.sale.createdAt.getTime() - a.sale.createdAt.getTime());
     return rows;
   }, [sales]);
+
+  /** Suma real de saldos pendientes (incluye mostrador y tickets sin reflejar aún en `cliente.saldoAdeudado`). */
+  const totalSaldoPendienteTickets = useMemo(
+    () =>
+      Math.round(ticketsConSaldo.reduce((s, x) => s + x.adeudo, 0) * 100) / 100,
+    [ticketsConSaldo]
+  );
 
   const loading = loadingClients || loadingSales;
 
@@ -202,9 +204,9 @@ export function CuentasPorCobrar() {
           <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
             <Wallet className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
             <div>
-              <p className="text-xs text-slate-600 dark:text-slate-400">Total por cobrar (clientes)</p>
+              <p className="text-xs text-slate-600 dark:text-slate-400">Total por cobrar</p>
               <p className="text-lg font-bold tabular-nums text-cyan-600 dark:text-cyan-400">
-                {formatMoney(totalAdeudado)}
+                {formatMoney(totalSaldoPendienteTickets)}
               </p>
             </div>
           </div>
