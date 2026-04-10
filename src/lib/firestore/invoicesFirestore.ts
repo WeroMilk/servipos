@@ -12,7 +12,14 @@ function tsToDate(v: unknown): Date {
 
 function parseInvoiceStatus(v: unknown): Invoice['estado'] {
   const s = String(v ?? 'pendiente');
-  if (s === 'pendiente' || s === 'timbrada' || s === 'cancelada' || s === 'error') return s;
+  if (
+    s === 'pendiente' ||
+    s === 'enviada' ||
+    s === 'timbrada' ||
+    s === 'cancelada' ||
+    s === 'error'
+  )
+    return s;
   return 'pendiente';
 }
 

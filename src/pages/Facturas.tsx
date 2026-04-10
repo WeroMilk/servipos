@@ -67,6 +67,7 @@ import { getInvoiceFirestore } from '@/lib/firestore/invoicesFirestore';
 
 const statusColors: Record<string, string> = {
   pendiente: 'bg-amber-500/10 text-black border-amber-500/30 dark:text-amber-100',
+  enviada: 'bg-sky-500/10 text-sky-800 border-sky-500/30 dark:text-sky-200',
   timbrada: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
   cancelada: 'bg-red-500/10 text-red-400 border-red-500/30',
   error: 'bg-red-500/10 text-red-400 border-red-500/30',
@@ -74,6 +75,7 @@ const statusColors: Record<string, string> = {
 
 const statusLabels: Record<string, string> = {
   pendiente: 'Pendiente',
+  enviada: 'Enviada',
   timbrada: 'Timbrada',
   cancelada: 'Cancelada',
   error: 'Error',
@@ -116,7 +118,8 @@ function saleMatchesInvoicePickerQuery(sale: Sale, raw: string): boolean {
 }
 
 export function Facturas() {
-  const { invoices, loading, addInvoice, cancelInvoice, removeInvoice } = useInvoices();
+  const { invoices, loading, addInvoice, cancelInvoice, removeInvoice, markInvoiceEnviada } =
+    useInvoices();
   const { sales } = useSales(100);
   const { clients } = useClients();
   const { config: fiscalConfig } = useFiscalConfig();
@@ -131,6 +134,7 @@ export function Facturas() {
   const [generatedXML, setGeneratedXML] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [emailOpen, setEmailOpen] = useState(false);
+  const [emailTargetInvoiceId, setEmailTargetInvoiceId] = useState<string | null>(null);
   const [emailSubject, setEmailSubject] = useState('');
   const [emailBody, setEmailBody] = useState('');
   const [deleteInvoiceTarget, setDeleteInvoiceTarget] = useState<Invoice | null>(null);
@@ -243,6 +247,11 @@ export function Facturas() {
           : await getInvoiceById(newId);
         if (created?.emisor?.rfc) {
           printInvoiceCfdiRepresentacion(created);
+          void markInvoiceEnviada(newId).then(() => {
+            setSelectedInvoice((prev) =>
+              prev?.id === newId ? { ...prev, estado: 'enviada' } : prev
+            );
+          });
         } else if (created) {
           addToast({
             type: 'error',
@@ -329,9 +338,19 @@ export function Facturas() {
   }
 
   const openEmailForInvoice = (inv: Invoice) => {
+    setEmailTargetInvoiceId(inv.id);
     setEmailSubject(`Factura ${inv.serie}-${inv.folio} — SERVIPARTZ POS`);
     setEmailBody(buildInvoiceEmailBody(inv));
     setEmailOpen(true);
+  };
+
+  const handlePrintRepresentacion = (inv: Invoice) => {
+    printInvoiceCfdiRepresentacion(inv);
+    void markInvoiceEnviada(inv.id).then(() => {
+      setSelectedInvoice((prev) =>
+        prev?.id === inv.id ? { ...prev, estado: 'enviada' } : prev
+      );
+    });
   };
 
   const searchLc = searchQuery.toLowerCase();
@@ -607,6 +626,13 @@ export function Facturas() {
                             >
                               <Download className="mr-2 h-4 w-4" />
                               Descargar PDF
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handlePrintRepresentacion(invoice)}
+                              className="text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:bg-slate-800 hover:text-slate-900 dark:text-slate-100"
+                            >
+                              <Printer className="mr-2 h-4 w-4" />
+                              Imprimir (carta)
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() => openEmailForInvoice(invoice)}
@@ -954,7 +980,7 @@ export function Facturas() {
                   type="button"
                   variant="outline"
                   className="border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300"
-                  onClick={() => printInvoiceCfdiRepresentacion(selectedInvoice)}
+                  onClick={() => handlePrintRepresentacion(selectedInvoice)}
                 >
                   <Printer className="mr-2 h-4 w-4" />
                   Imprimir (carta)
@@ -1007,10 +1033,22 @@ export function Facturas() {
 
       <SendEmailDialog
         open={emailOpen}
-        onOpenChange={setEmailOpen}
+        onOpenChange={(open) => {
+          setEmailOpen(open);
+          if (!open) setEmailTargetInvoiceId(null);
+        }}
         subject={emailSubject}
         body={emailBody}
         title="Enviar factura por correo"
+        onAfterSend={() => {
+          const id = emailTargetInvoiceId;
+          if (!id) return;
+          void markInvoiceEnviada(id).then(() => {
+            setSelectedInvoice((prev) =>
+              prev?.id === id ? { ...prev, estado: 'enviada' } : prev
+            );
+          });
+        }}
       />
     </>
   );

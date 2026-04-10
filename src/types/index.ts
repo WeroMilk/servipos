@@ -541,7 +541,7 @@ export interface InvoiceTax {
   importe: number;
 }
 
-export type InvoiceStatus = 'pendiente' | 'timbrada' | 'cancelada' | 'error';
+export type InvoiceStatus = 'pendiente' | 'enviada' | 'timbrada' | 'cancelada' | 'error';
 
 // ============================================
 // SINCRONIZACIÓN

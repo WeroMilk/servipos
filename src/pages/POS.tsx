@@ -105,12 +105,16 @@ import {
   previewReembolsoDevolucion,
   type DevolucionLineInput,
 } from '@/lib/salePartialReturnCompute';
+import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
 
 // ============================================
 // PUNTO DE VENTA (POS) — Vista tipo app: lg+ sin scroll del contenedor (solo carrito / panel cobro); móvil conserva scroll vertical.
 // ============================================
 
-/** Código/SKU compacto (lector USB); evita auto-envío mientras se escribe nombre con espacios. */
+/**
+ * Texto que puede ser SKU/código de barras (no nombre con espacios).
+ * El auto-envío por silencio corto solo aplica si además la secuencia de teclas fue una ráfaga (pistola), no tipeo manual.
+ */
 function looksLikePosScanToken(s: string): boolean {
   const t = s.trim();
   if (t.length < 4 || /\s/.test(t)) return false;
@@ -127,6 +131,10 @@ function isEventFromOpenRadixSelect(target: EventTarget | null): boolean {
 }
 
 const POS_SCAN_IDLE_MS = 42;
+/** Si entre dos teclas pasa más que esto, es tipeo manual (no disparamos auto-envío al silencio). */
+const POS_SEARCH_SLOW_KEY_GAP_MS = 65;
+/** Máx. duración primera→última tecla para considerar un código leído de una vez (pistola / pegado rápido). */
+const POS_SEARCH_MAX_SCAN_BURST_SPAN_MS = 1400;
 
 function cartLineUnitSinIva(item: CartItem, listaId: ClientPriceListId): number {
   const u = getCartLineUnitSinIvaBase(item, listaId);
@@ -202,6 +210,7 @@ export function POS() {
     addSale,
     sales: salesCatalog,
     completePendingSale,
+    appendPagosToCompletedSale,
     cancelSale: ejecutarCancelacionVenta,
     partialReturnSale: ejecutarDevolucionParcial,
   } = useSales(500);
@@ -545,6 +554,17 @@ export function POS() {
   const impuestosCobro = esTraspasoTienda ? 0 : impuestosVenta;
   const descuentoCobro = esTraspasoTienda ? 0 : descuentoVenta;
 
+  /** Importe a cubrir en cobro: saldo del ticket si se retomó una venta `completada` con adeudo (CxC). */
+  const cobroReferencia = useMemo(() => {
+    if (esTraspasoTienda) return 0;
+    const s = openSaleResume?.sale;
+    if (s?.estado === 'completada') {
+      const a = computeSaleClienteAdeudo(s);
+      if (a > 0.005) return a;
+    }
+    return totalCobro;
+  }, [esTraspasoTienda, openSaleResume, totalCobro]);
+
   /** PPD + cliente registrado: permite cobrar menos del total (saldo en cuenta del cliente). */
   const puedeVentaConSaldoPendiente =
     !esTraspasoTienda &&
@@ -595,6 +615,10 @@ export function POS() {
   /** En navegador el handle es `number`; evitar choque con tipos de Node (`Timeout`). */
   const posScanIdleTimerRef = useRef<number | null>(null);
   const posScanCommittingRef = useRef(false);
+  /** Timestamps de la secuencia actual en el buscador (para distinguir pistola vs tipeo manual). */
+  const posSearchPrevKeyTsRef = useRef(0);
+  const posSearchFirstKeyTsRef = useRef(0);
+  const posSearchHadSlowKeyGapRef = useRef(false);
   const productSearchWrapRef = useRef<HTMLDivElement>(null);
   const posSearchListRef = useRef<HTMLDivElement>(null);
   const mobileScannerRef = useRef<Html5Qrcode | null>(null);
@@ -727,6 +751,9 @@ export function POS() {
     setCotizacionUltimos4('');
     clearCart();
     setSearchQuery('');
+    posSearchPrevKeyTsRef.current = 0;
+    posSearchFirstKeyTsRef.current = 0;
+    posSearchHadSlowKeyGapRef.current = false;
     setDebouncedSearchQuery('');
     setPosSearchHighlightIdx(-1);
     setShowProductSearch(false);
@@ -1022,6 +1049,9 @@ export function POS() {
     try {
       addItem(product, 1);
       setSearchQuery('');
+      posSearchPrevKeyTsRef.current = 0;
+      posSearchFirstKeyTsRef.current = 0;
+      posSearchHadSlowKeyGapRef.current = false;
       setShowProductSearch(false);
       addToast({ type: 'success', message: `${product.nombre} agregado` });
     } catch (error: unknown) {
@@ -1076,9 +1106,33 @@ export function POS() {
         posScanIdleTimerRef.current = null;
       }
       const trim = val.trim();
-      if (!trim || !looksLikePosScanToken(trim)) return;
+      if (!trim) {
+        posSearchPrevKeyTsRef.current = 0;
+        posSearchFirstKeyTsRef.current = 0;
+        posSearchHadSlowKeyGapRef.current = false;
+        return;
+      }
+
+      const now = Date.now();
+      const prevTs = posSearchPrevKeyTsRef.current;
+      if (prevTs === 0) {
+        posSearchFirstKeyTsRef.current = now;
+      } else if (now - prevTs > POS_SEARCH_SLOW_KEY_GAP_MS) {
+        posSearchHadSlowKeyGapRef.current = true;
+      }
+      posSearchPrevKeyTsRef.current = now;
+
+      if (!looksLikePosScanToken(trim)) return;
+
       posScanIdleTimerRef.current = window.setTimeout(() => {
         posScanIdleTimerRef.current = null;
+        const raw = searchInputRef.current?.value.trim() ?? '';
+        if (!raw || !looksLikePosScanToken(raw)) return;
+        if (posSearchHadSlowKeyGapRef.current) return;
+        const firstTs = posSearchFirstKeyTsRef.current;
+        const lastTs = posSearchPrevKeyTsRef.current;
+        if (firstTs === 0 || lastTs === 0) return;
+        if (lastTs - firstTs > POS_SEARCH_MAX_SCAN_BURST_SPAN_MS) return;
         flushPosScanFromInput();
       }, POS_SCAN_IDLE_MS);
     },
@@ -1090,12 +1144,15 @@ export function POS() {
       const text = e.clipboardData.getData('text').trim();
       if (!text || !looksLikePosScanToken(text)) return;
       e.preventDefault();
-      setSearchQuery(text);
-      setShowProductSearch(true);
       if (posScanIdleTimerRef.current != null) {
         window.clearTimeout(posScanIdleTimerRef.current);
         posScanIdleTimerRef.current = null;
       }
+      posSearchPrevKeyTsRef.current = 0;
+      posSearchFirstKeyTsRef.current = 0;
+      posSearchHadSlowKeyGapRef.current = false;
+      setSearchQuery(text);
+      setShowProductSearch(true);
       void commitSearchEnter(text);
     },
     [commitSearchEnter]
@@ -1137,6 +1194,9 @@ export function POS() {
           window.clearTimeout(posScanIdleTimerRef.current);
           posScanIdleTimerRef.current = null;
         }
+        posSearchPrevKeyTsRef.current = 0;
+        posSearchFirstKeyTsRef.current = 0;
+        posSearchHadSlowKeyGapRef.current = false;
         if (listNavOk && posSearchHighlightIdx >= 0 && posSearchHighlightIdx < n) {
           handleAddProduct(searchResults[posSearchHighlightIdx]);
           return;
@@ -1568,7 +1628,10 @@ export function POS() {
       setVentasAbiertasDialogOpen(false);
       addToast({
         type: 'success',
-        message: `Venta ${sale.folio} cargada. Registre el cobro y pulse Cobrar.`,
+        message:
+          sale.estado === 'completada' && computeSaleClienteAdeudo(sale) > 0.005
+            ? `Ticket ${sale.folio}: cobre el saldo pendiente y pulse Cobrar.`
+            : `Venta ${sale.folio} cargada. Registre el cobro y pulse Cobrar.`,
       });
       setMobileTab('cart');
     } catch (e: unknown) {
@@ -1613,6 +1676,11 @@ export function POS() {
             await resumeOpenSaleRef.current(sale);
             return;
           }
+          const adeudoVenta = computeSaleClienteAdeudo(sale);
+          if (sale.estado === 'completada' && adeudoVenta > 0.005) {
+            await resumeOpenSaleRef.current(sale);
+            return;
+          }
           if (sale.clienteId && sale.clienteId !== 'mostrador') {
             const row = await getClientById(sale.clienteId);
             if (row?.nombre?.trim()) {
@@ -1627,7 +1695,10 @@ export function POS() {
           }
           addToast({
             type: 'warning',
-            message: 'No hay cliente registrado en este ticket para abrirlo en el POS.',
+            message:
+              adeudoVenta <= 0.005
+                ? 'Este ticket no tiene saldo pendiente en cuenta por cobrar.'
+                : 'No se pudo cargar la venta en el POS.',
           });
           return;
         }
@@ -1951,10 +2022,10 @@ export function POS() {
         });
         return;
       }
-      pagosParaVenta = [{ formaPago, monto: totalCobro, referencia: d4 }];
+      pagosParaVenta = [{ formaPago, monto: cobroReferencia, referencia: d4 }];
     } else if (!esTraspasoTienda) {
       const permiteDeuda = puedeVentaConSaldoPendiente || formaPago === 'PPC';
-      if (!permiteDeuda && getTotalPagado() < totalCobro) {
+      if (!permiteDeuda && getTotalPagado() < cobroReferencia) {
         addToast({ type: 'error', message: 'El pago es insuficiente' });
         return;
       }
@@ -1980,7 +2051,7 @@ export function POS() {
       ? 0
       : pagosParaVenta.reduce((s, p) => s + (Number(p.monto) || 0), 0);
     /** Misma tolerancia que `computeSaleClienteAdeudo`: evita CxC por centavos de redondeo. */
-    const rawAdeudoCobro = totalCobro - sumPagosCobro;
+    const rawAdeudoCobro = cobroReferencia - sumPagosCobro;
     const adeudoTicket =
       esTraspasoTienda ? 0
       : rawAdeudoCobro <= 0.02 ? 0
@@ -2029,13 +2100,74 @@ export function POS() {
           }
           pend = saved;
         }
-        const cambioAbierta = cobroTarjetaPueLocal ? 0 : getCambio();
+
         const pagosCompletacion: Payment[] = pagosParaVenta.map((p) => ({
           id: crypto.randomUUID(),
           formaPago: p.formaPago as FormaPago,
           monto: p.monto,
           referencia: p.referencia,
         }));
+
+        if (pend.estado === 'completada') {
+          const adeudoAntes = computeSaleClienteAdeudo(pend);
+          const sumAbono = pagosCompletacion.reduce((s, p) => s + (Number(p.monto) || 0), 0);
+          const cambioCxC = Math.max(0, sumAbono - adeudoAntes);
+          await appendPagosToCompletedSale(pend.id, {
+            pagosToAdd: pagosCompletacion,
+            cambio: cambioCxC,
+            cajaSesionId: cajaSesion.activa?.id,
+          });
+
+          const clienteNombre = client?.nombre || pend.cliente?.nombre?.trim() || 'Mostrador';
+          const lineas = items.map((item) => {
+            const unitSinIva = cartLineUnitSinIva(item, precioClienteListaId);
+            const imp = Number(item.product.impuesto) || 16;
+            const unitConIva = unitSinIva * (1 + imp / 100);
+            const lineTot = unitConIva * item.quantity;
+            return {
+              descripcion: item.product.nombre,
+              cantidad: item.quantity,
+              precioUnit: unitConIva,
+              total: lineTot,
+            };
+          });
+          const resumenPagosCxC = pagosCompletacion.map((p) => ({
+            label: labelFormaPago(p.formaPago),
+            monto: p.monto,
+            ultimos4:
+              esFormaTarjeta(p.formaPago) && /^\d{4}$/.test(p.referencia?.trim() ?? '')
+                ? p.referencia!.trim()
+                : undefined,
+          }));
+          setTicketSnapshot({
+            clienteNombre,
+            cajeroNombre,
+            lineas,
+            subtotal: subtotalCobro,
+            impuestos: impuestosCobro,
+            total: totalCobro,
+            cambio: cambioCxC,
+            adeudoPendiente: adeudoTicket > 0.005 ? adeudoTicket : undefined,
+            sucursalId: effectiveSucursalId,
+            folio: pend.folio?.trim() || undefined,
+            notas: pend.notas ? String(pend.notas) : undefined,
+            resumenPagos: resumenPagosCxC,
+          });
+          setOpenSaleResume(null);
+          clearCart();
+          setCheckoutPhase('success');
+          addToast({
+            type: 'success',
+            message:
+              adeudoTicket > 0.005
+                ? `Cobro registrado. Saldo restante del ticket: ${formatMoney(adeudoTicket)}.`
+                : 'Cobro registrado. Saldo del ticket liquidado.',
+            logToAppEvents: true,
+          });
+          return;
+        }
+
+        const cambioAbierta = cobroTarjetaPueLocal ? 0 : getCambio();
         await completePendingSale(pend.id, {
           formaPago: formaPago as FormaPago,
           metodoPago: metodoPagoVenta,
@@ -2375,7 +2507,7 @@ export function POS() {
 
   const montoDialogoPrincipal = checkoutDevolucionListo
     ? previewDevolucion?.reembolso ?? 0
-    : totalCobro;
+    : cobroReferencia;
 
   const panelClass =
     'rounded-xl border border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 shadow-sm';
@@ -2404,9 +2536,18 @@ export function POS() {
           <div className="flex min-w-0 items-start gap-2 sm:items-center">
             <Clock className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400 sm:mt-0" />
             <p className="text-xs leading-snug text-black dark:text-amber-100 sm:text-sm">
-              Retomando venta abierta{' '}
-              <span className="font-mono font-semibold">{openSaleResume.sale.folio}</span>. Puede editar líneas; los
-              cambios se guardan al poco tiempo. Registre el pago y pulse Cobrar.
+              {openSaleResume.sale.estado === 'completada' ? (
+                <>
+                  Ticket <span className="font-mono font-semibold">{openSaleResume.sale.folio}</span> con saldo en
+                  cuenta. Registre el cobro del saldo y pulse Cobrar (cliente mostrador o registrado).
+                </>
+              ) : (
+                <>
+                  Retomando venta abierta{' '}
+                  <span className="font-mono font-semibold">{openSaleResume.sale.folio}</span>. Puede editar líneas; los
+                  cambios se guardan al poco tiempo. Registre el pago y pulse Cobrar.
+                </>
+              )}
             </p>
           </div>
           <Button
@@ -2750,8 +2891,12 @@ export function POS() {
           {/* Barra rápida móvil: total + ir a cobro */}
           <div className="flex shrink-0 items-center gap-2 rounded-xl border border-slate-200/80 dark:border-slate-800/60 bg-white/95 dark:bg-slate-950/90 p-2 lg:hidden">
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] uppercase tracking-wide text-slate-600 dark:text-slate-500">Total</p>
-              <p className="truncate text-lg font-bold text-cyan-400">{formatMoney(totalCobro)}</p>
+              <p className="text-[10px] uppercase tracking-wide text-slate-600 dark:text-slate-500">
+                {openSaleResume?.sale?.estado === 'completada' && cobroReferencia + 0.01 < totalCobro
+                  ? 'Saldo a cobrar'
+                  : 'Total'}
+              </p>
+              <p className="truncate text-lg font-bold text-cyan-400">{formatMoney(cobroReferencia)}</p>
             </div>
             <Button
               type="button"
@@ -2824,19 +2969,26 @@ export function POS() {
                 <div className="border-t border-slate-200 dark:border-slate-800 pt-2 lg:pt-1.5">
                   <div className="flex items-end justify-between gap-2">
                     <span className="text-sm font-medium text-slate-800 dark:text-slate-200 sm:text-base lg:text-sm">
-                      Total
+                      {openSaleResume?.sale?.estado === 'completada' && cobroReferencia + 0.01 < totalCobro
+                        ? 'Saldo a cobrar'
+                        : 'Total'}
                     </span>
                     <span className="text-xl font-bold tabular-nums text-cyan-400 sm:text-2xl lg:text-2xl">
-                      {formatMoney(totalCobro)}
+                      {formatMoney(cobroReferencia)}
                     </span>
                   </div>
+                  {openSaleResume?.sale?.estado === 'completada' && cobroReferencia + 0.01 < totalCobro ? (
+                    <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
+                      Importe original del ticket: {formatMoney(totalCobro)}
+                    </p>
+                  ) : null}
                 </div>
                 {puedeVentaConSaldoPendiente &&
-                totalCobro > 0 &&
-                totalPagadoVenta + 0.004 < totalCobro ? (
+                cobroReferencia > 0 &&
+                totalPagadoVenta + 0.004 < cobroReferencia ? (
                   <p className="text-[10px] font-medium text-amber-700 dark:text-amber-400 sm:text-xs">
                     En Cobrar podrá completar con saldo pendiente:{' '}
-                    {formatMoney(Math.max(0, totalCobro - totalPagadoVenta))}
+                    {formatMoney(Math.max(0, cobroReferencia - totalPagadoVenta))}
                   </p>
                 ) : null}
                 {esTraspasoTienda ? (
@@ -3501,7 +3653,11 @@ export function POS() {
               <div className="space-y-3 py-1 sm:space-y-4 sm:py-2">
                 <div className="rounded-xl bg-slate-200/80 dark:bg-slate-800/50 p-3 text-center sm:p-4">
                   <p className="mb-1 text-xs text-slate-600 dark:text-slate-400 sm:text-sm">
-                    {checkoutDevolucionListo ? 'Total a devolver al cliente' : 'Total a pagar'}
+                    {checkoutDevolucionListo ?
+                      'Total a devolver al cliente'
+                    : openSaleResume?.sale?.estado === 'completada' && cobroReferencia + 0.01 < totalCobro ?
+                      'Saldo a cobrar (cuentas por cobrar)'
+                    : 'Total a pagar'}
                   </p>
                   <p className="text-2xl font-bold text-cyan-400 sm:text-4xl">
                     {formatMoney(montoDialogoPrincipal)}
@@ -3742,7 +3898,7 @@ export function POS() {
                         ? digitos4TarjetaPendiente().length !== 4
                         : puedeVentaConSaldoPendiente
                           ? false
-                          : totalPagadoVenta < totalCobro)
+                          : totalPagadoVenta < cobroReferencia)
                   }
                   className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white sm:w-auto"
                 >

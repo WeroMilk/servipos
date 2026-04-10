@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Invoice } from '@/types';
 import {
+  db,
   getInvoices,
   getInvoiceById,
   createInvoice,
@@ -18,6 +19,7 @@ import { buildCfdi40XmlString } from '@/lib/cfdiXmlString';
 import {
   createInvoiceFirestore,
   deleteInvoiceFirestore,
+  getInvoiceFirestore,
   subscribeInvoicesCatalog,
   updateInvoiceFirestore,
 } from '@/lib/firestore/invoicesFirestore';
@@ -158,6 +160,33 @@ export function useInvoices() {
     }
   };
 
+  /** Tras imprimir representación o iniciar envío por correo: deja de mostrarse como «pendiente». */
+  const markInvoiceEnviada = async (id: string) => {
+    try {
+      const sid = getEffectiveSucursalId();
+      if (sid) {
+        const inv = await getInvoiceFirestore(sid, id);
+        if (!inv) return;
+        if (inv.estado === 'timbrada' || inv.estado === 'cancelada' || inv.estado === 'error') return;
+        if (inv.estado === 'enviada') return;
+        await updateInvoiceFirestore(sid, id, { estado: 'enviada' });
+      } else {
+        const inv = await getInvoiceById(id);
+        if (!inv) return;
+        if (inv.estado === 'timbrada' || inv.estado === 'cancelada' || inv.estado === 'error') return;
+        if (inv.estado === 'enviada') return;
+        await db.invoices.update(id, {
+          estado: 'enviada',
+          updatedAt: new Date(),
+          syncStatus: 'pending',
+        });
+        await loadInvoices();
+      }
+    } catch (err) {
+      reportHookFailure('hook:useInvoices', 'Marcar factura enviada', err);
+    }
+  };
+
   return {
     invoices,
     loading,
@@ -166,6 +195,7 @@ export function useInvoices() {
     addInvoice,
     cancelInvoice: cancel,
     removeInvoice,
+    markInvoiceEnviada,
   };
 }
 

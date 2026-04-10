@@ -19,6 +19,8 @@ type SendEmailDialogProps = {
   subject: string;
   body: string;
   title?: string;
+  /** Tras validar y abrir el cliente de correo (p. ej. marcar factura como enviada). */
+  onAfterSend?: () => void;
 };
 
 export function SendEmailDialog({
@@ -27,6 +29,7 @@ export function SendEmailDialog({
   subject,
   body,
   title = 'Enviar por correo',
+  onAfterSend,
 }: SendEmailDialogProps) {
   const { addToast } = useAppStore();
   const [to, setTo] = useState('');
@@ -42,6 +45,7 @@ export function SendEmailDialog({
       return;
     }
     openHotmailCompose(email, subject, body);
+    onAfterSend?.();
     addToast({
       type: 'success',
       message: `Se abrió Outlook. Envíe desde ${SERVIPARTZ_SENDER_EMAIL} si tiene esa cuenta iniciada.`,

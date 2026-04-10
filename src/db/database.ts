@@ -18,6 +18,7 @@ import {
   createSaleFirestore,
   cancelSaleFirestore,
   completePendingSaleFirestore,
+  appendPagosToCompletedSaleFirestore,
   patchSaleInvoiceFirestore,
   getSaleByIdFirestore,
   getSaleByFolioFirestore,
@@ -855,6 +856,73 @@ export async function completePendingSale(
     });
     if (adeudo > 0) {
       await adjustClientSaldoAdeudado(clienteIdTickets, adeudo);
+    }
+  }
+}
+
+/**
+ * Añade pagos a una venta `completada` con saldo (cobro desde POS / Cuentas por cobrar).
+ * Ajusta `saldoAdeudado` del cliente cuando aplica (no mostrador).
+ */
+export async function appendPagosToCompletedSale(
+  id: string,
+  patch: {
+    pagosToAdd: Sale['pagos'];
+    cambio: number;
+    cajaSesionId?: string | null;
+  },
+  options?: { sucursalId?: string | null }
+): Promise<void> {
+  const sucursalId = options?.sucursalId;
+  const prev = sucursalId ? await getSaleByIdFirestore(sucursalId, id) : await db.sales.get(id);
+  if (!prev) throw new Error('Venta no encontrada');
+  if (prev.estado !== 'completada') {
+    throw new Error('Solo se pueden registrar cobros sobre ventas completadas con saldo pendiente');
+  }
+  const adeudoAntes = computeSaleClienteAdeudo(prev);
+  if (adeudoAntes <= 0.02) throw new Error('Este ticket no tiene saldo pendiente');
+
+  const sumAdd = patch.pagosToAdd.reduce((s, p) => s + (Number(p.monto) || 0), 0);
+  if (sumAdd <= 0) throw new Error('Indique un importe de cobro válido');
+  if (sumAdd > adeudoAntes + 0.05) throw new Error('El cobro supera el saldo pendiente del ticket');
+
+  if (sucursalId) {
+    await appendPagosToCompletedSaleFirestore(sucursalId, id, {
+      pagosToAdd: patch.pagosToAdd,
+      cambio: patch.cambio,
+      cajaSesionId: patch.cajaSesionId,
+    });
+    const updated = await getSaleByIdFirestore(sucursalId, id);
+    if (updated && prev.clienteId && prev.clienteId !== MOSTRADOR_CLIENT_ID) {
+      const adeudoDespues = computeSaleClienteAdeudo(updated);
+      const cleared = adeudoAntes - adeudoDespues;
+      if (cleared > 0.005) {
+        await adjustClientSaldoAdeudado(prev.clienteId, -cleared, { sucursalId });
+      }
+    }
+    return;
+  }
+
+  const merged = [...(prev.pagos ?? []), ...patch.pagosToAdd];
+  const cajaPatch =
+    typeof patch.cajaSesionId === 'string' && patch.cajaSesionId.trim().length > 0
+      ? { cajaSesionId: patch.cajaSesionId.trim() }
+      : {};
+
+  await db.sales.update(id, {
+    pagos: merged,
+    cambio: patch.cambio,
+    ...cajaPatch,
+    updatedAt: new Date(),
+    syncStatus: 'pending',
+  });
+
+  const updatedLocal = await db.sales.get(id);
+  if (updatedLocal && prev.clienteId && prev.clienteId !== MOSTRADOR_CLIENT_ID) {
+    const adeudoDespues = computeSaleClienteAdeudo(updatedLocal);
+    const cleared = adeudoAntes - adeudoDespues;
+    if (cleared > 0.005) {
+      await adjustClientSaldoAdeudado(prev.clienteId, -cleared);
     }
   }
 }

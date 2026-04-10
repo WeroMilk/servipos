@@ -7,6 +7,7 @@ import {
   createSale,
   cancelSale,
   completePendingSale as completePendingSaleDb,
+  appendPagosToCompletedSale as appendPagosToCompletedSaleDb,
   partialReturnSale as partialReturnSaleDb,
 } from '@/db/database';
 import type { DevolucionLineInput } from '@/lib/salePartialReturnCompute';
@@ -134,6 +135,23 @@ export function useSales(limit: number = 100) {
     }
   };
 
+  const appendPagosToCompletedSale = async (
+    id: string,
+    patch: Parameters<typeof appendPagosToCompletedSaleDb>[1]
+  ) => {
+    try {
+      const sid = getEffectiveSucursalId();
+      await appendPagosToCompletedSaleDb(id, patch, { sucursalId: sid });
+      if (!sid) {
+        await loadSalesLocal();
+      }
+    } catch (err) {
+      reportHookFailure('hook:useSales', 'Registrar cobro sobre ticket', err);
+      setError('Error al registrar cobro');
+      throw err;
+    }
+  };
+
   const partialReturnSale = async (
     id: string,
     opts: { returns: DevolucionLineInput[]; motivo?: string }
@@ -160,6 +178,7 @@ export function useSales(limit: number = 100) {
     addSale,
     cancelSale: cancel,
     completePendingSale,
+    appendPagosToCompletedSale,
     partialReturnSale,
   };
 }

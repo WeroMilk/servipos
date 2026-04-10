@@ -2,6 +2,7 @@ import { CLIENT_PRICE_LIST_ORDER, normalizeClientPriceListId } from '@/lib/clien
 import type { Client, FormaPago, MetodoPago, Payment, Sale, SaleItem, SaleStatus } from '@/types';
 import { getMexicoDateKey, startOfDayFromDateKey } from '@/lib/quincenaMx';
 import { getSupabase } from '@/lib/supabaseClient';
+import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
 
 // ============================================
 // VENTAS (Supabase + RPC atómicos)
@@ -507,6 +508,69 @@ export async function completePendingSaleFirestore(
     .update({ doc, updated_at: new Date().toISOString() })
     .eq('sucursal_id', sucursalId)
     .eq('id', saleId);
+  if (error) throw new Error(error.message);
+}
+
+/** Agrega cobros a una venta ya completada que aún tiene saldo (cuentas por cobrar desde POS). */
+export async function appendPagosToCompletedSaleFirestore(
+  sucursalId: string,
+  saleId: string,
+  patch: {
+    pagosToAdd: Payment[];
+    cambio: number;
+    cajaSesionId?: string | null;
+  }
+): Promise<void> {
+  const sid = saleId.trim();
+  if (!sid) throw new Error('Venta inválida');
+  const supabase = getSupabase();
+  const { data: row } = await supabase
+    .from('sales')
+    .select('doc')
+    .eq('sucursal_id', sucursalId)
+    .eq('id', sid)
+    .maybeSingle();
+  if (!row?.doc) throw new Error('Venta no encontrada');
+  const sale = saleDataToSale(sid, row.doc as Record<string, unknown>, sucursalId);
+  if (!sale) throw new Error('Venta no encontrada');
+  if (sale.estado !== 'completada') {
+    throw new Error('Solo se pueden registrar cobros sobre ventas completadas con saldo pendiente');
+  }
+  if (sale.facturaId) throw new Error('No se puede registrar cobro en POS sobre una venta ya facturada');
+
+  const prevAdeudo = computeSaleClienteAdeudo(sale);
+  if (prevAdeudo <= 0.02) throw new Error('Este ticket no tiene saldo pendiente');
+
+  const sumAdd = patch.pagosToAdd.reduce((s, p) => s + (Number(p.monto) || 0), 0);
+  if (sumAdd <= 0) throw new Error('Indique un importe de cobro válido');
+  if (sumAdd > prevAdeudo + 0.05) throw new Error('El cobro supera el saldo pendiente del ticket');
+
+  const existing = (sale.pagos ?? []).map((p) => ({
+    id: p.id,
+    formaPago: p.formaPago,
+    monto: p.monto,
+    referencia: p.referencia ?? null,
+  }));
+  const toAdd = patch.pagosToAdd.map((p) => ({
+    id: p.id,
+    formaPago: p.formaPago,
+    monto: p.monto,
+    referencia: p.referencia ?? null,
+  }));
+
+  const doc = { ...(row.doc as Record<string, unknown>) };
+  doc.pagos = [...existing, ...toAdd];
+  doc.cambio = patch.cambio;
+  if (typeof patch.cajaSesionId === 'string' && patch.cajaSesionId.trim().length > 0) {
+    doc.cajaSesionId = patch.cajaSesionId.trim();
+  }
+  doc.updatedAt = new Date().toISOString();
+
+  const { error } = await supabase
+    .from('sales')
+    .update({ doc, updated_at: new Date().toISOString() })
+    .eq('sucursal_id', sucursalId)
+    .eq('id', sid);
   if (error) throw new Error(error.message);
 }
 

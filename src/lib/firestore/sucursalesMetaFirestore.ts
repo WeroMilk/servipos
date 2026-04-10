@@ -1,4 +1,4 @@
-import { DEFAULT_SUCURSAL_IDS } from '@/lib/sucursales';
+import { DEFAULT_SUCURSAL_IDS, isSucursalOcultaEnUi } from '@/lib/sucursales';
 import type { Sucursal } from '@/types';
 import { getSupabase } from '@/lib/supabaseClient';
 
@@ -78,7 +78,9 @@ export function docToSucursal(id: string, d: Record<string, unknown>): Sucursal 
 
 function mergeWithDefaultIds(fromFs: Sucursal[]): Sucursal[] {
   const byId = new Map(fromFs.map((s) => [s.id, s] as const));
-  const ids = [...new Set([...DEFAULT_SUCURSAL_IDS, ...fromFs.map((s) => s.id)])];
+  const ids = [...new Set([...DEFAULT_SUCURSAL_IDS, ...fromFs.map((s) => s.id)])].filter(
+    (id) => !isSucursalOcultaEnUi(id)
+  );
   const epoch = new Date(0);
   const merged = ids.map(
     (id) =>
@@ -139,9 +141,9 @@ export function subscribeSucursalesCatalog(onList: (list: Sucursal[]) => void): 
       onList([]);
       return;
     }
-    const list = (data ?? []).map((row) =>
-      docToSucursal(String(row.id), rowToRecord(row as Record<string, unknown>))
-    );
+    const list = (data ?? [])
+      .map((row) => docToSucursal(String(row.id), rowToRecord(row as Record<string, unknown>)))
+      .filter((s) => !isSucursalOcultaEnUi(s.id));
     list.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
     onList(list);
   };

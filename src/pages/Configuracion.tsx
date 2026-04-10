@@ -1018,20 +1018,31 @@ export function Configuracion() {
                     <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 lg:text-[11px]">
                       Personalizar recibo de prueba
                     </p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-7 border-slate-400/60 text-[11px] lg:h-6"
-                      onClick={() => {
-                        setNominaPruebaForm(getNominaPruebaDraftDefaults());
-                        setNominaPercDraft({});
-                        addToast({ type: 'success', message: 'Valores restaurados al ejemplo.' });
-                      }}
-                    >
-                      <RotateCcw className="mr-1 h-3 w-3" />
-                      Restaurar ejemplo
-                    </Button>
+                    <div className="flex flex-wrap items-center justify-end gap-1.5">
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-7 bg-gradient-to-r from-cyan-500 to-blue-600 px-2.5 text-[11px] text-white lg:h-6"
+                        onClick={() => void handlePrintNominaPrueba()}
+                      >
+                        <Printer className="mr-1 h-3 w-3" />
+                        Imprimir nómina
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 border-slate-400/60 text-[11px] lg:h-6"
+                        onClick={() => {
+                          setNominaPruebaForm(getNominaPruebaDraftDefaults());
+                          setNominaPercDraft({});
+                          addToast({ type: 'success', message: 'Valores restaurados al ejemplo.' });
+                        }}
+                      >
+                        <RotateCcw className="mr-1 h-3 w-3" />
+                        Restaurar ejemplo
+                      </Button>
+                    </div>
                   </div>
                   <p className="mb-2 text-[11px] leading-snug text-slate-600 dark:text-slate-400 lg:mb-1.5">
                     Edita datos y montos; totales al imprimir. Se guarda local en este equipo.
