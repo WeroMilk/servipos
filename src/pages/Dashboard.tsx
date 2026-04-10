@@ -15,6 +15,7 @@ import {
   ChevronRight,
   BadgeCheck,
   FileQuestion,
+  Boxes,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -165,6 +166,10 @@ function StatCard({
   );
 }
 
+function totalPiezasEnVenta(sale: Sale): number {
+  return (sale.productos ?? []).reduce((sum, line) => sum + (Number(line.cantidad) || 0), 0);
+}
+
 function dateRangeToBounds(range: DateRange | undefined): { inicio: Date; fin: Date } {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -261,6 +266,30 @@ export function Dashboard() {
   const totals = useMemo(() => {
     const total = kpiVentasParaTotales.reduce((sum, sale) => sum + (Number(sale.total) || 0), 0);
     return { total, count: kpiVentasParaTotales.length };
+  }, [kpiVentasParaTotales]);
+
+  /**
+   * Por cada cliente (incl. mostrador), promedio de piezas por sus tickets; luego la media de esos promedios.
+   * Así un cliente con muchas compras no domina el indicador frente a otros con pocas.
+   */
+  const promedioPiezasPorTicketPorCliente = useMemo(() => {
+    const ventas = kpiVentasParaTotales;
+    if (ventas.length === 0) return 0;
+    const byCliente = new Map<string, { piezas: number; tickets: number }>();
+    for (const sale of ventas) {
+      const cid = (sale.clienteId ?? 'mostrador').trim() || 'mostrador';
+      const pzs = totalPiezasEnVenta(sale);
+      const cur = byCliente.get(cid) ?? { piezas: 0, tickets: 0 };
+      cur.piezas += pzs;
+      cur.tickets += 1;
+      byCliente.set(cid, cur);
+    }
+    const mediasPorCliente: number[] = [];
+    for (const { piezas, tickets } of byCliente.values()) {
+      if (tickets > 0) mediasPorCliente.push(piezas / tickets);
+    }
+    if (mediasPorCliente.length === 0) return 0;
+    return mediasPorCliente.reduce((a, b) => a + b, 0) / mediasPorCliente.length;
   }, [kpiVentasParaTotales]);
   const { products: lowStockProducts, loading: stockLoading } = useLowStockProducts();
   const outgoingTransferPendingIds = useOutgoingPendingTransferIds();
@@ -531,11 +560,14 @@ export function Dashboard() {
           iconGradient="bg-gradient-to-br from-blue-500 to-blue-600"
         />
         <StatCard
-          title="Facturas"
-          value={kpiVentasParaTotales.filter((s) => s.facturaId).length.toString()}
-          description="Ventas completadas facturadas"
-          icon={Receipt}
-          trend="up"
+          title="Piezas por ticket"
+          value={promedioPiezasPorTicketPorCliente.toLocaleString('es-MX', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 1,
+          })}
+          description="Promedio entre clientes (pz por ticket de cada uno)"
+          icon={Boxes}
+          trend="neutral"
           trendValue="En el periodo"
           iconGradient="bg-gradient-to-br from-violet-500 to-violet-600"
         />

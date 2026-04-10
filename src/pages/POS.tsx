@@ -1700,25 +1700,14 @@ export function POS() {
     setResumeOpenBusy(true);
     try {
       const cartItems: CartItem[] = [];
-      let lineasFueraDeCatalogo = 0;
       for (const line of sale.productos ?? []) {
         const fromCatalog = await resolveProductForResume(line.productId);
         const product = productFromSaleLineForResume(line, fromCatalog);
-        if (!fromCatalog && !(line.producto?.id === line.productId)) lineasFueraDeCatalogo += 1;
         cartItems.push({
           product,
           quantity: line.cantidad,
           discount: line.descuento,
           precioUnitarioOverride: line.precioUnitario,
-        });
-      }
-      if (lineasFueraDeCatalogo > 0) {
-        addToast({
-          type: 'warning',
-          message:
-            lineasFueraDeCatalogo === 1
-              ? 'Un artículo ya no está en el catálogo; se muestra con el nombre y precio guardados en el ticket.'
-              : `${lineasFueraDeCatalogo} artículos ya no están en el catálogo; se muestran con los datos guardados en el ticket.`,
         });
       }
       let clientePos = clientFromSaleForPos(sale);
@@ -1938,25 +1927,14 @@ export function POS() {
         return;
       }
       const cartItems: CartItem[] = [];
-      let lineasFueraDeCatalogo = 0;
       for (const line of q.productos) {
         const fromCatalog = await resolveProductForResume(line.productId);
         const product = productFromQuotationLineForResume(line, fromCatalog);
-        if (!fromCatalog && !(line.producto?.id === line.productId)) lineasFueraDeCatalogo += 1;
         cartItems.push({
           product,
           quantity: line.cantidad,
           discount: line.descuento,
           precioUnitarioOverride: line.precioUnitario,
-        });
-      }
-      if (lineasFueraDeCatalogo > 0) {
-        addToast({
-          type: 'warning',
-          message:
-            lineasFueraDeCatalogo === 1
-              ? 'Un artículo de la cotización ya no está en el catálogo; se muestra con el precio guardado.'
-              : `${lineasFueraDeCatalogo} artículos ya no están en el catálogo; se muestran con los datos de la cotización.`,
         });
       }
       let clientePos = clientFromQuotationForPos(q);
