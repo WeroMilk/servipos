@@ -96,7 +96,16 @@ const THERMAL_TICKET_VENTA_STYLES = `
     line-height: 1.2 !important;
   }
   body.ticket-venta .ticket-brand-block { margin-bottom: 8px; }
-  body.ticket-venta .ticket-brand-block .logo-ticket { max-width: 20mm; }
+  body.ticket-venta .ticket-brand-block .logo-ticket {
+    display: block !important;
+    max-width: 28mm;
+    width: 28mm;
+    height: auto;
+    object-fit: contain;
+    margin: 0 auto;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
   body.ticket-venta .meta { font-size: 12px; margin-bottom: 8px; padding-bottom: 6px; line-height: 1.35; }
   body.ticket-venta table { table-layout: fixed; width: 100%; }
   body.ticket-venta td { font-size: 13px; padding: 2px 0; overflow-wrap: anywhere; word-break: break-word; }
