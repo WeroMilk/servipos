@@ -293,9 +293,18 @@ export function parsePreciosPorListaClienteRaw(raw: unknown): Product['preciosPo
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
+function listaExplicitToSinIva(
+  ex: number,
+  listaImportesConIva: boolean,
+  impuestoPct: number
+): number {
+  const imp = Number(impuestoPct) || 16;
+  return listaImportesConIva ? ex / (1 + imp / 100) : ex;
+}
+
 /**
  * Primera lista con importe > 0 convertida a sin IVA (coherente con flags del documento).
- * Usado al hidratar producto y en `productListPricing`.
+ * @deprecated Prefer `inferPrecioVentaSinIvaFromListas` para no tomar por error una lista barata (p. ej. mayoreo- antes que regular).
  */
 export function firstSinIvaFromListaMap(
   map: NonNullable<Product['preciosPorListaCliente']>,
@@ -313,6 +322,31 @@ export function firstSinIvaFromListaMap(
 }
 
 /**
+ * Base sin IVA inferida desde listas: prioriza **regular** si existe; si no, el **mayor** importe entre listas
+ * (evita usar mayoreo-/cañanea como “precio de catálogo” solo por ir antes en el orden).
+ */
+export function inferPrecioVentaSinIvaFromListas(
+  map: NonNullable<Product['preciosPorListaCliente']>,
+  listaImportesConIva: boolean,
+  impuestoPct: number
+): number {
+  const explicitReg = normalizeListaPrecioValue(map.regular);
+  if (explicitReg !== undefined && explicitReg > 0) {
+    return roundMoney2(listaExplicitToSinIva(explicitReg, listaImportesConIva, impuestoPct));
+  }
+  let best = 0;
+  for (const id of CLIENT_PRICE_LIST_ORDER) {
+    if (id === 'regular') continue;
+    const ex = normalizeListaPrecioValue(map[id]);
+    if (ex !== undefined && ex > 0) {
+      const s = listaExplicitToSinIva(ex, listaImportesConIva, impuestoPct);
+      if (s > best) best = s;
+    }
+  }
+  return roundMoney2(best);
+}
+
+/**
  * Si `precioVenta` en documento es 0 pero hay precio en listas, obtiene base sin IVA para el catálogo.
  * Alineado con defaults de `preciosListaIncluyenIva` en documento (sin leer config fiscal global).
  */
@@ -322,16 +356,26 @@ export function resolvePrecioVentaSinIvaForDoc(args: {
   preciosListaIncluyenIva: boolean | undefined;
   impuesto: number;
 }): number {
-  const pv0 = parsePrecioNumberFromFirestore(args.rawPv);
-  if (pv0 > 0) return roundMoney2(pv0);
   const map = args.preciosPorListaCliente;
-  if (!map) return 0;
   const listaImportesConIva =
     args.preciosListaIncluyenIva === true
       ? true
       : args.preciosListaIncluyenIva === false
         ? false
         : true;
-  const sinIva = firstSinIvaFromListaMap(map, listaImportesConIva, args.impuesto);
-  return roundMoney2(sinIva);
+  const pv0 = parsePrecioNumberFromFirestore(args.rawPv);
+  const fromListas =
+    map ? inferPrecioVentaSinIvaFromListas(map, listaImportesConIva, args.impuesto) : 0;
+
+  if (pv0 > 0) {
+    const regEx = map ? normalizeListaPrecioValue(map.regular) : undefined;
+    if (regEx !== undefined && regEx > 0) {
+      const regSin = listaExplicitToSinIva(regEx, listaImportesConIva, args.impuesto);
+      if (regSin > pv0 + 0.02) {
+        return roundMoney2(regSin);
+      }
+    }
+    return roundMoney2(pv0);
+  }
+  return fromListas;
 }

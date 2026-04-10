@@ -1,6 +1,6 @@
 import type { Product, CartItem } from '@/types';
 import { type ClientPriceListId } from '@/lib/clientPriceLists';
-import { firstSinIvaFromListaMap, normalizeListaPrecioValue } from '@/lib/precioListaNorm';
+import { inferPrecioVentaSinIvaFromListas, normalizeListaPrecioValue } from '@/lib/precioListaNorm';
 import { getListaPrecioClientePct } from '@/stores/clientPriceListStore';
 import { effectiveListaPreciosIncluyenIva } from '@/lib/catalogPricingFlags';
 
@@ -39,7 +39,7 @@ function getRegularUnitSinIva(product: Product): number {
 function firstSinIvaFromAnyLista(product: Product): number {
   const map = product.preciosPorListaCliente;
   if (!map) return 0;
-  return firstSinIvaFromListaMap(map, effectiveListaPreciosIncluyenIva(product), impuestoPct(product));
+  return inferPrecioVentaSinIvaFromListas(map, effectiveListaPreciosIncluyenIva(product), impuestoPct(product));
 }
 
 /**
