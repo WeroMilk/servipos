@@ -54,7 +54,6 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import {
   useProducts,
-  useProductSearch,
   useEffectiveSucursalId,
   usePendingIncomingTransfers,
   useInventoryMovementsHistory,
@@ -98,6 +97,7 @@ import { tipoMovimientoLabel } from '@/lib/inventoryMovementLabels';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { isMovimientoLlegadaMercancia } from '@/lib/inventoryAbasto';
 import { downloadInventarioCompleto } from '@/lib/inventoryExport';
+import { filterProductsBySearchText } from '@/lib/productSearchLocal';
 import {
   buildProveedorNombrePorLinea,
   formatProveedorHistorialLineaResuelto,
@@ -319,6 +319,7 @@ export function Inventario() {
   );
   
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedInventorySearch, setDebouncedInventorySearch] = useState('');
   const [inventorySort, setInventorySort] = useState<{ key: InventorySortKey; dir: 'asc' | 'desc' }>({
     key: 'nombre',
     dir: 'asc',
@@ -526,11 +527,18 @@ export function Inventario() {
     return list;
   }, [stockProveedorNombresSorted, stockProveedorNombreMap, stockProveedorFilter, stockAdjustment.proveedorEntrada]);
 
-  const { results: searchResults, search } = useProductSearch();
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!q) {
+      setDebouncedInventorySearch('');
+      return;
+    }
+    const t = window.setTimeout(() => setDebouncedInventorySearch(searchQuery), 220);
+    return () => window.clearTimeout(t);
+  }, [searchQuery]);
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
-    search(query);
   };
 
   useEffect(() => {
@@ -996,32 +1004,6 @@ export function Inventario() {
     };
   }, [preciosDialogOpen, preciosDialogProduct?.id, effectiveSucursalId]);
 
-  const ultimoPrecioCompraConIvaInfo = useMemo(() => {
-    if (!preciosDialogProduct) return null;
-    const imp = Number(preciosDialogProduct.impuesto) || 16;
-    const sorted = [...productEntradasHist].sort((a, b) => {
-      const ta = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
-      const tb = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
-      return tb - ta;
-    });
-    for (const m of sorted) {
-      const pu = m.precioUnitarioCompra;
-      if (pu != null && Number.isFinite(pu) && pu >= 0) {
-        return {
-          monto: roundMoney2(pu * (1 + imp / 100)),
-          fecha: m.createdAt instanceof Date ? m.createdAt : new Date(m.createdAt),
-        };
-      }
-    }
-    return null;
-  }, [productEntradasHist, preciosDialogProduct]);
-
-  const precioVentaCatalogoConIva = useMemo(() => {
-    if (!preciosDialogProduct) return null;
-    const imp = Number(preciosDialogProduct.impuesto) || 16;
-    return roundMoney2(preciosDialogProduct.precioVenta * (1 + imp / 100));
-  }, [preciosDialogProduct]);
-
   const valorInventarioTotal = useMemo(
     () =>
       products.reduce(
@@ -1059,8 +1041,10 @@ export function Inventario() {
   );
 
   const pool = useMemo(() => {
-    return searchQuery.trim() ? searchResults : products;
-  }, [searchQuery, searchResults, products]);
+    return debouncedInventorySearch.trim()
+      ? filterProductsBySearchText(products, debouncedInventorySearch)
+      : products;
+  }, [products, debouncedInventorySearch]);
 
   const handleInventorySortClick = useCallback((key: InventorySortKey) => {
     setInventorySort((prev) =>
@@ -3007,44 +2991,21 @@ export function Inventario() {
 
             <div className="mb-4 space-y-3 rounded-lg border border-cyan-500/25 bg-cyan-500/10 p-3 dark:border-cyan-500/30 dark:bg-cyan-500/10">
               <p className="text-xs font-semibold uppercase tracking-wide text-cyan-800 dark:text-cyan-200">
-                Referencia de precios (con IVA)
+                Precio de compra (sin IVA)
               </p>
-              {precioVentaCatalogoConIva != null ? (
-                <div>
-                  <p className="text-xs text-slate-600 dark:text-slate-400">
-                    Precio de venta en catálogo <span className="font-medium">(con IVA)</span>
-                  </p>
-                  <p className="text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100">
-                    {formatMoney(precioVentaCatalogoConIva)}
-                  </p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-500">
-                    Calculado desde el precio sin IVA del producto y su tasa ({preciosDialogProduct?.impuesto ?? 16}%).
-                  </p>
-                </div>
-              ) : null}
-              {ultimoPrecioCompraConIvaInfo ? (
-                <div className="border-t border-cyan-500/20 pt-3 dark:border-cyan-500/25">
-                  <p className="text-xs text-slate-600 dark:text-slate-400">
-                    Último precio de compra registrado en entradas <span className="font-medium">(con IVA)</span>
-                  </p>
-                  <p className="text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100">
-                    {formatMoney(ultimoPrecioCompraConIvaInfo.monto)}
-                  </p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-500">
-                    Según la entrada más reciente con precio unitario de compra (
-                    {formatInAppTimezone(ultimoPrecioCompraConIvaInfo.fecha, {
-                      dateStyle: 'short',
-                      timeStyle: 'short',
-                    })}
-                    ). El unitario en tabla sigue mostrándose sin IVA.
-                  </p>
-                </div>
-              ) : (
-                <p className="text-xs text-slate-600 dark:text-slate-400">
-                  No hay entradas con precio de compra capturado; cuando registre una, aquí aparecerá el último importe{' '}
-                  <span className="font-medium">con IVA</span>.
-                </p>
-              )}
+              <p className="text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100">
+                {preciosDialogProduct != null &&
+                preciosDialogProduct.precioCompra != null &&
+                Number.isFinite(Number(preciosDialogProduct.precioCompra))
+                  ? formatMoney(Number(preciosDialogProduct.precioCompra))
+                  : '—'}
+              </p>
+              <p className="text-[10px] leading-snug text-slate-500 dark:text-slate-500 [text-wrap:pretty]">
+                Costo unitario que a usted le cuesta el producto: el valor guardado en catálogo como compra,{' '}
+                <span className="font-medium">sin IVA</span>. El {preciosDialogProduct?.impuesto ?? 16}% de IVA del
+                artículo aplica a la venta al público, no a este costo. Actualícelo al editar el producto o al registrar
+                entradas con precio de compra.
+              </p>
             </div>
 
             <div className="mt-2 border-t border-slate-200 pt-4 dark:border-slate-800">

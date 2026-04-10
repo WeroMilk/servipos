@@ -80,7 +80,8 @@ export function useProducts() {
       const unsub = subscribeProductCatalog(
         sucursalId,
         (p) => {
-          setProducts(coerceProductList(p));
+          /** `docToProduct` ya normaliza; evitar `coerceProduct` por fila (muy costoso en catálogos grandes). */
+          setProducts(Array.isArray(p) ? p : []);
           setError(null);
           setLoading(false);
         },
@@ -464,7 +465,7 @@ export function useLowStockProducts() {
     if (sucursalId) {
       setLoading(true);
       const unsub = subscribeProductCatalog(sucursalId, (p) => {
-        setProducts(filterLow(coerceProductList(p)));
+        setProducts(filterLow(Array.isArray(p) ? p : []));
         setLoading(false);
       });
       return unsub;

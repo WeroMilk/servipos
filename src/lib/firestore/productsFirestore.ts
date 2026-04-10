@@ -201,7 +201,12 @@ export function subscribeProductCatalog(
       )
       .subscribe();
   } else {
-    void load();
+    /** Ya hay canal y datos para esta sucursal: no repetir fetch completo por cada nuevo suscriptor. */
+    try {
+      onProducts([...lastProducts]);
+    } catch (e) {
+      console.error('subscribeProductCatalog (resync existing):', e);
+    }
   }
 
   return () => {
