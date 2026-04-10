@@ -75,23 +75,37 @@ function escapeHtml(s: string): string {
 
 /**
  * Solo `printThermalTicket` (venta, cotización impresa como ticket, devolución):
- * columna angosta + márgenes de página; margen derecho un poco mayor que el izquierdo y ligero corrimiento
- * a la izquierda compensan impresoras que “tiran” el contenido a la derecha. Partir líneas largas (dirección, leyendas).
- * Pie más compacto desde sucursal hasta despedida.
+ * Tipografía más compacta y proporcionada al 80 mm; columna centrada sin corrimiento (evita corte a la izquierda).
+ * Márgenes de página equilibrados; pie de sucursal un poco menor que el cuerpo.
  */
 const THERMAL_TICKET_VENTA_STYLES = `
-  @page { size: 80mm auto; margin: 6mm 7.5mm 7mm 5mm; }
+  @page { size: 80mm auto; margin: 5.5mm 5.5mm 6mm 5.5mm; }
   body.ticket-venta {
-    position: relative;
-    left: -3mm;
-    width: 56mm;
+    position: static;
+    width: 64mm;
     max-width: 100%;
     margin: 0 auto;
-    padding: 10px 2px 14px;
+    padding: 8px 4px 12px;
+    font-size: 15px;
+    line-height: 1.35;
   }
+  body.ticket-venta h1,
+  body.ticket-venta .ticket-brand-block h1 {
+    font-size: 17px !important;
+    margin: 0 0 6px !important;
+    line-height: 1.2 !important;
+  }
+  body.ticket-venta .ticket-brand-block { margin-bottom: 8px; }
+  body.ticket-venta .ticket-brand-block .logo-ticket { max-width: 20mm; }
+  body.ticket-venta .meta { font-size: 12px; margin-bottom: 8px; padding-bottom: 6px; line-height: 1.35; }
   body.ticket-venta table { table-layout: fixed; width: 100%; }
-  body.ticket-venta td { overflow-wrap: anywhere; word-break: break-word; }
+  body.ticket-venta td { font-size: 13px; padding: 2px 0; overflow-wrap: anywhere; word-break: break-word; }
+  body.ticket-venta td.desc { font-size: 13px; padding-top: 6px; }
   body.ticket-venta td.right { white-space: normal; }
+  body.ticket-venta .tot { font-size: 14px; margin-top: 8px; padding-top: 8px; line-height: 1.35; }
+  body.ticket-venta .tot strong { font-size: 19px; }
+  body.ticket-venta .ticket-pagos { font-size: 13px !important; line-height: 1.4; margin-top: 8px; padding-top: 8px; }
+  body.ticket-venta .ticket-pagos .tit { margin-bottom: 4px; }
   body.ticket-venta .meta,
   body.ticket-venta .tot,
   body.ticket-venta .ticket-pagos,
@@ -101,12 +115,14 @@ const THERMAL_TICKET_VENTA_STYLES = `
     overflow-wrap: anywhere;
     word-break: break-word;
   }
-  body.ticket-venta .pie-sucursal { font-size: 15px; line-height: 1.5; }
-  body.ticket-venta .pie-sucursal .titulo-suc { font-size: 19px; margin-bottom: 6px; }
-  body.ticket-venta .ticket-notas { font-size: 14px; line-height: 1.45; }
-  body.ticket-venta .ticket-politicas { font-size: 12px; line-height: 1.4; }
-  body.ticket-venta .ticket-politicas div + div { margin-top: 4px; }
-  body.ticket-venta .ticket-gracias { font-size: 15px; line-height: 1.35; }
+  body.ticket-venta .pie-sucursal { font-size: 11px; line-height: 1.45; margin-top: 10px; padding-top: 8px; }
+  body.ticket-venta .pie-sucursal .titulo-suc { font-size: 14px; margin-bottom: 4px; }
+  body.ticket-venta .ticket-notas { font-size: 11px; line-height: 1.4; margin-top: 8px; }
+  body.ticket-venta .ticket-politicas { font-size: 10px; line-height: 1.4; margin-top: 8px; padding-top: 8px; }
+  body.ticket-venta .ticket-politicas div + div { margin-top: 3px; }
+  body.ticket-venta .ticket-barcode-wrap { margin-top: 10px; }
+  body.ticket-venta .ticket-barcode-wrap img { width: 220px !important; max-width: 100% !important; height: auto; }
+  body.ticket-venta .ticket-gracias { font-size: 12px; line-height: 1.35; margin-top: 10px; font-weight: 600; }
 `;
 
 /** CSS compartido: ticket de venta 80 mm e informes térmicos (tipografía grande para leer en papel). */
