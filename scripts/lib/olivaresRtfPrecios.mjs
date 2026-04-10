@@ -123,11 +123,27 @@ function extractNombreProducto(block) {
   return '';
 }
 
+/**
+ * Fecha/hora en lista Crystal (México): **DD/MM/AAAA** y reloj **12 h** con `a. m.` / `p. m.`.
+ * Antes se interpretaba como MM/DD y sin AM/PM, y el “día más reciente” quedaba mal → regular viejo (ej. $520 en vez de $420).
+ */
 function parseMxDateTime(str) {
-  const m = str.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})/);
-  if (!m) return 0;
-  const [, mo, d, y, hh, mm, ss] = m;
-  return new Date(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss)).getTime();
+  const trimmed = String(str ?? '').replace(/\s+/g, ' ').trim();
+  const withAmPm = trimmed.match(
+    /^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})\s*([ap])\.\s*m\.$/i
+  );
+  if (withAmPm) {
+    const [, day, month, y, hh, mm, ss, ap] = withAmPm;
+    let hour = Number(hh);
+    const isPm = ap.toLowerCase() === 'p';
+    if (isPm && hour !== 12) hour += 12;
+    if (!isPm && hour === 12) hour = 0;
+    return new Date(Number(y), Number(month) - 1, Number(day), hour, Number(mm), Number(ss)).getTime();
+  }
+  const noAmPm = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})$/);
+  if (!noAmPm) return 0;
+  const [, day, month, y, hh, mm, ss] = noAmPm;
+  return new Date(Number(y), Number(month) - 1, Number(day), Number(hh), Number(mm), Number(ss)).getTime();
 }
 
 /** `t` es marca de tiempo real (ms), no índice secuencial del RTF. */
@@ -214,7 +230,9 @@ export function parsePreciosRtf(rtfText, opts = {}) {
       if (!part.includes('$')) continue;
       const priceM = part.match(/\$(\d+(?:\.\d+)?)/);
       if (!priceM) continue;
-      const timeM = part.match(/(\d{1,2}\/\d{1,2}\/\d{4}\s+\d{1,2}:\d{2}:\d{2})/);
+      const timeM = part.match(
+        /(\d{1,2}\/\d{1,2}\/\d{4}\s+\d{1,2}:\d{2}:\d{2}(?:\s*[ap]\.\s*m\.)?)/i
+      );
       const t = timeM ? parseMxDateTime(timeM[1]) : seq++;
       rows.push({
         t,
@@ -230,7 +248,15 @@ export function parsePreciosRtf(rtfText, opts = {}) {
     const preciosConIva = mapFiveConIvaPricesToLists(pricesConIva);
     if (!preciosConIva) continue;
 
-    map.set(skuKey, { nombre, preciosConIva });
+    const entry = { nombre, preciosConIva };
+    const prev = map.get(skuKey);
+    if (prev === undefined) {
+      map.set(skuKey, entry);
+    } else if (Array.isArray(prev)) {
+      prev.push(entry);
+    } else {
+      map.set(skuKey, [prev, entry]);
+    }
   }
 
   return map;
@@ -242,12 +268,21 @@ export function conIvaASinIva(conIva, ivaPct) {
 }
 
 /** Índices por nombre para cuando el SKU del inventario no coincide con el RTF. */
+function flattenPrecioMapValues(preciosMap) {
+  const out = [];
+  for (const [, v] of preciosMap) {
+    if (Array.isArray(v)) out.push(...v);
+    else out.push(v);
+  }
+  return out;
+}
+
 export function buildPrecioIndexes(preciosMap) {
   const preciosByNombre = new Map();
   const preciosByNombreLoose = new Map();
   const nombreDup = [];
   const nombreLooseDup = [];
-  for (const [, v] of preciosMap) {
+  for (const v of flattenPrecioMapValues(preciosMap)) {
     const nk = normNombreKey(v.nombre);
     if (nk) {
       if (preciosByNombre.has(nk)) nombreDup.push(nk);
@@ -264,18 +299,24 @@ export function buildPrecioIndexes(preciosMap) {
 
 export function matchRowToPrecios(preciosMap, preciosByNombre, preciosByNombreLoose, sku, nombre) {
   const skuKey = normSkuKey(sku);
-  let p = preciosMap.get(skuKey);
-  let how = 'sku';
-  if (!p) {
-    p = preciosByNombre.get(normNombreKey(nombre));
-    how = 'nombre';
+  const want = normNombreKey(nombre);
+  const wantLoose = normNombreKeyLoose(nombre);
+  const raw = preciosMap.get(skuKey);
+  if (raw) {
+    if (Array.isArray(raw)) {
+      const byNombre = raw.find((e) => normNombreKey(e.nombre) === want);
+      if (byNombre) return { p: byNombre, how: 'sku' };
+      const byLoose = raw.find((e) => normNombreKeyLoose(e.nombre) === wantLoose);
+      if (byLoose) return { p: byLoose, how: 'sku' };
+      return { p: raw[raw.length - 1], how: 'sku' };
+    }
+    return { p: raw, how: 'sku' };
   }
-  if (!p) {
-    p = preciosByNombreLoose.get(normNombreKeyLoose(nombre));
-    how = 'nombreLoose';
-  }
-  if (!p) return null;
-  return { p, how };
+  let p = preciosByNombre.get(want);
+  if (p) return { p, how: 'nombre' };
+  p = preciosByNombreLoose.get(wantLoose);
+  if (p) return { p, how: 'nombreLoose' };
+  return null;
 }
 
 /**

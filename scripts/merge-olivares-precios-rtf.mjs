@@ -28,11 +28,10 @@ import {
   parsePreciosRtf,
   conIvaASinIva,
   normSkuKey,
-  normNombreKey,
-  normNombreKeyLoose,
   LIST_KEYS,
   buildPrecioIndexes,
   loadRtfTextFromFile,
+  matchRowToPrecios,
 } from './lib/olivaresRtfPrecios.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -160,21 +159,13 @@ function main() {
   let missing = 0;
 
   for (const row of inv.rows) {
-    const skuKey = normSkuKey(row.sku);
-    let p = preciosMap.get(skuKey);
-    let how = 'sku';
-    if (!p) {
-      p = idx.preciosByNombre.get(normNombreKey(row.nombre));
-      how = 'nombre';
-    }
-    if (!p) {
-      p = idx.preciosByNombreLoose.get(normNombreKeyLoose(row.nombre));
-      how = 'nombreLoose';
-    }
-    if (!p) {
+    const hit = matchRowToPrecios(preciosMap, idx.preciosByNombre, idx.preciosByNombreLoose, row.sku, row.nombre);
+    if (!hit) {
       missing++;
       continue;
     }
+    const p = hit.p;
+    const how = hit.how;
     matched++;
     if (how === 'sku') matchedBySku++;
     else if (how === 'nombre') matchedByNombre++;
