@@ -19,6 +19,7 @@ import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
 import { getProductCatalogSnapshot } from '@/lib/firestore/productsFirestore';
 import { labelFormaPagoCaja, resumenGruposMedioPagoCierre, totalesPorFormaPago } from '@/lib/cajaResumen';
 import { openCfdiLetterPrint } from '@/lib/openLetterPrint';
+import JsBarcode from 'jsbarcode';
 
 async function resolveClienteTicketLabel(sale: Sale): Promise<string> {
   const embedded = sale.cliente?.nombre?.trim();
@@ -56,6 +57,11 @@ export type TicketPayload = {
   resumenPagos?: { label: string; monto: number; ultimos4?: string }[];
   /** Texto final bajo el pie de sucursal (p. ej. cotización: sin valor fiscal). */
   pieMensaje?: string;
+  /**
+   * Ticket de venta cobrada: leyendas de garantía/cambios y código de barras del folio
+   * (escaneable en POS para devolución o referencia al facturar).
+   */
+  incluirPiePoliticasRefacciones?: boolean;
 };
 
 function escapeHtml(s: string): string {
@@ -103,7 +109,39 @@ const THERMAL_BASE_STYLES = `@page { size: 80mm auto; margin: 4mm; }
   .tot strong { font-size: 30px; }
   .pie-sucursal { margin-top: 14px; padding-top: 12px; border-top: 1px dashed #999; text-align: center; font-size: 21px; line-height: 1.55; font-weight: 500; color: #111; width: 100%; }
   .pie-sucursal .titulo-suc { font-weight: 800; font-size: 26px; margin-bottom: 8px; text-align: center; letter-spacing: 0.02em; }
-  .pie-sucursal > div { text-align: center; }`;
+  .pie-sucursal > div { text-align: center; }
+  .ticket-politicas { margin-top: 14px; padding-top: 10px; border-top: 1px dashed #666; font-size: 17px; line-height: 1.45; text-align: center; color: #111; font-weight: 600; }
+  .ticket-politicas div + div { margin-top: 6px; }
+  .ticket-barcode-wrap { margin-top: 14px; text-align: center; }
+  .ticket-barcode-wrap .hint { font-size: 16px; line-height: 1.35; margin-bottom: 8px; font-weight: 600; }
+  .ticket-barcode-wrap img { display: block; margin: 0 auto; max-width: 100%; height: auto; image-rendering: pixelated; }`;
+
+const TICKET_POLITICAS_REFACCIONES_LINES = [
+  'En partes electricas, no hay garantia',
+  'Cambios dentro de 48 hrs, excepto partes electricas',
+] as const;
+
+/** Code128 del folio para escáner (mismo texto que se teclea en devolución). */
+function folioBarcodeDataUrl(folio: string): string | null {
+  const t = folio.trim();
+  if (!t || typeof document === 'undefined') return null;
+  try {
+    const canvas = document.createElement('canvas');
+    JsBarcode(canvas, t, {
+      format: 'CODE128',
+      width: 1.85,
+      height: 56,
+      displayValue: true,
+      fontSize: 15,
+      margin: 6,
+      background: '#ffffff',
+      lineColor: '#000000',
+    });
+    return canvas.toDataURL('image/png');
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Abre HTML para imprimir con `about:blank` + `document.write` (no `blob:` URL).
@@ -264,6 +302,22 @@ export function printThermalTicket(payload: TicketPayload): void {
     return `<div class="pie-sucursal"><div class="titulo-suc">${escapeHtml(titulo)}</div>${body}</div>`;
   })()}
   ${payload.notas ? `<p class="ticket-notas">${escapeHtml(payload.notas)}</p>` : ''}
+  ${
+    payload.incluirPiePoliticasRefacciones
+      ? `<div class="ticket-politicas">${TICKET_POLITICAS_REFACCIONES_LINES.map(
+          (ln) => `<div>${escapeHtml(ln)}</div>`
+        ).join('')}</div>`
+      : ''
+  }
+  ${
+    payload.incluirPiePoliticasRefacciones && payload.folio
+      ? (() => {
+          const src = folioBarcodeDataUrl(payload.folio);
+          if (!src) return '';
+          return `<div class="ticket-barcode-wrap"><div class="hint">Escanee para devolución o factura</div><img src="${escapeHtml(src)}" alt="" style="max-width:100%;width:280px;height:auto;" /></div>`;
+        })()
+      : ''
+  }
   <p class="ticket-gracias">${escapeHtml(payload.pieMensaje ?? '¡Gracias por su compra!')}</p>
 </body></html>`;
 
@@ -758,5 +812,6 @@ export async function printThermalTicketFromSale(sale: Sale): Promise<void> {
       }
       return base || undefined;
     })(),
+    incluirPiePoliticasRefacciones: sale.estado === 'completada' || sale.estado === 'facturada',
   });
 }

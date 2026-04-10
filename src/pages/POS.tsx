@@ -1869,6 +1869,7 @@ export function POS() {
           snap.notas ??
           'COMPROBANTE DE DEVOLUCIÓN — El ticket original quedó cancelado por devolución.',
         resumenPagos: snap.resumenPagos,
+        incluirPiePoliticasRefacciones: false,
       });
       return;
     }
@@ -1890,6 +1891,7 @@ export function POS() {
       adeudoPendiente: snap.adeudoPendiente,
       notas: snap.notas,
       resumenPagos: snap.resumenPagos,
+      incluirPiePoliticasRefacciones: true,
     });
   };
 
