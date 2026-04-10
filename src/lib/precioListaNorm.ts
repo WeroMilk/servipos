@@ -374,6 +374,9 @@ export function resolvePrecioVentaSinIvaForDoc(args: {
       if (regSin > pv0 + 0.02) {
         return roundMoney2(regSin);
       }
+    } else if (map && fromListas > pv0 + 0.02) {
+      /** Sin `regular` explícita: subir PV si solo reflejaba una lista barata y hay otras listas mayores. */
+      return roundMoney2(fromListas);
     }
     return roundMoney2(pv0);
   }
