@@ -2304,7 +2304,7 @@ export function POS() {
     if (!snap) return;
     if (snap.modoDevolucion) {
       printThermalTicket({
-        negocio: 'SERVIPARTZ POS',
+        negocio: 'SERVIPARTZ',
         sucursalId: snap.sucursalId,
         folio: snap.folioVentaOrigen,
         fecha: formatInAppTimezone(new Date(), {
@@ -2327,7 +2327,7 @@ export function POS() {
       return;
     }
     printThermalTicket({
-      negocio: 'SERVIPARTZ POS',
+      negocio: 'SERVIPARTZ',
       sucursalId: snap.sucursalId,
       folio: snap.folio,
       fecha: formatInAppTimezone(new Date(), {

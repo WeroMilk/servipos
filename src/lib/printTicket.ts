@@ -115,8 +115,8 @@ const THERMAL_TICKET_VENTA_STYLES = `
     overflow-wrap: anywhere;
     word-break: break-word;
   }
-  body.ticket-venta .pie-sucursal { font-size: 11px; line-height: 1.45; margin-top: 10px; padding-top: 8px; }
-  body.ticket-venta .pie-sucursal .titulo-suc { font-size: 14px; margin-bottom: 4px; }
+  body.ticket-venta .pie-sucursal { font-size: 9px; line-height: 1.4; margin-top: 10px; padding-top: 8px; }
+  body.ticket-venta .pie-sucursal .titulo-suc { font-size: 11px; margin-bottom: 3px; }
   body.ticket-venta .ticket-notas { font-size: 11px; line-height: 1.4; margin-top: 8px; }
   body.ticket-venta .ticket-politicas { font-size: 10px; line-height: 1.4; margin-top: 8px; padding-top: 8px; }
   body.ticket-venta .ticket-politicas div + div { margin-top: 3px; }
@@ -292,7 +292,7 @@ function openAndPrintHtml(html: string, windowFeatures: string, printDelayMs: nu
 
 /** Ticket 80mm para impresora térmica (contenido en ventana dedicada). */
 export function printThermalTicket(payload: TicketPayload): void {
-  const negocio = payload.negocio || 'SERVIPARTZ POS';
+  const negocio = payload.negocio || 'SERVIPARTZ';
   const rows = payload.lineas
     .map(
       (l) => `
@@ -867,7 +867,7 @@ export async function printThermalTicketFromSale(sale: Sale): Promise<void> {
   const adeudoTicket = computeSaleClienteAdeudo(sale);
 
   printThermalTicket({
-    negocio: 'SERVIPARTZ POS',
+    negocio: 'SERVIPARTZ',
     sucursalId: sale.sucursalId,
     folio: sale.folio,
     fecha: new Date(sale.createdAt).toLocaleString('es-MX'),
