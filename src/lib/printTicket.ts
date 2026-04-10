@@ -73,6 +73,21 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
+/**
+ * Solo `printThermalTicket` (venta, cotización impresa como ticket, devolución): corrección de alineación
+ * en impresoras que desplazan el contenido a la derecha, y pie más compacto desde sucursal hasta despedida.
+ */
+const THERMAL_TICKET_VENTA_STYLES = `
+  /* ~2–3 mm hacia la izquierda respecto al centrado por defecto (ajustar si hace falta) */
+  body.ticket-venta { position: relative; left: -2.5mm; }
+  body.ticket-venta .pie-sucursal { font-size: 15px; line-height: 1.5; }
+  body.ticket-venta .pie-sucursal .titulo-suc { font-size: 19px; margin-bottom: 6px; }
+  body.ticket-venta .ticket-notas { font-size: 14px; line-height: 1.45; }
+  body.ticket-venta .ticket-politicas { font-size: 12px; line-height: 1.4; }
+  body.ticket-venta .ticket-politicas div + div { margin-top: 4px; }
+  body.ticket-venta .ticket-gracias { font-size: 15px; line-height: 1.35; }
+`;
+
 /** CSS compartido: ticket de venta 80 mm e informes térmicos (tipografía grande para leer en papel). */
 const THERMAL_BASE_STYLES = `@page { size: 80mm auto; margin: 4mm; }
   * { box-sizing: border-box; }
@@ -114,7 +129,6 @@ const THERMAL_BASE_STYLES = `@page { size: 80mm auto; margin: 4mm; }
   .ticket-politicas { margin-top: 14px; padding-top: 10px; border-top: 1px dashed #666; font-size: 17px; line-height: 1.45; text-align: center; color: #111; font-weight: 600; }
   .ticket-politicas div + div { margin-top: 6px; }
   .ticket-barcode-wrap { margin-top: 14px; text-align: center; }
-  .ticket-barcode-wrap .hint { font-size: 16px; line-height: 1.35; margin-bottom: 8px; font-weight: 600; }
   .ticket-barcode-wrap img { display: block; margin: 0 auto; max-width: 100%; height: auto; image-rendering: pixelated; }`;
 
 const TICKET_POLITICAS_REFACCIONES_LINES = [
@@ -257,11 +271,12 @@ export function printThermalTicket(payload: TicketPayload): void {
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Ticket</title>
 <style>${THERMAL_BASE_STYLES}
+${THERMAL_TICKET_VENTA_STYLES}
   .ticket-pagos { margin-top: 12px; padding-top: 10px; border-top: 1px dashed #333; font-size: 19px; line-height: 1.5; }
   .ticket-pagos .tit { font-weight: 600; margin-bottom: 6px; }
   .ticket-notas { margin-top: 12px; font-size: 20px; line-height: 1.45; text-align: center; white-space: pre-line; }
   .ticket-gracias { margin-top: 16px; text-align: center; font-size: 22px; font-weight: 600; line-height: 1.4; }
-</style></head><body>
+</style></head><body class="ticket-venta">
   <div class="ticket-brand-block">
     <img class="logo-ticket" src="${escapeHtml(getBrandLogoAbsoluteUrl())}" alt="" width="96" height="96" />
     <h1>${escapeHtml(negocio)}</h1>
@@ -315,7 +330,7 @@ export function printThermalTicket(payload: TicketPayload): void {
       ? (() => {
           const src = folioBarcodeDataUrl(payload.folio);
           if (!src) return '';
-          return `<div class="ticket-barcode-wrap"><div class="hint">Escanee para devolución o factura</div><img src="${escapeHtml(src)}" alt="" style="max-width:100%;width:280px;height:auto;" /></div>`;
+          return `<div class="ticket-barcode-wrap"><img src="${escapeHtml(src)}" alt="" style="max-width:100%;width:280px;height:auto;" /></div>`;
         })()
       : ''
   }
