@@ -336,12 +336,26 @@ export function useProductSearch(options?: { maxResults?: number }) {
   const [results, setResults] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const searchGenRef = useRef(0);
+  const reconcileCartTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!sucursalId) return;
-    return subscribeProductCatalog(sucursalId, (products) => {
-      useCartStore.getState().reconcileCartProductsFromCatalog(products);
+    const unsub = subscribeProductCatalog(sucursalId, (products) => {
+      if (reconcileCartTimerRef.current != null) {
+        window.clearTimeout(reconcileCartTimerRef.current);
+      }
+      reconcileCartTimerRef.current = window.setTimeout(() => {
+        reconcileCartTimerRef.current = null;
+        useCartStore.getState().reconcileCartProductsFromCatalog(products);
+      }, 48);
     });
+    return () => {
+      unsub();
+      if (reconcileCartTimerRef.current != null) {
+        window.clearTimeout(reconcileCartTimerRef.current);
+        reconcileCartTimerRef.current = null;
+      }
+    };
   }, [sucursalId]);
 
   const search = useCallback(

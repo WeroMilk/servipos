@@ -26,6 +26,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -71,9 +72,12 @@ import {
   findQuotationByLast4Folio,
   markQuotationConvertedWithSale,
   updatePendingOpenSale,
+  updateProduct,
 } from '@/db/database';
 import { getSaleByIdFirestore } from '@/lib/firestore/salesFirestore';
-import { getProductCatalogSnapshot } from '@/lib/firestore/productsFirestore';
+import { getProductCatalogSnapshot, updateProductFirestore } from '@/lib/firestore/productsFirestore';
+import { effectiveListaPreciosIncluyenIva } from '@/lib/catalogPricingFlags';
+import { parsePrecioNumberFromFirestore, resolvePrecioVentaSinIvaForDoc } from '@/lib/precioListaNorm';
 import {
   buildPendingSaleLineItemsFromCart,
   clientFromSaleForPos,
@@ -137,6 +141,16 @@ function unitBaseSinIvaToPrecioConIva(baseSinIva: number, impuestoPct: number): 
 function precioConIvaToUnitBaseSinIva(precioConIva: number, impuestoPct: number): number {
   const imp = Number(impuestoPct) || 0;
   return precioConIva / (1 + imp / 100);
+}
+
+function emptyListaPrecioStrMap(): Record<ClientPriceListId, string> {
+  const o = {} as Record<ClientPriceListId, string>;
+  for (const id of CLIENT_PRICE_LIST_ORDER) o[id] = '';
+  return o;
+}
+
+function roundMoney2(n: number): number {
+  return Math.round((Number(n) || 0) * 100) / 100;
 }
 
 type MobileTab = 'cart' | 'checkout';
@@ -562,6 +576,11 @@ export function POS() {
   const [unitPriceEditStep, setUnitPriceEditStep] = useState<'pin' | 'price'>('pin');
   const [unitPricePinInput, setUnitPricePinInput] = useState('');
   const [unitPriceInput, setUnitPriceInput] = useState('');
+  const [listasPrecioCatalogDialogOpen, setListasPrecioCatalogDialogOpen] = useState(false);
+  const [listasPrecioStr, setListasPrecioStr] = useState<Record<ClientPriceListId, string>>(() =>
+    emptyListaPrecioStrMap()
+  );
+  const [listasPrecioCatalogSaving, setListasPrecioCatalogSaving] = useState(false);
   const [mobileScannerOpen, setMobileScannerOpen] = useState(false);
   const [mobileScannerBusy, setMobileScannerBusy] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -661,18 +680,26 @@ export function POS() {
     };
   }, []);
 
+  /**
+   * Cierra el desplegable al clic fuera del buscador. El blur/cierre NO debe ejecutarse en la fase capture
+   * del mismo evento: si no, el input pierde el foco antes de que el botón externo (p. ej. quitar del carrito)
+   * reciba el `click` y el navegador cancela la acción.
+   */
   useEffect(() => {
-    if (!showProductSearch) return;
+    const dropdownOpen = showProductSearch && searchQuery.trim().length > 0;
+    if (!dropdownOpen) return;
     const onPointerDown = (e: PointerEvent) => {
       const root = productSearchWrapRef.current;
       if (!root?.contains(e.target as Node)) {
-        setShowProductSearch(false);
-        searchInputRef.current?.blur();
+        window.setTimeout(() => {
+          setShowProductSearch(false);
+          searchInputRef.current?.blur();
+        }, 0);
       }
     };
     document.addEventListener('pointerdown', onPointerDown, true);
     return () => document.removeEventListener('pointerdown', onPointerDown, true);
-  }, [showProductSearch]);
+  }, [showProductSearch, searchQuery]);
 
   const handleCheckoutOpenChange = (open: boolean) => {
     setCheckoutOpen(open);
@@ -750,11 +777,104 @@ export function POS() {
   };
 
   const closeUnitPriceDialog = () => {
+    setListasPrecioCatalogDialogOpen(false);
     setUnitPriceDialogOpen(false);
     setUnitPriceEditProductId(null);
     setUnitPriceEditStep('pin');
     setUnitPricePinInput('');
     setUnitPriceInput('');
+  };
+
+  const canEditCatalogListasDesdePos = hasPermission('inventario:editar');
+
+  const openListasPrecioCatalogDialog = () => {
+    const pid = unitPriceEditProductId;
+    const it = pid ? items.find((i) => i.product.id === pid) : undefined;
+    if (!it) return;
+    const p = it.product;
+    const incluye = effectiveListaPreciosIncluyenIva(p);
+    const next = emptyListaPrecioStrMap();
+    for (const id of CLIENT_PRICE_LIST_ORDER) {
+      const v = incluye
+        ? getProductUnitConIvaForClienteList(p, id)
+        : getProductUnitSinIvaForClienteList(p, id);
+      next[id] = v > 0 ? v.toFixed(2) : '';
+    }
+    setListasPrecioStr(next);
+    setListasPrecioCatalogDialogOpen(true);
+  };
+
+  const saveListasPrecioCatalogFromPos = async () => {
+    const pid = unitPriceEditProductId;
+    const it = pid ? items.find((i) => i.product.id === pid) : undefined;
+    if (!pid || !it) return;
+    const p = it.product;
+    setListasPrecioCatalogSaving(true);
+    try {
+      const mergedMap: Partial<Record<ClientPriceListId, number>> = { ...(p.preciosPorListaCliente ?? {}) };
+      for (const id of CLIENT_PRICE_LIST_ORDER) {
+        const raw = (listasPrecioStr[id] ?? '').trim();
+        if (raw === '') {
+          delete mergedMap[id];
+          continue;
+        }
+        const n = parsePrecioNumberFromFirestore(raw);
+        if (!Number.isFinite(n) || n < 0) {
+          addToast({
+            type: 'warning',
+            message: `Precio inválido en «${CLIENT_PRICE_LABELS[id]}»`,
+          });
+          return;
+        }
+        mergedMap[id] = roundMoney2(n);
+      }
+      const cleaned =
+        Object.keys(mergedMap).length > 0
+          ? (mergedMap as NonNullable<Product['preciosPorListaCliente']>)
+          : undefined;
+      const listasParaPersist = cleaned ?? ({} as NonNullable<Product['preciosPorListaCliente']>);
+      const imp = Number(p.impuesto) || 16;
+      const newPv = resolvePrecioVentaSinIvaForDoc({
+        rawPv: p.precioVenta,
+        preciosPorListaCliente: cleaned,
+        preciosListaIncluyenIva: p.preciosListaIncluyenIva,
+        impuesto: imp,
+      });
+      const nextProduct: Product = {
+        ...p,
+        preciosPorListaCliente: cleaned,
+        precioVenta: newPv,
+        updatedAt: new Date(),
+      };
+      const sid = effectiveSucursalId?.trim();
+      if (sid) {
+        await updateProductFirestore(sid, p.id, {
+          preciosPorListaCliente: listasParaPersist,
+          precioVenta: newPv,
+        });
+      } else {
+        await updateProduct(p.id, {
+          preciosPorListaCliente: listasParaPersist,
+          precioVenta: newPv,
+        });
+      }
+      useCartStore.getState().reconcileCartProductsFromCatalog([nextProduct]);
+      addToast({
+        type: 'success',
+        message: 'Precios por lista guardados en el catálogo',
+        logToAppEvents: true,
+      });
+      setListasPrecioCatalogDialogOpen(false);
+      closeUnitPriceDialog();
+    } catch (e: unknown) {
+      addToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'No se pudieron guardar los precios',
+        logToAppEvents: true,
+      });
+    } finally {
+      setListasPrecioCatalogSaving(false);
+    }
   };
 
   const confirmUnitPricePin = () => {
@@ -3748,6 +3868,24 @@ export function POS() {
                 interno.
               </p>
 
+              {canEditCatalogListasDesdePos ? (
+                <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-200/40 p-3 dark:border-slate-700 dark:bg-slate-800/50">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="w-full border-slate-300 bg-white text-slate-900 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+                    disabled={!unitPriceEditProductId}
+                    onClick={openListasPrecioCatalogDialog}
+                  >
+                    Modificar precios
+                  </Button>
+                  <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-400">
+                    Edita los cinco precios por lista en el catálogo de este producto. Al confirmar se guardan en la
+                    sucursal y el carrito muestra los importes nuevos.
+                  </p>
+                </div>
+              ) : null}
+
               <div className="space-y-2">
                 <Label className="text-slate-700 dark:text-slate-300">Lista para esta línea</Label>
                 <div className="flex flex-wrap gap-2">
@@ -3834,6 +3972,69 @@ export function POS() {
               </DialogFooter>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={listasPrecioCatalogDialogOpen}
+        onOpenChange={(o) => {
+          if (!o && !listasPrecioCatalogSaving) setListasPrecioCatalogDialogOpen(false);
+        }}
+      >
+        <DialogContent
+          overlayClassName="z-[200]"
+          className="z-[201] max-h-[min(88dvh,calc(100dvh-4rem))] overflow-y-auto border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:max-w-md"
+          useDialogDescription
+        >
+          <DialogHeader>
+            <DialogTitle>Precios por lista en catálogo</DialogTitle>
+            <DialogDescription className="text-left text-slate-600 dark:text-slate-400">
+              {unitPriceDialogLine?.product.nombre ?? 'Producto'}
+            </DialogDescription>
+          </DialogHeader>
+          <p className="text-xs text-slate-600 dark:text-slate-400">
+            Capture un importe por lista; deje vacío para quitar precio fijo y usar el % de configuración sobre el
+            precio de venta.{' '}
+            <span className="font-medium text-slate-700 dark:text-slate-300">
+              {unitPriceDialogLine?.product &&
+              effectiveListaPreciosIncluyenIva(unitPriceDialogLine.product)
+                ? 'Los importes son con IVA incluido (como en sucursal / producto).'
+                : 'Los importes son sin IVA.'}
+            </span>
+          </p>
+          <div className="space-y-3">
+            {CLIENT_PRICE_LIST_ORDER.map((lid) => (
+              <div key={lid} className="space-y-1">
+                <Label className="text-slate-700 dark:text-slate-300">{CLIENT_PRICE_LABELS[lid]}</Label>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  value={listasPrecioStr[lid] ?? ''}
+                  onChange={(e) =>
+                    setListasPrecioStr((prev) => ({
+                      ...prev,
+                      [lid]: e.target.value,
+                    }))
+                  }
+                  placeholder="—"
+                  className="border-slate-300 dark:border-slate-700 dark:bg-slate-800"
+                />
+              </div>
+            ))}
+          </div>
+          <DialogFooter className="gap-2 border-t border-slate-200 pt-2 dark:border-slate-800 sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={listasPrecioCatalogSaving}
+              onClick={() => setListasPrecioCatalogDialogOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button type="button" disabled={listasPrecioCatalogSaving} onClick={() => void saveListasPrecioCatalogFromPos()}>
+              {listasPrecioCatalogSaving ? 'Guardando…' : 'Confirmar'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

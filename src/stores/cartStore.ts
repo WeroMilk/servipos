@@ -113,13 +113,30 @@ function coerceCartItemPrecioLista(it: CartItem): CartItem {
   return rest as CartItem;
 }
 
+function stableStringifyPreciosListas(map: Product['preciosPorListaCliente']): string {
+  if (map == null || typeof map !== 'object') return 'null';
+  const keys = Object.keys(map).sort();
+  const norm: Record<string, number | undefined> = {};
+  for (const k of keys) {
+    const v = map[k as keyof typeof map];
+    norm[k] = typeof v === 'number' ? v : v != null && v !== '' ? Number(v) : undefined;
+  }
+  return JSON.stringify(norm);
+}
+
+/** Firma estable para reconciliar carrito ↔ catálogo (evita `set` en bucle por orden de keys o `updatedAt`). */
 function catalogProductSyncSignature(p: Product): string {
+  const pv = Number(p.precioVenta) || 0;
+  const ex = typeof p.existencia === 'number' ? p.existencia : Number(p.existencia) || 0;
+  const em =
+    typeof p.existenciaMinima === 'number' ? p.existenciaMinima : Number(p.existenciaMinima) || 0;
   return [
-    p.precioVenta,
-    p.impuesto,
+    Math.round(pv * 1e6) / 1e6,
+    Number(p.impuesto) || 0,
     p.preciosListaIncluyenIva === true ? '1' : p.preciosListaIncluyenIva === false ? '0' : '',
-    JSON.stringify(p.preciosPorListaCliente ?? null),
-    p.updatedAt instanceof Date ? p.updatedAt.toISOString() : String(p.updatedAt ?? ''),
+    stableStringifyPreciosListas(p.preciosPorListaCliente),
+    ex,
+    em,
   ].join('\u001f');
 }
 
