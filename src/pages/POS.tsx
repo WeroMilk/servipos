@@ -2385,7 +2385,7 @@ export function POS() {
         >
           <div className="flex min-w-0 items-start gap-2 sm:items-center">
             <Clock className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400 sm:mt-0" />
-            <p className="text-xs leading-snug text-amber-950 dark:text-amber-100 sm:text-sm">
+            <p className="text-xs leading-snug text-black dark:text-amber-100 sm:text-sm">
               Retomando venta abierta{' '}
               <span className="font-mono font-semibold">{openSaleResume.sale.folio}</span>. Puede editar líneas; los
               cambios se guardan al poco tiempo. Registre el pago y pulse Cobrar.
@@ -3024,19 +3024,19 @@ export function POS() {
                                 : ' (ticket completo)'}
                               </p>
                             ) : (
-                              <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                              <p className="text-[11px] text-black dark:text-amber-100">
                                 Ajuste las cantidades para ver el reembolso.
                               </p>
                             )}
                           </div>
                         ) : devolucionSaleResuelta.estado === 'cancelada' ? (
-                          <p className="text-amber-600 dark:text-amber-400">
+                          <p className="text-black dark:text-amber-100">
                             {devolucionSaleResuelta.cancelacionMotivo === 'devolucion' ?
                               'Ya cancelado por devolución.'
                             : 'Venta cancelada.'}
                           </p>
                         ) : (
-                          <p className="text-amber-600 dark:text-amber-400">No aplica para devolución en POS.</p>
+                          <p className="text-black dark:text-amber-100">No aplica para devolución en POS.</p>
                         )}
                       </div>
                     ) : null}
@@ -3116,7 +3116,7 @@ export function POS() {
                 ) : null}
 
                 {esFormaPendientePago ? (
-                  <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-[10px] leading-snug text-amber-950 dark:border-amber-500/25 dark:bg-amber-950/30 dark:text-amber-100 sm:text-xs">
+                  <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-[10px] leading-snug text-black dark:border-amber-500/25 dark:bg-amber-950/30 dark:text-amber-100 sm:text-xs">
                     <span className="font-semibold">Pendiente de pago:</span> se registrará el total como saldo del
                     cliente (aparece en Cuentas por cobrar con el folio del ticket). Elija un cliente registrado, no
                     Mostrador.
@@ -3278,7 +3278,7 @@ export function POS() {
                 esFormaDevolucion
               }
               variant="secondary"
-              className="h-10 w-full rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-950 hover:bg-amber-500/20 dark:border-amber-500/35 dark:text-amber-100 dark:hover:bg-amber-500/15 sm:h-11 lg:h-9 lg:text-sm"
+              className="h-10 w-full rounded-xl border border-amber-500/30 bg-amber-500/10 text-black hover:bg-amber-500/20 dark:border-amber-500/35 dark:text-amber-100 dark:hover:bg-amber-500/15 sm:h-11 lg:h-9 lg:text-sm"
             >
               <Clock className="mr-2 h-4 w-4 shrink-0" />
               {dejarAbiertaBusy ? 'Guardando…' : 'Dejar venta abierta (fiado)'}
@@ -3502,14 +3502,14 @@ export function POS() {
                 ) : null}
 
                 {formaPago === 'PPC' && !checkoutDevolucionListo ? (
-                  <p className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-center text-xs leading-relaxed text-amber-950 dark:border-amber-500/30 dark:bg-amber-950/35 dark:text-amber-100 sm:text-sm">
+                  <p className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-center text-xs leading-relaxed text-black dark:border-amber-500/30 dark:bg-amber-950/35 dark:text-amber-100 sm:text-sm">
                     No se registrará cobro en caja. El importe total quedará como saldo del cliente y el ticket se
                     listará en <span className="font-semibold">Cuentas por cobrar</span>.
                   </p>
                 ) : null}
 
                 {checkoutDevolucionListo ? (
-                  <p className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-3 text-center text-xs leading-relaxed text-slate-600 dark:text-slate-400 sm:text-sm">
+                  <p className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-3 text-center text-xs leading-relaxed text-black dark:text-slate-400 sm:text-sm">
                     {previewDevolucion?.kind === 'partial' ?
                       <>
                         Al confirmar, se registrará la devolución de las líneas elegidas: el inventario se

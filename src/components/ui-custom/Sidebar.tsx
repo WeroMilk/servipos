@@ -118,7 +118,7 @@ export function Sidebar() {
             'hidden items-center gap-2 rounded-lg px-3 py-2 text-xs xl:flex',
             isOnline
               ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
-              : 'bg-amber-500/10 text-amber-800 dark:text-amber-400'
+              : 'bg-amber-500/10 text-black dark:text-amber-100'
           )}
         >
           {isOnline ? (

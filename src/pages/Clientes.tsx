@@ -526,7 +526,7 @@ export function Clientes() {
                     </button>
                     <button
                       type="button"
-                      className="flex shrink-0 items-center gap-1 rounded-lg border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-amber-400 transition-colors hover:bg-amber-500/20 hover:text-amber-300"
+                      className="flex shrink-0 items-center gap-1 rounded-lg border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-black transition-colors hover:bg-amber-500/20 dark:text-amber-100 dark:hover:text-amber-50"
                       title="Ventas en historial (incluye pendientes, completadas y canceladas)"
                       onClick={() => openClientVentasDialog(client)}
                     >
@@ -615,7 +615,7 @@ export function Clientes() {
                       <TableCell className="align-top text-center">
                         <button
                           type="button"
-                          className="inline-flex items-center justify-center gap-1 rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold tabular-nums text-amber-400 transition-colors hover:bg-amber-500/20 hover:text-amber-300"
+                          className="inline-flex items-center justify-center gap-1 rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold tabular-nums text-black transition-colors hover:bg-amber-500/20 dark:text-amber-100 dark:hover:text-amber-50"
                           title="Ventas en historial (incluye pendientes, completadas y canceladas)"
                           onClick={() => openClientVentasDialog(client)}
                         >
@@ -1016,7 +1016,7 @@ export function Clientes() {
                 <div className="mt-1 flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    className="group inline-flex flex-wrap items-center gap-1.5 rounded-lg border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-left text-amber-400 transition-colors hover:bg-amber-500/20 hover:text-amber-300"
+                    className="group inline-flex flex-wrap items-center gap-1.5 rounded-lg border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-left text-black transition-colors hover:bg-amber-500/20 dark:text-amber-100 dark:hover:text-amber-50"
                     title="Historial de ventas (incluye canceladas) y reimprimir tickets"
                     onClick={() => {
                       const c = detailClient;

@@ -13,7 +13,8 @@ const iconMap = {
 const colorMap = {
   success: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400',
   error: 'bg-red-500/10 border-red-500/30 text-red-400',
-  warning: 'bg-amber-500/10 border-amber-500/30 text-amber-400',
+  warning:
+    'bg-amber-500/10 border-amber-500/30 text-black dark:border-amber-500/40 dark:text-amber-100',
   info: 'bg-cyan-500/10 border-cyan-500/30 text-cyan-800 dark:text-cyan-400',
 };
 

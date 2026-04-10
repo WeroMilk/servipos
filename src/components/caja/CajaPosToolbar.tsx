@@ -284,33 +284,33 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
         </div>
 
         <div className="rounded-lg border border-amber-500/35 bg-amber-500/[0.08] p-3 dark:border-amber-500/30 dark:bg-amber-950/25 lg:p-2.5">
-          <p className="text-[11px] font-bold uppercase tracking-wide text-amber-950 dark:text-amber-200 lg:text-[10px]">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-black dark:text-amber-100 lg:text-[10px]">
             Retiros de efectivo (esta sesión)
           </p>
           {retirosOrdenados.length > 0 ? (
-            <ul className="mt-2 space-y-2 text-xs text-amber-950/95 dark:text-amber-100/90 lg:mt-1.5 lg:space-y-1.5 lg:text-[11px]">
+            <ul className="mt-2 space-y-2 text-xs text-black dark:text-amber-100 lg:mt-1.5 lg:space-y-1.5 lg:text-[11px]">
               {retirosOrdenados.map((r) => (
                 <li
                   key={r.id}
                   className="flex flex-col gap-0.5 border-b border-amber-800/15 pb-2 last:border-b-0 last:pb-0 dark:border-amber-400/15"
                 >
                   <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
-                    <span className="tabular-nums font-semibold text-amber-950 dark:text-amber-50">
+                    <span className="tabular-nums font-semibold text-black dark:text-amber-50">
                       −{formatMoney(r.monto)}
                     </span>
-                    <span className="text-amber-900/85 dark:text-amber-200/80">
+                    <span className="text-black/90 dark:text-amber-200/90">
                       {formatInAppTimezone(r.createdAt, { dateStyle: 'short', timeStyle: 'short' })} ·{' '}
                       {r.usuarioNombre}
                     </span>
                   </div>
                   {r.notas?.trim() ? (
-                    <span className="text-amber-900/75 dark:text-amber-300/80">{r.notas.trim()}</span>
+                    <span className="text-black/80 dark:text-amber-200/90">{r.notas.trim()}</span>
                   ) : null}
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="mt-2 text-xs text-amber-900/80 dark:text-amber-300/75 lg:mt-1 lg:text-[11px]">
+            <p className="mt-2 text-xs text-black/85 dark:text-amber-200/90 lg:mt-1 lg:text-[11px]">
               No hay retiros registrados.
             </p>
           )}
@@ -637,7 +637,7 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
                   {formatInAppTimezone(activa.openedAt, { dateStyle: 'short', timeStyle: 'short' })}
                 </p>
               ) : isCloud ? (
-                <p className="text-amber-950 dark:text-amber-100">
+                <p className="text-black dark:text-amber-100">
                   <span className="font-semibold">Caja cerrada</span>. Abra caja para registrar cobros y ventas en
                   esta tienda.
                 </p>

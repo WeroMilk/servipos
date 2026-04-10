@@ -468,9 +468,9 @@ export function Configuracion() {
       <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-1.5 overflow-hidden sm:gap-2">
         {!isConfigured ? (
           <div className="flex shrink-0 items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 sm:px-3">
-            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400 sm:h-5 sm:w-5" />
-            <p className="min-w-0 text-xs leading-snug text-amber-400/90 sm:text-sm">
-              <span className="font-medium text-amber-400">Incompleta.</span>{' '}
+            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-800 dark:text-amber-400 sm:h-5 sm:w-5" />
+            <p className="min-w-0 text-xs leading-snug text-black sm:text-sm dark:text-amber-50">
+              <span className="font-medium text-black dark:text-amber-50">Incompleta.</span>{' '}
               Complete datos fiscales para facturar.
             </p>
           </div>
@@ -909,8 +909,8 @@ export function Configuracion() {
               </CardHeader>
               <CardContent className="flex flex-col gap-2 p-3 sm:p-4 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:overscroll-y-contain">
                 <div className="flex gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400 sm:h-5 sm:w-5" />
-                  <p className="text-sm leading-snug text-amber-400/90 sm:text-xs">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-800 dark:text-amber-400 sm:h-5 sm:w-5" />
+                  <p className="text-sm leading-snug text-black sm:text-xs dark:text-amber-50">
                     CSD del SAT para timbrar en producción. En esta demo el XML se genera sin
                     timbrar.
                   </p>
@@ -1572,8 +1572,8 @@ export function Configuracion() {
                     </div>
                   </div>
                   <div className="flex gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 lg:p-1.5">
-                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
-                    <p className="text-[11px] leading-snug text-amber-400/90">
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-800 dark:text-amber-400" />
+                    <p className="text-[11px] leading-snug text-black dark:text-amber-50">
                       No reutilices folios ni saltes números del rango autorizado.
                     </p>
                   </div>

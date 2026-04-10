@@ -300,7 +300,7 @@ export function Header() {
     isSyncing
       ? 'bg-cyan-500/15 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-400'
       : pendingDisplay > 0
-        ? 'bg-amber-500/15 text-amber-800 dark:bg-amber-500/20 dark:text-amber-400 dark:hover:bg-amber-500/30'
+        ? 'bg-amber-500/15 text-black dark:bg-amber-500/20 dark:text-amber-100 dark:hover:bg-amber-500/30'
         : 'bg-slate-200/80 text-slate-600 hover:bg-slate-300/80 dark:bg-slate-800/50 dark:text-slate-400 dark:hover:bg-slate-700/50'
   );
 
@@ -433,7 +433,7 @@ export function Header() {
                 isSyncing
                   ? 'bg-cyan-500/15 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-400'
                   : pendingDisplay > 0
-                    ? 'bg-amber-500/15 text-amber-800 dark:bg-amber-500/20 dark:text-amber-400 dark:hover:bg-amber-500/30'
+                    ? 'bg-amber-500/15 text-black dark:bg-amber-500/20 dark:text-amber-100 dark:hover:bg-amber-500/30'
                     : 'bg-slate-200/80 text-slate-600 hover:bg-slate-300/80 dark:bg-slate-800/50 dark:text-slate-400 dark:hover:bg-slate-700/50'
               )}
             >

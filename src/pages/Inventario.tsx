@@ -1369,10 +1369,10 @@ export function Inventario() {
 
       {effectiveSucursalId && pendingIncoming.length > 0 ? (
         <div className="mt-3 shrink-0 rounded-xl border border-amber-500/35 bg-amber-500/5 p-3 sm:mt-4 sm:p-4">
-          <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-200/95">
-            <Truck className="h-4 w-4 shrink-0 text-amber-400" />
+          <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-black dark:text-amber-50">
+            <Truck className="h-4 w-4 shrink-0 text-amber-800 dark:text-amber-400" />
             Traspasos pendientes de recibir
-            <Badge variant="secondary" className="border-amber-500/40 bg-amber-500/15 text-amber-200">
+            <Badge variant="secondary" className="border-amber-500/40 bg-amber-500/15 text-black dark:text-amber-100">
               {pendingIncoming.length}
             </Badge>
           </div>

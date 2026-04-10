@@ -291,7 +291,7 @@ export function ClientAddressSonoraFields<T extends AddressFormSlice>({
         </div>
       </div>
 
-      {cpHint ? <p className="mt-2 text-xs text-amber-400/90">{cpHint}</p> : null}
+      {cpHint ? <p className="mt-2 text-xs text-black dark:text-amber-200">{cpHint}</p> : null}
     </div>
   );
 }

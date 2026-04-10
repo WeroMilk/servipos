@@ -66,7 +66,7 @@ import { getInvoiceById } from '@/db/database';
 import { getInvoiceFirestore } from '@/lib/firestore/invoicesFirestore';
 
 const statusColors: Record<string, string> = {
-  pendiente: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+  pendiente: 'bg-amber-500/10 text-black border-amber-500/30 dark:text-amber-100',
   timbrada: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
   cancelada: 'bg-red-500/10 text-red-400 border-red-500/30',
   error: 'bg-red-500/10 text-red-400 border-red-500/30',
@@ -384,8 +384,8 @@ export function Facturas() {
       <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden sm:gap-3">
       {fiscalConfig?.modoPruebaFiscal ? (
         <div className="shrink-0 rounded-lg border border-amber-500/35 bg-amber-500/10 px-2.5 py-2 sm:px-3">
-          <p className="text-[11px] leading-snug text-amber-200/95 sm:text-xs">
-            <span className="font-semibold text-amber-300">Modo prueba activo.</span>{' '}
+          <p className="text-[11px] leading-snug text-black sm:text-xs dark:text-amber-50">
+            <span className="font-semibold text-black dark:text-amber-50">Modo prueba activo.</span>{' '}
             Las facturas nuevas usan serie PRUEBA y no avanzan el folio oficial. Para producción: desactiva el modo en
             Configuración → Datos fiscales, ingresa serie y folio autorizados y usa el timbrado con tu PAC; el XML
             previo sin timbre no tiene validez ante el SAT.
@@ -461,7 +461,7 @@ export function Facturas() {
                         {invoice.serie}-{invoice.folio}
                       </span>
                       {invoice.esPrueba ? (
-                        <Badge className="border border-amber-500/40 bg-amber-500/15 text-[10px] text-amber-600 dark:text-amber-400">
+                        <Badge className="border border-amber-500/40 bg-amber-500/15 text-[10px] text-black dark:text-amber-100">
                           Prueba
                         </Badge>
                       ) : null}
@@ -545,7 +545,7 @@ export function Facturas() {
                               {invoice.serie}-{invoice.folio}
                             </p>
                             {invoice.esPrueba ? (
-                              <Badge className="border border-amber-500/40 bg-amber-500/15 text-[10px] text-amber-600 dark:text-amber-400">
+                              <Badge className="border border-amber-500/40 bg-amber-500/15 text-[10px] text-black dark:text-amber-100">
                                 Prueba
                               </Badge>
                             ) : null}
@@ -656,17 +656,17 @@ export function Facturas() {
           
           <div className="space-y-4 py-4">
             {!fiscalConfig ? (
-              <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400">
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-black dark:text-amber-50">
                 <p className="flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5" />
+                  <AlertTriangle className="h-5 w-5 shrink-0 text-amber-800 dark:text-amber-300" />
                   Configure los datos fiscales antes de generar facturas
                 </p>
               </div>
             ) : (
               <>
                 {fiscalConfig.modoPruebaFiscal ? (
-                  <div className="rounded-lg border border-amber-500/35 bg-amber-500/10 p-3 text-xs text-amber-200/95">
-                    Se emitirá una factura de prueba con serie <strong className="text-amber-300">PRUEBA</strong> (no se
+                  <div className="rounded-lg border border-amber-500/35 bg-amber-500/10 p-3 text-xs text-black dark:text-amber-50">
+                    Se emitirá una factura de prueba con serie <strong className="text-black dark:text-amber-50">PRUEBA</strong> (no se
                     usa tu folio oficial). Úsala para revisar impresión y XML; la validez ante el SAT requiere timbrado
                     con PAC y folios autorizados.
                   </div>
