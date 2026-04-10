@@ -74,12 +74,19 @@ function escapeHtml(s: string): string {
 }
 
 /**
- * Solo `printThermalTicket` (venta, cotización impresa como ticket, devolución): corrección de alineación
- * en impresoras que desplazan el contenido a la derecha, y pie más compacto desde sucursal hasta despedida.
+ * Solo `printThermalTicket` (venta, cotización impresa como ticket, devolución):
+ * márgenes de página más amplios, columna de texto más angosta y centrada (evita que el rollo se vea “comido”),
+ * y pie más compacto desde sucursal hasta despedida.
  */
 const THERMAL_TICKET_VENTA_STYLES = `
-  /* ~2–3 mm hacia la izquierda respecto al centrado por defecto (ajustar si hace falta) */
-  body.ticket-venta { position: relative; left: -2.5mm; }
+  @page { size: 80mm auto; margin: 6mm 6.5mm 7mm 6.5mm; }
+  body.ticket-venta {
+    position: static;
+    width: 58mm;
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 10px 4px 14px;
+  }
   body.ticket-venta .pie-sucursal { font-size: 15px; line-height: 1.5; }
   body.ticket-venta .pie-sucursal .titulo-suc { font-size: 19px; margin-bottom: 6px; }
   body.ticket-venta .ticket-notas { font-size: 14px; line-height: 1.45; }
