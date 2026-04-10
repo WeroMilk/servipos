@@ -29,12 +29,18 @@ function explicitListaToSinIva(product: Product, explicit: number): number {
  */
 function getRegularUnitSinIva(product: Product): number {
   const explicit = normalizeListaPrecioValue(product.preciosPorListaCliente?.regular);
-  const exSin =
+  let exSin =
     explicit !== undefined && explicit > 0 ? explicitListaToSinIva(product, explicit) : 0;
   const pvBase = Number(product.precioVenta) || 0;
   const pctReg = getListaPrecioClientePct('regular');
   const fromPv = pvBase * (1 - pctReg / 100);
   const listaFloor = maxExplicitListaSinIvaRegularFloor(product);
+
+  /** Regular explícito menor que técnico/mayoreo± (sin IVA) suele ser dato viejo o mal cargado. */
+  const REG_INCOHERENCE_EPS = 0.02;
+  if (exSin > 0 && listaFloor > exSin + REG_INCOHERENCE_EPS) {
+    exSin = 0;
+  }
 
   let core = 0;
   if (exSin > 0 && fromPv > 0.005) {

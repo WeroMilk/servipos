@@ -65,6 +65,8 @@ interface CartState {
   }) => void;
   /** Reemplaza el carrito con un borrador persistido (nube/local), normalizando campos faltantes. */
   replaceCartDraft: (draft: Partial<CartDraftSnapshot> | null | undefined) => void;
+  /** Sincroniza `product` embebido con el catálogo actual (Realtime); no toca overrides ni descuentos de línea. */
+  reconcileCartProductsFromCatalog: (catalog: Product[]) => void;
 
   // Cálculos (Number() evita NaN → formatMoney muestra $0.00)
   getSubtotal: () => number;
@@ -109,6 +111,16 @@ function coerceCartItemPrecioLista(it: CartItem): CartItem {
   }
   const { precioListaId: _drop, ...rest } = it;
   return rest as CartItem;
+}
+
+function catalogProductSyncSignature(p: Product): string {
+  return [
+    p.precioVenta,
+    p.impuesto,
+    p.preciosListaIncluyenIva === true ? '1' : p.preciosListaIncluyenIva === false ? '0' : '',
+    JSON.stringify(p.preciosPorListaCliente ?? null),
+    p.updatedAt instanceof Date ? p.updatedAt.toISOString() : String(p.updatedAt ?? ''),
+  ].join('\u001f');
 }
 
 function sanitizeCartDraft(draft: Partial<CartDraftSnapshot> | null | undefined): CartDraftSnapshot {
@@ -270,6 +282,23 @@ export const useCartStore = create<CartState>((set, get) => ({
 
   replaceCartDraft: (draft) => {
     set(sanitizeCartDraft(draft));
+  },
+
+  reconcileCartProductsFromCatalog: (catalog) => {
+    const byId = new Map(catalog.map((p) => [p.id, p]));
+    if (byId.size === 0) return;
+    const { items } = get();
+    let changed = false;
+    const next = items.map((item) => {
+      const fresh = byId.get(item.product.id);
+      if (!fresh) return item;
+      if (catalogProductSyncSignature(fresh) === catalogProductSyncSignature(item.product)) {
+        return item;
+      }
+      changed = true;
+      return { ...item, product: fresh };
+    });
+    if (changed) set({ items: next });
   },
 
   getSubtotal: () => subtotalAfterLineDiscounts(get().items, get().precioClienteListaId),

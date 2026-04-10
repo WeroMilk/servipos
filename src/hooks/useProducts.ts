@@ -30,7 +30,7 @@ import {
 } from '@/lib/inventoryCatalogAudit';
 import { productCatalogConflictMessage } from '@/lib/productCatalogUniqueness';
 import { reportHookFailure } from '@/lib/appEventLog';
-import { useAuthStore } from '@/stores';
+import { useAuthStore, useCartStore } from '@/stores';
 import { isRemotePermissionDenied, SUPABASE_PERMISSION_HINT } from '@/lib/remotePermissionError';
 
 // ============================================
@@ -339,8 +339,8 @@ export function useProductSearch(options?: { maxResults?: number }) {
 
   useEffect(() => {
     if (!sucursalId) return;
-    return subscribeProductCatalog(sucursalId, () => {
-      /* catálogo compartido */
+    return subscribeProductCatalog(sucursalId, (products) => {
+      useCartStore.getState().reconcileCartProductsFromCatalog(products);
     });
   }, [sucursalId]);
 
