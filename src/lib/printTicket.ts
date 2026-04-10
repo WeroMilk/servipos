@@ -9,6 +9,7 @@ import {
 import { getClientById } from '@/db/database';
 import {
   FORMAS_PAGO,
+  type CajaAporteEfectivo,
   type CajaRetiroEfectivo,
   type Quotation,
   type Sale,
@@ -600,6 +601,9 @@ export function printThermalCajaCierre(input: {
   cerradaPor: string;
   aperturaLabel: string;
   cierreLabel: string;
+  /** Suma de aportes en efectivo en la sesión (ya sumada al efectivo esperado). */
+  aportesEfectivoTotal?: number;
+  aportesEfectivo?: CajaAporteEfectivo[];
   /** Suma de retiros a bóveda/banco en la sesión (ya descontada del efectivo esperado). */
   retirosEfectivoTotal?: number;
   /** Detalle de cada retiro (impresión / cuadre). */
@@ -635,6 +639,25 @@ export function printThermalCajaCierre(input: {
     : `<div>Conteo físico: ${formatMoney(input.conteoDeclarado)}</div>
     <div>Diferencia: ${formatMoney(input.diferencia)}</div>`;
 
+  const aportes =
+    (Number(input.aportesEfectivoTotal) || 0) > 0.005
+      ? `<div>Aportes de efectivo (sesión): +${formatMoney(Number(input.aportesEfectivoTotal) || 0)}</div>`
+      : '';
+  const aportesLista = (() => {
+    const list = input.aportesEfectivo;
+    if (!list?.length) return '';
+    const sorted = [...list].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+    const rows = sorted
+      .map((r) => {
+        const meta = `${formatInAppTimezone(r.createdAt, { dateStyle: 'short', timeStyle: 'short' })} · ${r.usuarioNombre}`;
+        const notas = r.notas?.trim() ? ` — ${r.notas.trim()}` : '';
+        return `<div style="font-size:18px;margin:3px 0;line-height:1.25;">${escapeHtml(meta)} · +${formatMoney(r.monto)}${escapeHtml(notas)}</div>`;
+      })
+      .join('');
+    return `<div style="font-size:19px;font-weight:600;margin:8px 0 2px;">Detalle aportes</div>${rows}`;
+  })();
   const retiros =
     (Number(input.retirosEfectivoTotal) || 0) > 0.005
       ? `<div>Retiros de efectivo (sesión): −${formatMoney(Number(input.retirosEfectivoTotal) || 0)}</div>`
@@ -678,6 +701,8 @@ export function printThermalCajaCierre(input: {
   <table>${formaRows || '<tr><td>Sin cobros registrados</td></tr>'}</table>
   <div class="tot">
     <div><strong>Efectivo esperado en caja</strong></div>
+    ${aportes}
+    ${aportesLista}
     ${retiros}
     ${retirosLista}
     <div style="font-size:26px;"><strong>${formatMoney(input.efectivoEsperado)}</strong></div>

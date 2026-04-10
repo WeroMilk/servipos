@@ -483,16 +483,20 @@ export async function getProductBySku(sku: string): Promise<Product | undefined>
 }
 
 export async function searchProducts(query: string): Promise<Product[]> {
-  const lowerQuery = query.toLowerCase();
+  const t = query.trim();
+  if (!t) return [];
+  const lowerQuery = t.toLowerCase();
+  const normQ = normSkuBarcode(t);
   return await db.products
     .filter((p): boolean => {
       if (p.activo !== true) return false;
       const nombre = String(p.nombre ?? '').toLowerCase();
       const sku = String(p.sku ?? '').toLowerCase();
+      const barN = normSkuBarcode(String(p.codigoBarras ?? ''));
       return (
         nombre.includes(lowerQuery) ||
         sku.includes(lowerQuery) ||
-        (p.codigoBarras !== undefined && p.codigoBarras.includes(lowerQuery))
+        (normQ.length > 0 && barN.includes(normQ))
       );
     })
     .toArray();
@@ -845,7 +849,11 @@ export async function completePendingSale(
     await adjustClientTicketCount(clienteIdTickets, 1);
     const total = Number(sale.total) || 0;
     const paid = patch.pagos.reduce((s, p) => s + (Number(p.monto) || 0), 0);
-    const adeudo = Math.max(0, Math.round((total - paid) * 100) / 100);
+    const adeudo = computeSaleClienteAdeudo({
+      estado: 'completada',
+      total,
+      pagos: patch.pagos,
+    });
     if (adeudo > 0) {
       await adjustClientSaldoAdeudado(clienteIdTickets, adeudo);
     }

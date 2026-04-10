@@ -336,6 +336,9 @@ export interface CajaRetiroEfectivo {
   usuarioNombre: string;
 }
 
+/** Ingreso de efectivo a caja durante la sesión (no venta): fondeo, cambio extra, etc. */
+export type CajaAporteEfectivo = CajaRetiroEfectivo;
+
 /** Registro de apertura/cierre de caja por sucursal (`public.caja_sesiones`). */
 export interface CajaSesion {
   id: string;
@@ -345,6 +348,9 @@ export interface CajaSesion {
   openedAt: Date;
   openedByUserId: string;
   openedByNombre: string;
+  /** Suma de aportes en efectivo registrados en la sesión; aumenta el efectivo esperado en caja. */
+  aportesEfectivoTotal?: number;
+  aportesEfectivo?: CajaAporteEfectivo[];
   /** Suma de retiros registrados en la sesión; reduce el efectivo esperado en caja. */
   retirosEfectivoTotal?: number;
   retirosEfectivo?: CajaRetiroEfectivo[];
@@ -353,7 +359,7 @@ export interface CajaSesion {
   closedByNombre?: string;
   /** Efectivo contado físicamente al cierre. */
   conteoDeclarado?: number;
-  /** Fondo + efectivo cobrado − cambio entregado − retiros (ventas de la sesión completadas). */
+  /** Fondo + efectivo cobrado − cambio entregado + aportes − retiros (ventas de la sesión completadas). */
   efectivoEsperado?: number;
   /** Declarado − esperado (positivo = sobrante). */
   diferencia?: number;
@@ -751,8 +757,13 @@ export interface CartItem {
   product: Product;
   quantity: number;
   discount: number;
-  /** Precio unitario base (sin IVA) distinto al catálogo; si no hay, se usa `product.precioVenta`. */
+  /** Precio unitario base (sin IVA) distinto al catálogo; si no hay, se usa lista por línea o la del ticket. */
   precioUnitarioOverride?: number;
+  /**
+   * Lista de precios solo para esta línea (sin pisar la lista global del ticket).
+   * Ignorada si hay `precioUnitarioOverride`.
+   */
+  precioListaId?: ClientPriceListId;
 }
 
 export type ThemePreference = 'system' | 'light' | 'dark';

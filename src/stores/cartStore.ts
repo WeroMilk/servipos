@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { Product, CartItem, Client } from '@/types';
-import type { ClientPriceListId } from '@/lib/clientPriceLists';
+import { CLIENT_PRICE_LIST_ORDER, type ClientPriceListId } from '@/lib/clientPriceLists';
 import {
   getCartLineUnitSinIvaBase,
   getProductUnitSinIvaForClienteList,
@@ -42,6 +42,10 @@ interface CartState {
   updateQuantity: (productId: string, quantity: number) => void;
   updateDiscount: (productId: string, discount: number) => void;
   updateLineUnitPrice: (productId: string, precioUnitarioSinIva: number) => void;
+  /** Catálogo por lista en esta línea (quita precio manual). */
+  applyLinePrecioFromLista: (productId: string, listaId: ClientPriceListId) => void;
+  /** Quita la lista propia de la línea; sigue la lista global del ticket (no quita precio manual). */
+  resetLinePrecioToTicketLista: (productId: string) => void;
   setClient: (client: Client | null) => void;
   setGlobalDiscount: (discount: number) => void;
   setFormaPago: (formaPago: string) => void;
@@ -95,11 +99,23 @@ const EMPTY_CART_DRAFT: CartDraftSnapshot = {
   precioClienteListaId: 'regular',
 };
 
+function coerceCartItemPrecioLista(it: CartItem): CartItem {
+  const raw = it.precioListaId;
+  if (
+    typeof raw === 'string' &&
+    (CLIENT_PRICE_LIST_ORDER as readonly string[]).includes(raw)
+  ) {
+    return { ...it, precioListaId: raw as ClientPriceListId };
+  }
+  const { precioListaId: _drop, ...rest } = it;
+  return rest as CartItem;
+}
+
 function sanitizeCartDraft(draft: Partial<CartDraftSnapshot> | null | undefined): CartDraftSnapshot {
   if (!draft) return { ...EMPTY_CART_DRAFT };
   const listId = draft.precioClienteListaId;
   return {
-    items: Array.isArray(draft.items) ? draft.items : [],
+    items: Array.isArray(draft.items) ? draft.items.map((row) => coerceCartItemPrecioLista(row as CartItem)) : [],
     client: draft.client ?? null,
     discount: Number.isFinite(Number(draft.discount)) ? Number(draft.discount) : 0,
     formaPago: typeof draft.formaPago === 'string' && draft.formaPago.trim() ? draft.formaPago : '01',
@@ -171,7 +187,27 @@ export const useCartStore = create<CartState>((set, get) => ({
     if (!Number.isFinite(p) || p < 0) return;
     set({
       items: get().items.map((item) =>
-        item.product.id === productId ? { ...item, precioUnitarioOverride: p } : item
+        item.product.id === productId
+          ? { ...item, precioUnitarioOverride: p, precioListaId: undefined }
+          : item
+      ),
+    });
+  },
+
+  applyLinePrecioFromLista: (productId: string, listaId: ClientPriceListId) => {
+    set({
+      items: get().items.map((item) =>
+        item.product.id === productId
+          ? { ...item, precioUnitarioOverride: undefined, precioListaId: listaId }
+          : item
+      ),
+    });
+  },
+
+  resetLinePrecioToTicketLista: (productId: string) => {
+    set({
+      items: get().items.map((item) =>
+        item.product.id === productId ? { ...item, precioListaId: undefined } : item
       ),
     });
   },

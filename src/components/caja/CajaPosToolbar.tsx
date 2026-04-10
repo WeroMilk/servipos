@@ -20,11 +20,14 @@ import { printThermalCajaCierre, printThermalDailySalesReport } from '@/lib/prin
 import {
   fetchSalesByCajaSesion,
 } from '@/lib/firestore/salesFirestore';
-import { registrarRetiroEfectivoFirestore } from '@/lib/firestore/cajaFirestore';
+import {
+  registrarAporteEfectivoFirestore,
+  registrarRetiroEfectivoFirestore,
+} from '@/lib/firestore/cajaFirestore';
 import { cancelSale, completePendingSale } from '@/db/database';
 import {
   computeCajaEfectivoEsperado,
-  efectivoEsperadoMenosRetiros,
+  efectivoEsperadoCajaSesion,
   filterVentasCompletadasSesion,
   lineasMediosPagoSesion,
   resumenBrutoSesion,
@@ -32,6 +35,7 @@ import {
 } from '@/lib/cajaResumen';
 import type { Sale } from '@/types';
 import { useCajaLocalStore } from '@/stores/cajaLocalStore';
+import type { ModificarSaldoKind } from '@/stores/cajaPosHeaderStore';
 import { isRemotePermissionDenied, SUPABASE_PERMISSION_HINT } from '@/lib/remotePermissionError';
 
 function cajaFirestoreUserMessage(e: unknown): string {
@@ -55,7 +59,7 @@ export type CajaPosToolbarHandle = {
   openAbrirCajaDialog: () => void;
   openCerrarCajaDialog: () => void;
   openArqueoDialog: () => void;
-  openRetiroEfectivoDialog: () => void;
+  openModificarSaldoDialog: (kind: ModificarSaldoKind) => void;
 };
 
 function isWithinCajaSesionWindow(sale: Sale, sesion: NonNullable<CajaSesionHookValue['activa']>): boolean {
@@ -96,12 +100,13 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
   const [openDialog, setOpenDialog] = useState(false);
   const [closeDialog, setCloseDialog] = useState(false);
   const [arqueoDialog, setArqueoDialog] = useState(false);
-  const [retiroDialog, setRetiroDialog] = useState(false);
+  const [saldoDialog, setSaldoDialog] = useState(false);
+  const [saldoKind, setSaldoKind] = useState<ModificarSaldoKind>('retiro');
   const [fondoInput, setFondoInput] = useState('0');
   const [conteoInput, setConteoInput] = useState('');
   const [notasCierre, setNotasCierre] = useState('');
-  const [retiroMontoInput, setRetiroMontoInput] = useState('');
-  const [retiroNotas, setRetiroNotas] = useState('');
+  const [saldoMontoInput, setSaldoMontoInput] = useState('');
+  const [saldoNotas, setSaldoNotas] = useState('');
   const [busy, setBusy] = useState(false);
 
   const ventasSesion = useMemo(() => (activa ? collectSalesForCajaSesion(sales, activa) : []), [sales, activa]);
@@ -113,15 +118,18 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
       activa.fondoInicial,
       completadas
     );
+    const aportesTotal = activa.aportesEfectivoTotal ?? 0;
     const retirosTotal = activa.retirosEfectivoTotal ?? 0;
-    const esperadoEnCaja = efectivoEsperadoMenosRetiros(esperadoBruto, retirosTotal);
+    const esperadoEnCaja = efectivoEsperadoCajaSesion(esperadoBruto, aportesTotal, retirosTotal);
     const { tickets, total } = resumenBrutoSesion(ventasSesion);
+    /** Efectivo que quedó en caja por ventas (cobros en 01 menos vueltos); mismo valor que (esperadoBruto − fondo). */
+    const efectivoNetoVentas = Math.round((efectivoCobrado - cambioEntregado) * 100) / 100;
     return {
       esperadoEnCaja,
       esperadoBruto,
+      aportesTotal,
       retirosTotal,
-      efectivoCobrado,
-      cambioEntregado,
+      efectivoNetoVentas,
       tickets,
       total,
     };
@@ -151,11 +159,12 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
         if (!activa) return;
         setArqueoDialog(true);
       },
-      openRetiroEfectivoDialog: () => {
+      openModificarSaldoDialog: (kind: ModificarSaldoKind) => {
         if (!activa) return;
-        setRetiroMontoInput('');
-        setRetiroNotas('');
-        setRetiroDialog(true);
+        setSaldoKind(kind);
+        setSaldoMontoInput('');
+        setSaldoNotas('');
+        setSaldoDialog(true);
       },
     }),
     [activa]
@@ -164,6 +173,13 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
   const userId = user?.id ?? 'system';
   const userNombre =
     user?.name?.trim() || user?.username?.trim() || user?.email?.trim() || 'Usuario';
+
+  const aportesOrdenados =
+    activa?.aportesEfectivo?.length ?
+      [...activa.aportesEfectivo].sort(
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      )
+    : [];
 
   const retirosOrdenados =
     activa?.retirosEfectivo?.length ?
@@ -181,16 +197,23 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
               Efectivo que debe haber en caja
             </p>
             <p className="mt-1 text-xs leading-snug text-emerald-900/90 dark:text-emerald-200/85 lg:mt-0.5 lg:text-[11px] lg:leading-tight">
-              Fondo inicial más cobros en efectivo, menos cambio al cliente
-              {previewCierre.retirosTotal > 0.005 ? ', menos retiros a bóveda/banco' : ''}. El importe grande ya
-              refleja esos retiros.
+              Fondo inicial más efectivo neto de ventas
+              {previewCierre.aportesTotal > 0.005 ? ', más aportes de efectivo registrados' : ''}
+              {previewCierre.retirosTotal > 0.005 ? ', menos retiros a bóveda/banco' : ''}. El importe grande refleja
+              esos movimientos.
             </p>
             <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-emerald-950 dark:text-emerald-50 lg:mt-1 lg:text-xl">
               {formatMoney(previewCierre.esperadoEnCaja)}
             </p>
             <p className="mt-2 text-xs tabular-nums text-emerald-900/80 dark:text-emerald-300/90 lg:mt-1 lg:text-[10px] lg:leading-tight">
-              {formatMoney(activa.fondoInicial)} (fondo) + {formatMoney(previewCierre.efectivoCobrado)} (cobros
-              efectivo) − {formatMoney(previewCierre.cambioEntregado)} (cambio)
+              {formatMoney(activa.fondoInicial)} (fondo) + {formatMoney(previewCierre.efectivoNetoVentas)} (efectivo
+              de ventas)
+              {previewCierre.aportesTotal > 0.005 ? (
+                <>
+                  {' '}
+                  + {formatMoney(previewCierre.aportesTotal)} (aportes)
+                </>
+              ) : null}
               {previewCierre.retirosTotal > 0.005 ? (
                 <>
                   {' '}
@@ -227,6 +250,39 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
           </div>
         </div>
 
+        <div className="rounded-lg border border-sky-500/35 bg-sky-500/[0.08] p-3 dark:border-sky-500/30 dark:bg-sky-950/25 lg:p-2.5">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-sky-950 dark:text-sky-200 lg:text-[10px]">
+            Aportes de efectivo (esta sesión)
+          </p>
+          {aportesOrdenados.length > 0 ? (
+            <ul className="mt-2 space-y-2 text-xs text-sky-950/95 dark:text-sky-100/90 lg:mt-1.5 lg:space-y-1.5 lg:text-[11px]">
+              {aportesOrdenados.map((r) => (
+                <li
+                  key={r.id}
+                  className="flex flex-col gap-0.5 border-b border-sky-800/15 pb-2 last:border-b-0 last:pb-0 dark:border-sky-400/15"
+                >
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
+                    <span className="tabular-nums font-semibold text-sky-950 dark:text-sky-50">
+                      +{formatMoney(r.monto)}
+                    </span>
+                    <span className="text-sky-900/85 dark:text-sky-200/80">
+                      {formatInAppTimezone(r.createdAt, { dateStyle: 'short', timeStyle: 'short' })} ·{' '}
+                      {r.usuarioNombre}
+                    </span>
+                  </div>
+                  {r.notas?.trim() ? (
+                    <span className="text-sky-900/75 dark:text-sky-300/80">{r.notas.trim()}</span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-2 text-xs text-sky-900/80 dark:text-sky-300/75 lg:mt-1 lg:text-[11px]">
+              Sin aportes registrados (dinero extra ingresado a caja sin venta).
+            </p>
+          )}
+        </div>
+
         <div className="rounded-lg border border-amber-500/35 bg-amber-500/[0.08] p-3 dark:border-amber-500/30 dark:bg-amber-950/25 lg:p-2.5">
           <p className="text-[11px] font-bold uppercase tracking-wide text-amber-950 dark:text-amber-200 lg:text-[10px]">
             Retiros de efectivo (esta sesión)
@@ -255,7 +311,7 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
             </ul>
           ) : (
             <p className="mt-2 text-xs text-amber-900/80 dark:text-amber-300/75 lg:mt-1 lg:text-[11px]">
-              No hay retiros registrados. El efectivo esperado coincide con fondo + efectivo neto de ventas.
+              No hay retiros registrados.
             </p>
           )}
         </div>
@@ -289,48 +345,73 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
     }
   };
 
-  const handleRegistrarRetiro = async () => {
+  const handleRegistrarMovimientoSaldo = async () => {
     if (!activa || !previewCierre) return;
-    const monto = parseFloat(retiroMontoInput.replace(',', '.'));
+    const monto = parseFloat(saldoMontoInput.replace(',', '.'));
     if (!Number.isFinite(monto) || monto <= 0) {
       addToast({ type: 'error', message: 'Ingrese un monto válido mayor a cero' });
       return;
     }
-    const disponible = previewCierre.esperadoEnCaja;
     const mRounded = Math.round(monto * 100) / 100;
-    if (mRounded > disponible + 0.005) {
-      addToast({
-        type: 'error',
-        message: `No puede retirar más del efectivo disponible en caja (${formatMoney(disponible)}).`,
-        logToAppEvents: true,
-      });
-      return;
+    if (saldoKind === 'retiro') {
+      const disponible = previewCierre.esperadoEnCaja;
+      if (mRounded > disponible + 0.005) {
+        addToast({
+          type: 'error',
+          message: `No puede retirar más del efectivo disponible en caja (${formatMoney(disponible)}).`,
+          logToAppEvents: true,
+        });
+        return;
+      }
     }
     setBusy(true);
     try {
-      if (isCloud && effectiveSucursalId) {
-        await registrarRetiroEfectivoFirestore(effectiveSucursalId, activa.id, {
-          monto: mRounded,
-          notas: retiroNotas.trim() || undefined,
-          usuarioId: userId,
-          usuarioNombre: userNombre,
+      if (saldoKind === 'aporte') {
+        if (isCloud && effectiveSucursalId) {
+          await registrarAporteEfectivoFirestore(effectiveSucursalId, activa.id, {
+            monto: mRounded,
+            notas: saldoNotas.trim() || undefined,
+            usuarioId: userId,
+            usuarioNombre: userNombre,
+          });
+        } else {
+          useCajaLocalStore.getState().addAporteEfectivo({
+            monto: mRounded,
+            notas: saldoNotas.trim() || undefined,
+            usuarioId: userId,
+            usuarioNombre: userNombre,
+          });
+        }
+        addToast({
+          type: 'success',
+          message: `Saldo agregado: ${formatMoney(mRounded)}`,
+          logToAppEvents: true,
         });
       } else {
-        useCajaLocalStore.getState().addRetiroEfectivo({
-          monto: mRounded,
-          notas: retiroNotas.trim() || undefined,
-          usuarioId: userId,
-          usuarioNombre: userNombre,
+        if (isCloud && effectiveSucursalId) {
+          await registrarRetiroEfectivoFirestore(effectiveSucursalId, activa.id, {
+            monto: mRounded,
+            notas: saldoNotas.trim() || undefined,
+            usuarioId: userId,
+            usuarioNombre: userNombre,
+          });
+        } else {
+          useCajaLocalStore.getState().addRetiroEfectivo({
+            monto: mRounded,
+            notas: saldoNotas.trim() || undefined,
+            usuarioId: userId,
+            usuarioNombre: userNombre,
+          });
+        }
+        addToast({
+          type: 'success',
+          message: `Retiro registrado: ${formatMoney(mRounded)}`,
+          logToAppEvents: true,
         });
       }
-      addToast({
-        type: 'success',
-        message: `Retiro registrado: ${formatMoney(mRounded)}`,
-        logToAppEvents: true,
-      });
-      setRetiroDialog(false);
-      setRetiroMontoInput('');
-      setRetiroNotas('');
+      setSaldoDialog(false);
+      setSaldoMontoInput('');
+      setSaldoNotas('');
     } catch (e: unknown) {
       addToast({
         type: 'error',
@@ -431,8 +512,9 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
 
       const completadas = filterVentasCompletadasSesion(ventasPrint);
       const { esperadoEnCaja: esperadoBruto } = computeCajaEfectivoEsperado(activa.fondoInicial, completadas);
+      const aportesTotal = activa.aportesEfectivoTotal ?? 0;
       const retirosTotal = activa.retirosEfectivoTotal ?? 0;
-      const esperadoEnCaja = efectivoEsperadoMenosRetiros(esperadoBruto, retirosTotal);
+      const esperadoEnCaja = efectivoEsperadoCajaSesion(esperadoBruto, aportesTotal, retirosTotal);
       const { tickets, total } = resumenBrutoSesion(ventasPrint);
       const diferencia = Math.round((declarado - esperadoEnCaja) * 100) / 100;
 
@@ -450,6 +532,8 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
         cerradaPor: userNombre,
         aperturaLabel: formatInAppTimezone(activa.openedAt, { dateStyle: 'short', timeStyle: 'short' }),
         cierreLabel: formatInAppTimezone(new Date(), { dateStyle: 'short', timeStyle: 'short' }),
+        aportesEfectivoTotal: aportesTotal > 0.005 ? aportesTotal : undefined,
+        aportesEfectivo: activa.aportesEfectivo?.length ? activa.aportesEfectivo : undefined,
         retirosEfectivoTotal: retirosTotal > 0.005 ? retirosTotal : undefined,
         retirosEfectivo: activa.retirosEfectivo?.length ? activa.retirosEfectivo : undefined,
         ticketKind: 'cierre',
@@ -484,8 +568,9 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
     if (!activa || !previewCierre) return;
     const completadas = filterVentasCompletadasSesion(ventasSesion);
     const { esperadoEnCaja: esperadoBruto } = computeCajaEfectivoEsperado(activa.fondoInicial, completadas);
+    const aportesTotal = activa.aportesEfectivoTotal ?? 0;
     const retirosTotal = activa.retirosEfectivoTotal ?? 0;
-    const esperadoEnCaja = efectivoEsperadoMenosRetiros(esperadoBruto, retirosTotal);
+    const esperadoEnCaja = efectivoEsperadoCajaSesion(esperadoBruto, aportesTotal, retirosTotal);
     const { tickets, total } = resumenBrutoSesion(ventasSesion);
     const ahora = new Date();
     printThermalCajaCierre({
@@ -502,6 +587,8 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
       cerradaPor: userNombre,
       aperturaLabel: formatInAppTimezone(activa.openedAt, { dateStyle: 'short', timeStyle: 'short' }),
       cierreLabel: formatInAppTimezone(ahora, { dateStyle: 'short', timeStyle: 'short' }),
+      aportesEfectivoTotal: aportesTotal > 0.005 ? aportesTotal : undefined,
+      aportesEfectivo: activa.aportesEfectivo?.length ? activa.aportesEfectivo : undefined,
       retirosEfectivoTotal: retirosTotal > 0.005 ? retirosTotal : undefined,
       retirosEfectivo: activa.retirosEfectivo?.length ? activa.retirosEfectivo : undefined,
       ticketKind: 'arqueo_previo',
@@ -630,8 +717,8 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
           <DialogHeader>
             <DialogTitle>Cerrar caja</DialogTitle>
             <DialogDescription className="text-left text-slate-600 dark:text-slate-400">
-              Efectivo esperado (fondo + efectivo de ventas − cambio − retiros de sesión), listado de retiros si
-              los hubo, y total tarjetas para cuadrar con terminal o vouchers. Compare el conteo físico con el
+              Efectivo esperado: fondo inicial + efectivo neto de ventas, más aportes y menos retiros de la sesión
+              si los hubo. Total tarjetas para cuadrar con terminal o vouchers. Compare el conteo físico con el
               esperado. Al confirmar se imprime el comprobante.
             </DialogDescription>
           </DialogHeader>
@@ -708,9 +795,9 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
           <DialogHeader className="lg:gap-1">
             <DialogTitle className="lg:text-base">Arqueo previo</DialogTitle>
             <DialogDescription className="text-left text-slate-600 dark:text-slate-400 lg:text-xs lg:leading-snug">
-              Efectivo esperado (incluye descuento por retiros de la sesión), detalle de retiros y total
-              tarjetas. Al imprimir se genera el arqueo de la sesión y el reporte de ventas de esta misma sesión
-              (apertura a cierre de caja).
+              Efectivo esperado (aportes y retiros de la sesión), detalle de movimientos y total tarjetas. Al imprimir
+              se genera el arqueo de la sesión y el reporte de ventas de esta misma sesión (apertura a cierre de
+              caja).
             </DialogDescription>
           </DialogHeader>
           {activa && previewCierre ? (
@@ -760,28 +847,34 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
         </DialogContent>
       </Dialog>
 
-      <Dialog open={retiroDialog} onOpenChange={setRetiroDialog}>
+      <Dialog open={saldoDialog} onOpenChange={setSaldoDialog}>
         <DialogContent className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Retiro de efectivo</DialogTitle>
+            <DialogTitle>{saldoKind === 'aporte' ? 'Agregar saldo' : 'Retirar saldo'}</DialogTitle>
             <DialogDescription className="text-left text-slate-600 dark:text-slate-400">
-              Registre el efectivo que sale de caja (p. ej. excedente o depósito). El sistema resta el monto del
-              efectivo esperado en cajón hasta el cierre.
+              {saldoKind === 'aporte' ?
+                'Registre el efectivo que entra al cajón (cambio adicional, fondeo, etc.). Se suma al efectivo esperado hasta el cierre.'
+              : 'Registre el efectivo que sale de caja (excedente, depósito, etc.). Se resta del efectivo esperado hasta el cierre.'}
             </DialogDescription>
           </DialogHeader>
-          {activa && previewCierre ? (
+          {activa && previewCierre ?
             <div className="space-y-3 py-2 text-sm">
               <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-emerald-950 dark:border-emerald-500/25 dark:bg-emerald-950/30 dark:text-emerald-100">
-                <span className="font-medium">Disponible para retirar:</span>{' '}
+                <span className="font-medium">Efectivo esperado en caja ahora:</span>{' '}
                 <span className="tabular-nums font-semibold">{formatMoney(previewCierre.esperadoEnCaja)}</span>
               </p>
+              {saldoKind === 'retiro' ?
+                <p className="text-xs text-slate-600 dark:text-slate-400">
+                  Puede retirar hasta ese importe (conteo físico debe coincidir tras el retiro).
+                </p>
+              : null}
               <div className="space-y-2">
-                <Label>Monto a retirar</Label>
+                <Label>{saldoKind === 'aporte' ? 'Monto a ingresar' : 'Monto a retirar'}</Label>
                 <Input
                   type="text"
                   inputMode="decimal"
-                  value={retiroMontoInput}
-                  onChange={(e) => setRetiroMontoInput(e.target.value)}
+                  value={saldoMontoInput}
+                  onChange={(e) => setSaldoMontoInput(e.target.value)}
                   placeholder="0.00"
                   className="border-slate-300 dark:border-slate-700 dark:bg-slate-800"
                 />
@@ -789,25 +882,20 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
               <div className="space-y-2">
                 <Label>Notas (opcional)</Label>
                 <Input
-                  value={retiroNotas}
-                  onChange={(e) => setRetiroNotas(e.target.value)}
+                  value={saldoNotas}
+                  onChange={(e) => setSaldoNotas(e.target.value)}
                   placeholder="Motivo o referencia"
                   className="border-slate-300 dark:border-slate-700 dark:bg-slate-800"
                 />
               </div>
             </div>
-          ) : null}
+          : null}
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setRetiroDialog(false)}
-              disabled={busy}
-            >
+            <Button type="button" variant="outline" onClick={() => setSaldoDialog(false)} disabled={busy}>
               Cancelar
             </Button>
-            <Button type="button" disabled={busy} onClick={() => void handleRegistrarRetiro()}>
-              {busy ? 'Registrando…' : 'Confirmar retiro'}
+            <Button type="button" disabled={busy} onClick={() => void handleRegistrarMovimientoSaldo()}>
+              {busy ? 'Registrando…' : saldoKind === 'aporte' ? 'Confirmar ingreso' : 'Confirmar retiro'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -49,7 +49,11 @@ import {
 import { Label } from '@/components/ui/label';
 import { useShallow } from 'zustand/react/shallow';
 import { useCartStore, useAppStore, useAuthStore } from '@/stores';
-import { setCajaPosHeaderBridge, clearCajaPosHeaderBridge } from '@/stores/cajaPosHeaderStore';
+import {
+  setCajaPosHeaderBridge,
+  clearCajaPosHeaderBridge,
+  type ModificarSaldoKind,
+} from '@/stores/cajaPosHeaderStore';
 import {
   setVentasAbiertasPosHeaderBridge,
   clearVentasAbiertasPosHeaderBridge,
@@ -101,6 +105,18 @@ import {
 // ============================================
 // PUNTO DE VENTA (POS) — Vista tipo app: lg+ sin scroll del contenedor (solo carrito / panel cobro); móvil conserva scroll vertical.
 // ============================================
+
+/** Código/SKU compacto (lector USB); evita auto-envío mientras se escribe nombre con espacios. */
+function looksLikePosScanToken(s: string): boolean {
+  const t = s.trim();
+  if (t.length < 4 || /\s/.test(t)) return false;
+  if (/^\d{8,}$/.test(t)) return true;
+  if (/^\d{4,}$/.test(t)) return true;
+  if (t.length >= 5 && /^[A-Z0-9.\-_]+$/i.test(t)) return true;
+  return false;
+}
+
+const POS_SCAN_IDLE_MS = 42;
 
 function cartLineUnitSinIva(item: CartItem, listaId: ClientPriceListId): number {
   const u = getCartLineUnitSinIvaBase(item, listaId);
@@ -187,8 +203,9 @@ export function POS() {
         if (!cajaSesion.activa) cajaToolbarRef.current?.openAbrirCajaDialog();
         else cajaToolbarRef.current?.openCerrarCajaDialog();
       },
-      retiroEfectivoVisible: Boolean(cajaSesion.activa),
-      onRetiroEfectivo: () => cajaToolbarRef.current?.openRetiroEfectivoDialog(),
+      modificarSaldoVisible: Boolean(cajaSesion.activa),
+      onModificarSaldo: (kind: ModificarSaldoKind) =>
+        cajaToolbarRef.current?.openModificarSaldoDialog(kind),
     });
     return () => clearCajaPosHeaderBridge();
   }, [hasPermission, cajaSesion.activa, cajaSesion.loading]);
@@ -227,6 +244,8 @@ export function POS() {
       updateQuantity: s.updateQuantity,
       updateDiscount: s.updateDiscount,
       updateLineUnitPrice: s.updateLineUnitPrice,
+      applyLinePrecioFromLista: s.applyLinePrecioFromLista,
+      resetLinePrecioToTicketLista: s.resetLinePrecioToTicketLista,
       setGlobalDiscount: s.setGlobalDiscount,
       setFormaPago: s.setFormaPago,
       setMetodoPago: s.setMetodoPago,
@@ -260,6 +279,8 @@ export function POS() {
     updateQuantity,
     updateDiscount,
     updateLineUnitPrice,
+    applyLinePrecioFromLista,
+    resetLinePrecioToTicketLista,
     setGlobalDiscount,
     setFormaPago,
     setMetodoPago,
@@ -514,6 +535,9 @@ export function POS() {
     formasPagoPos.find((fp) => fp.clave === clave)?.descripcion ?? clave;
 
   const [searchQuery, setSearchQuery] = useState('');
+  /** Texto ya buscado (tras debounce); evita mostrar «sin resultados» mientras el usuario sigue escribiendo. */
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [posSearchHighlightIdx, setPosSearchHighlightIdx] = useState(-1);
   const [showProductSearch, setShowProductSearch] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [checkoutPhase, setCheckoutPhase] = useState<CheckoutPhase>('payment');
@@ -541,13 +565,21 @@ export function POS() {
   const [mobileScannerOpen, setMobileScannerOpen] = useState(false);
   const [mobileScannerBusy, setMobileScannerBusy] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const posScanIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const posScanCommittingRef = useRef(false);
   const productSearchWrapRef = useRef<HTMLDivElement>(null);
+  const posSearchListRef = useRef<HTMLDivElement>(null);
   const mobileScannerRef = useRef<Html5Qrcode | null>(null);
   const mobileScannerScanHandledRef = useRef(false);
   const mobileScannerCooldownUntilRef = useRef(0);
   const mobileScannerElementIdRef = useRef('pos-mobile-scanner');
 
-  const { results: searchResults, search: searchProducts, searchByBarcode } = useProductSearch();
+  const {
+    results: searchResults,
+    loading: productSearchLoading,
+    search: searchProducts,
+    searchByBarcode,
+  } = useProductSearch({ maxResults: 80 });
   const { clients, refresh: refreshClients } = useClients();
 
   const clientesFiltradosParaCxc = useMemo(() => {
@@ -563,13 +595,31 @@ export function POS() {
   }, [clients, pasarCxcClienteSearch]);
 
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      if (searchQuery) {
-        searchProducts(searchQuery);
-      }
-    }, 300);
-    return () => clearTimeout(timeout);
+    const q = searchQuery.trim();
+    if (!q) {
+      setDebouncedSearchQuery('');
+      void searchProducts('');
+      return;
+    }
+    const t = window.setTimeout(() => {
+      setDebouncedSearchQuery(q);
+      void searchProducts(q);
+    }, 280);
+    return () => window.clearTimeout(t);
   }, [searchQuery, searchProducts]);
+
+  useEffect(() => {
+    if (searchResults.length === 1) setPosSearchHighlightIdx(0);
+    else setPosSearchHighlightIdx(-1);
+  }, [searchResults]);
+
+  useEffect(() => {
+    if (posSearchHighlightIdx < 0 || !posSearchListRef.current) return;
+    const el = posSearchListRef.current.querySelector(
+      `[data-pos-search-idx="${posSearchHighlightIdx}"]`
+    );
+    el?.scrollIntoView({ block: 'nearest' });
+  }, [posSearchHighlightIdx, searchResults]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -580,6 +630,34 @@ export function POS() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  /** Al entrar al POS, foco en búsqueda para escanear sin clic (F2 sigue disponible). */
+  useEffect(() => {
+    if (!hasPermission('ventas:crear')) return;
+    const path = location.pathname.replace(/\/$/, '');
+    if (!path.endsWith('/pos')) return;
+    let id1 = 0;
+    let id2 = 0;
+    id1 = window.requestAnimationFrame(() => {
+      id2 = window.requestAnimationFrame(() => {
+        searchInputRef.current?.focus({ preventScroll: true });
+        setShowProductSearch(true);
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(id1);
+      window.cancelAnimationFrame(id2);
+    };
+  }, [location.pathname, hasPermission]);
+
+  useEffect(() => {
+    return () => {
+      if (posScanIdleTimerRef.current != null) {
+        window.clearTimeout(posScanIdleTimerRef.current);
+        posScanIdleTimerRef.current = null;
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -613,6 +691,8 @@ export function POS() {
     setCotizacionUltimos4('');
     clearCart();
     setSearchQuery('');
+    setDebouncedSearchQuery('');
+    setPosSearchHighlightIdx(-1);
     setShowProductSearch(false);
     setShowClientDialog(false);
     setMontoRecibidoInput('');
@@ -685,6 +765,16 @@ export function POS() {
     addToast({ type: 'error', message: 'Contraseña incorrecta' });
   };
 
+  const syncUnitPriceInputFromCartLine = useCallback(() => {
+    const pid = unitPriceEditProductId;
+    if (!pid) return;
+    const it = useCartStore.getState().items.find((i) => i.product.id === pid);
+    if (!it) return;
+    const baseSinIva = getCartLineUnitSinIvaBase(it, precioClienteListaId);
+    const conIva = unitBaseSinIvaToPrecioConIva(baseSinIva, it.product.impuesto);
+    setUnitPriceInput(conIva.toFixed(2));
+  }, [unitPriceEditProductId, precioClienteListaId]);
+
   const saveUnitPriceFromDialog = () => {
     if (!unitPriceEditProductId) return;
     const it = items.find((i) => i.product.id === unitPriceEditProductId);
@@ -696,9 +786,20 @@ export function POS() {
     }
     const sinIva = precioConIvaToUnitBaseSinIva(v, it.product.impuesto);
     updateLineUnitPrice(unitPriceEditProductId, sinIva);
-    addToast({ type: 'success', message: 'Precio unitario actualizado', logToAppEvents: true });
+    addToast({ type: 'success', message: 'Precio manual guardado en la línea', logToAppEvents: true });
     closeUnitPriceDialog();
   };
+
+  const unitPriceDialogLine = unitPriceEditProductId
+    ? items.find((i) => i.product.id === unitPriceEditProductId)
+    : undefined;
+  const unitPriceLineIsManual =
+    unitPriceDialogLine != null &&
+    unitPriceDialogLine.precioUnitarioOverride != null &&
+    Number.isFinite(Number(unitPriceDialogLine.precioUnitarioOverride));
+  const unitPriceLineListaActiva: ClientPriceListId | null = unitPriceLineIsManual
+    ? null
+    : (unitPriceDialogLine?.precioListaId ?? precioClienteListaId);
 
   const openCheckoutDialog = () => {
     setCheckoutPhase('payment');
@@ -788,27 +889,128 @@ export function POS() {
     }
   }, [addItem, addToast]);
 
-  /** Escáner USB: suele escribir el código y enviar Enter; aquí se agrega al carrito sin depender del dropdown. */
+  /** Escáner USB: Enter o corte por silencio breve; evita doble envío concurrente. */
   const commitSearchEnter = useCallback(
     async (raw: string) => {
+      if (posScanCommittingRef.current) return;
       const q = raw.trim();
       if (!q) return;
-      const byBarcode = await searchByBarcode(q);
-      if (byBarcode) {
-        handleAddProduct(byBarcode);
-        return;
-      }
-      const matches = await searchProducts(q);
-      if (matches.length === 1) {
-        handleAddProduct(matches[0]);
-      } else if (matches.length === 0) {
-        addToast({ type: 'warning', message: `Sin coincidencias para: ${q}` });
-        setShowProductSearch(true);
-      } else {
-        setShowProductSearch(true);
+      posScanCommittingRef.current = true;
+      try {
+        const byBarcode = await searchByBarcode(q);
+        if (byBarcode) {
+          handleAddProduct(byBarcode);
+          return;
+        }
+        const matches = await searchProducts(q);
+        if (matches.length === 1) {
+          handleAddProduct(matches[0]);
+        } else if (matches.length === 0) {
+          addToast({ type: 'warning', message: `Sin coincidencias para: ${q}` });
+          setShowProductSearch(true);
+        } else {
+          setShowProductSearch(true);
+        }
+      } finally {
+        posScanCommittingRef.current = false;
       }
     },
     [searchByBarcode, handleAddProduct, searchProducts, addToast]
+  );
+
+  const flushPosScanFromInput = useCallback(() => {
+    const raw = searchInputRef.current?.value.trim() ?? '';
+    if (!raw || !looksLikePosScanToken(raw)) return;
+    void commitSearchEnter(raw);
+  }, [commitSearchEnter]);
+
+  const onPosSearchChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const val = e.target.value;
+      setSearchQuery(val);
+      if (posScanIdleTimerRef.current != null) {
+        window.clearTimeout(posScanIdleTimerRef.current);
+        posScanIdleTimerRef.current = null;
+      }
+      const trim = val.trim();
+      if (!trim || !looksLikePosScanToken(trim)) return;
+      posScanIdleTimerRef.current = window.setTimeout(() => {
+        posScanIdleTimerRef.current = null;
+        flushPosScanFromInput();
+      }, POS_SCAN_IDLE_MS);
+    },
+    [flushPosScanFromInput]
+  );
+
+  const onPosSearchPaste = useCallback(
+    (e: React.ClipboardEvent<HTMLInputElement>) => {
+      const text = e.clipboardData.getData('text').trim();
+      if (!text || !looksLikePosScanToken(text)) return;
+      e.preventDefault();
+      setSearchQuery(text);
+      setShowProductSearch(true);
+      if (posScanIdleTimerRef.current != null) {
+        window.clearTimeout(posScanIdleTimerRef.current);
+        posScanIdleTimerRef.current = null;
+      }
+      void commitSearchEnter(text);
+    },
+    [commitSearchEnter]
+  );
+
+  const onPosSearchInputKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      const trim = searchQuery.trim();
+      const settled =
+        trim.length > 0 && debouncedSearchQuery === trim && !productSearchLoading;
+      const n = searchResults.length;
+      const listNavOk = settled && n > 0;
+
+      if (e.key === 'Escape') {
+        if (showProductSearch) {
+          e.preventDefault();
+          setShowProductSearch(false);
+        }
+        return;
+      }
+
+      if (e.key === 'ArrowDown') {
+        if (!showProductSearch || !trim || !listNavOk) return;
+        e.preventDefault();
+        setPosSearchHighlightIdx((i) => (i < 0 ? 0 : Math.min(n - 1, i + 1)));
+        return;
+      }
+
+      if (e.key === 'ArrowUp') {
+        if (!showProductSearch || !trim || !listNavOk) return;
+        e.preventDefault();
+        setPosSearchHighlightIdx((i) => (i < 0 ? n - 1 : Math.max(0, i - 1)));
+        return;
+      }
+
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (posScanIdleTimerRef.current != null) {
+          window.clearTimeout(posScanIdleTimerRef.current);
+          posScanIdleTimerRef.current = null;
+        }
+        if (listNavOk && posSearchHighlightIdx >= 0 && posSearchHighlightIdx < n) {
+          handleAddProduct(searchResults[posSearchHighlightIdx]);
+          return;
+        }
+        void commitSearchEnter((e.currentTarget as HTMLInputElement).value);
+      }
+    },
+    [
+      searchQuery,
+      debouncedSearchQuery,
+      productSearchLoading,
+      searchResults,
+      showProductSearch,
+      posSearchHighlightIdx,
+      handleAddProduct,
+      commitSearchEnter,
+    ]
   );
 
   const stopMobileScanner = useCallback(async () => {
@@ -1552,13 +1754,27 @@ export function POS() {
             }
           }
         }
-      } else if (esFormaEfectivo(formaPago)) {
+      } else if (
+        metodoPago === 'PUE' &&
+        !esFormaDevolucion &&
+        !esFormaCotizacion
+      ) {
+        /** PUE: aplica el importe del campo (efectivo, transferencia, etc.) como abono antes de validar. */
         const norm = montoRecibidoInput.replace(',', '.').trim();
         if (norm) {
           const m = parseFloat(norm);
           if (Number.isFinite(m) && m > 0) {
-            addPago({ formaPago, monto: m });
-            setMontoRecibidoInput('');
+            if (esFormaTarjeta(formaPago)) {
+              const d4 = digitos4TarjetaPendiente();
+              if (d4.length === 4) {
+                addPago({ formaPago, monto: m, referencia: d4 });
+                setMontoRecibidoInput('');
+                setTarjetaUltimos4('');
+              }
+            } else {
+              addPago({ formaPago, monto: m });
+              setMontoRecibidoInput('');
+            }
           }
         }
       }
@@ -1618,9 +1834,17 @@ export function POS() {
     const sumPagosCobro = esTraspasoTienda
       ? 0
       : pagosParaVenta.reduce((s, p) => s + (Number(p.monto) || 0), 0);
-    const adeudoTicket = esTraspasoTienda
-      ? 0
-      : Math.max(0, Math.round((totalCobro - sumPagosCobro) * 100) / 100);
+    /** Misma tolerancia que `computeSaleClienteAdeudo`: evita CxC por centavos de redondeo. */
+    const rawAdeudoCobro = totalCobro - sumPagosCobro;
+    const adeudoTicket =
+      esTraspasoTienda ? 0
+      : rawAdeudoCobro <= 0.02 ? 0
+      : Math.max(0, Math.round(rawAdeudoCobro * 100) / 100);
+
+    const metodoPagoVenta: 'PUE' | 'PPD' =
+      formaPago === 'PPC' ? 'PPD'
+      : adeudoTicket <= 0 ? 'PUE'
+      : (metodoPago as 'PUE' | 'PPD');
 
     if (formaPago === 'TTS') {
       if (!isAdmin) {
@@ -1669,7 +1893,7 @@ export function POS() {
         }));
         await completePendingSale(pend.id, {
           formaPago: formaPago as FormaPago,
-          metodoPago: metodoPago as 'PUE' | 'PPD',
+          metodoPago: metodoPagoVenta,
           pagos: pagosCompletacion,
           cambio: cambioAbierta,
           usuarioNombreCierre: cajeroNombre,
@@ -1760,7 +1984,7 @@ export function POS() {
         impuestos: impuestosCobro,
         total: totalCobro,
         formaPago: formaPago as FormaPago,
-        metodoPago: metodoPago as 'PUE' | 'PPD',
+        metodoPago: metodoPagoVenta,
         pagos: esTraspasoTienda
           ? [{ id: crypto.randomUUID(), formaPago: 'TTS' as FormaPago, monto: 0 }]
           : pagosParaVenta.map((p) => ({
@@ -1932,6 +2156,11 @@ export function POS() {
   const panelClass =
     'rounded-xl border border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 shadow-sm';
 
+  const posSearchTrim = searchQuery.trim();
+  const posSearchSettled =
+    posSearchTrim.length > 0 && debouncedSearchQuery === posSearchTrim && !productSearchLoading;
+  const showPosSearchDropdown = showProductSearch && posSearchTrim.length > 0;
+
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 flex-col gap-2 overscroll-y-contain max-lg:overflow-y-auto lg:overflow-hidden sm:gap-3">
       <CajaPosToolbar
@@ -2046,14 +2275,14 @@ export function POS() {
                   <Input
                     ref={searchInputRef}
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key !== 'Enter') return;
-                      e.preventDefault();
-                      void commitSearchEnter((e.currentTarget as HTMLInputElement).value);
-                    }}
+                    autoComplete="off"
+                    aria-autocomplete="list"
+                    aria-expanded={showPosSearchDropdown}
+                    onChange={onPosSearchChange}
+                    onPaste={onPosSearchPaste}
+                    onKeyDown={onPosSearchInputKeyDown}
                     onFocus={() => setShowProductSearch(true)}
-                    placeholder="Buscar (F2) · SKU, código, nombre"
+                    placeholder="Escanear aquí · F2 · ↑↓ · Enter · nombre"
                     className="h-10 border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 pl-9 text-base text-slate-900 dark:text-slate-100 placeholder:text-slate-600 focus:border-cyan-500/50 sm:h-11 sm:pl-10 md:text-sm"
                   />
                 </div>
@@ -2072,51 +2301,73 @@ export function POS() {
                 </Button>
               </div>
 
-              {showProductSearch && searchResults.length > 0 && (
+              {showPosSearchDropdown ? (
                 <div
+                  ref={posSearchListRef}
+                  role="listbox"
+                  aria-label="Resultados de búsqueda"
                   className="absolute left-0 right-0 top-full z-50 mt-1 max-h-[min(42dvh,16rem)] overflow-y-auto overscroll-contain rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 shadow-xl sm:mt-2"
                   onMouseDown={(e) => e.preventDefault()}
                 >
-                  {searchResults.map((product) => (
-                    <button
-                      key={product.id}
-                      type="button"
-                      onClick={() => handleAddProduct(product)}
-                      className="flex w-full items-center justify-between gap-2 border-b border-slate-200/80 dark:border-slate-800/50 p-2.5 text-left transition-colors last:border-0 hover:bg-slate-200/80 dark:bg-slate-800/50 sm:p-3"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium text-slate-800 dark:text-slate-200">{product.nombre}</p>
-                        <p className="text-xs text-slate-600 dark:text-slate-500">SKU: {product.sku}</p>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <p className="font-bold text-cyan-400">
-                          {formatMoney(getProductUnitConIvaForClienteList(product, precioClienteListaId))}
-                        </p>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400">con IVA</p>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                          IVA{' '}
-                          {formatMoney(
-                            getProductIvaUnitarioDesdeSinIva(
-                              product,
-                              getProductUnitSinIvaForClienteList(product, precioClienteListaId)
-                            )
-                          )}
-                        </p>
-                        <p
-                          className={cn(
-                            'text-xs',
-                            product.existencia <= product.existenciaMinima
-                              ? 'text-amber-400'
-                              : 'text-slate-600 dark:text-slate-500'
-                          )}
-                        >
-                          Stk {product.existencia}
-                        </p>
-                      </div>
-                    </button>
-                  ))}
+                  {!posSearchSettled ? (
+                    <div className="px-3 py-4 text-center text-sm text-slate-600 dark:text-slate-400">
+                      Buscando…
+                    </div>
+                  ) : searchResults.length > 0 ? (
+                    searchResults.map((product, idx) => (
+                      <button
+                        key={product.id}
+                        type="button"
+                        role="option"
+                        aria-selected={posSearchHighlightIdx === idx}
+                        data-pos-search-idx={idx}
+                        onMouseEnter={() => setPosSearchHighlightIdx(idx)}
+                        onClick={() => handleAddProduct(product)}
+                        className={cn(
+                          'flex w-full items-center justify-between gap-2 border-b border-slate-200/80 dark:border-slate-800/50 p-2.5 text-left transition-colors last:border-0 sm:p-3',
+                          posSearchHighlightIdx === idx
+                            ? 'bg-cyan-500/15 dark:bg-cyan-500/10'
+                            : 'hover:bg-slate-200/80 dark:hover:bg-slate-800/50'
+                        )}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-medium text-slate-800 dark:text-slate-200">{product.nombre}</p>
+                          <p className="text-xs text-slate-600 dark:text-slate-500">SKU: {product.sku}</p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="font-bold text-cyan-400">
+                            {formatMoney(getProductUnitConIvaForClienteList(product, precioClienteListaId))}
+                          </p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400">con IVA</p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                            IVA{' '}
+                            {formatMoney(
+                              getProductIvaUnitarioDesdeSinIva(
+                                product,
+                                getProductUnitSinIvaForClienteList(product, precioClienteListaId)
+                              )
+                            )}
+                          </p>
+                          <p
+                            className={cn(
+                              'text-xs',
+                              product.existencia <= product.existenciaMinima
+                                ? 'text-amber-400'
+                                : 'text-slate-600 dark:text-slate-500'
+                            )}
+                          >
+                            Stk {product.existencia}
+                          </p>
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="px-3 py-4 text-center text-sm text-slate-600 dark:text-slate-400">
+                      Sin coincidencias. Revise nombre, SKU o código de barras.
+                    </div>
+                  )}
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
 
@@ -3451,9 +3702,14 @@ export function POS() {
           if (!o) closeUnitPriceDialog();
         }}
       >
-        <DialogContent className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:max-w-md">
+        <DialogContent className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Precio unitario (con IVA)</DialogTitle>
+            <DialogTitle>Precio de la línea</DialogTitle>
+            {unitPriceDialogLine ? (
+              <p className="text-left text-sm font-normal text-slate-600 dark:text-slate-400">
+                {unitPriceDialogLine.product.nombre}
+              </p>
+            ) : null}
           </DialogHeader>
           {unitPriceEditStep === 'pin' ? (
             <div className="space-y-3 py-2">
@@ -3484,30 +3740,95 @@ export function POS() {
               </DialogFooter>
             </div>
           ) : (
-            <div className="space-y-3 py-2">
+            <div className="space-y-4 py-2">
               <p className="text-xs text-slate-600 dark:text-slate-400">
-                Se usa el IVA del producto en catálogo para convertir a precio base en el carrito.
+                Toque una lista para aplicar el precio del catálogo solo a esta línea (sin cambiar la lista global del
+                ticket). Use el importe de abajo para un precio manual; el IVA del artículo se usa para el cálculo
+                interno.
               </p>
-              <Label>Nuevo precio con IVA incluido</Label>
-              <Input
-                type="text"
-                inputMode="decimal"
-                value={unitPriceInput}
-                onChange={(e) => setUnitPriceInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    saveUnitPriceFromDialog();
-                  }
-                }}
-                className="border-slate-300 text-lg dark:border-slate-700 dark:bg-slate-800"
-              />
-              <DialogFooter className="gap-2 sm:gap-0">
+
+              <div className="space-y-2">
+                <Label className="text-slate-700 dark:text-slate-300">Lista para esta línea</Label>
+                <div className="flex flex-wrap gap-2">
+                  {CLIENT_PRICE_LIST_ORDER.map((lid) => (
+                    <Button
+                      key={lid}
+                      type="button"
+                      size="sm"
+                      variant={unitPriceLineListaActiva === lid ? 'default' : 'outline'}
+                      className={cn(
+                        'h-9 shrink-0 text-xs sm:text-sm',
+                        unitPriceLineListaActiva === lid &&
+                          'bg-cyan-600 text-white hover:bg-cyan-700 dark:bg-cyan-600 dark:hover:bg-cyan-700'
+                      )}
+                      disabled={!unitPriceEditProductId}
+                      onClick={() => {
+                        if (!unitPriceEditProductId) return;
+                        applyLinePrecioFromLista(unitPriceEditProductId, lid);
+                        syncUnitPriceInputFromCartLine();
+                        addToast({
+                          type: 'success',
+                          message: `Lista «${CLIENT_PRICE_LABELS[lid]}» aplicada a la línea`,
+                        });
+                      }}
+                    >
+                      {CLIENT_PRICE_LABELS[lid]}
+                    </Button>
+                  ))}
+                </div>
+                {unitPriceDialogLine?.precioListaId ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2 text-xs text-slate-600 dark:text-slate-400"
+                    disabled={!unitPriceEditProductId}
+                    onClick={() => {
+                      if (!unitPriceEditProductId) return;
+                      resetLinePrecioToTicketLista(unitPriceEditProductId);
+                      syncUnitPriceInputFromCartLine();
+                      addToast({
+                        type: 'success',
+                        message: `Línea usa la lista del ticket (${CLIENT_PRICE_LABELS[precioClienteListaId]})`,
+                      });
+                    }}
+                  >
+                    Quitar lista propia — usar solo «{CLIENT_PRICE_LABELS[precioClienteListaId]}» del ticket
+                  </Button>
+                ) : null}
+                {unitPriceLineIsManual ? (
+                  <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                    Hay precio manual en esta línea; las listas anteriores lo sustituyen al tocarlas.
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="space-y-2 border-t border-slate-200 pt-3 dark:border-slate-800">
+                <Label>Precio manual (con IVA incluido)</Label>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  value={unitPriceInput}
+                  onChange={(e) => setUnitPriceInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      saveUnitPriceFromDialog();
+                    }
+                  }}
+                  className="border-slate-300 text-lg dark:border-slate-700 dark:bg-slate-800"
+                />
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  «Guardar manual» fija el importe tecleado y quita la lista propia de la línea.
+                </p>
+              </div>
+
+              <DialogFooter className="flex-col gap-2 border-t border-slate-200 pt-2 dark:border-slate-800 sm:flex-row sm:justify-end">
                 <Button type="button" variant="outline" onClick={closeUnitPriceDialog}>
-                  Cancelar
+                  Cerrar
                 </Button>
                 <Button type="button" onClick={saveUnitPriceFromDialog}>
-                  Guardar
+                  Guardar manual
                 </Button>
               </DialogFooter>
             </div>

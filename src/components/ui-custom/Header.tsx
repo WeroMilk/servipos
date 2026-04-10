@@ -10,7 +10,8 @@ import {
   Power,
   PowerOff,
   ClipboardList,
-  BanknoteArrowDown,
+  ChevronDown,
+  Wallet,
   Clock,
   Printer,
   Download,
@@ -52,7 +53,7 @@ export function Header() {
   const { user, logout, hasPermission } = useAuthStore();
   const { effectiveSucursalId } = useEffectiveSucursalId();
   const cajaPosHeader = useCajaPosHeaderStore();
-  const { retiroEfectivoVisible, openRetiroEfectivo } = cajaPosHeader;
+  const { modificarSaldoVisible, openModificarSaldo } = cajaPosHeader;
   const ventasAbiertasHeader = useVentasAbiertasPosHeaderStore();
   const { isOnline, isSyncing, pendingCount, sync } = useSyncStore();
   const toggleTheme = useAppStore((s) => s.toggleTheme);
@@ -255,22 +256,42 @@ export function Header() {
           ) : null}
         </div>
       ) : null}
-      {cajaPosHeader.registered && retiroEfectivoVisible ? (
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          title="Retiro de efectivo (sacar del cajón)"
-          aria-label="Retiro de efectivo"
-          onClick={() => {
-            openRetiroEfectivo();
-            closeMobileMenu();
-          }}
-          className="h-10 w-10 shrink-0 rounded-xl border-slate-300 text-slate-700 hover:bg-sky-500/10 hover:text-sky-800 dark:border-slate-600 dark:text-sky-200 dark:hover:bg-sky-500/15 sm:h-9 sm:w-9"
-        >
-          <BanknoteArrowDown className="h-4 w-4" />
-        </Button>
-      ) : null}
+      {cajaPosHeader.registered && modificarSaldoVisible ?
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              title="Modificar saldo de caja (ingreso o retiro de efectivo)"
+              aria-label="Modificar saldo"
+              aria-haspopup="menu"
+              className="h-10 shrink-0 gap-1 rounded-xl border-slate-300 px-2.5 text-slate-700 hover:bg-sky-500/10 hover:text-sky-800 dark:border-slate-600 dark:text-sky-200 dark:hover:bg-sky-500/15 sm:h-9 sm:px-3"
+            >
+              <Wallet className="h-4 w-4 shrink-0" />
+              <span className="hidden text-xs font-medium min-[400px]:inline">Modificar saldo</span>
+              <ChevronDown className="hidden h-3.5 w-3.5 shrink-0 opacity-70 min-[400px]:inline" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-[11rem]">
+            <DropdownMenuItem
+              onClick={() => {
+                openModificarSaldo('aporte');
+                closeMobileMenu();
+              }}
+            >
+              Agregar saldo
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                openModificarSaldo('retiro');
+                closeMobileMenu();
+              }}
+            >
+              Retirar saldo
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      : null}
     </>
   ) : null;
 

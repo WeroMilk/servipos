@@ -102,9 +102,10 @@ export function getProductUnitSinIvaForClienteList(
   return sinIva;
 }
 
-/** Unitario sin IVA antes del descuento de línea (override manual gana sobre lista). */
-export function getCartLineUnitSinIvaBase(item: CartItem, listaId: ClientPriceListId): number {
+/** Unitario sin IVA antes del descuento de línea (override manual gana; luego lista por línea o la del ticket). */
+export function getCartLineUnitSinIvaBase(item: CartItem, listaIdTicket: ClientPriceListId): number {
   const o = item.precioUnitarioOverride;
   if (o != null && Number.isFinite(Number(o))) return Number(o);
-  return getProductUnitSinIvaForClienteList(item.product, listaId);
+  const listaLinea = item.precioListaId ?? listaIdTicket;
+  return getProductUnitSinIvaForClienteList(item.product, listaLinea);
 }

@@ -1,7 +1,7 @@
-import type { CajaRetiroEfectivo, CajaSesion } from '@/types';
+import type { CajaAporteEfectivo, CajaRetiroEfectivo, CajaSesion } from '@/types';
 import {
   computeCajaEfectivoEsperado,
-  efectivoEsperadoMenosRetiros,
+  efectivoEsperadoCajaSesion,
   filterVentasCompletadasSesion,
   resumenBrutoSesion,
 } from '@/lib/cajaResumen';
@@ -25,9 +25,9 @@ function firestoreTimestampToDate(value: unknown): Date {
   return new Date();
 }
 
-function parseRetirosEfectivoFirestore(raw: unknown): CajaRetiroEfectivo[] | undefined {
+function parseMovimientosEfectivoFirestore<T extends CajaRetiroEfectivo>(raw: unknown): T[] | undefined {
   if (!Array.isArray(raw) || raw.length === 0) return undefined;
-  const out: CajaRetiroEfectivo[] = [];
+  const out: T[] = [];
   for (const row of raw) {
     if (!row || typeof row !== 'object') continue;
     const o = row as Record<string, unknown>;
@@ -41,7 +41,7 @@ function parseRetirosEfectivoFirestore(raw: unknown): CajaRetiroEfectivo[] | und
       createdAt: firestoreTimestampToDate(o.createdAt),
       usuarioId: String(o.usuarioId ?? ''),
       usuarioNombre: String(o.usuarioNombre ?? ''),
-    });
+    } as T);
   }
   return out.length > 0 ? out : undefined;
 }
@@ -51,9 +51,12 @@ function mapCajaSesionDoc(sucursalId: string, sesionId: string, d: Record<string
     id: sesionId,
     estado: d.estado === 'cerrada' ? 'cerrada' : 'abierta',
     fondoInicial: Number(d.fondoInicial) || 0,
+    aportesEfectivoTotal:
+      d.aportesEfectivoTotal != null ? Number(d.aportesEfectivoTotal) || 0 : undefined,
+    aportesEfectivo: parseMovimientosEfectivoFirestore<CajaAporteEfectivo>(d.aportesEfectivo),
     retirosEfectivoTotal:
       d.retirosEfectivoTotal != null ? Number(d.retirosEfectivoTotal) || 0 : undefined,
-    retirosEfectivo: parseRetirosEfectivoFirestore(d.retirosEfectivo),
+    retirosEfectivo: parseMovimientosEfectivoFirestore<CajaRetiroEfectivo>(d.retirosEfectivo),
     openedAt: firestoreTimestampToDate(d.openedAt),
     openedByUserId: String(d.openedByUserId ?? ''),
     openedByNombre: String(d.openedByNombre ?? ''),
@@ -203,9 +206,10 @@ export async function closeCajaSessionFirestore(
   if (data.estado !== 'abierta') throw new Error('Esta sesión de caja ya está cerrada');
 
   const fondo = Number(data.fondoInicial) || 0;
+  const aportesTotal = Number(data.aportesEfectivoTotal) || 0;
   const retirosTotal = Number(data.retirosEfectivoTotal) || 0;
   const { esperadoEnCaja: esperadoBruto } = computeCajaEfectivoEsperado(fondo, completadas);
-  const esperadoEnCaja = efectivoEsperadoMenosRetiros(esperadoBruto, retirosTotal);
+  const esperadoEnCaja = efectivoEsperadoCajaSesion(esperadoBruto, aportesTotal, retirosTotal);
   const declarado = Number(input.conteoDeclarado);
   if (!Number.isFinite(declarado) || declarado < 0) {
     throw new Error('Indique un conteo de efectivo válido');
@@ -253,6 +257,28 @@ export async function registrarRetiroEfectivoFirestore(
 ): Promise<void> {
   const supabase = getSupabase();
   const { error } = await supabase.rpc('rpc_registrar_retiro_caja', {
+    p_sucursal_id: sucursalId,
+    p_sesion_id: sesionId.trim(),
+    p_monto: input.monto,
+    p_notas: input.notas ?? null,
+    p_usuario_id: input.usuarioId,
+    p_usuario_nombre: input.usuarioNombre,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function registrarAporteEfectivoFirestore(
+  sucursalId: string,
+  sesionId: string,
+  input: {
+    monto: number;
+    notas?: string;
+    usuarioId: string;
+    usuarioNombre: string;
+  }
+): Promise<void> {
+  const supabase = getSupabase();
+  const { error } = await supabase.rpc('rpc_registrar_aporte_caja', {
     p_sucursal_id: sucursalId,
     p_sesion_id: sesionId.trim(),
     p_monto: input.monto,

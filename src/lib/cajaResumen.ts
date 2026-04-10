@@ -53,7 +53,10 @@ export function pagosParaResumenCaja(sale: Sale): { formaPago: FormaPago; monto:
   return [];
 }
 
-/** Efectivo esperado en caja: fondo inicial + cobros en efectivo (01) − cambio entregado. */
+/**
+ * Efectivo esperado en caja: fondo + cobros en forma 01 − vueltos (`cambio`).
+ * En pantalla de arqueo se muestra como fondo + (efectivoCobrado − cambioEntregado) sin desglosar el cambio.
+ */
 export function computeCajaEfectivoEsperado(
   fondoInicial: number,
   ventasCompletadas: Sale[]
@@ -77,6 +80,18 @@ export function efectivoEsperadoMenosRetiros(
 ): number {
   const r = Math.max(0, Number(retirosEfectivoTotal) || 0);
   return Math.round((esperadoBruto - r) * 100) / 100;
+}
+
+/**
+ * Efectivo esperado en cajón: ventas (fondo + cobros 01 − cambio) + aportes de sesión − retiros.
+ */
+export function efectivoEsperadoCajaSesion(
+  esperadoBruto: number,
+  aportesEfectivoTotal?: number | null,
+  retirosEfectivoTotal?: number | null
+): number {
+  const a = Math.max(0, Number(aportesEfectivoTotal) || 0);
+  return efectivoEsperadoMenosRetiros(esperadoBruto + a, retirosEfectivoTotal);
 }
 
 export function filterVentasCompletadasSesion(ventas: Sale[]): Sale[] {

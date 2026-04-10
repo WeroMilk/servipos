@@ -33,6 +33,8 @@ function localToCajaSesion(s: {
   openedAt: string;
   openedByUserId: string;
   openedByNombre: string;
+  aportesEfectivoTotal?: number;
+  aportesEfectivo?: { id: string; monto: number; notas?: string; createdAt: string; usuarioId: string; usuarioNombre: string }[];
   retirosEfectivoTotal?: number;
   retirosEfectivo?: { id: string; monto: number; notas?: string; createdAt: string; usuarioId: string; usuarioNombre: string }[];
 }): CajaSesion {
@@ -40,6 +42,11 @@ function localToCajaSesion(s: {
     id: s.id,
     estado: 'abierta',
     fondoInicial: s.fondoInicial,
+    aportesEfectivoTotal: s.aportesEfectivoTotal,
+    aportesEfectivo: s.aportesEfectivo?.map((r) => ({
+      ...r,
+      createdAt: new Date(r.createdAt),
+    })),
     retirosEfectivoTotal: s.retirosEfectivoTotal,
     retirosEfectivo: s.retirosEfectivo?.map((r) => ({
       ...r,

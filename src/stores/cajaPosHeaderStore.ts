@@ -1,12 +1,14 @@
 import { create } from 'zustand';
 
+export type ModificarSaldoKind = 'aporte' | 'retiro';
+
 type CajaPosHeaderState = {
   registered: boolean;
   cajaAbierta: boolean;
   loading: boolean;
   toggleCaja: () => void;
-  retiroEfectivoVisible: boolean;
-  openRetiroEfectivo: () => void;
+  modificarSaldoVisible: boolean;
+  openModificarSaldo: (kind: ModificarSaldoKind) => void;
 };
 
 export const useCajaPosHeaderStore = create<CajaPosHeaderState>(() => ({
@@ -14,25 +16,25 @@ export const useCajaPosHeaderStore = create<CajaPosHeaderState>(() => ({
   cajaAbierta: false,
   loading: false,
   toggleCaja: () => {},
-  retiroEfectivoVisible: false,
-  openRetiroEfectivo: () => {},
+  modificarSaldoVisible: false,
+  openModificarSaldo: () => {},
 }));
 
 export function setCajaPosHeaderBridge(input: {
   cajaAbierta: boolean;
   loading: boolean;
   onToggle: () => void;
-  /** Mostrar icono de retiro de efectivo (p. ej. caja abierta). */
-  retiroEfectivoVisible?: boolean;
-  onRetiroEfectivo?: () => void;
+  /** Mostrar control de modificar saldo (p. ej. caja abierta). */
+  modificarSaldoVisible?: boolean;
+  onModificarSaldo?: (kind: ModificarSaldoKind) => void;
 }) {
   useCajaPosHeaderStore.setState({
     registered: true,
     cajaAbierta: input.cajaAbierta,
     loading: input.loading,
     toggleCaja: input.onToggle,
-    retiroEfectivoVisible: input.retiroEfectivoVisible ?? false,
-    openRetiroEfectivo: input.onRetiroEfectivo ?? (() => {}),
+    modificarSaldoVisible: input.modificarSaldoVisible ?? false,
+    openModificarSaldo: input.onModificarSaldo ?? (() => {}),
   });
 }
 
@@ -42,7 +44,7 @@ export function clearCajaPosHeaderBridge() {
     cajaAbierta: false,
     loading: false,
     toggleCaja: () => {},
-    retiroEfectivoVisible: false,
-    openRetiroEfectivo: () => {},
+    modificarSaldoVisible: false,
+    openModificarSaldo: () => {},
   });
 }

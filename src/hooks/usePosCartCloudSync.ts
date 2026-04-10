@@ -74,6 +74,8 @@ export function usePosCartCloudSync(params: { userId?: string | null; sucursalId
   const lastSignatureRef = useRef<string>('');
   /** Última versión de borrador remoto que ya aplicamos o persistimos (evita pisar cambios locales con lecturas viejas). */
   const lastRemoteUpdatedAtMsRef = useRef(0);
+  /** Tras cobrar: carrito vacío debe guardarse ya; si no, Realtime puede devolver el borrador con ítems y “revivir” el carrito. */
+  const hadCartItemsRef = useRef(false);
 
   useEffect(() => {
     readyRef.current = false;
@@ -81,6 +83,7 @@ export function usePosCartCloudSync(params: { userId?: string | null; sucursalId
     lastRemoteUpdatedAtMsRef.current = 0;
     if (!userId || !sucursalId) {
       replaceCartDraft(null);
+      hadCartItemsRef.current = false;
       return;
     }
 
@@ -97,6 +100,7 @@ export function usePosCartCloudSync(params: { userId?: string | null; sucursalId
       bumpRemoteClock(lastRemoteUpdatedAtMsRef, remoteClockMs);
       applyingRemoteRef.current = false;
       readyRef.current = true;
+      hadCartItemsRef.current = (draft?.items?.length ?? 0) > 0;
     };
 
     const loadInitial = async () => {
@@ -156,9 +160,16 @@ export function usePosCartCloudSync(params: { userId?: string | null; sucursalId
     if (applyingRemoteRef.current) return;
     const key = localBackupKey(userId, sucursalId);
     const sig = snapshotSignature(currentSnapshot);
-    if (sig === lastSignatureRef.current) return;
+    if (sig === lastSignatureRef.current) {
+      hadCartItemsRef.current = currentSnapshot.items.length > 0;
+      return;
+    }
 
-    const t = window.setTimeout(() => {
+    const hasItems = currentSnapshot.items.length > 0;
+    const flushNow = hadCartItemsRef.current && !hasItems;
+    hadCartItemsRef.current = hasItems;
+
+    const persist = () => {
       void savePosCartDraft(sucursalId, userId, currentSnapshot)
         .then((wroteAt) => {
           lastSignatureRef.current = sig;
@@ -176,7 +187,14 @@ export function usePosCartCloudSync(params: { userId?: string | null; sucursalId
             /* noop */
           }
         });
-    }, WRITE_DEBOUNCE_MS);
+    };
+
+    if (flushNow) {
+      persist();
+      return;
+    }
+
+    const t = window.setTimeout(persist, WRITE_DEBOUNCE_MS);
     return () => window.clearTimeout(t);
   }, [currentSnapshot, userId, sucursalId]);
 }

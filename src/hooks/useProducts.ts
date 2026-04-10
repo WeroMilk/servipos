@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Product, StockEntradaMeta } from '@/types';
 import {
   getProducts,
@@ -21,6 +21,7 @@ import {
 } from '@/lib/firestore/productsFirestore';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 import { coerceProductList } from '@/lib/productCoerce';
+import { normSkuBarcode } from '@/lib/productCatalogUniqueness';
 import {
   auditActorSuffix,
   diffProductCatalogUpdates,
@@ -299,10 +300,42 @@ export function useProducts() {
   };
 }
 
-export function useProductSearch() {
+function posSearchRank(p: Product, needleLower: string, needleNorm: string): number {
+  const nameL = (p.nombre ?? '').toLowerCase();
+  const skuN = normSkuBarcode(String(p.sku ?? ''));
+  const barN = normSkuBarcode(String(p.codigoBarras ?? ''));
+  const exactOk = needleNorm.length >= 2;
+  if (exactOk) {
+    if (skuN === needleNorm) return 0;
+    if (barN === needleNorm) return 1;
+  }
+  if (nameL.startsWith(needleLower)) return 2;
+  if (exactOk && skuN.startsWith(needleNorm)) return 3;
+  if (exactOk && barN.startsWith(needleNorm)) return 4;
+  if (needleNorm && skuN.includes(needleNorm)) return 5;
+  if (needleNorm && barN.includes(needleNorm)) return 6;
+  if (nameL.includes(needleLower)) return 7;
+  return 8;
+}
+
+function sortPosSearchList(list: Product[], q: string): Product[] {
+  const needleLower = q.trim().toLowerCase();
+  const needleNorm = normSkuBarcode(q);
+  return [...list].sort((a, b) => {
+    const ra = posSearchRank(a, needleLower, needleNorm);
+    const rb = posSearchRank(b, needleLower, needleNorm);
+    if (ra !== rb) return ra - rb;
+    return (a.nombre ?? '').localeCompare(b.nombre ?? '', 'es', { sensitivity: 'base' });
+  });
+}
+
+/** `maxResults` (p. ej. 80 en POS) evita listas enormes y mantiene la UI fluida; sin tope en inventario u otros usos. */
+export function useProductSearch(options?: { maxResults?: number }) {
+  const maxCap = options?.maxResults;
   const { effectiveSucursalId: sucursalId } = useEffectiveSucursalId();
   const [results, setResults] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
+  const searchGenRef = useRef(0);
 
   useEffect(() => {
     if (!sucursalId) return;
@@ -313,37 +346,59 @@ export function useProductSearch() {
 
   const search = useCallback(
     async (q: string): Promise<Product[]> => {
-      if (!q.trim()) {
+      const trimmed = q.trim();
+      if (!trimmed) {
+        searchGenRef.current += 1;
         setResults([]);
+        setLoading(false);
         return [];
       }
 
+      const gen = ++searchGenRef.current;
       try {
         setLoading(true);
         if (sucursalId) {
-          const lower = q.toLowerCase();
-          const data = coerceProductList(getProductCatalogSnapshot()).filter(
-            (p) =>
-              p.nombre.toLowerCase().includes(lower) ||
-              p.sku.toLowerCase().includes(lower) ||
-              (p.codigoBarras !== undefined && p.codigoBarras.includes(q))
-          );
+          const lower = trimmed.toLowerCase();
+          const normQ = normSkuBarcode(trimmed);
+          const raw = coerceProductList(getProductCatalogSnapshot()).filter((p) => {
+            if (p.activo === false) return false;
+            const nameL = (p.nombre ?? '').toLowerCase();
+            const skuN = normSkuBarcode(String(p.sku ?? ''));
+            const barN = normSkuBarcode(String(p.codigoBarras ?? ''));
+            return (
+              nameL.includes(lower) ||
+              skuN.includes(normQ) ||
+              (normQ.length > 0 && barN.includes(normQ))
+            );
+          });
+          const sorted = sortPosSearchList(raw, trimmed);
+          const data =
+            maxCap != null && Number.isFinite(maxCap) && maxCap > 0
+              ? sorted.slice(0, maxCap)
+              : sorted;
+          if (gen !== searchGenRef.current) return data;
           setResults(data);
           return data;
         }
-        const data = await searchProducts(q);
-        const list = coerceProductList(data);
+        const data = await searchProducts(trimmed);
+        const sorted = sortPosSearchList(coerceProductList(data), trimmed);
+        const list =
+          maxCap != null && Number.isFinite(maxCap) && maxCap > 0
+            ? sorted.slice(0, maxCap)
+            : sorted;
+        if (gen !== searchGenRef.current) return list;
         setResults(list);
         return list;
       } catch (err) {
         reportHookFailure('hook:useProductSearch', 'Búsqueda de productos', err);
         console.error('Error en búsqueda:', err);
+        if (gen === searchGenRef.current) setResults([]);
         return [];
       } finally {
-        setLoading(false);
+        if (gen === searchGenRef.current) setLoading(false);
       }
     },
-    [sucursalId]
+    [sucursalId, maxCap]
   );
 
   const searchByBarcode = useCallback(
