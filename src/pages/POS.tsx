@@ -590,6 +590,8 @@ export function POS() {
   const [mobileScannerOpen, setMobileScannerOpen] = useState(false);
   const [mobileScannerBusy, setMobileScannerBusy] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const unitPricePinInputRef = useRef<HTMLInputElement>(null);
+  const unitPriceManualInputRef = useRef<HTMLInputElement>(null);
   /** En navegador el handle es `number`; evitar choque con tipos de Node (`Timeout`). */
   const posScanIdleTimerRef = useRef<number | null>(null);
   const posScanCommittingRef = useRef(false);
@@ -790,6 +792,20 @@ export function POS() {
     setUnitPricePinInput('');
     setUnitPriceInput('');
   }, []);
+
+  useEffect(() => {
+    if (!unitPriceDialogOpen) return;
+    const t = window.setTimeout(() => {
+      if (unitPriceEditStep === 'pin') {
+        unitPricePinInputRef.current?.focus();
+      } else {
+        const el = unitPriceManualInputRef.current;
+        el?.focus();
+        el?.select();
+      }
+    }, 0);
+    return () => clearTimeout(t);
+  }, [unitPriceDialogOpen, unitPriceEditStep]);
 
   const canEditCatalogListasDesdePos = hasPermission('inventario:editar');
 
@@ -1922,7 +1938,9 @@ export function POS() {
       }
     }
 
-    let pagosParaVenta = formaPago === 'PPC' ? [] : pagos;
+    /** Tras `addPago` en este mismo handler, el `pagos` del render sigue desactualizado; el store ya tiene el abono. */
+    let pagosParaVenta =
+      formaPago === 'PPC' ? [] : [...useCartStore.getState().pagos];
 
     if (cobroTarjetaPueLocal) {
       const d4 = digitos4TarjetaPendiente();
@@ -3918,6 +3936,7 @@ export function POS() {
       >
         <DialogContent
           className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:max-w-lg"
+          onOpenAutoFocus={(e) => e.preventDefault()}
           onKeyDown={(e) => {
             if (e.key !== 'Enter' || unitPriceEditStep !== 'price' || e.defaultPrevented) return;
             const t = e.target as HTMLElement;
@@ -3941,6 +3960,7 @@ export function POS() {
                 Ingrese la contraseña de administrador para modificar el precio.
               </p>
               <Input
+                ref={unitPricePinInputRef}
                 type="password"
                 autoComplete="off"
                 placeholder="Contraseña"
@@ -4049,6 +4069,7 @@ export function POS() {
               <div className="space-y-2 border-t border-slate-200 pt-3 dark:border-slate-800">
                 <Label>Precio manual (con IVA incluido)</Label>
                 <Input
+                  ref={unitPriceManualInputRef}
                   type="text"
                   inputMode="decimal"
                   value={unitPriceInput}
