@@ -565,7 +565,8 @@ export function POS() {
   const [mobileScannerOpen, setMobileScannerOpen] = useState(false);
   const [mobileScannerBusy, setMobileScannerBusy] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const posScanIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** En navegador el handle es `number`; evitar choque con tipos de Node (`Timeout`). */
+  const posScanIdleTimerRef = useRef<number | null>(null);
   const posScanCommittingRef = useRef(false);
   const productSearchWrapRef = useRef<HTMLDivElement>(null);
   const posSearchListRef = useRef<HTMLDivElement>(null);

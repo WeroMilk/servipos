@@ -848,7 +848,6 @@ export async function completePendingSale(
   if (clienteIdTickets && clienteIdTickets !== MOSTRADOR_CLIENT_ID) {
     await adjustClientTicketCount(clienteIdTickets, 1);
     const total = Number(sale.total) || 0;
-    const paid = patch.pagos.reduce((s, p) => s + (Number(p.monto) || 0), 0);
     const adeudo = computeSaleClienteAdeudo({
       estado: 'completada',
       total,
