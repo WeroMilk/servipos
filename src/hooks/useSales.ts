@@ -7,7 +7,9 @@ import {
   createSale,
   cancelSale,
   completePendingSale as completePendingSaleDb,
+  partialReturnSale as partialReturnSaleDb,
 } from '@/db/database';
+import type { DevolucionLineInput } from '@/lib/salePartialReturnCompute';
 import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 import { subscribeSalesCatalog, subscribeSaleDocument } from '@/lib/firestore/salesFirestore';
@@ -132,6 +134,24 @@ export function useSales(limit: number = 100) {
     }
   };
 
+  const partialReturnSale = async (
+    id: string,
+    opts: { returns: DevolucionLineInput[]; motivo?: string }
+  ) => {
+    try {
+      const sid = getEffectiveSucursalId();
+      const out = await partialReturnSaleDb(id, { ...opts, sucursalId: sid });
+      if (!sid) {
+        await loadSalesLocal();
+      }
+      return out;
+    } catch (err) {
+      reportHookFailure('hook:useSales', 'Devolución parcial', err);
+      setError('Error al registrar devolución');
+      throw err;
+    }
+  };
+
   return {
     sales,
     loading,
@@ -140,6 +160,7 @@ export function useSales(limit: number = 100) {
     addSale,
     cancelSale: cancel,
     completePendingSale,
+    partialReturnSale,
   };
 }
 

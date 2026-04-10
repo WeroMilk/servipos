@@ -23,7 +23,10 @@ import {
   getSaleByFolioFirestore,
   fetchSalesByClienteIdFirestore,
   updatePendingOpenSaleFirestore,
+  partialReturnSaleFirestore,
 } from '@/lib/firestore/salesFirestore';
+import type { DevolucionLineInput } from '@/lib/salePartialReturnCompute';
+import { computeDevolucionParcial } from '@/lib/salePartialReturnCompute';
 import { fetchInventoryMovementsByProductIdFirestore } from '@/lib/firestore/inventoryMovementsFirestore';
 import { updateClientFirestore } from '@/lib/firestore/clientsFirestore';
 import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
@@ -926,6 +929,90 @@ export async function cancelSale(
       await adjustClientSaldoAdeudado(sale.clienteId, -adeudoAlCancelar);
     }
   }
+}
+
+/**
+ * Devolución en POS: puede ser total (cancela el ticket) o parcial (ajusta líneas, stock y cobros).
+ */
+export async function partialReturnSale(
+  id: string,
+  options: {
+    returns: DevolucionLineInput[];
+    motivo?: string;
+    sucursalId?: string;
+  }
+): Promise<{ kind: 'full_cancel' | 'partial'; reembolso: number }> {
+  const motivo = options.motivo ?? 'Devolución en punto de venta';
+  const sucursalId = options.sucursalId;
+
+  const sale = sucursalId ? await getSaleByIdFirestore(sucursalId, id) : await db.sales.get(id);
+  if (!sale) throw new Error('Venta no encontrada');
+  if (sale.estado !== 'completada') throw new Error('Solo se pueden devolver ventas completadas');
+  if (sale.facturaId) throw new Error('No se puede devolver una venta facturada');
+
+  const result = computeDevolucionParcial(sale, options.returns, motivo);
+
+  if (result.kind === 'full_cancel') {
+    await cancelSale(id, {
+      motivo,
+      sucursalId,
+      cancelacionMotivo: 'devolucion',
+    });
+    return { kind: 'full_cancel', reembolso: result.reembolso };
+  }
+
+  const prevAdeudo =
+    sale.clienteId && sale.clienteId !== MOSTRADOR_CLIENT_ID
+      ? computeSaleClienteAdeudo(sale)
+      : 0;
+
+  if (sucursalId) {
+    await partialReturnSaleFirestore(sucursalId, id, motivo, result.patch);
+    const newSale = await getSaleByIdFirestore(sucursalId, id);
+    if (newSale && sale.clienteId && sale.clienteId !== MOSTRADOR_CLIENT_ID) {
+      const newAdeudo = computeSaleClienteAdeudo(newSale);
+      const delta = prevAdeudo - newAdeudo;
+      if (delta > 0.005) {
+        await adjustClientSaldoAdeudado(sale.clienteId, -delta, { sucursalId });
+      }
+    }
+    return { kind: 'partial', reembolso: result.reembolso };
+  }
+
+  for (const e of result.stockEntradas) {
+    await updateStockUnified(
+      undefined,
+      e.productId,
+      e.cantidad,
+      'entrada',
+      `Devolución parcial: ${motivo}`,
+      id,
+      sale.usuarioId
+    );
+  }
+
+  await db.sales.update(id, {
+    productos: result.patch.productos,
+    subtotal: result.patch.subtotal,
+    descuento: result.patch.descuento,
+    impuestos: result.patch.impuestos,
+    total: result.patch.total,
+    pagos: result.patch.pagos,
+    notas: result.patch.notas,
+    updatedAt: new Date(),
+    syncStatus: 'pending',
+  });
+
+  const updatedLocal = await db.sales.get(id);
+  if (updatedLocal && sale.clienteId && sale.clienteId !== MOSTRADOR_CLIENT_ID) {
+    const newAdeudo = computeSaleClienteAdeudo(updatedLocal);
+    const delta = prevAdeudo - newAdeudo;
+    if (delta > 0.005) {
+      await adjustClientSaldoAdeudado(sale.clienteId, -delta);
+    }
+  }
+
+  return { kind: 'partial', reembolso: result.reembolso };
 }
 
 // ============================================

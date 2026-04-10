@@ -92,6 +92,11 @@ import {
   getProductUnitConIvaForClienteList,
   getProductUnitSinIvaForClienteList,
 } from '@/lib/productListPricing';
+import {
+  buildDevolucionTicketLineas,
+  previewReembolsoDevolucion,
+  type DevolucionLineInput,
+} from '@/lib/salePartialReturnCompute';
 
 // ============================================
 // PUNTO DE VENTA (POS) — Vista tipo app: lg+ sin scroll del contenedor (solo carrito / panel cobro); móvil conserva scroll vertical.
@@ -146,6 +151,8 @@ type PosTicketSnapshot = {
   /** Comprobante de devolución (reembolso); no genera folio de venta nuevo. */
   modoDevolucion?: boolean;
   folioVentaOrigen?: string;
+  /** true = solo parte del ticket; el folio original sigue activo con líneas restantes. */
+  devolucionParcial?: boolean;
 };
 
 export function POS() {
@@ -155,8 +162,13 @@ export function POS() {
   const isAdmin = user?.role === 'admin';
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const { addToast } = useAppStore();
-  const { addSale, sales: salesCatalog, completePendingSale, cancelSale: ejecutarCancelacionVenta } =
-    useSales(500);
+  const {
+    addSale,
+    sales: salesCatalog,
+    completePendingSale,
+    cancelSale: ejecutarCancelacionVenta,
+    partialReturnSale: ejecutarDevolucionParcial,
+  } = useSales(500);
   const { effectiveSucursalId } = useEffectiveSucursalId();
   usePosCartCloudSync({ userId: user?.id, sucursalId: effectiveSucursalId });
   const cajaSesion = useCajaSesion({ sucursalId: effectiveSucursalId });
@@ -404,6 +416,8 @@ export function POS() {
   const [devolucionFolioInput, setDevolucionFolioInput] = useState('');
   const [devolucionSaleResuelta, setDevolucionSaleResuelta] = useState<Sale | null>(null);
   const [devolucionBusy, setDevolucionBusy] = useState(false);
+  /** Cantidades a devolver por id de línea (0 = no devolver). Por defecto: todo el ticket. */
+  const [devolucionLineasQty, setDevolucionLineasQty] = useState<Record<string, number>>({});
   const [cotizacionUltimos4, setCotizacionUltimos4] = useState('');
   const [cotizacionBusy, setCotizacionBusy] = useState(false);
   const [saleFromQuotationId, setSaleFromQuotationId] = useState<string | null>(null);
@@ -437,6 +451,7 @@ export function POS() {
     if (!esFormaDevolucion) {
       setDevolucionFolioInput('');
       setDevolucionSaleResuelta(null);
+      setDevolucionLineasQty({});
     } else {
       setOpenSaleResume(null);
       setSaleFromQuotationId(null);
@@ -446,10 +461,29 @@ export function POS() {
   }, [esFormaDevolucion]);
 
   useEffect(() => {
+    if (!devolucionSaleResuelta?.productos?.length) {
+      setDevolucionLineasQty({});
+      return;
+    }
+    const init: Record<string, number> = {};
+    for (const p of devolucionSaleResuelta.productos) {
+      init[p.id] = Number(p.cantidad) || 0;
+    }
+    setDevolucionLineasQty(init);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al resolver otro ticket (id)
+  }, [devolucionSaleResuelta?.id]);
+
+  const previewDevolucion = useMemo(
+    () => previewReembolsoDevolucion(devolucionSaleResuelta, devolucionLineasQty),
+    [devolucionSaleResuelta, devolucionLineasQty]
+  );
+
+  useEffect(() => {
     if (esFormaCotizacion) {
       setOpenSaleResume(null);
       setDevolucionFolioInput('');
       setDevolucionSaleResuelta(null);
+      setDevolucionLineasQty({});
       useCartStore.setState({ pagos: [] });
     }
   }, [esFormaCotizacion]);
@@ -588,6 +622,7 @@ export function POS() {
     setLineDiscountFocusProductId(null);
     setDevolucionFolioInput('');
     setDevolucionSaleResuelta(null);
+    setDevolucionLineasQty({});
     setDevolucionBusy(false);
     setVentaResetConfirmOpen(false);
     searchInputRef.current?.blur();
@@ -1387,7 +1422,7 @@ export function POS() {
   };
 
   const handleProcessSale = async () => {
-    if (formaPago === 'DEV') {
+      if (formaPago === 'DEV') {
       if (!devolucionSaleResuelta || devolucionSaleResuelta.estado !== 'completada') {
         addToast({ type: 'error', message: 'Busque y valide un ticket completado antes de devolver.' });
         return;
@@ -1399,46 +1434,49 @@ export function POS() {
         });
         return;
       }
+      const returns: DevolucionLineInput[] = [];
+      for (const p of devolucionSaleResuelta.productos) {
+        const q = Number(devolucionLineasQty[p.id]) || 0;
+        if (q > 0) returns.push({ lineId: p.id, cantidad: q });
+      }
+      if (returns.length === 0) {
+        addToast({ type: 'error', message: 'Indique qué artículos devuelve (cantidad mayor a 0 en al menos una línea).' });
+        return;
+      }
       setProcessingSale(true);
       try {
-        await ejecutarCancelacionVenta(devolucionSaleResuelta.id, {
+        const out = await ejecutarDevolucionParcial(devolucionSaleResuelta.id, {
+          returns,
           motivo: 'Devolución en punto de venta',
-          cancelacionMotivo: 'devolucion',
         });
-        const monto = Number(devolucionSaleResuelta.total) || 0;
-        const lineas = (devolucionSaleResuelta.productos ?? []).map((it) => {
-          const desc =
-            it.producto?.nombre?.trim() ||
-            it.productoNombre?.trim() ||
-            `Artículo (${String(it.productId).slice(0, 8)}…)`;
-          const disc = Number(it.descuento) || 0;
-          const pu = Number(it.precioUnitario) || 0;
-          const unit = pu * (1 - disc / 100);
-          const qty = Number(it.cantidad) || 0;
-          const lineTot =
-            it.subtotal != null && Number.isFinite(Number(it.subtotal)) ? Number(it.subtotal) : qty * pu;
-          return { descripcion: desc, cantidad: qty, precioUnit: unit, total: lineTot };
-        });
+        const monto = out.reembolso;
+        const lineas = buildDevolucionTicketLineas(devolucionSaleResuelta, returns);
+        const totOrig = Number(devolucionSaleResuelta.total) || 1;
+        const ratio = monto / totOrig;
         const cajeroNombre =
           user?.name?.trim() || user?.username?.trim() || user?.email?.trim() || undefined;
         setTicketSnapshot({
           clienteNombre: devolucionSaleResuelta.cliente?.nombre?.trim() || 'Mostrador',
           cajeroNombre,
           lineas,
-          subtotal: Number(devolucionSaleResuelta.subtotal) || 0,
-          impuestos: Number(devolucionSaleResuelta.impuestos) || 0,
+          subtotal: (Number(devolucionSaleResuelta.subtotal) || 0) * ratio,
+          impuestos: (Number(devolucionSaleResuelta.impuestos) || 0) * ratio,
           total: monto,
           cambio: 0,
           sucursalId: effectiveSucursalId,
           folio: undefined,
           modoDevolucion: true,
           folioVentaOrigen: devolucionSaleResuelta.folio,
+          devolucionParcial: out.kind === 'partial',
           notas:
-            'DEVOLUCIÓN: Entregue al cliente el importe indicado. El ticket original quedó cancelado por devolución.',
+            out.kind === 'partial' ?
+              `DEVOLUCIÓN PARCIAL: Reembolso ${formatMoney(monto)}. El ticket original se actualizó (líneas y cobros).`
+            : 'DEVOLUCIÓN: Entregue al cliente el importe indicado. El ticket original quedó cancelado por devolución.',
           resumenPagos: [{ label: 'Reembolso (devolución)', monto }],
         });
         setDevolucionFolioInput('');
         setDevolucionSaleResuelta(null);
+        setDevolucionLineasQty({});
         setFormaPago('01');
         clearCart();
         setCheckoutPhase('success');
@@ -1859,10 +1897,11 @@ export function POS() {
     checkoutOpen &&
     checkoutPhase === 'payment' &&
     formaPago === 'DEV' &&
-    devolucionSaleResuelta?.estado === 'completada';
+    devolucionSaleResuelta?.estado === 'completada' &&
+    (previewDevolucion?.reembolso ?? 0) > 0;
 
   const montoDialogoPrincipal = checkoutDevolucionListo
-    ? Number(devolucionSaleResuelta?.total) || 0
+    ? previewDevolucion?.reembolso ?? 0
     : totalCobro;
 
   const panelClass =
@@ -2303,7 +2342,7 @@ export function POS() {
                 ) : null}
                 {esFormaDevolucion ? (
                   <p className="text-[10px] text-amber-600 dark:text-amber-400/90 sm:text-xs">
-                    Devolución: ingrese el folio del ticket, pulse Buscar, deje el carrito vacío y use Cobrar.
+                    Devolución: folio, Buscar, ajuste cantidades a devolver (o Todo/Nada), carrito vacío y Cobrar.
                   </p>
                 ) : null}
                 {esFormaCotizacion ? (
@@ -2404,7 +2443,105 @@ export function POS() {
                           </span>
                         </p>
                         {devolucionSaleResuelta.estado === 'completada' ? (
-                          <p className="text-emerald-600 dark:text-emerald-400">Listo para devolver al cliente.</p>
+                          <div className="space-y-2">
+                            <p className="text-emerald-600 dark:text-emerald-400">
+                              Indique cantidades a devolver por artículo (o use «Todo» / «Nada»).
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                className="h-8 text-[11px]"
+                                onClick={() => {
+                                  const next: Record<string, number> = {};
+                                  for (const p of devolucionSaleResuelta.productos) {
+                                    next[p.id] = Number(p.cantidad) || 0;
+                                  }
+                                  setDevolucionLineasQty(next);
+                                }}
+                              >
+                                Todo el ticket
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-8 text-[11px]"
+                                onClick={() => {
+                                  const next: Record<string, number> = {};
+                                  for (const p of devolucionSaleResuelta.productos) {
+                                    next[p.id] = 0;
+                                  }
+                                  setDevolucionLineasQty(next);
+                                }}
+                              >
+                                Nada
+                              </Button>
+                            </div>
+                            <ul className="max-h-40 space-y-2 overflow-y-auto overscroll-contain rounded border border-slate-200/80 bg-slate-100/50 p-2 dark:border-slate-700/80 dark:bg-slate-900/40">
+                              {devolucionSaleResuelta.productos.map((ln) => {
+                                const maxQ = Number(ln.cantidad) || 0;
+                                const q = Math.min(
+                                  maxQ,
+                                  Math.max(0, Number(devolucionLineasQty[ln.id]) || 0)
+                                );
+                                const nombre =
+                                  ln.producto?.nombre?.trim() ||
+                                  ln.productoNombre?.trim() ||
+                                  `Producto (${String(ln.productId).slice(0, 8)}…)`;
+                                return (
+                                  <li
+                                    key={ln.id}
+                                    className="flex flex-col gap-1 rounded border border-transparent bg-white/60 px-2 py-1.5 dark:bg-slate-950/30 sm:flex-row sm:items-center sm:justify-between"
+                                  >
+                                    <span className="min-w-0 flex-1 text-[11px] leading-snug text-slate-800 dark:text-slate-200">
+                                      {nombre}
+                                    </span>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <Label className="sr-only" htmlFor={`devq-${ln.id}`}>
+                                        Cantidad a devolver
+                                      </Label>
+                                      <Input
+                                        id={`devq-${ln.id}`}
+                                        type="number"
+                                        inputMode="numeric"
+                                        min={0}
+                                        max={maxQ}
+                                        step={1}
+                                        value={q === 0 ? '' : String(q)}
+                                        onChange={(e) => {
+                                          const raw = e.target.value.replace(/[^\d]/g, '');
+                                          if (raw === '') {
+                                            setDevolucionLineasQty((prev) => ({ ...prev, [ln.id]: 0 }));
+                                            return;
+                                          }
+                                          const n = Math.min(maxQ, Math.max(0, parseInt(raw, 10) || 0));
+                                          setDevolucionLineasQty((prev) => ({ ...prev, [ln.id]: n }));
+                                        }}
+                                        className="h-8 w-16 border-slate-300 text-center font-mono text-xs dark:border-slate-600"
+                                      />
+                                      <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                                        / {maxQ}
+                                      </span>
+                                    </div>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                            {previewDevolucion && previewDevolucion.reembolso > 0 ? (
+                              <p className="text-[11px] font-medium text-cyan-600 dark:text-cyan-400">
+                                Reembolso estimado: {formatMoney(previewDevolucion.reembolso)}
+                                {previewDevolucion.kind === 'partial' ?
+                                  ' (devolución parcial)'
+                                : ' (ticket completo)'}
+                              </p>
+                            ) : (
+                              <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                                Ajuste las cantidades para ver el reembolso.
+                              </p>
+                            )}
+                          </div>
                         ) : devolucionSaleResuelta.estado === 'cancelada' ? (
                           <p className="text-amber-600 dark:text-amber-400">
                             {devolucionSaleResuelta.cancelacionMotivo === 'devolucion' ?
@@ -2612,11 +2749,13 @@ export function POS() {
             <Button
               type="button"
               onClick={() => openCheckoutDialog()}
-              disabled={
+                disabled={
                 esFormaDevolucion ?
                   !devolucionSaleResuelta ||
                   devolucionSaleResuelta.estado !== 'completada' ||
-                  items.length > 0
+                  items.length > 0 ||
+                  !previewDevolucion ||
+                  previewDevolucion.reembolso <= 0
                 : esFormaCotizacion
                   ? true
                   : items.length === 0 ||
@@ -2876,9 +3015,18 @@ export function POS() {
 
                 {checkoutDevolucionListo ? (
                   <p className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-3 text-center text-xs leading-relaxed text-slate-600 dark:text-slate-400 sm:text-sm">
-                    Al confirmar, el ticket original quedará como cancelado por devolución, el inventario se
-                    restaurará y el importe dejará de contar en totales del día. Entregue al cliente el dinero
-                    (o aplique su política de reembolso).
+                    {previewDevolucion?.kind === 'partial' ?
+                      <>
+                        Al confirmar, se registrará la devolución de las líneas elegidas: el inventario se
+                        reintegrará, el ticket se actualizará y los cobros se ajustarán al nuevo total. Entregue al
+                        cliente el reembolso indicado.
+                      </>
+                    : <>
+                        Al confirmar, el ticket original quedará como cancelado por devolución, el inventario se
+                        restaurará y el importe dejará de contar en totales del día. Entregue al cliente el dinero
+                        (o aplique su política de reembolso).
+                      </>
+                    }
                   </p>
                 ) : null}
 
@@ -3108,7 +3256,9 @@ export function POS() {
                 </div>
                 {ticketSnapshot?.modoDevolucion && ticketSnapshot.folioVentaOrigen ? (
                   <p className="mb-2 font-mono text-sm font-medium text-slate-700 dark:text-slate-300 sm:text-base">
-                    Ticket anulado {ticketSnapshot.folioVentaOrigen}
+                    {ticketSnapshot.devolucionParcial ?
+                      `Devolución parcial · ${ticketSnapshot.folioVentaOrigen}`
+                    : `Ticket anulado ${ticketSnapshot.folioVentaOrigen}`}
                   </p>
                 ) : ticketSnapshot?.folio ? (
                   <p className="mb-2 font-mono text-sm font-medium text-slate-700 dark:text-slate-300 sm:text-base">

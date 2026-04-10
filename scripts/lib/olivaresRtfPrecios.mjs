@@ -198,6 +198,70 @@ function pickFivePricesFromRows(rows, pad5) {
 }
 
 /**
+ * Un bloque RTF entre dos `\\cf1 SKU\\par` → nombre + 5 precios con IVA, o null si no aplica.
+ * @param {string} block
+ * @param {boolean} pad5
+ */
+function parseBlockToPreciosConIva(block, pad5) {
+  const nombre = extractNombreProducto(block);
+  if (!nombre) return null;
+
+  const rows = [];
+  let seq = 0;
+  const parts = block.split('\\par');
+  for (const part of parts) {
+    if (!part.includes('$')) continue;
+    const priceM = part.match(/\$(\d+(?:\.\d+)?)/);
+    if (!priceM) continue;
+    const timeM = part.match(
+      /(\d{1,2}\/\d{1,2}\/\d{4}\s+\d{1,2}:\d{2}:\d{2}(?:\s*[ap]\.\s*m\.)?)/i
+    );
+    const t = timeM ? parseMxDateTime(timeM[1]) : seq++;
+    rows.push({
+      t,
+      price: parseFloat(priceM[1]),
+    });
+  }
+
+  if (rows.length === 0) return null;
+
+  const pricesConIva = pickFivePricesFromRows(rows, pad5);
+  if (!pricesConIva) return null;
+
+  const preciosConIva = mapFiveConIvaPricesToLists(pricesConIva);
+  if (!preciosConIva) return null;
+
+  return { nombre, preciosConIva };
+}
+
+/**
+ * Todos los productos del RTF en orden de aparición (incluye el mismo SKU repetido con otro nombre).
+ * Útil para auditar ~N artículos vs. el Map de `parsePreciosRtf` (último SKU gana en clave duplicada).
+ */
+export function parsePreciosRtfBlocks(rtfText, opts = {}) {
+  const pad5 = opts.pad5 !== false;
+  const s = stripRtfPictBlocks(rtfText);
+  const skuRe = /\\cf1\s+(\d{1,14})\s*\\par/g;
+  const hits = [];
+  let m;
+  while ((m = skuRe.exec(s)) !== null) {
+    hits.push({ sku: m[1].trim(), idx: m.index, full: m[0] });
+  }
+
+  const out = [];
+  for (let i = 0; i < hits.length; i++) {
+    const skuKey = normSkuKey(hits[i].sku);
+    const start = hits[i].idx;
+    const end = hits[i + 1]?.idx ?? s.length;
+    const block = s.slice(start, end);
+    const parsed = parseBlockToPreciosConIva(block, pad5);
+    if (!parsed) continue;
+    out.push({ sku: skuKey, nombre: parsed.nombre, preciosConIva: parsed.preciosConIva });
+  }
+  return out;
+}
+
+/**
  * @returns {Map<string, { nombre: string, preciosConIva: Record<string, number> }>}
  */
 export function parsePreciosRtf(rtfText, opts = {}) {
@@ -220,35 +284,10 @@ export function parsePreciosRtf(rtfText, opts = {}) {
     const end = hits[i + 1]?.idx ?? s.length;
     const block = s.slice(start, end);
 
-    const nombre = extractNombreProducto(block);
-    if (!nombre) continue;
+    const parsed = parseBlockToPreciosConIva(block, pad5);
+    if (!parsed) continue;
 
-    const rows = [];
-    let seq = 0;
-    const parts = block.split('\\par');
-    for (const part of parts) {
-      if (!part.includes('$')) continue;
-      const priceM = part.match(/\$(\d+(?:\.\d+)?)/);
-      if (!priceM) continue;
-      const timeM = part.match(
-        /(\d{1,2}\/\d{1,2}\/\d{4}\s+\d{1,2}:\d{2}:\d{2}(?:\s*[ap]\.\s*m\.)?)/i
-      );
-      const t = timeM ? parseMxDateTime(timeM[1]) : seq++;
-      rows.push({
-        t,
-        price: parseFloat(priceM[1]),
-      });
-    }
-
-    if (rows.length === 0) continue;
-
-    const pricesConIva = pickFivePricesFromRows(rows, pad5);
-    if (!pricesConIva) continue;
-
-    const preciosConIva = mapFiveConIvaPricesToLists(pricesConIva);
-    if (!preciosConIva) continue;
-
-    const entry = { nombre, preciosConIva };
+    const entry = { nombre: parsed.nombre, preciosConIva: parsed.preciosConIva };
     const prev = map.get(skuKey);
     if (prev === undefined) {
       map.set(skuKey, entry);

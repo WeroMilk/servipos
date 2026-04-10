@@ -279,6 +279,65 @@ export async function cancelSaleFirestore(
   if (error) throw new Error(error.message);
 }
 
+/** Parche de doc ya validado por `computeDevolucionParcial` (productos, totales, pagos, notas). */
+export async function partialReturnSaleFirestore(
+  sucursalId: string,
+  saleId: string,
+  motivo: string,
+  patch: {
+    productos: Sale['productos'];
+    subtotal: number;
+    descuento: number;
+    impuestos: number;
+    total: number;
+    pagos: Sale['pagos'];
+    estado: 'completada';
+    notas: string;
+  }
+): Promise<void> {
+  const supabase = getSupabase();
+  const productos = patch.productos.map((p) => {
+    const nombre =
+      typeof p.productoNombre === 'string' && p.productoNombre.trim()
+        ? p.productoNombre.trim()
+        : p.producto?.nombre?.trim();
+    return {
+      id: p.id,
+      productId: p.productId,
+      ...(nombre ? { productoNombre: nombre } : {}),
+      cantidad: p.cantidad,
+      precioUnitario: p.precioUnitario,
+      descuento: p.descuento,
+      impuesto: p.impuesto,
+      subtotal: p.subtotal,
+      total: p.total,
+    };
+  });
+  const p_patch: Record<string, unknown> = {
+    productos,
+    subtotal: patch.subtotal,
+    descuento: patch.descuento,
+    impuestos: patch.impuestos,
+    total: patch.total,
+    pagos: patch.pagos.map((p) => ({
+      id: p.id,
+      formaPago: p.formaPago,
+      monto: p.monto,
+      referencia: p.referencia ?? null,
+    })),
+    notas: patch.notas,
+    estado: patch.estado,
+    updatedAt: new Date().toISOString(),
+  };
+  const { error } = await supabase.rpc('rpc_partial_return_sale', {
+    p_sucursal_id: sucursalId,
+    p_sale_id: saleId,
+    p_motivo: motivo ?? null,
+    p_patch,
+  });
+  if (error) throw new Error(error.message);
+}
+
 export async function fetchSalesByCajaSesion(sucursalId: string, sesionId: string): Promise<Sale[]> {
   const sid = sesionId.trim();
   if (!sid) return [];
