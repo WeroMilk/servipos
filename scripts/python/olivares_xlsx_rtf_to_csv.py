@@ -226,12 +226,15 @@ def parse_precios_rtf(
 ) -> dict[str, dict[str, Any]]:
     """SKU normalizado -> { nombre, preciosConIva }."""
     s = strip_rtf_pict_blocks(rtf_text)
-    sku_re = re.compile(r"\\cf1\s+(\d{1,14})\s*\\par")
+    # [\\]cf1: evita ambigüedad con \c en regex; alfanumérico (p. ej. w10010044); al menos un dígito (evita global\par)
+    sku_re = re.compile(r"[\\]cf1\s+([A-Za-z0-9]{1,24})\s*\\par")
     hits = list(sku_re.finditer(s))
     out: dict[str, dict[str, Any]] = {}
 
     for i, m in enumerate(hits):
         sku_raw = m.group(1).strip()
+        if not sku_raw or not re.search(r"\d", sku_raw):
+            continue
         sku_key = norm_sku_key(sku_raw)
         start = m.start()
         end = hits[i + 1].start() if i + 1 < len(hits) else len(s)

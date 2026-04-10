@@ -235,17 +235,31 @@ function parseBlockToPreciosConIva(block, pad5) {
 }
 
 /**
+ * Línea de código Crystal: `\cf1 <SKU>\par`. Suele ser numérico; también hay códigos alfanuméricos (p. ej. `w10010044`).
+ * `[\\]cf1` evita que `\c` se interprete como escape de control en RegExp. Se exige al menos un dígito para no cortar
+ * bloques en líneas basura tipo `\cf1 global\par` sin número de parte.
+ */
+const RTF_SKU_LINE_RE = /[\\]cf1\s+([A-Za-z0-9]{1,24})\s*\\par/g;
+
+function isLikelyRtfSkuToken(token) {
+  const t = String(token ?? '').trim();
+  return t.length > 0 && /\d/.test(t);
+}
+
+/**
  * Todos los productos del RTF en orden de aparición (incluye el mismo SKU repetido con otro nombre).
  * Útil para auditar ~N artículos vs. el Map de `parsePreciosRtf` (último SKU gana en clave duplicada).
  */
 export function parsePreciosRtfBlocks(rtfText, opts = {}) {
   const pad5 = opts.pad5 !== false;
   const s = stripRtfPictBlocks(rtfText);
-  const skuRe = /\\cf1\s+(\d{1,14})\s*\\par/g;
+  const skuRe = new RegExp(RTF_SKU_LINE_RE.source, 'g');
   const hits = [];
   let m;
   while ((m = skuRe.exec(s)) !== null) {
-    hits.push({ sku: m[1].trim(), idx: m.index, full: m[0] });
+    const sku = m[1].trim();
+    if (!isLikelyRtfSkuToken(sku)) continue;
+    hits.push({ sku, idx: m.index, full: m[0] });
   }
 
   const out = [];
@@ -270,11 +284,13 @@ export function parsePreciosRtf(rtfText, opts = {}) {
   const s = stripRtfPictBlocks(rtfText);
   const map = new Map();
 
-  const skuRe = /\\cf1\s+(\d{1,14})\s*\\par/g;
+  const skuRe = new RegExp(RTF_SKU_LINE_RE.source, 'g');
   const hits = [];
   let m;
   while ((m = skuRe.exec(s)) !== null) {
-    hits.push({ sku: m[1].trim(), idx: m.index, full: m[0] });
+    const sku = m[1].trim();
+    if (!isLikelyRtfSkuToken(sku)) continue;
+    hits.push({ sku, idx: m.index, full: m[0] });
   }
 
   for (let i = 0; i < hits.length; i++) {
