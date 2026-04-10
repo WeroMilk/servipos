@@ -4,6 +4,7 @@ import {
   parsePreciosPorListaClienteRaw,
   resolvePrecioVentaSinIvaForDoc,
   pickBestPrecioVentaRawFromFirestoreDoc,
+  coalescePreciosPorListaClienteInputs,
 } from '@/lib/precioListaNorm';
 import { normalizeClaveProdServ, normalizeClaveUnidadSat } from '@/lib/satCatalog';
 import { normSkuBarcode } from '@/lib/productCatalogUniqueness';
@@ -62,7 +63,9 @@ export function docToProduct(row: { id: string; doc: Record<string, unknown> }):
   const impuesto = typeof d.impuesto === 'number' ? d.impuesto : Number(d.impuesto) || 16;
   const preciosListaIncluyenIva: boolean | undefined =
     d.preciosListaIncluyenIva === true ? true : d.preciosListaIncluyenIva === false ? false : undefined;
-  const parsedLista = parsePreciosPorListaClienteRaw(d.preciosPorListaCliente);
+  const listaMerged =
+    coalescePreciosPorListaClienteInputs(d.precios, d.preciosPorListaCliente) ?? d.preciosPorListaCliente;
+  const parsedLista = parsePreciosPorListaClienteRaw(listaMerged);
   const precioVenta = resolvePrecioVentaSinIvaForDoc({
     rawPv,
     preciosPorListaCliente: parsedLista,

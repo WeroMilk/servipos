@@ -186,29 +186,110 @@ function recordWithCaseInsensitiveKeys(raw: Record<string, unknown>): Record<str
   return out;
 }
 
-/** Parsea el documento Firestore / IndexedDB al tipo `preciosPorListaCliente`. */
-export function parsePreciosPorListaClienteRaw(raw: unknown): Product['preciosPorListaCliente'] {
-  if (!raw || typeof raw !== 'object') return undefined;
-  const o = recordWithCaseInsensitiveKeys(raw as Record<string, unknown>);
-  const known = new Set<string>(CLIENT_PRICE_LIST_ORDER as unknown as string[]);
-  const out: Partial<Record<ClientPriceListId, number>> = {};
-  for (const id of CLIENT_PRICE_LIST_ORDER) {
-    const n = normalizeListaPrecioValue(o[id]);
-    if (n !== undefined) out[id] = n;
+/** Normaliza clave humana / Excel / legado para emparejar alias de listas. */
+function normListaAliasKey(rawKey: string): string {
+  return rawKey
+    .replace(/_/g, ' ')
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/[^\p{L}\p{N}+.-]+/gu, ' ')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+/**
+ * Alias → id canónico (`CLIENT_PRICE_LIST_ORDER`).
+ * Incluye variantes de importación y mayoreo + / −.
+ */
+const LISTA_ALIAS_TO_CANONICAL: Record<string, ClientPriceListId> = {
+  lista: 'regular',
+  publico: 'regular',
+  general: 'regular',
+  mostrador: 'regular',
+  tec: 'tecnico',
+  tecnica: 'tecnico',
+  mayoremenos: 'mayoreo_menos',
+  'mayoreo menos': 'mayoreo_menos',
+  'mayoreo-': 'mayoreo_menos',
+  'mayoreo -': 'mayoreo_menos',
+  'm -': 'mayoreo_menos',
+  'm-': 'mayoreo_menos',
+  'mayoreo bajo': 'mayoreo_menos',
+  'mayoreo menor': 'mayoreo_menos',
+  mayoreomas: 'mayoreo_mas',
+  'mayoreo mas': 'mayoreo_mas',
+  'mayoreo+': 'mayoreo_mas',
+  'mayoreo +': 'mayoreo_mas',
+  'm +': 'mayoreo_mas',
+  'm+': 'mayoreo_mas',
+  'mayoreo alto': 'mayoreo_mas',
+  'mayoreo mayor': 'mayoreo_mas',
+  'mayoreo plus': 'mayoreo_mas',
+  cananeas: 'cananea',
+  cananea: 'cananea',
+};
+
+function resolveKeyToListaId(rawKey: string): ClientPriceListId | undefined {
+  const spaced = rawKey.toLowerCase().trim().replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+  const underscored = spaced.replace(/ /g, '_');
+  if ((CLIENT_PRICE_LIST_ORDER as readonly string[]).includes(underscored)) {
+    return underscored as ClientPriceListId;
   }
-  let fallbackPositive: number | undefined;
-  for (const [k, v] of Object.entries(o)) {
-    const kid = k.toLowerCase().trim();
-    if (known.has(kid)) continue;
-    const n = normalizeListaPrecioValue(v);
-    if (n !== undefined && n > 0) {
-      if (fallbackPositive === undefined) fallbackPositive = n;
+  const n = normListaAliasKey(rawKey);
+  const compact = n.replace(/\s/g, '');
+  return LISTA_ALIAS_TO_CANONICAL[n] ?? LISTA_ALIAS_TO_CANONICAL[compact];
+}
+
+/**
+ * Une varias fuentes (p. ej. `doc.precios` anidado + `doc.preciosPorListaCliente`).
+ * Las fuentes posteriores pisan a las anteriores. Solo entran claves que corresponden a una lista conocida.
+ */
+export function coalescePreciosPorListaClienteInputs(...sources: unknown[]): Record<string, unknown> | undefined {
+  const acc: Partial<Record<ClientPriceListId, unknown>> = {};
+  for (const src of sources) {
+    if (!src || typeof src !== 'object' || Array.isArray(src)) continue;
+    const o = recordWithCaseInsensitiveKeys(src as Record<string, unknown>);
+    for (const [k, v] of Object.entries(o)) {
+      const id = resolveKeyToListaId(k);
+      if (!id) continue;
+      acc[id] = v;
     }
   }
-  const reg = out.regular;
-  if ((reg === undefined || reg <= 0) && fallbackPositive !== undefined && fallbackPositive > 0) {
-    out.regular = fallbackPositive;
+  return Object.keys(acc).length > 0 ? (acc as Record<string, unknown>) : undefined;
+}
+
+/** Parsea el documento Firestore / IndexedDB al tipo `preciosPorListaCliente`. */
+export function parsePreciosPorListaClienteRaw(raw: unknown): Product['preciosPorListaCliente'] {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const o = recordWithCaseInsensitiveKeys(raw as Record<string, unknown>);
+  const out: Partial<Record<ClientPriceListId, number>> = {};
+
+  for (const id of CLIENT_PRICE_LIST_ORDER) {
+    let picked: unknown = o[id];
+    if (picked === undefined || picked === null) {
+      for (const [k, v] of Object.entries(o)) {
+        if (resolveKeyToListaId(k) === id) {
+          picked = v;
+          break;
+        }
+      }
+    }
+    const n = normalizeListaPrecioValue(picked);
+    if (n !== undefined) out[id] = n;
   }
+
+  const orphanValues: number[] = [];
+  for (const [k, v] of Object.entries(o)) {
+    if (resolveKeyToListaId(k)) continue;
+    const n = normalizeListaPrecioValue(v);
+    if (n !== undefined && n > 0) orphanValues.push(roundMoney2(n));
+  }
+  const reg = out.regular;
+  if ((reg === undefined || reg <= 0) && orphanValues.length === 1) {
+    out.regular = orphanValues[0]!;
+  }
+
   return Object.keys(out).length > 0 ? out : undefined;
 }
 

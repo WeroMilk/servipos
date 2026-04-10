@@ -4,15 +4,19 @@ import {
   parsePreciosPorListaClienteRaw,
   resolvePrecioVentaSinIvaForDoc,
   pickBestPrecioVentaRawFromFirestoreDoc,
+  coalescePreciosPorListaClienteInputs,
 } from '@/lib/precioListaNorm';
 
 /** Evita throws en sort/UI cuando IndexedDB u orígenes devuelven campos incompletos. */
 export function coerceProduct(p: Product): Product {
-  const preciosPorListaCliente = parsePreciosPorListaClienteRaw(p.preciosPorListaCliente);
+  const rawDoc = p as unknown as Record<string, unknown>;
+  const listaMerged =
+    coalescePreciosPorListaClienteInputs(rawDoc.precios, p.preciosPorListaCliente) ??
+    p.preciosPorListaCliente;
+  const preciosPorListaCliente = parsePreciosPorListaClienteRaw(listaMerged);
   const preciosListaIncluyenIva =
     p.preciosListaIncluyenIva === true ? true : p.preciosListaIncluyenIva === false ? false : undefined;
   const impuesto = Number(p.impuesto);
-  const rawDoc = p as unknown as Record<string, unknown>;
   const precioVenta = resolvePrecioVentaSinIvaForDoc({
     rawPv: pickBestPrecioVentaRawFromFirestoreDoc(rawDoc) ?? rawDoc.precioVenta,
     preciosPorListaCliente,

@@ -2977,7 +2977,11 @@ export function Inventario() {
               </p>
               <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-500 [text-wrap:pretty]">
                 Si deja vacío un campo, en el POS se usa el precio de venta del artículo con el % de la lista en
-                Configuración → Precios por cliente.
+                Configuración → Precios por cliente. Los importes aquí son <span className="font-medium">sin IVA</span>{' '}
+                (salvo que el producto tenga activado “precios de lista con IVA” en catálogo). Si importó desde Excel
+                con columnas “Mayoreo +”, “Mayoreo -”, etc., el sistema las reconoce; también se leen precios guardados
+                dentro de <span className="font-medium">precios</span> en el documento junto con{' '}
+                <span className="font-medium">preciosPorListaCliente</span>.
               </p>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {CLIENT_PRICE_LIST_ORDER.map((id) => (
