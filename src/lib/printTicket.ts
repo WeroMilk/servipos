@@ -75,17 +75,31 @@ function escapeHtml(s: string): string {
 
 /**
  * Solo `printThermalTicket` (venta, cotización impresa como ticket, devolución):
- * márgenes de página más amplios, columna de texto más angosta y centrada (evita que el rollo se vea “comido”),
- * y pie más compacto desde sucursal hasta despedida.
+ * columna angosta + márgenes de página; margen derecho un poco mayor que el izquierdo y ligero corrimiento
+ * a la izquierda compensan impresoras que “tiran” el contenido a la derecha. Partir líneas largas (dirección, leyendas).
+ * Pie más compacto desde sucursal hasta despedida.
  */
 const THERMAL_TICKET_VENTA_STYLES = `
-  @page { size: 80mm auto; margin: 6mm 6.5mm 7mm 6.5mm; }
+  @page { size: 80mm auto; margin: 6mm 7.5mm 7mm 5mm; }
   body.ticket-venta {
-    position: static;
-    width: 58mm;
+    position: relative;
+    left: -3mm;
+    width: 56mm;
     max-width: 100%;
     margin: 0 auto;
-    padding: 10px 4px 14px;
+    padding: 10px 2px 14px;
+  }
+  body.ticket-venta table { table-layout: fixed; width: 100%; }
+  body.ticket-venta td { overflow-wrap: anywhere; word-break: break-word; }
+  body.ticket-venta td.right { white-space: normal; }
+  body.ticket-venta .meta,
+  body.ticket-venta .tot,
+  body.ticket-venta .ticket-pagos,
+  body.ticket-venta .pie-sucursal,
+  body.ticket-venta .ticket-politicas,
+  body.ticket-venta .ticket-notas {
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
   body.ticket-venta .pie-sucursal { font-size: 15px; line-height: 1.5; }
   body.ticket-venta .pie-sucursal .titulo-suc { font-size: 19px; margin-bottom: 6px; }
@@ -276,7 +290,7 @@ export function printThermalTicket(payload: TicketPayload): void {
     )
     .join('');
 
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Ticket</title>
+  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/><title>Ticket</title>
 <style>${THERMAL_BASE_STYLES}
 ${THERMAL_TICKET_VENTA_STYLES}
   .ticket-pagos { margin-top: 12px; padding-top: 10px; border-top: 1px dashed #333; font-size: 19px; line-height: 1.5; }
