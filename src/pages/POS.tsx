@@ -788,6 +788,29 @@ export function POS() {
     }
   }, [addItem, addToast]);
 
+  /** Escáner USB: suele escribir el código y enviar Enter; aquí se agrega al carrito sin depender del dropdown. */
+  const commitSearchEnter = useCallback(
+    async (raw: string) => {
+      const q = raw.trim();
+      if (!q) return;
+      const byBarcode = await searchByBarcode(q);
+      if (byBarcode) {
+        handleAddProduct(byBarcode);
+        return;
+      }
+      const matches = await searchProducts(q);
+      if (matches.length === 1) {
+        handleAddProduct(matches[0]);
+      } else if (matches.length === 0) {
+        addToast({ type: 'warning', message: `Sin coincidencias para: ${q}` });
+        setShowProductSearch(true);
+      } else {
+        setShowProductSearch(true);
+      }
+    },
+    [searchByBarcode, handleAddProduct, searchProducts, addToast]
+  );
+
   const stopMobileScanner = useCallback(async () => {
     const scanner = mobileScannerRef.current;
     mobileScannerScanHandledRef.current = false;
@@ -2024,6 +2047,11 @@ export function POS() {
                     ref={searchInputRef}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key !== 'Enter') return;
+                      e.preventDefault();
+                      void commitSearchEnter((e.currentTarget as HTMLInputElement).value);
+                    }}
                     onFocus={() => setShowProductSearch(true)}
                     placeholder="Buscar (F2) · SKU, código, nombre"
                     className="h-10 border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 pl-9 text-base text-slate-900 dark:text-slate-100 placeholder:text-slate-600 focus:border-cyan-500/50 sm:h-11 sm:pl-10 md:text-sm"

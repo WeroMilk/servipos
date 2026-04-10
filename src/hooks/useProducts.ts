@@ -312,10 +312,10 @@ export function useProductSearch() {
   }, [sucursalId]);
 
   const search = useCallback(
-    async (q: string) => {
+    async (q: string): Promise<Product[]> => {
       if (!q.trim()) {
         setResults([]);
-        return;
+        return [];
       }
 
       try {
@@ -329,13 +329,16 @@ export function useProductSearch() {
               (p.codigoBarras !== undefined && p.codigoBarras.includes(q))
           );
           setResults(data);
-          return;
+          return data;
         }
         const data = await searchProducts(q);
-        setResults(coerceProductList(data));
+        const list = coerceProductList(data);
+        setResults(list);
+        return list;
       } catch (err) {
         reportHookFailure('hook:useProductSearch', 'Búsqueda de productos', err);
         console.error('Error en búsqueda:', err);
+        return [];
       } finally {
         setLoading(false);
       }
