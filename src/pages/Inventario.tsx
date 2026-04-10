@@ -110,6 +110,42 @@ type InventoryMode = 'productos' | 'stock' | 'valor' | 'codigos';
 
 type InventorySortKey = 'nombre' | 'sku' | 'categoria' | 'precio' | 'existencia';
 
+/** Evita renderizar miles de filas DOM a la vez (principal coste de la pantalla). */
+const INVENTORY_PAGE_SIZE = 150;
+
+function InventorySortLabelButton({
+  sortKey,
+  label,
+  inventorySort,
+  onSort,
+}: {
+  sortKey: InventorySortKey;
+  label: string;
+  inventorySort: { key: InventorySortKey; dir: 'asc' | 'desc' };
+  onSort: (key: InventorySortKey) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(sortKey)}
+      className={cn(
+        '-mx-0.5 flex w-fit max-w-full items-center gap-0.5 rounded px-0.5 py-0.5 text-left text-[10px] uppercase tracking-wide transition-colors',
+        inventorySort.key === sortKey
+          ? 'font-semibold text-cyan-600 dark:text-cyan-400'
+          : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+      )}
+      aria-pressed={inventorySort.key === sortKey}
+    >
+      {label}
+      {inventorySort.key === sortKey ?
+        inventorySort.dir === 'asc' ?
+          <ArrowUp className="h-3 w-3 shrink-0 opacity-90" aria-hidden />
+        : <ArrowDown className="h-3 w-3 shrink-0 opacity-90" aria-hidden />
+      : null}
+    </button>
+  );
+}
+
 function compareInventoryProducts(
   a: Product,
   b: Product,
@@ -324,6 +360,7 @@ export function Inventario() {
     key: 'nombre',
     dir: 'asc',
   });
+  const [inventoryListPage, setInventoryListPage] = useState(1);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -394,6 +431,7 @@ export function Inventario() {
   const [addTemplateSearch, setAddTemplateSearch] = useState('');
 
   const addTemplateMatches = useMemo(() => {
+    if (!showAddDialog) return [];
     const q = addTemplateSearch.trim().toLowerCase();
     if (q.length < 1) return [];
     const rows = products.filter((p) => {
@@ -406,7 +444,7 @@ export function Inventario() {
       (a.nombre || '').localeCompare(b.nombre || '', 'es', { sensitivity: 'base' })
     );
     return rows.slice(0, 100);
-  }, [products, addTemplateSearch]);
+  }, [products, addTemplateSearch, showAddDialog]);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -1052,35 +1090,6 @@ export function Inventario() {
     );
   }, []);
 
-  function InventorySortLabelButton({
-    sortKey,
-    label,
-  }: {
-    sortKey: InventorySortKey;
-    label: string;
-  }) {
-    return (
-      <button
-        type="button"
-        onClick={() => handleInventorySortClick(sortKey)}
-        className={cn(
-          '-mx-0.5 flex w-fit max-w-full items-center gap-0.5 rounded px-0.5 py-0.5 text-left text-[10px] uppercase tracking-wide transition-colors',
-          inventorySort.key === sortKey
-            ? 'font-semibold text-cyan-600 dark:text-cyan-400'
-            : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-        )}
-        aria-pressed={inventorySort.key === sortKey}
-      >
-        {label}
-        {inventorySort.key === sortKey ?
-          inventorySort.dir === 'asc' ?
-            <ArrowUp className="h-3 w-3 shrink-0 opacity-90" aria-hidden />
-          : <ArrowDown className="h-3 w-3 shrink-0 opacity-90" aria-hidden />
-        : null}
-      </button>
-    );
-  }
-
   const displayProducts = useMemo(() => {
     let list = [...pool];
     if (inventoryMode === 'stock') {
@@ -1089,6 +1098,21 @@ export function Inventario() {
     list.sort((a, b) => compareInventoryProducts(a, b, inventorySort.key, inventorySort.dir));
     return list;
   }, [pool, inventoryMode, inventorySort]);
+
+  useEffect(() => {
+    setInventoryListPage(1);
+  }, [debouncedInventorySearch, inventoryMode, inventorySort.key, inventorySort.dir, pool.length]);
+
+  const inventoryTotalPages = Math.max(1, Math.ceil(displayProducts.length / INVENTORY_PAGE_SIZE));
+
+  useEffect(() => {
+    setInventoryListPage((p) => Math.min(Math.max(1, p), inventoryTotalPages));
+  }, [inventoryTotalPages]);
+
+  const visibleInventoryProducts = useMemo(() => {
+    const start = (inventoryListPage - 1) * INVENTORY_PAGE_SIZE;
+    return displayProducts.slice(start, start + INVENTORY_PAGE_SIZE);
+  }, [displayProducts, inventoryListPage]);
 
   useEffect(() => {
     if (inventoryMode !== 'codigos') return;
@@ -1485,7 +1509,7 @@ export function Inventario() {
                       : 'No se encontraron productos'}
                 </p>
               ) : inventoryMode === 'codigos' ? (
-                displayProducts.map((product) => (
+                visibleInventoryProducts.map((product) => (
                   <article
                     key={product.id}
                     className="rounded-xl border border-slate-200/90 bg-slate-50/95 p-3 shadow-sm dark:border-slate-800/80 dark:bg-slate-900/60"
@@ -1521,7 +1545,12 @@ export function Inventario() {
                       />
                     </div>
                     <div className="mt-3 space-y-1.5">
-                      <InventorySortLabelButton sortKey="sku" label="SKU" />
+                      <InventorySortLabelButton
+                        sortKey="sku"
+                        label="SKU"
+                        inventorySort={inventorySort}
+                        onSort={handleInventorySortClick}
+                      />
                       <Input
                         value={skuDrafts[product.id] ?? product.sku}
                         onChange={(e) => handleSkuDraftChange(product.id, e.target.value)}
@@ -1531,7 +1560,12 @@ export function Inventario() {
                       />
                     </div>
                     <div className="mt-2 space-y-1">
-                      <InventorySortLabelButton sortKey="categoria" label="Categoría" />
+                      <InventorySortLabelButton
+                        sortKey="categoria"
+                        label="Categoría"
+                        inventorySort={inventorySort}
+                        onSort={handleInventorySortClick}
+                      />
                       <Badge
                         variant="secondary"
                         className="max-w-full whitespace-normal break-words bg-slate-200 dark:bg-slate-800 text-left text-xs text-slate-700 dark:text-slate-300"
@@ -1542,7 +1576,7 @@ export function Inventario() {
                   </article>
                 ))
               ) : (
-                displayProducts.map((product) => (
+                visibleInventoryProducts.map((product) => (
                   <article
                     key={product.id}
                     className="rounded-xl border border-slate-200/90 bg-slate-50/95 p-3 shadow-sm dark:border-slate-800/80 dark:bg-slate-900/60"
@@ -1585,17 +1619,32 @@ export function Inventario() {
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-slate-200/80 pt-3 dark:border-slate-800/60 sm:grid-cols-4">
                       <div>
-                        <InventorySortLabelButton sortKey="sku" label="SKU" />
+                        <InventorySortLabelButton
+                          sortKey="sku"
+                          label="SKU"
+                          inventorySort={inventorySort}
+                          onSort={handleInventorySortClick}
+                        />
                         <p className="font-mono text-xs text-slate-800 dark:text-slate-200">{product.sku}</p>
                       </div>
                       <div>
-                        <InventorySortLabelButton sortKey="precio" label="Precio" />
+                        <InventorySortLabelButton
+                          sortKey="precio"
+                          label="Precio"
+                          inventorySort={inventorySort}
+                          onSort={handleInventorySortClick}
+                        />
                         <p className="text-sm font-medium tabular-nums text-cyan-400">
                           {formatMoney(getProductPrecioPublicoRegular(product))}
                         </p>
                       </div>
                       <div>
-                        <InventorySortLabelButton sortKey="existencia" label="Stock" />
+                        <InventorySortLabelButton
+                          sortKey="existencia"
+                          label="Stock"
+                          inventorySort={inventorySort}
+                          onSort={handleInventorySortClick}
+                        />
                         <div className="flex items-center gap-1">
                           <span
                             className={cn(
@@ -1613,7 +1662,12 @@ export function Inventario() {
                         </div>
                       </div>
                       <div className="col-span-2 min-w-0 sm:col-span-1">
-                        <InventorySortLabelButton sortKey="categoria" label="Categoría" />
+                        <InventorySortLabelButton
+                          sortKey="categoria"
+                          label="Categoría"
+                          inventorySort={inventorySort}
+                          onSort={handleInventorySortClick}
+                        />
                         <Badge
                           variant="secondary"
                           className="mt-0.5 max-w-full whitespace-normal break-words bg-slate-200 dark:bg-slate-800 text-left text-xs text-slate-700 dark:text-slate-300"
@@ -1861,7 +1915,7 @@ export function Inventario() {
                       </TableCell>
                     </TableRow>
                   ) : inventoryMode === 'codigos' ? (
-                    displayProducts.map((product) => (
+                    visibleInventoryProducts.map((product) => (
                       <TableRow key={product.id} className="border-slate-200/80 dark:border-slate-800/50">
                         <TableCell className="min-w-0 font-medium whitespace-normal break-words text-slate-800 dark:text-slate-200">
                           {product.nombre}
@@ -1894,7 +1948,7 @@ export function Inventario() {
                       </TableRow>
                     ))
                   ) : (
-                    displayProducts.map((product) => (
+                    visibleInventoryProducts.map((product) => (
                       <TableRow key={product.id} className="border-slate-200/80 dark:border-slate-800/50">
                         <TableCell className="min-w-0 align-top whitespace-normal">
                           <div className="min-w-0 break-words">
@@ -1947,6 +2001,46 @@ export function Inventario() {
               </Table>
             </div>
           </div>
+          {displayProducts.length > INVENTORY_PAGE_SIZE ? (
+            <div className="flex shrink-0 flex-col gap-2 border-t border-slate-200 bg-slate-100/95 px-3 py-2 dark:border-slate-800 dark:bg-slate-950/80 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-[11px] text-slate-600 dark:text-slate-400 sm:text-xs">
+                Mostrando{' '}
+                <span className="font-medium tabular-nums text-slate-800 dark:text-slate-200">
+                  {(inventoryListPage - 1) * INVENTORY_PAGE_SIZE + 1}
+                </span>
+                –
+                <span className="font-medium tabular-nums text-slate-800 dark:text-slate-200">
+                  {Math.min(inventoryListPage * INVENTORY_PAGE_SIZE, displayProducts.length)}
+                </span>{' '}
+                de <span className="font-medium tabular-nums">{displayProducts.length}</span> · Página{' '}
+                <span className="tabular-nums">
+                  {inventoryListPage}/{inventoryTotalPages}
+                </span>
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 border-slate-300 text-xs dark:border-slate-600"
+                  disabled={inventoryListPage <= 1}
+                  onClick={() => setInventoryListPage((p) => Math.max(1, p - 1))}
+                >
+                  Anterior
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 border-slate-300 text-xs dark:border-slate-600"
+                  disabled={inventoryListPage >= inventoryTotalPages}
+                  onClick={() => setInventoryListPage((p) => Math.min(inventoryTotalPages, p + 1))}
+                >
+                  Siguiente
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
     </PageShell>

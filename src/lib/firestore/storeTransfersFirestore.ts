@@ -29,6 +29,7 @@ function mapItems(raw: unknown): StoreTransferLine[] {
     return {
       productIdOrigen: String(o.productIdOrigen ?? ''),
       sku: String(o.sku ?? ''),
+      codigoBarras: typeof o.codigoBarras === 'string' ? o.codigoBarras : undefined,
       nombre: String(o.nombre ?? ''),
       cantidad: Number(o.cantidad) || 0,
     };
@@ -155,11 +156,17 @@ export async function confirmIncomingStoreTransfer(
   const resolved: { destProductId: string; cantidad: number; nombre: string }[] = [];
   for (const line of items) {
     if (line.cantidad <= 0) continue;
-    let pid = await resolveDestProductIdForTransfer(destSucursalId, line.productIdOrigen, line.sku);
+    let pid = await resolveDestProductIdForTransfer(
+      destSucursalId,
+      line.productIdOrigen,
+      line.sku,
+      line.codigoBarras
+    );
     if (!pid) {
       pid = await ensureProductAtDestForTransfer(destSucursalId, origenSucursalId, line.productIdOrigen, {
         nombre: line.nombre,
         sku: line.sku,
+        codigoBarras: line.codigoBarras,
       });
     }
     resolved.push({ destProductId: pid, cantidad: line.cantidad, nombre: line.nombre });

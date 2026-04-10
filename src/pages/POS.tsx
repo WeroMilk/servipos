@@ -120,6 +120,12 @@ function looksLikePosScanToken(s: string): boolean {
   return false;
 }
 
+/** Escape no debe cerrar el POS si el usuario está cerrando un desplegable Radix (p. ej. forma de pago). */
+function isEventFromOpenRadixSelect(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  return Boolean(el?.closest?.('[data-slot="select-content"]'));
+}
+
 const POS_SCAN_IDLE_MS = 42;
 
 function cartLineUnitSinIva(item: CartItem, listaId: ClientPriceListId): number {
@@ -701,14 +707,14 @@ export function POS() {
     return () => document.removeEventListener('pointerdown', onPointerDown, true);
   }, [showProductSearch, searchQuery]);
 
-  const handleCheckoutOpenChange = (open: boolean) => {
+  const handleCheckoutOpenChange = useCallback((open: boolean) => {
     setCheckoutOpen(open);
     if (!open) {
       setCheckoutPhase('payment');
       setTicketSnapshot(null);
       setMobileTab('cart');
     }
-  };
+  }, []);
 
   /** Reinicia carrito, cobro, búsqueda y devolución como al entrar al POS. */
   const resetPuntoVenta = useCallback(() => {
@@ -734,7 +740,7 @@ export function POS() {
     setDevolucionBusy(false);
     setVentaResetConfirmOpen(false);
     searchInputRef.current?.blur();
-  }, [clearCart]);
+  }, [clearCart, handleCheckoutOpenChange]);
 
   const confirmVentaReset = useCallback(async () => {
     const resumed = openSaleResume;
@@ -776,14 +782,14 @@ export function POS() {
     setUnitPriceDialogOpen(true);
   };
 
-  const closeUnitPriceDialog = () => {
+  const closeUnitPriceDialog = useCallback(() => {
     setListasPrecioCatalogDialogOpen(false);
     setUnitPriceDialogOpen(false);
     setUnitPriceEditProductId(null);
     setUnitPriceEditStep('pin');
     setUnitPricePinInput('');
     setUnitPriceInput('');
-  };
+  }, []);
 
   const canEditCatalogListasDesdePos = hasPermission('inventario:editar');
 
@@ -2214,6 +2220,85 @@ export function POS() {
     handleCheckoutOpenChange(false);
   };
 
+  /** Escape: cerrar el modal/flujo más reciente; Enter en cobro éxito / listas / etc. se maneja en cada `DialogContent`. */
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      if (isEventFromOpenRadixSelect(e.target)) return;
+
+      if (ventaResetConfirmOpen) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        setVentaResetConfirmOpen(false);
+        return;
+      }
+      if (listasPrecioCatalogDialogOpen && !listasPrecioCatalogSaving) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        setListasPrecioCatalogDialogOpen(false);
+        return;
+      }
+      if (unitPriceDialogOpen) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        closeUnitPriceDialog();
+        return;
+      }
+      if (pasarCxcClientePickerSale != null && pasarCxcBusyId == null) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        setPasarCxcClientePickerSale(null);
+        return;
+      }
+      if (checkoutOpen) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        handleCheckoutOpenChange(false);
+        return;
+      }
+      if (ventasAbiertasDialogOpen) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        setVentasAbiertasDialogOpen(false);
+        return;
+      }
+      if (showClientDialog) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        setShowClientDialog(false);
+        return;
+      }
+      if (mobileScannerOpen) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        setMobileScannerOpen(false);
+        return;
+      }
+      if (showProductSearch) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        setShowProductSearch(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [
+    ventaResetConfirmOpen,
+    listasPrecioCatalogDialogOpen,
+    listasPrecioCatalogSaving,
+    unitPriceDialogOpen,
+    pasarCxcClientePickerSale,
+    pasarCxcBusyId,
+    checkoutOpen,
+    ventasAbiertasDialogOpen,
+    showClientDialog,
+    mobileScannerOpen,
+    showProductSearch,
+    closeUnitPriceDialog,
+    handleCheckoutOpenChange,
+  ]);
+
   const handlePrintTicket = () => {
     const snap = ticketSnapshot;
     if (!snap) return;
@@ -3370,6 +3455,14 @@ export function POS() {
               : 'w-[min(calc(100vw-1rem),24rem)] min-w-0 px-4 py-4 pl-4 pr-12 sm:max-w-sm sm:p-6 sm:pr-14 md:w-[min(calc(100vw-2rem),28rem)]'
           )}
           onKeyDown={(e) => {
+            if (e.key === 'Enter' && checkoutPhase === 'success') {
+              const t = e.target as HTMLElement;
+              if (t.tagName === 'BUTTON' || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'A')
+                return;
+              e.preventDefault();
+              handleFinishSale();
+              return;
+            }
             if (checkoutPhase !== 'payment' || e.key !== 'Enter' || processingSale) return;
             const t = e.target as HTMLElement;
             if (t.tagName === 'BUTTON' || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') return;
@@ -3823,7 +3916,17 @@ export function POS() {
           if (!o) closeUnitPriceDialog();
         }}
       >
-        <DialogContent className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:max-w-lg">
+        <DialogContent
+          className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:max-w-lg"
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter' || unitPriceEditStep !== 'price' || e.defaultPrevented) return;
+            const t = e.target as HTMLElement;
+            if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'BUTTON') return;
+            if (t.closest('[data-slot="select-content"]')) return;
+            e.preventDefault();
+            saveUnitPriceFromDialog();
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Precio de la línea</DialogTitle>
             {unitPriceDialogLine ? (
@@ -3846,6 +3949,7 @@ export function POS() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
+                    e.stopPropagation();
                     confirmUnitPricePin();
                   }
                 }}
@@ -3952,6 +4056,7 @@ export function POS() {
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
+                      e.stopPropagation();
                       saveUnitPriceFromDialog();
                     }
                   }}
@@ -3985,6 +4090,14 @@ export function POS() {
           overlayClassName="z-[200]"
           className="z-[201] max-h-[min(88dvh,calc(100dvh-4rem))] overflow-y-auto border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:max-w-md"
           useDialogDescription
+          onKeyDownCapture={(e) => {
+            if (e.key !== 'Enter' || listasPrecioCatalogSaving) return;
+            const t = e.target as HTMLElement;
+            if (t.tagName === 'TEXTAREA' || t.isContentEditable) return;
+            if (t.closest('[data-slot="select-content"]')) return;
+            e.preventDefault();
+            void saveListasPrecioCatalogFromPos();
+          }}
         >
           <DialogHeader>
             <DialogTitle>Precios por lista en catálogo</DialogTitle>
@@ -4002,6 +4115,24 @@ export function POS() {
                 : 'Los importes son sin IVA.'}
             </span>
           </p>
+          <div className="mb-4 space-y-3 rounded-lg border border-cyan-500/25 bg-cyan-500/10 p-3 dark:border-cyan-500/30 dark:bg-cyan-500/10">
+            <p className="text-xs font-semibold uppercase tracking-wide text-cyan-800 dark:text-cyan-200">
+              Precio de compra (sin IVA)
+            </p>
+            <p className="text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100">
+              {unitPriceDialogLine?.product != null &&
+              unitPriceDialogLine.product.precioCompra != null &&
+              Number.isFinite(Number(unitPriceDialogLine.product.precioCompra))
+                ? formatMoney(Number(unitPriceDialogLine.product.precioCompra))
+                : '—'}
+            </p>
+            <p className="text-[10px] leading-snug text-slate-500 dark:text-slate-500 [text-wrap:pretty]">
+              Costo unitario que a usted le cuesta el producto: el valor guardado en catálogo como compra,{' '}
+              <span className="font-medium">sin IVA</span>. El{' '}
+              {unitPriceDialogLine?.product?.impuesto ?? 16}% de IVA del artículo aplica a la venta al público, no a este
+              costo. Actualícelo al editar el producto en Inventario o al registrar entradas con precio de compra.
+            </p>
+          </div>
           <div className="space-y-3">
             {CLIENT_PRICE_LIST_ORDER.map((lid) => (
               <div key={lid} className="space-y-1">

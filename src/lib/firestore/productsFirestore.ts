@@ -343,7 +343,7 @@ export async function ensureProductAtDestForTransfer(
   destSucursalId: string,
   origenSucursalId: string,
   productIdOrigen: string,
-  fallback: { nombre: string; sku: string }
+  fallback: { nombre: string; sku: string; codigoBarras?: string }
 ): Promise<string> {
   const supabase = getSupabase();
   const { data: destRow } = await supabase
@@ -352,7 +352,8 @@ export async function ensureProductAtDestForTransfer(
     .eq('sucursal_id', destSucursalId)
     .eq('id', productIdOrigen)
     .maybeSingle();
-  if (destRow?.doc && (destRow.doc as { activo?: boolean }).activo !== false) {
+  /** Mismo id en destino: solo se sumará existencia en el RPC (no reemplazar ficha). */
+  if (destRow?.doc != null && typeof destRow.doc === 'object') {
     return productIdOrigen;
   }
 
@@ -364,6 +365,19 @@ export async function ensureProductAtDestForTransfer(
     .maybeSingle();
   const ts = new Date().toISOString();
   const originOd = orig?.doc as Record<string, unknown> | undefined;
+  const cbFromLine = (fallback.codigoBarras ?? '').trim();
+  const cbFromOrigin =
+    originOd?.codigoBarras != null && String(originOd.codigoBarras).trim() !== ''
+      ? String(originOd.codigoBarras).trim()
+      : '';
+  const pidLinked = await resolveDestProductIdForTransfer(
+    destSucursalId,
+    productIdOrigen,
+    fallback.sku,
+    cbFromLine || cbFromOrigin || null
+  );
+  if (pidLinked) return pidLinked;
+
   let doc: Record<string, unknown>;
   if (originOd) {
     const od = originOd;
@@ -428,7 +442,8 @@ export async function ensureProductAtDestForTransfer(
 export async function resolveDestProductIdForTransfer(
   destSucursalId: string,
   productIdOrigen: string,
-  sku: string
+  sku: string,
+  codigoBarras?: string | null
 ): Promise<string | null> {
   const supabase = getSupabase();
   const { data: byId } = await supabase
@@ -437,19 +452,35 @@ export async function resolveDestProductIdForTransfer(
     .eq('sucursal_id', destSucursalId)
     .eq('id', productIdOrigen)
     .maybeSingle();
-  if (byId?.doc && (byId.doc as { activo?: boolean }).activo !== false) {
+  if (byId?.doc != null && typeof byId.doc === 'object') {
     return byId.id;
   }
   const sk = (sku ?? '').trim();
-  if (!sk) return null;
+  const barKey = normSkuBarcode(codigoBarras ?? '');
+
   const { rows: allRows, error: fe } = await fetchAllProductRowsForSucursal(destSucursalId);
   if (fe) return null;
-  const matches = allRows.filter(
-    (r) =>
-      String((r.doc as { sku?: string })?.sku ?? '').trim() === sk &&
-      (r.doc as { activo?: boolean }).activo !== false
-  );
-  if (matches.length === 1) return matches[0]!.id;
+
+  const rowMatchesSku = (doc: Record<string, unknown>) =>
+    sk !== '' && String((doc as { sku?: string }).sku ?? '').trim() === sk;
+
+  const rowMatchesBarcode = (doc: Record<string, unknown>) => {
+    if (!barKey) return false;
+    const dBar = normSkuBarcode(String((doc as { codigoBarras?: string }).codigoBarras ?? ''));
+    const dSku = normSkuBarcode(String((doc as { sku?: string }).sku ?? ''));
+    return dBar === barKey || dSku === barKey;
+  };
+
+  const skuMatches = allRows.filter((r) => rowMatchesSku(r.doc));
+  if (skuMatches.length === 1) return skuMatches[0]!.id;
+  if (skuMatches.length > 1 && barKey) {
+    const narrowed = skuMatches.filter((r) => rowMatchesBarcode(r.doc));
+    if (narrowed.length === 1) return narrowed[0]!.id;
+  }
+
+  const barMatches = allRows.filter((r) => rowMatchesBarcode(r.doc));
+  if (skuMatches.length === 0 && barMatches.length === 1) return barMatches[0]!.id;
+
   return null;
 }
 

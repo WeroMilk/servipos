@@ -398,6 +398,8 @@ export type StoreTransferEstado = 'pendiente' | 'recibida';
 export interface StoreTransferLine {
   productIdOrigen: string;
   sku: string;
+  /** Código de barras en origen; ayuda a enlazar el mismo artículo en destino si el id/SKU difieren. */
+  codigoBarras?: string;
   nombre: string;
   cantidad: number;
 }
