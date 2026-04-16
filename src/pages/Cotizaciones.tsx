@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Plus,
   Search,
@@ -203,6 +204,7 @@ function printQuotationLetter(q: Quotation, fallbackSucursalId?: string | null):
 }
 
 export function Cotizaciones() {
+  const navigate = useNavigate();
   const { quotations, loading, addQuotation, convertToSale, revertToPending, removeQuotation } =
     useQuotations();
   const { products } = useProducts();
@@ -372,8 +374,16 @@ export function Cotizaciones() {
 
   const handleConvertToSale = async (quotation: Quotation) => {
     try {
-      await convertToSale(quotation.id, user?.id || 'system', cajeroNombreFromUser(user) || undefined);
-      addToast({ type: 'success', message: 'Cotización convertida a venta' });
+      const saleId = await convertToSale(
+        quotation.id,
+        user?.id || 'system',
+        cajeroNombreFromUser(user) || undefined
+      );
+      addToast({
+        type: 'success',
+        message: 'Venta cargada en el punto de venta. Registre el cobro.',
+      });
+      navigate('/pos', { state: { posAbrirVentaId: saleId } });
     } catch (error: unknown) {
       addToast({ type: 'error', message: error instanceof Error ? error.message : 'Error' });
     }

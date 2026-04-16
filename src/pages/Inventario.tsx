@@ -98,6 +98,7 @@ import { formatInAppTimezone } from '@/lib/appTimezone';
 import { isMovimientoLlegadaMercancia } from '@/lib/inventoryAbasto';
 import { downloadInventarioCompleto } from '@/lib/inventoryExport';
 import { filterProductsBySearchText } from '@/lib/productSearchLocal';
+import { effectiveListaPreciosIncluyenIva } from '@/lib/catalogPricingFlags';
 import {
   buildProveedorNombrePorLinea,
   formatProveedorHistorialLineaResuelto,
@@ -238,6 +239,103 @@ function roundMoney2(n: number): number {
 function precioVentaSinIvaToConIva(sinIva: number, impuestoPct: number): number {
   const imp = Number(impuestoPct) || 0;
   return roundMoney2(sinIva * (1 + imp / 100));
+}
+
+function precioConIvaToSinIva(conIva: number, impuestoPct: number): number {
+  const imp = Number(impuestoPct) || 0;
+  if (imp <= 0) return roundMoney2(conIva);
+  return roundMoney2(conIva / (1 + imp / 100));
+}
+
+type InventarioPrecioIvaMode = 'sin' | 'con';
+
+/**
+ * `preciosPorListaCliente` se guarda con o sin IVA según el producto/config; el toggle solo cambia cómo se captura en pantalla.
+ */
+function convertListaPrecioStrForDisplay(
+  storageStr: string,
+  storageIncluyeIva: boolean,
+  modoDisplayConIva: boolean,
+  impuestoPct: number
+): string {
+  const t = (storageStr ?? '').trim();
+  if (t === '') return '';
+  const n = parsePrecioNumberFromFirestore(t);
+  if (!Number.isFinite(n) || n < 0) return storageStr;
+  const sinIva = storageIncluyeIva ? precioConIvaToSinIva(n, impuestoPct) : roundMoney2(n);
+  const conIva = storageIncluyeIva ? roundMoney2(n) : precioVentaSinIvaToConIva(n, impuestoPct);
+  const display = modoDisplayConIva ? conIva : sinIva;
+  if (!Number.isFinite(display) || display <= 0) return '';
+  return roundMoney2(display).toFixed(2);
+}
+
+function convertListaPrecioInputToStorage(
+  inputStr: string,
+  storageIncluyeIva: boolean,
+  modoDisplayConIva: boolean,
+  impuestoPct: number
+): string {
+  const t = (inputStr ?? '').trim();
+  if (t === '') return '';
+  const n = parsePrecioNumberFromFirestore(t);
+  if (!Number.isFinite(n) || n < 0) return t;
+  const displaySinIva = modoDisplayConIva ? precioConIvaToSinIva(n, impuestoPct) : roundMoney2(n);
+  const displayConIva = modoDisplayConIva ? roundMoney2(n) : precioVentaSinIvaToConIva(n, impuestoPct);
+  const storage = storageIncluyeIva ? displayConIva : displaySinIva;
+  const rounded = roundMoney2(storage);
+  return rounded > 0 ? String(rounded) : '';
+}
+
+function InventarioPrecioIvaModeToggle({
+  value,
+  onChange,
+  disabled,
+  className,
+}: {
+  value: InventarioPrecioIvaMode;
+  onChange: (v: InventarioPrecioIvaMode) => void;
+  disabled?: boolean;
+  className?: string;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label="Ver y capturar precios con IVA o sin IVA"
+      className={cn(
+        'inline-flex shrink-0 rounded-md border border-slate-300 bg-slate-200/80 p-0.5 dark:border-slate-600 dark:bg-slate-800/80',
+        className
+      )}
+    >
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onChange('sin')}
+        className={cn(
+          'rounded px-2.5 py-1 text-xs font-medium transition-colors',
+          value === 'sin'
+            ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-100'
+            : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
+        )}
+        aria-pressed={value === 'sin'}
+      >
+        Sin IVA
+      </button>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onChange('con')}
+        className={cn(
+          'rounded px-2.5 py-1 text-xs font-medium transition-colors',
+          value === 'con'
+            ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-100'
+            : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
+        )}
+        aria-pressed={value === 'con'}
+      >
+        Con IVA
+      </button>
+    </div>
+  );
 }
 
 /** Texto de catálogo en mayúsculas aunque el usuario escriba en minúsculas. */
@@ -412,6 +510,10 @@ export function Inventario() {
   const [productEntradasHist, setProductEntradasHist] = useState<InventoryMovement[]>([]);
   const [productEntradasHistLoading, setProductEntradasHistLoading] = useState(false);
   const [editPreciosSectionOpen, setEditPreciosSectionOpen] = useState(false);
+  const [addPrecioIvaMode, setAddPrecioIvaMode] = useState<InventarioPrecioIvaMode>('sin');
+  const [editPrecioIvaMode, setEditPrecioIvaMode] = useState<InventarioPrecioIvaMode>('sin');
+  const [editPreciosListaIvaMode, setEditPreciosListaIvaMode] = useState<InventarioPrecioIvaMode>('sin');
+  const [preciosDialogListaIvaMode, setPreciosDialogListaIvaMode] = useState<InventarioPrecioIvaMode>('sin');
   const [inventoryBootstrapping, setInventoryBootstrapping] = useState(true);
 
   const isAdmin = user?.role === 'admin';
@@ -426,6 +528,16 @@ export function Inventario() {
     products.forEach((p) => m.set(p.id, p));
     return m;
   }, [products]);
+
+  const editListaStorageIncluyeIva = useMemo(
+    () => (selectedProduct ? effectiveListaPreciosIncluyenIva(selectedProduct) : true),
+    [selectedProduct]
+  );
+
+  const preciosDialogListaStorageIncluyeIva = useMemo(
+    () => (preciosDialogProduct ? effectiveListaPreciosIncluyenIva(preciosDialogProduct) : true),
+    [preciosDialogProduct]
+  );
 
   const [addTemplateComboOpen, setAddTemplateComboOpen] = useState(false);
   const [addTemplateSearch, setAddTemplateSearch] = useState('');
@@ -600,6 +712,7 @@ export function Inventario() {
       setAddTemplateLlegadaProduct(null);
       setAddTemplateLlegadaQtyStr('');
       setAddProveedorFilter('');
+      setAddPrecioIvaMode('sin');
     }
   }, [showAddDialog]);
 
@@ -950,6 +1063,8 @@ export function Inventario() {
     setStockQtyFocus(false);
     setStockPrecioCompraFocus(false);
     setEditPreciosSectionOpen(false);
+    setEditPrecioIvaMode('sin');
+    setEditPreciosListaIvaMode('sin');
     setShowEditDialog(true);
   };
 
@@ -986,6 +1101,7 @@ export function Inventario() {
       }
       setPreciosDialogListaStr(pl);
       setPreciosDialogProduct(p);
+      setPreciosDialogListaIvaMode('sin');
       setPreciosDialogOpen(true);
     },
     [productById]
@@ -2288,54 +2404,122 @@ export function Inventario() {
                 8 dígitos según catálogo c_ClaveProdServ del SAT (facturación).
               </p>
             </div>
+            <div className="col-span-2 flex flex-col gap-2 border-b border-slate-200/80 pb-3 dark:border-slate-700/80 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                Precios de venta y compra (elija cómo capturarlos)
+              </p>
+              <InventarioPrecioIvaModeToggle value={addPrecioIvaMode} onChange={setAddPrecioIvaMode} />
+            </div>
             <div className="space-y-1.5 lg:col-span-1 lg:space-y-1">
-              <Label className="text-sm lg:text-xs">Precio de venta (sin IVA) *</Label>
+              <Label className="text-sm lg:text-xs">
+                {addPrecioIvaMode === 'con' ? 'Precio de venta (con IVA) *' : 'Precio de venta (sin IVA) *'}
+              </Label>
               <InventarioCurrencyInput
                 min={0}
                 step="any"
                 value={
-                  addNumFocus.precioVenta && formData.precioVenta === 0 ? '' : formData.precioVenta
+                  addNumFocus.precioVenta && formData.precioVenta === 0
+                    ? ''
+                    : addPrecioIvaMode === 'con'
+                      ? formData.precioVenta === 0
+                        ? ''
+                        : precioVentaSinIvaToConIva(formData.precioVenta, formData.impuesto)
+                      : formData.precioVenta
                 }
                 onFocus={() => setAddNumFocus((f) => ({ ...f, precioVenta: true }))}
                 onBlur={() => setAddNumFocus((f) => ({ ...f, precioVenta: false }))}
                 onChange={(e) => {
                   const v = e.target.value;
+                  const imp = formData.impuesto;
                   if (v === '') setFormData((d) => ({ ...d, precioVenta: 0 }));
-                  else setFormData((d) => ({ ...d, precioVenta: parseMoneyInput(v) }));
+                  else {
+                    const parsed = parseMoneyInput(v);
+                    setFormData((d) => ({
+                      ...d,
+                      precioVenta: addPrecioIvaMode === 'con' ? precioConIvaToSinIva(parsed, imp) : parsed,
+                    }));
+                  }
                 }}
                 className="h-10 border-slate-300 bg-slate-200 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9"
               />
               <p className="text-[10px] leading-snug text-slate-500 dark:text-slate-400 lg:line-clamp-2">
                 {formData.precioVenta > 0 ? (
+                  addPrecioIvaMode === 'sin' ? (
+                    <>
+                      Con IVA ({formData.impuesto}%):{' '}
+                      <span className="font-medium text-slate-700 dark:text-slate-300">
+                        {formatMoney(precioVentaSinIvaToConIva(formData.precioVenta, formData.impuesto))}
+                      </span>
+                      . Se guarda en catálogo el precio sin IVA.
+                    </>
+                  ) : (
+                    <>
+                      Sin IVA:{' '}
+                      <span className="font-medium text-slate-700 dark:text-slate-300">
+                        {formatMoney(formData.precioVenta)}
+                      </span>
+                      . El catálogo guarda siempre la base sin impuesto.
+                    </>
+                  )
+                ) : addPrecioIvaMode === 'sin' ? (
                   <>
-                    Con IVA ({formData.impuesto}%):{' '}
-                    <span className="font-medium text-slate-700 dark:text-slate-300">
-                      {formatMoney(precioVentaSinIvaToConIva(formData.precioVenta, formData.impuesto))}
-                    </span>
-                    . Se guarda en catálogo el precio sin IVA.
+                    Ingrese el precio base sin impuesto; el sistema calcula el precio con IVA (tasa{' '}
+                    {formData.impuesto}%).
                   </>
                 ) : (
-                  <>Ingrese el precio base sin impuesto; el sistema calcula el precio con IVA (tasa {formData.impuesto}%).</>
+                  <>
+                    Ingrese el precio al público con IVA; el sistema guarda la base sin impuesto (tasa{' '}
+                    {formData.impuesto}%).
+                  </>
                 )}
               </p>
             </div>
             <div className="space-y-1.5 lg:col-span-1 lg:space-y-1">
-              <Label className="text-sm lg:text-xs">Precio de compra (sin IVA)</Label>
+              <Label className="text-sm lg:text-xs">
+                {addPrecioIvaMode === 'con' ? 'Precio de compra (con IVA)' : 'Precio de compra (sin IVA)'}
+              </Label>
               <InventarioCurrencyInput
                 min={0}
                 step="any"
-                value={addNumFocus.precioCompra && formData.precioCompra === 0 ? '' : formData.precioCompra}
+                value={
+                  addNumFocus.precioCompra && formData.precioCompra === 0
+                    ? ''
+                    : addPrecioIvaMode === 'con'
+                      ? formData.precioCompra === 0
+                        ? ''
+                        : precioVentaSinIvaToConIva(formData.precioCompra, formData.impuesto)
+                      : formData.precioCompra
+                }
                 onFocus={() => setAddNumFocus((f) => ({ ...f, precioCompra: true }))}
                 onBlur={() => setAddNumFocus((f) => ({ ...f, precioCompra: false }))}
                 onChange={(e) => {
                   const v = e.target.value;
+                  const imp = formData.impuesto;
                   if (v === '') setFormData((d) => ({ ...d, precioCompra: 0 }));
-                  else setFormData((d) => ({ ...d, precioCompra: parseMoneyInput(v) }));
+                  else {
+                    const parsed = parseMoneyInput(v);
+                    setFormData((d) => ({
+                      ...d,
+                      precioCompra: addPrecioIvaMode === 'con' ? precioConIvaToSinIva(parsed, imp) : parsed,
+                    }));
+                  }
                 }}
                 className="h-10 border-slate-300 bg-slate-200 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9"
               />
               <p className="text-[10px] text-slate-500 dark:text-slate-400 lg:leading-tight">
-                Mismo criterio que en la factura de compra (base sin impuesto).
+                {addPrecioIvaMode === 'sin' ? (
+                  'Mismo criterio que en la factura de compra (base sin impuesto).'
+                ) : formData.precioCompra > 0 ? (
+                  <>
+                    Equiv. sin IVA:{' '}
+                    <span className="font-medium text-slate-700 dark:text-slate-300">
+                      {formatMoney(formData.precioCompra)}
+                    </span>
+                    . Se guarda en catálogo sin impuesto.
+                  </>
+                ) : (
+                  'Ingrese el costo unitario con IVA incluido; se guarda la base sin impuesto.'
+                )}
               </p>
             </div>
             <div className="space-y-1.5 lg:col-span-1 lg:space-y-1">
@@ -2586,6 +2770,8 @@ export function Inventario() {
           if (!open) {
             setSelectedProduct(null);
             setEditPreciosSectionOpen(false);
+            setEditPrecioIvaMode('sin');
+            setEditPreciosListaIvaMode('sin');
             setStockAdjustment({
               tipo: 'entrada',
               cantidad: 0,
@@ -2681,53 +2867,123 @@ export function Inventario() {
                 className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 font-mono text-slate-900 dark:text-slate-100"
               />
             </div>
+            <div className="col-span-2 flex flex-col gap-2 border-b border-slate-200/80 pb-3 dark:border-slate-700/80 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                Precios de venta y compra (elija cómo capturarlos)
+              </p>
+              <InventarioPrecioIvaModeToggle value={editPrecioIvaMode} onChange={setEditPrecioIvaMode} />
+            </div>
             <div className="space-y-2">
-              <Label>Precio de venta (sin IVA) *</Label>
+              <Label>
+                {editPrecioIvaMode === 'con' ? 'Precio de venta (con IVA) *' : 'Precio de venta (sin IVA) *'}
+              </Label>
               <InventarioCurrencyInput
                 min={0}
                 step="any"
                 value={
-                  editNumFocus.precioVenta && formData.precioVenta === 0 ? '' : formData.precioVenta
+                  editNumFocus.precioVenta && formData.precioVenta === 0
+                    ? ''
+                    : editPrecioIvaMode === 'con'
+                      ? formData.precioVenta === 0
+                        ? ''
+                        : precioVentaSinIvaToConIva(formData.precioVenta, formData.impuesto)
+                      : formData.precioVenta
                 }
                 onFocus={() => setEditNumFocus((f) => ({ ...f, precioVenta: true }))}
                 onBlur={() => setEditNumFocus((f) => ({ ...f, precioVenta: false }))}
                 onChange={(e) => {
                   const v = e.target.value;
+                  const imp = formData.impuesto;
                   if (v === '') setFormData((d) => ({ ...d, precioVenta: 0 }));
-                  else setFormData((d) => ({ ...d, precioVenta: parseMoneyInput(v) }));
+                  else {
+                    const parsed = parseMoneyInput(v);
+                    setFormData((d) => ({
+                      ...d,
+                      precioVenta: editPrecioIvaMode === 'con' ? precioConIvaToSinIva(parsed, imp) : parsed,
+                    }));
+                  }
                 }}
                 className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
               <p className="text-[10px] leading-snug text-slate-500 dark:text-slate-400">
                 {formData.precioVenta > 0 ? (
+                  editPrecioIvaMode === 'sin' ? (
+                    <>
+                      Con IVA ({formData.impuesto}%):{' '}
+                      <span className="font-medium text-slate-700 dark:text-slate-300">
+                        {formatMoney(precioVentaSinIvaToConIva(formData.precioVenta, formData.impuesto))}
+                      </span>
+                      . Se guarda en catálogo el precio sin IVA.
+                    </>
+                  ) : (
+                    <>
+                      Sin IVA:{' '}
+                      <span className="font-medium text-slate-700 dark:text-slate-300">
+                        {formatMoney(formData.precioVenta)}
+                      </span>
+                      . El catálogo guarda siempre la base sin impuesto.
+                    </>
+                  )
+                ) : editPrecioIvaMode === 'sin' ? (
                   <>
-                    Con IVA ({formData.impuesto}%):{' '}
-                    <span className="font-medium text-slate-700 dark:text-slate-300">
-                      {formatMoney(precioVentaSinIvaToConIva(formData.precioVenta, formData.impuesto))}
-                    </span>
-                    . Se guarda en catálogo el precio sin IVA.
+                    Ingrese el precio base sin impuesto; el sistema calcula el precio con IVA (tasa {formData.impuesto}
+                    %).
                   </>
                 ) : (
-                  <>Ingrese el precio base sin impuesto; el sistema calcula el precio con IVA (tasa {formData.impuesto}%).</>
+                  <>
+                    Ingrese el precio al público con IVA; el sistema guarda la base sin impuesto (tasa{' '}
+                    {formData.impuesto}%).
+                  </>
                 )}
               </p>
             </div>
             <div className="space-y-2">
-              <Label>Precio de compra (sin IVA)</Label>
+              <Label>
+                {editPrecioIvaMode === 'con' ? 'Precio de compra (con IVA)' : 'Precio de compra (sin IVA)'}
+              </Label>
               <InventarioCurrencyInput
                 min={0}
                 step="any"
-                value={editNumFocus.precioCompra && formData.precioCompra === 0 ? '' : formData.precioCompra}
+                value={
+                  editNumFocus.precioCompra && formData.precioCompra === 0
+                    ? ''
+                    : editPrecioIvaMode === 'con'
+                      ? formData.precioCompra === 0
+                        ? ''
+                        : precioVentaSinIvaToConIva(formData.precioCompra, formData.impuesto)
+                      : formData.precioCompra
+                }
                 onFocus={() => setEditNumFocus((f) => ({ ...f, precioCompra: true }))}
                 onBlur={() => setEditNumFocus((f) => ({ ...f, precioCompra: false }))}
                 onChange={(e) => {
                   const v = e.target.value;
+                  const imp = formData.impuesto;
                   if (v === '') setFormData((d) => ({ ...d, precioCompra: 0 }));
-                  else setFormData((d) => ({ ...d, precioCompra: parseMoneyInput(v) }));
+                  else {
+                    const parsed = parseMoneyInput(v);
+                    setFormData((d) => ({
+                      ...d,
+                      precioCompra: editPrecioIvaMode === 'con' ? precioConIvaToSinIva(parsed, imp) : parsed,
+                    }));
+                  }
                 }}
                 className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
-              <p className="text-[10px] text-slate-500 dark:text-slate-400">Precio unitario de compra sin impuesto.</p>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                {editPrecioIvaMode === 'sin' ? (
+                  'Precio unitario de compra sin impuesto.'
+                ) : formData.precioCompra > 0 ? (
+                  <>
+                    Equiv. sin IVA:{' '}
+                    <span className="font-medium text-slate-700 dark:text-slate-300">
+                      {formatMoney(formData.precioCompra)}
+                    </span>
+                    . Se guarda en catálogo sin impuesto.
+                  </>
+                ) : (
+                  'Ingrese el costo unitario con IVA incluido; se guarda la base sin impuesto.'
+                )}
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Stock Mínimo</Label>
@@ -2833,12 +3089,33 @@ export function Inventario() {
             </Button>
             {editPreciosSectionOpen ? (
               <div className="mt-3 space-y-3">
-                <p className="text-xs font-medium leading-snug text-slate-600 dark:text-slate-400 [text-wrap:balance]">
-                  Precios opcionales por tipo de cliente (sin IVA)
-                </p>
-                <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-500 [text-wrap:pretty]">
-                  Si deja vacío, en el POS se usa el precio de venta con el % de la lista en Configuración →
-                  Precios{'\u00a0'}por{'\u00a0'}cliente.
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0 space-y-1">
+                    <p className="text-xs font-medium leading-snug text-slate-600 dark:text-slate-400 [text-wrap:balance]">
+                      Precios opcionales por tipo de cliente
+                    </p>
+                    <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-500 [text-wrap:pretty]">
+                      Si deja vacío, en el POS se usa el precio de venta con el % de la lista en Configuración →
+                      Precios{'\u00a0'}por{'\u00a0'}cliente. Use el interruptor para capturar con IVA o sin IVA; el
+                      catálogo sigue su configuración (listas con o sin IVA incluido).
+                    </p>
+                  </div>
+                  <InventarioPrecioIvaModeToggle
+                    value={editPreciosListaIvaMode}
+                    onChange={setEditPreciosListaIvaMode}
+                    className="self-start sm:mt-0.5"
+                  />
+                </div>
+                <p className="text-[10px] text-slate-500 dark:text-slate-500">
+                  Modo de captura:{' '}
+                  <span className="font-medium text-slate-700 dark:text-slate-300">
+                    {editPreciosListaIvaMode === 'con' ? 'con IVA' : 'sin IVA'}
+                  </span>
+                  . En base de datos las listas están como{' '}
+                  <span className="font-medium text-slate-700 dark:text-slate-300">
+                    {editListaStorageIncluyeIva ? 'importe con IVA' : 'importe sin IVA'}
+                  </span>
+                  .
                 </p>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {CLIENT_PRICE_LIST_ORDER.map((id) => (
@@ -2850,9 +3127,22 @@ export function Inventario() {
                         type="text"
                         inputMode="decimal"
                         placeholder="—"
-                        value={preciosListaStr[id]}
+                        value={convertListaPrecioStrForDisplay(
+                          preciosListaStr[id],
+                          editListaStorageIncluyeIva,
+                          editPreciosListaIvaMode === 'con',
+                          formData.impuesto
+                        )}
                         onChange={(e) =>
-                          setPreciosListaStr((prev) => ({ ...prev, [id]: e.target.value }))
+                          setPreciosListaStr((prev) => ({
+                            ...prev,
+                            [id]: convertListaPrecioInputToStorage(
+                              e.target.value,
+                              editListaStorageIncluyeIva,
+                              editPreciosListaIvaMode === 'con',
+                              formData.impuesto
+                            ),
+                          }))
                         }
                         className="h-9 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                       />
@@ -2967,7 +3257,11 @@ export function Inventario() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Precio unitario de compra (sin IVA)</Label>
+                  <Label>
+                    {editPrecioIvaMode === 'con'
+                      ? 'Precio unitario de compra (con IVA)'
+                      : 'Precio unitario de compra (sin IVA)'}
+                  </Label>
                   <InventarioCurrencyInput
                     min={0}
                     step="any"
@@ -2976,23 +3270,44 @@ export function Inventario() {
                         ? ''
                         : stockAdjustment.precioCompraUnit === 0
                           ? ''
-                          : stockAdjustment.precioCompraUnit
+                          : editPrecioIvaMode === 'con'
+                            ? precioVentaSinIvaToConIva(
+                                stockAdjustment.precioCompraUnit,
+                                formData.impuesto
+                              )
+                            : stockAdjustment.precioCompraUnit
                     }
                     onFocus={() => setStockPrecioCompraFocus(true)}
                     onBlur={() => setStockPrecioCompraFocus(false)}
                     onChange={(e) => {
                       const v = e.target.value;
+                      const imp = formData.impuesto;
                       if (v === '') setStockAdjustment((st) => ({ ...st, precioCompraUnit: 0 }));
-                      else
+                      else {
+                        const parsed = parseMoneyInput(v);
                         setStockAdjustment((st) => ({
                           ...st,
-                          precioCompraUnit: parseMoneyInput(v),
+                          precioCompraUnit:
+                            editPrecioIvaMode === 'con' ? precioConIvaToSinIva(parsed, imp) : parsed,
                         }));
+                      }
                     }}
                     className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                   />
                   <p className="text-[11px] text-slate-500 dark:text-slate-500">
-                    Opcional (sin IVA). Se guarda en el historial de Configuración → Abasto.
+                    {editPrecioIvaMode === 'sin' ? (
+                      'Opcional (sin IVA). Se guarda en el historial de Configuración → Abasto.'
+                    ) : stockAdjustment.precioCompraUnit > 0 ? (
+                      <>
+                        Equiv. sin IVA:{' '}
+                        <span className="font-medium text-slate-700 dark:text-slate-300">
+                          {formatMoney(stockAdjustment.precioCompraUnit)}
+                        </span>
+                        . Se registra sin impuesto en abasto.
+                      </>
+                    ) : (
+                      'Opcional. Capture con IVA; se guarda la base sin impuesto en el historial de abasto.'
+                    )}
                   </p>
                 </div>
               </div>
@@ -3035,6 +3350,7 @@ export function Inventario() {
           if (!open) {
             setPreciosDialogProduct(null);
             setPreciosDialogListaStr(emptyPreciosListaStr());
+            setPreciosDialogListaIvaMode('sin');
           }
         }}
       >
@@ -3047,19 +3363,41 @@ export function Inventario() {
                 <span className="text-slate-500"> · SKU {preciosDialogProduct.sku}</span>
               </DialogDescription>
             ) : null}
+            {preciosDialogProduct ? (
+              <div className="flex flex-col gap-2 border-t border-slate-200/80 pt-3 dark:border-slate-800/80 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-500">
+                  Vista de importes: listas de cliente y costo de compra (el catálogo sigue guardando compra sin IVA).
+                </p>
+                <InventarioPrecioIvaModeToggle
+                  value={preciosDialogListaIvaMode}
+                  onChange={setPreciosDialogListaIvaMode}
+                  disabled={preciosDialogSaving}
+                  className="self-start sm:self-center"
+                />
+              </div>
+            ) : null}
           </DialogHeader>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3">
             <div className="mb-4 space-y-3 rounded-lg border border-slate-200 bg-slate-200/50 p-3 dark:border-slate-700 dark:bg-slate-800/40">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-700 dark:text-slate-300">
-                Precios por tipo de cliente (sin IVA)
-              </p>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-700 dark:text-slate-300">
+                  Precios por tipo de cliente
+                </p>
+                <InventarioPrecioIvaModeToggle
+                  value={preciosDialogListaIvaMode}
+                  onChange={setPreciosDialogListaIvaMode}
+                  disabled={preciosDialogSaving}
+                  className="self-start"
+                />
+              </div>
               <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-500 [text-wrap:pretty]">
                 Si deja vacío un campo, en el POS se usa el precio de venta del artículo con el % de la lista en
-                Configuración → Precios por cliente. Los importes aquí son <span className="font-medium">sin IVA</span>{' '}
-                (salvo que el producto tenga activado “precios de lista con IVA” en catálogo). Si importó desde Excel
-                con columnas “Mayoreo +”, “Mayoreo -”, etc., el sistema las reconoce; también se leen precios guardados
-                dentro de <span className="font-medium">precios</span> en el documento junto con{' '}
-                <span className="font-medium">preciosPorListaCliente</span>.
+                Configuración → Precios por cliente. Use el interruptor para ver o capturar con IVA o sin IVA; en base de
+                datos las listas siguen guardadas como{' '}
+                <span className="font-medium">
+                  {preciosDialogListaStorageIncluyeIva ? 'importe con IVA' : 'importe sin IVA'}
+                </span>
+                . Si importó desde Excel con columnas “Mayoreo +”, “Mayoreo -”, etc., el sistema las reconoce.
               </p>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {CLIENT_PRICE_LIST_ORDER.map((id) => (
@@ -3072,9 +3410,22 @@ export function Inventario() {
                       inputMode="decimal"
                       placeholder="—"
                       disabled={preciosDialogSaving}
-                      value={preciosDialogListaStr[id]}
+                      value={convertListaPrecioStrForDisplay(
+                        preciosDialogListaStr[id],
+                        preciosDialogListaStorageIncluyeIva,
+                        preciosDialogListaIvaMode === 'con',
+                        preciosDialogProduct?.impuesto ?? 16
+                      )}
                       onChange={(e) =>
-                        setPreciosDialogListaStr((prev) => ({ ...prev, [id]: e.target.value }))
+                        setPreciosDialogListaStr((prev) => ({
+                          ...prev,
+                          [id]: convertListaPrecioInputToStorage(
+                            e.target.value,
+                            preciosDialogListaStorageIncluyeIva,
+                            preciosDialogListaIvaMode === 'con',
+                            preciosDialogProduct?.impuesto ?? 16
+                          ),
+                        }))
                       }
                       className="h-9 border-slate-300 dark:border-slate-700 bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100"
                     />
@@ -3085,20 +3436,37 @@ export function Inventario() {
 
             <div className="mb-4 space-y-3 rounded-lg border border-cyan-500/25 bg-cyan-500/10 p-3 dark:border-cyan-500/30 dark:bg-cyan-500/10">
               <p className="text-xs font-semibold uppercase tracking-wide text-cyan-800 dark:text-cyan-200">
-                Precio de compra (sin IVA)
+                Precio de compra
               </p>
               <p className="text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100">
                 {preciosDialogProduct != null &&
                 preciosDialogProduct.precioCompra != null &&
                 Number.isFinite(Number(preciosDialogProduct.precioCompra))
-                  ? formatMoney(Number(preciosDialogProduct.precioCompra))
+                  ? preciosDialogListaIvaMode === 'con'
+                    ? formatMoney(
+                        precioVentaSinIvaToConIva(
+                          Number(preciosDialogProduct.precioCompra),
+                          preciosDialogProduct.impuesto ?? 16
+                        )
+                      )
+                    : formatMoney(Number(preciosDialogProduct.precioCompra))
                   : '—'}
               </p>
               <p className="text-[10px] leading-snug text-slate-500 dark:text-slate-500 [text-wrap:pretty]">
-                Costo unitario que a usted le cuesta el producto: el valor guardado en catálogo como compra,{' '}
-                <span className="font-medium">sin IVA</span>. El {preciosDialogProduct?.impuesto ?? 16}% de IVA del
-                artículo aplica a la venta al público, no a este costo. Actualícelo al editar el producto o al registrar
-                entradas con precio de compra.
+                Costo unitario en catálogo se guarda <span className="font-medium">sin IVA</span>
+                {preciosDialogProduct != null &&
+                preciosDialogProduct.precioCompra != null &&
+                Number.isFinite(Number(preciosDialogProduct.precioCompra)) &&
+                preciosDialogListaIvaMode === 'con' ? (
+                  <>
+                    . Equiv. sin IVA:{' '}
+                    <span className="font-medium text-slate-700 dark:text-slate-300">
+                      {formatMoney(Number(preciosDialogProduct.precioCompra))}
+                    </span>
+                  </>
+                ) : null}
+                . El {preciosDialogProduct?.impuesto ?? 16}% de IVA del artículo aplica a la venta al público, no a este
+                costo. Actualícelo al editar el producto o al registrar entradas con precio de compra.
               </p>
             </div>
 

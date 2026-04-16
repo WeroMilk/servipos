@@ -1047,6 +1047,12 @@ export function Configuracion() {
                   <p className="mb-2 text-[11px] leading-snug text-slate-600 dark:text-slate-400 lg:mb-1.5">
                     Edita datos y montos; totales al imprimir. Se guarda local en este equipo.
                   </p>
+                  <p className="mb-2 text-[10px] leading-snug text-slate-500 dark:text-slate-500 lg:mb-1.5">
+                    En <span className="font-medium text-slate-600 dark:text-slate-400">Facturación</span> puede generar y
+                    descargar el XML del CFDI de ingreso. Este apartado solo prepara la representación impresa de prueba;
+                    <span className="font-medium"> no genera XML de nómina</span> (complemento Nomina 1.2 + timbre PAC)
+                    en la aplicación.
+                  </p>
 
                   <div className="space-y-1.5 lg:space-y-1">
                     <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">

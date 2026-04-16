@@ -81,3 +81,24 @@ export function buildInvoiceCfdiQrUrl(inv: Invoice): string | null {
     selloDigitalEmisor: CFDI_MUESTRA_SELLO_EMISOR,
   });
 }
+
+/**
+ * URL para el código bidimensional del recibo de nómina en **modo prueba** (Configuración), sin XML timbrado.
+ * Usa UUID y sello de muestra; el portal del SAT no mostrará un CFDI válido hasta timbrar el XML con un PAC.
+ */
+export function buildNominaPruebaCfdiQrUrl(args: {
+  rfcEmisor: string;
+  rfcReceptorTrabajador: string;
+  totalNeto: number;
+}): string | null {
+  const re = args.rfcEmisor.trim().toUpperCase();
+  const rr = args.rfcReceptorTrabajador.trim().toUpperCase();
+  if (!re || !rr) return null;
+  return buildSatVerificacionCfdiUrl({
+    uuid: CFDI_MUESTRA_UUID,
+    rfcEmisor: re,
+    rfcReceptor: rr,
+    total: args.totalNeto,
+    selloDigitalEmisor: CFDI_MUESTRA_SELLO_EMISOR,
+  });
+}

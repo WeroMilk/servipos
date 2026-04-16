@@ -4,10 +4,10 @@ import { formatInAppTimezone } from '@/lib/appTimezone';
 import { formatMoney } from '@/lib/utils';
 import {
   buildInvoiceCfdiQrUrl,
+  buildNominaPruebaCfdiQrUrl,
   buildSatVerificacionCfdiUrl,
   CFDI_MUESTRA_UUID,
 } from '@/lib/satVerificacionCfdi';
-import { buildCfdi40XmlString } from '@/lib/cfdiXmlString';
 import { openCfdiLetterPrint } from '@/lib/openLetterPrint';
 import {
   CLAVES_UNIDAD,
@@ -182,36 +182,6 @@ table.clasica tbody tr.filler td { height: 1.1em; padding-top: 4px; padding-bott
 .qr-zona { flex: 0 0 auto; }
 .qr-zona img { display: block; }
 .qr-caption { font-size: 5.75pt; margin-top: 5px; max-width: 100px; line-height: 1.3; text-align: center; }
-.xml-panel {
-  flex: 1;
-  min-width: 0;
-  border: 1px solid #000;
-  background: #fafafa;
-  display: flex;
-  flex-direction: column;
-  max-height: 128px;
-}
-.xml-panel .xml-hdr {
-  font-size: 6.1pt;
-  font-weight: 700;
-  padding: 5px 7px;
-  background: #e5e5e5;
-  border-bottom: 1px solid #000;
-  text-transform: uppercase;
-  line-height: 1.35;
-}
-.xml-panel pre {
-  margin: 0;
-  padding: 7px 8px;
-  font-family: Consolas, 'Courier New', monospace;
-  font-size: 5.6pt;
-  line-height: 1.22;
-  white-space: pre-wrap;
-  word-break: break-all;
-  overflow: hidden;
-  flex: 1;
-  max-height: 104px;
-}
 .pago-caja { border: 1px solid #000; padding: 7px 10px; font-size: 7.35pt; font-weight: 700; text-align: center; line-height: 1.35; }
 .tot-wrap { border: 1px solid #000; padding: 8px 10px; font-size: 8.5pt; height: 100%; }
 .tot-line { display: flex; justify-content: space-between; gap: 10px; margin: 5px 0; padding: 2px 0; font-size: 8pt; line-height: 1.35; }
@@ -230,7 +200,6 @@ body .doc-brand-foot { margin-top: 10px !important; padding-top: 6px !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
-  .xml-panel pre,
   .sellos .mono {
     font-family: "Courier New", Courier, monospace !important;
   }
@@ -280,14 +249,6 @@ export async function buildInvoiceCfdiPrintDocumentHtml(inv: Invoice): Promise<s
   } else {
     qrBlock = `<div class="qr-zona"><div class="qr-caption">${escHtml('Sin RFC emisor no se puede generar el QR.')}</div></div>`;
   }
-
-  const xmlFull = buildCfdi40XmlString(inv);
-  const xmlMax = 2600;
-  const xmlCut =
-    xmlFull.length > xmlMax
-      ? `${xmlFull.slice(0, xmlMax)}\n<!-- ...continua; descargue el XML completo... -->`
-      : xmlFull;
-  const xmlExcerptHtml = escHtml(xmlCut);
 
   const productos = inv.productos ?? [];
   const rowsConceptos = productos
@@ -409,10 +370,6 @@ ${aviso}
     <p class="aduanero-sicofi">NUMERO Y FECHA DE DOCUMENTO ADUANERO: ______ (solo importacion 1a. mano) | NUMERO DE APROBACION SICOFI: ______</p>
     <div class="qr-xml-row">
       ${qrBlock}
-      <div class="xml-panel">
-        <div class="xml-hdr">Vista previa XML CFDI 4.0 (mismo contenido que el archivo .xml)</div>
-        <pre>${xmlExcerptHtml}</pre>
-      </div>
     </div>
     <div class="pago-caja">${escHtml(metodoPagoTexto)}</div>
     <p class="cfdi-nota">Forma de pago: ${formaPagoLabel(inv.formaPago)}. ${inv.esPrueba || inv.estado !== 'timbrada' ? 'Sin validez fiscal hasta timbrar con PAC; el QR usa formato del SAT solo como demostracion.' : 'CFDI timbrado: valide el XML y el portal del SAT.'}</p>
@@ -598,13 +555,17 @@ table.mini th { background: #eef2f7; }
 .num { text-align: right; }
 .tot { margin-top: 6px; font-size: 8pt; border: 1px solid #333; padding: 5px 8px; display: inline-block; min-width: 220px; }
 .tot strong { font-size: 9pt; }
+.nomina-qr-row { display: flex; gap: 10px; align-items: flex-start; margin-top: 8px; }
+.nomina-qr-row .qr-zona { flex: 0 0 auto; }
+.nomina-qr-row .qr-zona img { display: block; }
+.nomina-qr-row .qr-caption { font-size: 5.75pt; margin-top: 5px; max-width: 104px; line-height: 1.3; text-align: center; }
 .muted { font-size: 6.5pt; color: #444; margin-top: 6px; line-height: 1.3; }
 @media print {
   .grid-2, .tables-2, .tot { break-inside: avoid; page-break-inside: avoid; }
 }
 `;
 
-export function buildNominaPruebaPrintDocumentHtml(input: NominaPruebaPrintInput): string {
+export async function buildNominaPruebaPrintDocumentHtml(input: NominaPruebaPrintInput): Promise<string> {
   const { config, serie, folio } = input;
   const draft = mergeNominaPruebaInput(input);
   const { receptor, periodo, percepciones, deducciones } = draft;
@@ -615,6 +576,24 @@ export function buildNominaPruebaPrintDocumentHtml(input: NominaPruebaPrintInput
   );
   const totalDeducciones = deducciones.reduce((s, d) => s + (Number(d.importe) || 0), 0);
   const neto = totalPercepciones - totalDeducciones;
+
+  let qrRowHtml = '';
+  const qrUrl = buildNominaPruebaCfdiQrUrl({
+    rfcEmisor: config.rfc,
+    rfcReceptorTrabajador: receptor.rfc,
+    totalNeto: neto,
+  });
+  if (qrUrl) {
+    const QRCode = (await import('qrcode')).default;
+    const dataUrl = await QRCode.toDataURL(qrUrl, {
+      width: 92,
+      margin: 0,
+      errorCorrectionLevel: 'M',
+    });
+    qrRowHtml = `<div class="nomina-qr-row"><div class="qr-zona"><img src="${dataUrl}" width="92" height="92" alt="QR CFDI" /><div class="qr-caption">${escHtml(
+      'Formato verificación SAT (muestra). Sin timbre PAC no aplica en el portal.'
+    )}</div></div></div>`;
+  }
 
   const fecha = formatInAppTimezone(new Date(), { dateStyle: 'long', timeStyle: 'short' });
   const cp = config.lugarExpedicion || '—';
@@ -703,8 +682,10 @@ export function buildNominaPruebaPrintDocumentHtml(input: NominaPruebaPrintInput
   <div><strong>Neto a pagar: ${formatMoney(neto)}</strong></div>
 </div>
 
+${qrRowHtml}
+
 <p class="muted">
-  Representación impresa orientada al formato de recibo de nómina electrónica (CFDI con complemento). La validez fiscal ante el SAT requiere XML generado con el complemento de nómina, sellado con CSD y <strong>timbrado por un PAC autorizado</strong> (UUID, sellos digitales y código bidimensional conforme a las reglas del SAT).
+  Código bidimensional (QR): mismo esquema de verificación del SAT que en facturas; en este recibo de <strong>prueba</strong> usa UUID y sello de muestra. La validez fiscal ante el SAT exige XML con complemento de nómina, sellado con CSD y <strong>timbrado por un PAC</strong> (entonces el QR y el XML coinciden con un CFDI real).
 </p>
 `;
 
@@ -716,6 +697,12 @@ ${foot}
 }
 
 export function printNominaPruebaCfdiLetter(input: NominaPruebaPrintInput): void {
-  const html = buildNominaPruebaPrintDocumentHtml(input);
-  openCfdiLetterPrint(html);
+  void (async () => {
+    try {
+      const html = await buildNominaPruebaPrintDocumentHtml(input);
+      openCfdiLetterPrint(html);
+    } catch (e) {
+      console.error('printNominaPruebaCfdiLetter', e);
+    }
+  })();
 }
