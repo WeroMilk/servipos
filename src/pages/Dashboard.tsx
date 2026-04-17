@@ -781,7 +781,7 @@ export function Dashboard() {
                             ? String(payload[0].payload.fullLabel)
                             : ''
                         }
-                        formatter={(value: number, name: string, item: { payload?: { transacciones?: number } }) => {
+                        formatter={(value: number, _name: string, item: { payload?: { transacciones?: number } }) => {
                           const n = item?.payload?.transacciones;
                           if (typeof n === 'number') {
                             const suf = n === 1 ? '1 venta' : `${n} ventas`;
