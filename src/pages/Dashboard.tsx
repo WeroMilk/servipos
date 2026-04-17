@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   TrendingUp,
@@ -205,7 +205,14 @@ export function Dashboard() {
     return { from: t, to: t };
   });
 
+  /** Día concreto (inicio local) para filtrar solo los KPI de arriba; la gráfica sigue mostrando el periodo visual. */
+  const [kpiDrillDownDayStart, setKpiDrillDownDayStart] = useState<Date | null>(null);
+  const chartPanelRef = useRef<HTMLDivElement | null>(null);
+
   const { inicio, fin } = useMemo(() => dateRangeToBounds(dateRange), [dateRange]);
+
+  const kpiPeriodStart = kpiDrillDownDayStart ?? inicio;
+  const kpiPeriodEndExclusive = kpiDrillDownDayStart ? addDays(kpiDrillDownDayStart, 1) : fin;
 
   /** Rango del gráfico: semana lun–dom (día/semana) o cada día del mes seleccionado (modo mes). */
   const chartTimeRange = useMemo((): ChartTimeRange => {
@@ -239,15 +246,40 @@ export function Dashboard() {
     fetchBounds.fetchEnd
   );
 
+  useEffect(() => {
+    setKpiDrillDownDayStart(null);
+  }, [dateRange?.from, dateRange?.to, periodGranularity]);
+
+  useEffect(() => {
+    if (!kpiDrillDownDayStart) return;
+    const onDown = (e: MouseEvent) => {
+      const el = chartPanelRef.current;
+      if (el && !el.contains(e.target as Node)) {
+        setKpiDrillDownDayStart(null);
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [kpiDrillDownDayStart]);
+
+  useEffect(() => {
+    if (!kpiDrillDownDayStart) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setKpiDrillDownDayStart(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [kpiDrillDownDayStart]);
+
   const kpiSales = useMemo(() => {
-    const i0 = inicio.getTime();
-    const f0 = fin.getTime();
+    const i0 = kpiPeriodStart.getTime();
+    const f0 = kpiPeriodEndExclusive.getTime();
     return salesFetched.filter((s) => {
       const t = s.createdAt instanceof Date ? s.createdAt : new Date(s.createdAt);
       const x = t.getTime();
       return x >= i0 && x < f0;
     });
-  }, [salesFetched, inicio, fin]);
+  }, [salesFetched, kpiPeriodStart, kpiPeriodEndExclusive]);
 
   const kpiVentasParaTotales = useMemo(
     () => kpiSales.filter((s) => s.estado !== 'cancelada' && s.estado !== 'pendiente'),
@@ -367,6 +399,7 @@ export function Dashboard() {
   const chartData = useMemo(() => {
     const selectedDayStart =
       periodGranularity === 'day' && dateRange?.from ? startOfDay(dateRange.from) : null;
+    const drillMs = kpiDrillDownDayStart ? startOfDay(kpiDrillDownDayStart).getTime() : null;
 
     if (chartTimeRange.mode === 'monthDays') {
       const ms = startOfDay(chartTimeRange.monthStart);
@@ -387,6 +420,8 @@ export function Dashboard() {
           ventas,
           transacciones: ventasDelDia.length,
           fullLabel: format(d, "EEEE d 'de' MMMM yyyy", { locale: es }),
+          dayStartMs: day0.getTime(),
+          isKpiDrillDown: drillMs !== null && day0.getTime() === drillMs,
         };
       });
     }
@@ -412,10 +447,12 @@ export function Dashboard() {
         name: WEEKDAY_SHORT_ES[dowMon0]!,
         ventas,
         fullLabel: format(d, 'EEEE d MMM yyyy', { locale: es }),
+        dayStartMs: day0.getTime(),
         isSelectedInChart,
+        isKpiDrillDown: drillMs !== null && day0.getTime() === drillMs,
       };
     });
-  }, [salesFetched, chartTimeRange, periodGranularity, dateRange?.from]);
+  }, [salesFetched, chartTimeRange, periodGranularity, dateRange?.from, kpiDrillDownDayStart]);
 
   /** Mejor día del mes en facturación (solo vista mes). */
   const chartMonthPeak = useMemo(() => {
@@ -433,7 +470,7 @@ export function Dashboard() {
     return { total: maxV, fullLabel: best.label, dayNum: best.name };
   }, [periodGranularity, chartTimeRange, chartData]);
 
-  /** Etiqueta del eje X (ej. "Mié") del día consultado en modo "día". */
+  /** Etiqueta del eje X (ej. "Mié") del día consultado en modo "día" (calendario). */
   const selectedDayChartCategory = useMemo(() => {
     if (periodGranularity !== 'day') return null;
     for (const r of chartData) {
@@ -442,37 +479,55 @@ export function Dashboard() {
     return null;
   }, [chartData, periodGranularity]);
 
-  const dayModeWeekChartTick = useCallback(
+  /** Categoría en el eje X del día usado para los KPI (clic en la gráfica). */
+  const kpiDrillChartCategory = useMemo(() => {
+    if (!kpiDrillDownDayStart) return null;
+    const t = startOfDay(kpiDrillDownDayStart).getTime();
+    for (const r of chartData) {
+      if ('dayStartMs' in r && r.dayStartMs === t && 'name' in r) return String(r.name);
+    }
+    return null;
+  }, [chartData, kpiDrillDownDayStart]);
+
+  /** Etiquetas eje X: resalta día del calendario (modo día) o día KPI (clic). */
+  const periodChartTick = useCallback(
     (props: { x: number; y: number; payload: { value: string | number }; index: number }) => {
       const { x, y, payload, index } = props;
-      const row = chartData[index] as { isSelectedInChart?: boolean } | undefined;
-      const highlight = Boolean(row?.isSelectedInChart);
+      const row = chartData[index] as
+        | { isSelectedInChart?: boolean; isKpiDrillDown?: boolean }
+        | undefined;
+      const drill = Boolean(row?.isKpiDrillDown);
+      const sel = Boolean(row?.isSelectedInChart);
+      const fill = drill ? '#fbbf24' : sel ? '#22d3ee' : '#64748b';
+      const fw = drill || sel ? 700 : 400;
+      const ang = periodGranularity === 'month' ? -32 : -28;
+      const fs = periodGranularity === 'month' ? 10 : 11;
       return (
         <g transform={`translate(${x},${y})`}>
           <text
             dy={8}
-            transform="rotate(-28)"
+            transform={`rotate(${ang})`}
             textAnchor="end"
-            fill={highlight ? '#22d3ee' : '#64748b'}
-            fontSize={11}
-            fontWeight={highlight ? 700 : 400}
+            fill={fill}
+            fontSize={fs}
+            fontWeight={fw}
           >
             {payload.value}
           </text>
         </g>
       );
     },
-    [chartData]
+    [chartData, periodGranularity]
   );
 
   const chartCardTitle =
     periodGranularity === 'month' ? 'Ventas diarias del mes' : 'Ventas por día';
   const chartCardSubtitle =
     periodGranularity === 'month'
-      ? 'Cada punto es un día del mes seleccionado · Pase el cursor para ver total y número de ventas'
+      ? 'Cada punto es un día del mes · Toque un punto para ver solo ese día en las tarjetas de arriba; toque fuera del gráfico para volver al mes'
       : periodGranularity === 'week'
-        ? 'Semana seleccionada (lun–dom)'
-        : 'Semana lun–dom que incluye el día elegido · Resaltado en la gráfica (etiqueta, punto y línea)';
+        ? 'Semana seleccionada (lun–dom) · Toque un punto para filtrar las tarjetas a ese día; toque fuera del gráfico para volver'
+        : 'Semana lun–dom que incluye el día elegido · Toque un punto para filtrar las tarjetas; toque fuera del gráfico para volver al periodo';
 
   const handleGranularityChange = (g: PeriodGranularity) => {
     setPeriodGranularity(g);
@@ -518,6 +573,11 @@ export function Dashboard() {
     });
     setDateOpen(true);
   };
+
+  const kpiDrillHint = useMemo(() => {
+    if (!kpiDrillDownDayStart) return null;
+    return `${format(kpiDrillDownDayStart, "EEEE d MMM yyyy", { locale: es })} · Toque fuera del gráfico o Esc`;
+  }, [kpiDrillDownDayStart]);
 
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col gap-1 overflow-hidden sm:gap-2 md:gap-3">
@@ -584,7 +644,7 @@ export function Dashboard() {
           description={`${totals.count} transacciones`}
           icon={DollarSign}
           trend="up"
-          trendValue="Rango seleccionado"
+          trendValue={kpiDrillHint ?? 'Rango seleccionado'}
           iconGradient="bg-gradient-to-br from-emerald-500 to-emerald-600"
         />
         <StatCard
@@ -593,7 +653,7 @@ export function Dashboard() {
           description="Por transacción"
           icon={ShoppingCart}
           trend="neutral"
-          trendValue="En el periodo"
+          trendValue={kpiDrillHint ? 'Día elegido en la gráfica' : 'En el periodo'}
           iconGradient="bg-gradient-to-br from-cyan-500 to-cyan-600"
         />
         <StatCard
@@ -604,7 +664,7 @@ export function Dashboard() {
           description="Líneas vendidas"
           icon={Package}
           trend="neutral"
-          trendValue="En el periodo"
+          trendValue={kpiDrillHint ? 'Día elegido en la gráfica' : 'En el periodo'}
           iconGradient="bg-gradient-to-br from-blue-500 to-blue-600"
         />
         <StatCard
@@ -616,7 +676,7 @@ export function Dashboard() {
           description="Promedio entre clientes (pz por ticket de cada uno)"
           icon={Boxes}
           trend="neutral"
-          trendValue="En el periodo"
+          trendValue={kpiDrillHint ? 'Día elegido en la gráfica' : 'En el periodo'}
           iconGradient="bg-gradient-to-br from-violet-500 to-violet-600"
         />
       </div>
@@ -770,7 +830,10 @@ export function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent className="flex min-h-0 flex-1 flex-col p-2 pt-0 sm:p-3">
-              <div className="flex h-full min-h-[180px] w-full min-w-0 flex-1 flex-col">
+              <div
+                ref={chartPanelRef}
+                className="flex h-full min-h-[180px] w-full min-w-0 flex-1 flex-col"
+              >
                 {salesLoading ? (
                   <div className="flex h-full min-h-[120px] items-center justify-center text-xs text-slate-600 dark:text-slate-500">
                     Cargando ventas…
@@ -785,23 +848,32 @@ export function Dashboard() {
                         left: 4,
                         bottom: periodGranularity === 'month' ? 48 : 36,
                       }}
+                      onClick={() => {
+                        setKpiDrillDownDayStart((d) => (d ? null : d));
+                      }}
                     >
                       <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                       <XAxis
                         dataKey="name"
                         stroke="#64748b"
-                        fontSize={periodGranularity === 'month' ? 10 : 11}
                         tickLine={false}
                         axisLine={{ stroke: '#334155' }}
                         interval={0}
                         minTickGap={periodGranularity === 'month' ? 2 : 8}
                         tickMargin={8}
-                        angle={periodGranularity === 'day' ? 0 : periodGranularity === 'month' ? -32 : -28}
-                        textAnchor={periodGranularity === 'day' ? 'middle' : 'end'}
+                        angle={0}
+                        textAnchor="middle"
                         height={periodGranularity === 'month' ? 56 : 52}
-                        tick={periodGranularity === 'day' ? dayModeWeekChartTick : undefined}
+                        tick={periodChartTick}
                       />
-                      {periodGranularity === 'day' && selectedDayChartCategory ? (
+                      {kpiDrillChartCategory ? (
+                        <ReferenceLine
+                          x={kpiDrillChartCategory}
+                          stroke="#fbbf24"
+                          strokeDasharray="4 4"
+                          strokeOpacity={0.9}
+                        />
+                      ) : periodGranularity === 'day' && selectedDayChartCategory ? (
                         <ReferenceLine
                           x={selectedDayChartCategory}
                           stroke="#22d3ee"
@@ -848,22 +920,51 @@ export function Dashboard() {
                         dot={(props: {
                           cx?: number;
                           cy?: number;
-                          payload?: { isSelectedInChart?: boolean };
+                          payload?: {
+                            isSelectedInChart?: boolean;
+                            isKpiDrillDown?: boolean;
+                            dayStartMs?: number;
+                          };
                         }) => {
                           const { cx, cy, payload } = props;
                           if (cx == null || cy == null) return <g />;
+                          const drill = Boolean(payload?.isKpiDrillDown);
                           const sel = Boolean(payload?.isSelectedInChart);
-                          const s = sel ? 10 : 7;
+                          const s = drill ? 11 : sel ? 10 : 7;
+                          const setDrill = (e: React.MouseEvent) => {
+                            e.stopPropagation();
+                            const ms = payload?.dayStartMs;
+                            if (typeof ms === 'number') {
+                              setKpiDrillDownDayStart(startOfDay(new Date(ms)));
+                            }
+                          };
+                          const stopChartClear = (e: React.MouseEvent) => {
+                            e.stopPropagation();
+                          };
                           return (
                             <rect
+                              role="button"
+                              tabIndex={0}
+                              onMouseDown={setDrill}
+                              onClick={stopChartClear}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  const ms = payload?.dayStartMs;
+                                  if (typeof ms === 'number') {
+                                    setKpiDrillDownDayStart(startOfDay(new Date(ms)));
+                                  }
+                                }
+                              }}
+                              style={{ cursor: 'pointer' }}
                               x={cx - s / 2}
                               y={cy - s / 2}
                               width={s}
                               height={s}
-                              rx={sel ? 2 : 1}
-                              fill={sel ? '#cffafe' : LINE_DOT_FILL}
-                              stroke={sel ? '#22d3ee' : LINE_DOT_STROKE}
-                              strokeWidth={sel ? 2.25 : 1.5}
+                              rx={drill || sel ? 2 : 1}
+                              fill={drill ? '#fef3c7' : sel ? '#cffafe' : LINE_DOT_FILL}
+                              stroke={drill ? '#f59e0b' : sel ? '#22d3ee' : LINE_DOT_STROKE}
+                              strokeWidth={drill ? 2.5 : sel ? 2.25 : 1.5}
                             />
                           );
                         }}
@@ -873,6 +974,7 @@ export function Dashboard() {
                           const s = 9;
                           return (
                             <rect
+                              onClick={(e) => e.stopPropagation()}
                               x={cx - s / 2}
                               y={cy - s / 2}
                               width={s}
