@@ -101,7 +101,13 @@ export async function updateQuotationFirestore(
   if (!row?.doc) throw new Error('Cotización no encontrada');
   const now = new Date().toISOString();
   const doc = { ...(row.doc as Record<string, unknown>) };
-  Object.assign(doc, updates);
+  for (const [k, v] of Object.entries(updates)) {
+    if (v === undefined) {
+      Reflect.deleteProperty(doc, k);
+    } else {
+      doc[k] = v as unknown;
+    }
+  }
   doc.updatedAt = now;
   const { error } = await supabase
     .from('quotations')
@@ -109,6 +115,23 @@ export async function updateQuotationFirestore(
     .eq('sucursal_id', sucursalId)
     .eq('id', quotationId);
   if (error) throw new Error(error.message);
+}
+
+/** Busca cotización cuyo `doc.ventaId` coincide (venta pendiente o completada vinculada). */
+export async function findQuotationByVentaIdFirestore(
+  sucursalId: string,
+  ventaId: string
+): Promise<Quotation | undefined> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase.from('quotations').select('id, doc').eq('sucursal_id', sucursalId);
+  if (error) throw new Error(error.message);
+  for (const row of data ?? []) {
+    const doc = row.doc as Record<string, unknown>;
+    if (String(doc.ventaId ?? '') === ventaId) {
+      return mapQuotation(sucursalId, row.id, doc);
+    }
+  }
+  return undefined;
 }
 
 export async function deleteQuotationFirestore(sucursalId: string, quotationId: string): Promise<void> {

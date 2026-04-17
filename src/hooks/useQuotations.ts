@@ -105,6 +105,10 @@ export function useQuotations() {
       if (sucursalId) {
         const q = quotations.find((x) => x.id === quotationId);
         if (!q) throw new Error('Cotización no encontrada');
+        if (q.estado === 'convertida') throw new Error('La cotización ya fue cobrada');
+        if (q.ventaId && q.estado === 'pendiente') {
+          return q.ventaId;
+        }
         const { id: saleId } = await createSale(
           {
             folio: '',
@@ -135,8 +139,9 @@ export function useQuotations() {
           },
           { sucursalId }
         );
+        /** Pendiente hasta cobrar; `ventaId` apunta a la venta abierta en POS. */
         await updateQuotationFirestore(sucursalId, quotationId, {
-          estado: 'convertida',
+          estado: 'pendiente',
           ventaId: saleId,
         });
         return saleId;

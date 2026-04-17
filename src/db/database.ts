@@ -29,6 +29,10 @@ import {
 import type { DevolucionLineInput } from '@/lib/salePartialReturnCompute';
 import { computeDevolucionParcial } from '@/lib/salePartialReturnCompute';
 import { fetchInventoryMovementsByProductIdFirestore } from '@/lib/firestore/inventoryMovementsFirestore';
+import {
+  findQuotationByVentaIdFirestore,
+  updateQuotationFirestore,
+} from '@/lib/firestore/quotationsFirestore';
 import { updateClientFirestore } from '@/lib/firestore/clientsFirestore';
 import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
 import { SERIE_FACTURA_PRUEBA, SERIE_NOMINA_PRUEBA } from '@/lib/fiscalConstants';
@@ -1174,8 +1178,23 @@ export async function findQuotationByLast4Folio(
   return cands[0];
 }
 
-/** Marca cotización como cobrada en POS y enlaza el id de la venta completada. */
-export async function markQuotationConvertedWithSale(quotationId: string, ventaId: string): Promise<void> {
+/**
+ * Marca cotización como «Ya cobrada» al completar el cobro.
+ * Con sucursal (Firestore): actualiza en nube; sin sucursal: Dexie local.
+ */
+export async function markQuotationConvertedWithSale(
+  quotationId: string,
+  ventaId: string,
+  options?: { sucursalId?: string }
+): Promise<void> {
+  const sid = options?.sucursalId?.trim();
+  if (sid) {
+    await updateQuotationFirestore(sid, quotationId, {
+      estado: 'convertida',
+      ventaId,
+    });
+    return;
+  }
   const q = await db.quotations.get(quotationId);
   if (!q) throw new Error('Cotización no encontrada');
   if (q.estado === 'convertida') return;
@@ -1183,6 +1202,52 @@ export async function markQuotationConvertedWithSale(quotationId: string, ventaI
     estado: 'convertida',
     ventaId,
   });
+}
+
+/** Tras `completePendingSale`: localiza cotización con `ventaId` = venta y pasa a convertida. */
+export async function markQuotationConvertedWithSaleFromCompletedSale(
+  ventaId: string,
+  sucursalId?: string
+): Promise<void> {
+  const sid = sucursalId?.trim();
+  if (sid) {
+    const q = await findQuotationByVentaIdFirestore(sid, ventaId);
+    if (!q || q.estado !== 'pendiente') return;
+    await markQuotationConvertedWithSale(q.id, ventaId, { sucursalId: sid });
+    return;
+  }
+  const rows = await db.quotations.where('ventaId').equals(ventaId).toArray();
+  const q = rows[0];
+  if (!q || q.estado !== 'pendiente') return;
+  await markQuotationConvertedWithSale(q.id, ventaId);
+}
+
+/** Si se cancela la venta abierta vinculada a una cotización, quita el vínculo y deja la cotización pendiente. */
+export async function unlinkQuotationFromCancelledSale(
+  ventaId: string,
+  sucursalId?: string | null
+): Promise<void> {
+  const sid = sucursalId?.trim();
+  if (sid) {
+    const q = await findQuotationByVentaIdFirestore(sid, ventaId);
+    if (!q || q.estado !== 'pendiente') return;
+    await updateQuotationFirestore(sid, q.id, {
+      estado: 'pendiente',
+      ventaId: undefined,
+    });
+    return;
+  }
+  const rows = await db.quotations.where('ventaId').equals(ventaId).toArray();
+  const q = rows[0];
+  if (!q || q.estado !== 'pendiente') return;
+  const next: Quotation = {
+    ...q,
+    estado: 'pendiente',
+    updatedAt: new Date(),
+    syncStatus: 'pending',
+  };
+  Reflect.deleteProperty(next as unknown as Record<string, unknown>, 'ventaId');
+  await db.quotations.put(next);
 }
 
 export async function getQuotationById(id: string): Promise<Quotation | undefined> {
@@ -1233,6 +1298,9 @@ export async function convertQuotationToSale(
   if (!quotation) throw new Error('Cotización no encontrada');
   if (quotation.estado === 'convertida') throw new Error('La cotización ya fue convertida');
   if (quotation.estado === 'vencida') throw new Error('La cotización está vencida');
+  if (quotation.ventaId && quotation.estado === 'pendiente') {
+    return quotation.ventaId;
+  }
 
   const folioLocal = sucursalId ? '' : await generateFolio('V');
 
@@ -1265,9 +1333,9 @@ export async function convertQuotationToSale(
 
   const { id: saleId } = await createSale(sale, { sucursalId });
 
-  // Actualizar cotización
+  /** Sigue «pendiente» en listado hasta que se cobre; `ventaId` enlaza la venta abierta. */
   await db.quotations.update(quotationId, {
-    estado: 'convertida',
+    estado: 'pendiente',
     ventaId: saleId,
     updatedAt: new Date(),
     syncStatus: 'pending',

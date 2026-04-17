@@ -81,6 +81,8 @@ import {
   getProductById,
   findQuotationByLast4Folio,
   markQuotationConvertedWithSale,
+  markQuotationConvertedWithSaleFromCompletedSale,
+  unlinkQuotationFromCancelledSale,
   updatePendingOpenSale,
   updateProduct,
 } from '@/db/database';
@@ -845,6 +847,11 @@ export function POS() {
         await ejecutarCancelacionVenta(resumed.sale.id, {
           motivo: 'Venta abierta anulada desde el punto de venta',
         });
+        try {
+          await unlinkQuotationFromCancelledSale(resumed.sale.id, effectiveSucursalId ?? undefined);
+        } catch (e) {
+          console.error(e);
+        }
         addToast({
           type: 'success',
           message: `Venta ${resumed.sale.folio} cancelada; el inventario se reintegró y ya no aparece en pendientes.`,
@@ -863,7 +870,7 @@ export function POS() {
       return;
     }
     resetPuntoVenta();
-  }, [openSaleResume, ejecutarCancelacionVenta, addToast, resetPuntoVenta]);
+  }, [openSaleResume, ejecutarCancelacionVenta, addToast, resetPuntoVenta, effectiveSucursalId]);
 
   const openUnitPriceDialog = (productId: string) => {
     const it = items.find((i) => i.product.id === productId);
@@ -2355,6 +2362,15 @@ export function POS() {
           cliente: client ?? null,
         });
 
+        try {
+          await markQuotationConvertedWithSaleFromCompletedSale(
+            pend.id,
+            effectiveSucursalId ?? undefined
+          );
+        } catch (e) {
+          console.error(e);
+        }
+
         const clienteNombre = client?.nombre || pend.cliente?.nombre?.trim() || 'Mostrador';
         const lineas = items.map((item) => {
           const unitSinIva = cartLineUnitSinIva(item, precioClienteListaId);
@@ -2465,7 +2481,9 @@ export function POS() {
 
       if (saleFromQuotationId) {
         try {
-          await markQuotationConvertedWithSale(saleFromQuotationId, ventaIdNueva);
+          await markQuotationConvertedWithSale(saleFromQuotationId, ventaIdNueva, {
+            sucursalId: effectiveSucursalId ?? undefined,
+          });
         } catch (err) {
           console.error(err);
           addToast({
@@ -2684,6 +2702,28 @@ export function POS() {
   const montoDialogoPrincipal = checkoutDevolucionListo
     ? previewDevolucion?.reembolso ?? 0
     : cobroReferencia;
+
+  /** Cobro con lista de abonos: el número grande es lo que falta, no el total del ticket. */
+  const cobroDialogoMuestraFalta =
+    !checkoutDevolucionListo &&
+    formaPago !== 'PPC' &&
+    !esTraspasoTienda &&
+    !cobroTarjetaPue;
+
+  const importeDestacadoCobroDialogo = cobroDialogoMuestraFalta
+    ? Math.max(0, Math.round((montoDialogoPrincipal - totalPagadoVenta) * 100) / 100)
+    : montoDialogoPrincipal;
+
+  const etiquetaImporteCobroDialogo =
+    checkoutDevolucionListo
+      ? 'Total a devolver al cliente'
+      : openSaleResume?.sale?.estado === 'completada' && cobroReferencia + 0.01 < totalCobro
+        ? 'Saldo a cobrar (cuentas por cobrar)'
+        : cobroDialogoMuestraFalta && totalPagadoVenta > 0.005 && importeDestacadoCobroDialogo > 0.02
+          ? 'Falta por cobrar'
+          : cobroDialogoMuestraFalta && totalPagadoVenta > 0.005 && importeDestacadoCobroDialogo <= 0.02
+            ? 'Cobro completo'
+            : 'Total a pagar';
 
   /** Campo «Monto recibido» listo para registrar un abono (pago mixto sin dejar saldo en CxC). */
   const hayCampoMontoParaAbonoValido = useMemo(() => {
@@ -3559,19 +3599,6 @@ export function POS() {
                     momento.
                   </p>
                 ) : null}
-                {(metodoPago === 'PPD' || metodoPago === 'PUE') &&
-                (!client || client.isMostrador || client.id === 'mostrador') &&
-                !esTraspasoTienda &&
-                !esFormaDevolucion &&
-                !esFormaCotizacion &&
-                !esFormaPendientePago ? (
-                  <p className="text-[10px] leading-snug text-amber-700 dark:text-amber-400 sm:text-xs">
-                    Puede registrar varios abonos en el mismo ticket (ej. efectivo y luego tarjeta): en{' '}
-                    <span className="font-medium">Parcialidades</span> elija el medio de cada abono; en{' '}
-                    <span className="font-medium">Una exhibición</span> cambie la forma de pago entre abonos. La suma debe
-                    cubrir el total. Para dejar saldo a cuenta elija un cliente registrado (no Mostrador).
-                  </p>
-                ) : null}
 
                 {!esFormaDevolucion && !esFormaCotizacion ? (
                   <div className="grid gap-3 lg:grid-cols-2 lg:gap-2">
@@ -3883,15 +3910,16 @@ export function POS() {
               <div className="space-y-3 py-1 sm:space-y-4 sm:py-2">
                 <div className="rounded-xl bg-slate-200/80 dark:bg-slate-800/50 p-3 text-center sm:p-4">
                   <p className="mb-1 text-xs text-slate-600 dark:text-slate-400 sm:text-sm">
-                    {checkoutDevolucionListo ?
-                      'Total a devolver al cliente'
-                    : openSaleResume?.sale?.estado === 'completada' && cobroReferencia + 0.01 < totalCobro ?
-                      'Saldo a cobrar (cuentas por cobrar)'
-                    : 'Total a pagar'}
+                    {etiquetaImporteCobroDialogo}
                   </p>
                   <p className="text-2xl font-bold text-cyan-400 sm:text-4xl">
-                    {formatMoney(montoDialogoPrincipal)}
+                    {formatMoney(importeDestacadoCobroDialogo)}
                   </p>
+                  {cobroDialogoMuestraFalta && totalPagadoVenta > 0.005 ? (
+                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                      Total del ticket {formatMoney(montoDialogoPrincipal)} · Abonado {formatMoney(totalPagadoVenta)}
+                    </p>
+                  ) : null}
                 </div>
 
                 {!checkoutDevolucionListo &&
