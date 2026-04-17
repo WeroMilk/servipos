@@ -205,12 +205,25 @@ function folioBarcodeDataUrl(folio: string): string | null {
 }
 
 /**
+ * Cierra la ventana/pestaña de impresión tras el diálogo (algunos navegadores no disparan
+ * `afterprint` en el objeto `Window` del padre; el script corre en el documento impreso).
+ */
+function injectPrintCloseScript(html: string): string {
+  const script =
+    '<script>document.addEventListener("afterprint",function(){try{window.close()}catch(e){}},{once:true});</script>';
+  if (/<\/body\s*>/i.test(html)) return html.replace(/<\/body\s*>/i, (m) => `${script}${m}`);
+  return `${html}${script}`;
+}
+
+/**
  * Abre HTML para imprimir con `about:blank` + `document.write` (no `blob:` URL).
  * Así el pie del diálogo de impresión no muestra una URL `blob:https://…` larga.
  * Sin `noopener` en window.open: en Chrome móvil a veces devuelve `null` pero abre pestaña;
  * si el popup está bloqueado, se usa iframe `about:blank` + write + print().
  */
 function openAndPrintHtml(html: string, windowFeatures: string, printDelayMs: number): void {
+  const htmlWithClose = injectPrintCloseScript(html);
+
   const runPrint = (target: Window) => {
     target.focus();
     setTimeout(() => {
@@ -240,13 +253,18 @@ function openAndPrintHtml(html: string, windowFeatures: string, printDelayMs: nu
       }
       try {
         cw.document.open();
-        cw.document.write(html);
+        cw.document.write(htmlWithClose);
         cw.document.close();
       } catch {
         tearDown();
         return;
       }
       cw.addEventListener('afterprint', tearDown, { once: true });
+      try {
+        cw.document.addEventListener('afterprint', tearDown, { once: true });
+      } catch {
+        /* noop */
+      }
       setTimeout(tearDown, 120_000);
       runPrint(cw);
     };
@@ -259,7 +277,7 @@ function openAndPrintHtml(html: string, windowFeatures: string, printDelayMs: nu
   if (w) {
     try {
       w.document.open();
-      w.document.write(html);
+      w.document.write(htmlWithClose);
       w.document.close();
     } catch {
       try {
@@ -289,6 +307,18 @@ function openAndPrintHtml(html: string, windowFeatures: string, printDelayMs: nu
       },
       { once: true }
     );
+    try {
+      w.document.addEventListener(
+        'afterprint',
+        () => {
+          window.clearTimeout(closeFallback);
+          safeClosePrintWindow();
+        },
+        { once: true }
+      );
+    } catch {
+      /* noop */
+    }
 
     const start = () => runPrint(w);
     if (w.document.readyState === 'complete') start();

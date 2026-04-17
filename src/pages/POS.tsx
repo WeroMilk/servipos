@@ -700,7 +700,6 @@ export function POS() {
   const [ticketSnapshot, setTicketSnapshot] = useState<PosTicketSnapshot | null>(null);
   const [showClientDialog, setShowClientDialog] = useState(false);
   const [montoRecibidoInput, setMontoRecibidoInput] = useState('');
-  /** Últimos 4 dígitos del voucher para el siguiente abono con tarjeta (04/28). */
   /** En parcialidades (PPD), medio del próximo abono (mezcla efectivo + tarjetas sin cambiar el selector lateral). */
   const [ppdAbonoFormaPago, setPpdAbonoFormaPago] = useState('01');
   /** Se incrementa al abrir el diálogo de cobro para inicializar `ppdAbonoFormaPago` sin pisar cambios al mover el selector lateral. */
@@ -1111,6 +1110,31 @@ export function POS() {
     const ok = FORMAS_PAGO_UI.some((f) => f.clave === fp);
     setPpdAbonoFormaPago(ok ? fp : '01');
   }, [checkoutOpen, checkoutPhase, metodoPago, checkoutPaymentKey]);
+
+  /**
+   * Si el usuario dejó «Una exhibición (PUE)» pero ya registró un abono y aún falta por cobrar,
+   * pasa a Parcialidades (PPD) para el mismo flujo y el selector «Medio de este abono».
+   */
+  useEffect(() => {
+    if (!checkoutOpen || checkoutPhase !== 'payment') return;
+    if (formaPago === 'PPC' || esTraspasoTienda || esFormaDevolucion || esFormaCotizacion) return;
+    if (metodoPago !== 'PUE') return;
+    if (pagos.length === 0) return;
+    if (totalPagadoVenta + 0.004 >= cobroReferencia) return;
+    setMetodoPago('PPD');
+  }, [
+    checkoutOpen,
+    checkoutPhase,
+    formaPago,
+    esTraspasoTienda,
+    esFormaDevolucion,
+    esFormaCotizacion,
+    metodoPago,
+    pagos,
+    totalPagadoVenta,
+    cobroReferencia,
+    setMetodoPago,
+  ]);
 
   const ppdAbonoFormaSelectValue = useMemo(() => {
     if (FORMAS_PAGO_UI.some((f) => f.clave === ppdAbonoFormaPago)) return ppdAbonoFormaPago;
@@ -2151,6 +2175,7 @@ export function POS() {
           (metodoPago === 'PPD' || metodoPago === 'PUE')
         ) {
           const restante = Math.max(0, cobroReferencia - totalPagadoTrasAbono);
+          if (metodoPago === 'PUE') setMetodoPago('PPD');
           addToast({
             type: 'success',
             message: `Abono registrado. Falta ${formatMoney(restante)}`,
