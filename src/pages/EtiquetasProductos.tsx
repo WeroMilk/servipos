@@ -181,7 +181,7 @@ export function EtiquetasProductos() {
   );
 
   const desktop = (
-    <div className="hidden min-h-0 flex-1 flex-col gap-4 overflow-hidden md:flex md:min-h-0">
+    <div className="hidden min-h-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden overscroll-y-contain md:flex md:min-h-0">
       <div className="flex shrink-0 flex-wrap items-start justify-between gap-3 border-b border-slate-200/80 pb-3 dark:border-slate-800/50">
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -202,8 +202,8 @@ export function EtiquetasProductos() {
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-hidden lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)] lg:grid-rows-[minmax(0,1fr)] lg:items-stretch">
-        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 lg:min-h-0 lg:h-full">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)] lg:grid-rows-[minmax(0,1fr)] lg:items-stretch lg:overflow-hidden">
+        <Card className="flex min-h-0 flex-1 flex-col border-slate-200/80 dark:border-slate-800/50 lg:min-h-0 lg:h-full">
           <CardHeader className="shrink-0 space-y-1 pb-3">
             <CardTitle className="text-base">Agregar a la lista</CardTitle>
             <CardDescription className="text-xs leading-relaxed">
@@ -212,7 +212,7 @@ export function EtiquetasProductos() {
               se suman las copias.
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex min-h-0 flex-1 flex-col gap-5 overflow-hidden">
+          <CardContent className="flex min-h-0 flex-1 flex-col gap-5">
             {/* Sección 1: opciones de etiqueta */}
             <section
               className={cn(
@@ -279,6 +279,7 @@ export function EtiquetasProductos() {
               <section
                 className={cn(
                   'flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200/90',
+                  'max-lg:min-h-[min(22rem,55vh)]',
                   'bg-white/40 dark:border-slate-700/80 dark:bg-slate-950/30'
                 )}
               >
@@ -297,7 +298,7 @@ export function EtiquetasProductos() {
                 </div>
                 <Tabs
                   defaultValue="all"
-                  className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden px-4 pb-2 pt-3 sm:px-4 sm:pb-4"
+                  className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden px-4 pb-3 pt-3 sm:px-4 sm:pb-4 max-lg:min-h-[min(18rem,42vh)]"
                 >
                     <TabsList
                       className={cn(
@@ -362,6 +363,12 @@ export function EtiquetasProductos() {
                         </p>
                       ) : (
                         <div className="flex min-h-0 flex-1 flex-col gap-3">
+                          <div className="shrink-0 sm:flex sm:justify-end">
+                            <Button type="button" className="w-full gap-2 sm:w-auto" onClick={addByFamilies}>
+                              <Package className="h-4 w-4" />
+                              Añadir productos de familias marcadas
+                            </Button>
+                          </div>
                           <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain rounded-lg border border-slate-200/90 bg-white/60 px-1 py-1 dark:border-slate-800/80 dark:bg-slate-950/40 [scrollbar-gutter:stable]">
                             {categoriasEnUso.map((cat) => (
                               <label
@@ -385,12 +392,6 @@ export function EtiquetasProductos() {
                               </label>
                             ))}
                           </div>
-                          <div className="flex shrink-0 flex-col border-t border-slate-200/80 pt-4 dark:border-slate-800/80 sm:flex-row sm:justify-end">
-                            <Button type="button" className="w-full gap-2 sm:w-auto" onClick={addByFamilies}>
-                              <Package className="h-4 w-4" />
-                              Añadir productos de familias marcadas
-                            </Button>
-                          </div>
                         </div>
                       )}
                     </TabsContent>
@@ -411,6 +412,12 @@ export function EtiquetasProductos() {
                             onChange={(e) => setSearch(e.target.value)}
                             className="h-10 w-full"
                           />
+                        </div>
+                        <div className="shrink-0 sm:flex sm:justify-end">
+                          <Button type="button" className="w-full gap-2 sm:w-auto" onClick={addIndividuals}>
+                            <Package className="h-4 w-4" />
+                            Añadir marcados a la lista
+                          </Button>
                         </div>
                         <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain rounded-lg border border-slate-200/90 bg-white/60 [scrollbar-gutter:stable] dark:border-slate-800/80 dark:bg-slate-950/40">
                           <table className="w-full text-left text-xs">
@@ -461,12 +468,6 @@ export function EtiquetasProductos() {
                             </tbody>
                           </table>
                         </div>
-                        <div className="flex shrink-0 flex-col gap-2 border-t border-slate-200/80 pt-4 dark:border-slate-800/80 sm:flex-row sm:justify-end">
-                          <Button type="button" className="w-full gap-2 sm:w-auto" onClick={addIndividuals}>
-                            <Package className="h-4 w-4" />
-                            Añadir marcados a la lista
-                          </Button>
-                        </div>
                       </div>
                     </TabsContent>
                   </Tabs>
@@ -475,7 +476,7 @@ export function EtiquetasProductos() {
           </CardContent>
         </Card>
 
-        <Card className="flex min-h-0 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 lg:h-full lg:min-h-0">
+        <Card className="flex min-h-0 flex-col border-slate-200/80 dark:border-slate-800/50 lg:h-full lg:min-h-0 lg:overflow-hidden">
           <CardHeader className="shrink-0 space-y-1 pb-2">
             <CardTitle className="text-base">Lista para imprimir</CardTitle>
             <CardDescription className="text-xs">
@@ -484,7 +485,7 @@ export function EtiquetasProductos() {
             </CardDescription>
           </CardHeader>
           <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex shrink-0 flex-wrap gap-2">
               <Button type="button" variant="default" size="sm" className="gap-1.5" onClick={handlePrint}>
                 <Printer className="h-4 w-4" />
                 Imprimir
@@ -562,7 +563,7 @@ export function EtiquetasProductos() {
   );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-y-contain">
       {mobileBlock}
       {desktop}
     </div>
