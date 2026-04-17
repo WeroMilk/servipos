@@ -946,6 +946,9 @@ export async function cancelSale(
   if (sucursalId) {
     const prev = await getSaleByIdFirestore(sucursalId, id);
     await cancelSaleFirestore(sucursalId, id, motivo, cancelacionMotivo);
+    if (prev && prev.clienteId && prev.clienteId !== MOSTRADOR_CLIENT_ID && prev.estado !== 'cancelada') {
+      await adjustClientVentasHistorialCount(prev.clienteId, -1, { sucursalId });
+    }
     if (
       prev &&
       prev.estado !== 'cancelada' &&
@@ -997,6 +1000,10 @@ export async function cancelSale(
     updatedAt: new Date(),
     syncStatus: 'pending',
   });
+
+  if (sale.clienteId && sale.clienteId !== MOSTRADOR_CLIENT_ID) {
+    await adjustClientVentasHistorialCount(sale.clienteId, -1);
+  }
 
   if (
     (sale.estado === 'completada' || sale.estado === 'facturada') &&
@@ -1536,7 +1543,7 @@ export async function adjustClientTicketCount(
   }
 }
 
-/** Suma ventas al historial del cliente (cualquier estado; no baja al cancelar). */
+/** Suma o resta entradas en el historial de ventas del cliente (sincronizado al crear/cancelar y al abrir «Ventas del cliente»). */
 export async function adjustClientVentasHistorialCount(
   clienteId: string | undefined,
   delta: number,

@@ -40,6 +40,7 @@ import {
   CartesianGrid,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -364,6 +365,9 @@ export function Dashboard() {
 
   /** Puntos: lun–dom (día/semana) o un punto por cada día del mes (modo mes). */
   const chartData = useMemo(() => {
+    const selectedDayStart =
+      periodGranularity === 'day' && dateRange?.from ? startOfDay(dateRange.from) : null;
+
     if (chartTimeRange.mode === 'monthDays') {
       const ms = startOfDay(chartTimeRange.monthStart);
       const last = endOfMonth(ms);
@@ -402,13 +406,16 @@ export function Dashboard() {
         return sum;
       }, 0);
       const dowMon0 = (d.getDay() + 6) % 7;
+      const isSelectedInChart =
+        selectedDayStart !== null && day0.getTime() === selectedDayStart.getTime();
       return {
         name: WEEKDAY_SHORT_ES[dowMon0]!,
         ventas,
         fullLabel: format(d, 'EEEE d MMM yyyy', { locale: es }),
+        isSelectedInChart,
       };
     });
-  }, [salesFetched, chartTimeRange]);
+  }, [salesFetched, chartTimeRange, periodGranularity, dateRange?.from]);
 
   /** Mejor día del mes en facturación (solo vista mes). */
   const chartMonthPeak = useMemo(() => {
@@ -426,6 +433,38 @@ export function Dashboard() {
     return { total: maxV, fullLabel: best.label, dayNum: best.name };
   }, [periodGranularity, chartTimeRange, chartData]);
 
+  /** Etiqueta del eje X (ej. "Mié") del día consultado en modo "día". */
+  const selectedDayChartCategory = useMemo(() => {
+    if (periodGranularity !== 'day') return null;
+    for (const r of chartData) {
+      if ('isSelectedInChart' in r && r.isSelectedInChart) return String(r.name);
+    }
+    return null;
+  }, [chartData, periodGranularity]);
+
+  const dayModeWeekChartTick = useCallback(
+    (props: { x: number; y: number; payload: { value: string | number }; index: number }) => {
+      const { x, y, payload, index } = props;
+      const row = chartData[index] as { isSelectedInChart?: boolean } | undefined;
+      const highlight = Boolean(row?.isSelectedInChart);
+      return (
+        <g transform={`translate(${x},${y})`}>
+          <text
+            dy={8}
+            transform="rotate(-28)"
+            textAnchor="end"
+            fill={highlight ? '#22d3ee' : '#64748b'}
+            fontSize={11}
+            fontWeight={highlight ? 700 : 400}
+          >
+            {payload.value}
+          </text>
+        </g>
+      );
+    },
+    [chartData]
+  );
+
   const chartCardTitle =
     periodGranularity === 'month' ? 'Ventas diarias del mes' : 'Ventas por día';
   const chartCardSubtitle =
@@ -433,7 +472,7 @@ export function Dashboard() {
       ? 'Cada punto es un día del mes seleccionado · Pase el cursor para ver total y número de ventas'
       : periodGranularity === 'week'
         ? 'Semana seleccionada (lun–dom)'
-        : 'Semana lun–dom que incluye el día seleccionado';
+        : 'Semana lun–dom que incluye el día elegido · Resaltado en la gráfica (etiqueta, punto y línea)';
 
   const handleGranularityChange = (g: PeriodGranularity) => {
     setPeriodGranularity(g);
@@ -757,10 +796,19 @@ export function Dashboard() {
                         interval={0}
                         minTickGap={periodGranularity === 'month' ? 2 : 8}
                         tickMargin={8}
-                        angle={periodGranularity === 'month' ? -32 : -28}
-                        textAnchor="end"
+                        angle={periodGranularity === 'day' ? 0 : periodGranularity === 'month' ? -32 : -28}
+                        textAnchor={periodGranularity === 'day' ? 'middle' : 'end'}
                         height={periodGranularity === 'month' ? 56 : 52}
+                        tick={periodGranularity === 'day' ? dayModeWeekChartTick : undefined}
                       />
+                      {periodGranularity === 'day' && selectedDayChartCategory ? (
+                        <ReferenceLine
+                          x={selectedDayChartCategory}
+                          stroke="#22d3ee"
+                          strokeDasharray="4 4"
+                          strokeOpacity={0.85}
+                        />
+                      ) : null}
                       <YAxis
                         width={48}
                         stroke="#64748b"
@@ -797,20 +845,25 @@ export function Dashboard() {
                         stroke={LINE_STROKE}
                         strokeWidth={2.5}
                         isAnimationActive={false}
-                        dot={(props: { cx?: number; cy?: number }) => {
-                          const { cx, cy } = props;
+                        dot={(props: {
+                          cx?: number;
+                          cy?: number;
+                          payload?: { isSelectedInChart?: boolean };
+                        }) => {
+                          const { cx, cy, payload } = props;
                           if (cx == null || cy == null) return <g />;
-                          const s = 7;
+                          const sel = Boolean(payload?.isSelectedInChart);
+                          const s = sel ? 10 : 7;
                           return (
                             <rect
                               x={cx - s / 2}
                               y={cy - s / 2}
                               width={s}
                               height={s}
-                              rx={1}
-                              fill={LINE_DOT_FILL}
-                              stroke={LINE_DOT_STROKE}
-                              strokeWidth={1.5}
+                              rx={sel ? 2 : 1}
+                              fill={sel ? '#cffafe' : LINE_DOT_FILL}
+                              stroke={sel ? '#22d3ee' : LINE_DOT_STROKE}
+                              strokeWidth={sel ? 2.25 : 1.5}
                             />
                           );
                         }}

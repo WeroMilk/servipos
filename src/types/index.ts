@@ -259,7 +259,7 @@ export interface Client {
   /** Número de tickets de compra completados (ventas) asociados a este cliente. */
   ticketsComprados?: number;
   /**
-   * Total de ventas registradas en historial (pendiente, completada, cancelada, facturada).
+   * Total de ventas que cuentan para el cliente (excluye canceladas).
    * Puede corregirse al abrir «Ventas del cliente». Si no existe, la UI usa `ticketsComprados`.
    */
   ventasHistorial?: number;

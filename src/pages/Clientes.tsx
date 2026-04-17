@@ -62,6 +62,7 @@ import { ClientAddressSonoraFields } from '@/components/ui-custom/ClientAddressS
 import { cn, formatMoney } from '@/lib/utils';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { getSalesByClienteId } from '@/db/database';
+import { saleCuentaComoCompraCliente } from '@/lib/saleClienteHistorial';
 import { printThermalTicketFromSale } from '@/lib/printTicket';
 import { saleIsInvoiced } from '@/lib/saleInvoiced';
 import { saleListaCancelacionEtiqueta } from '@/lib/saleCancelacion';
@@ -74,7 +75,7 @@ import {
 
 type ClientSortMode = 'nombre' | 'rfc' | 'email' | 'tickets';
 
-/** Número para el ícono de ticket: historial completo si existe contador; si no, solo compras completadas netas. */
+/** Número para el ícono de ticket: `ventasHistorial` si existe (sin canceladas); si no, `ticketsComprados`. */
 function ticketsHistorialUI(c: Client): number {
   const v = c.ventasHistorial;
   if (v != null && Number.isFinite(v)) return Math.max(0, Math.floor(Number(v)));
@@ -156,7 +157,7 @@ export function Clientes() {
     setClientVentasLoading(true);
     void getSalesByClienteId(clientVentasCliente.id, { sucursalId: effectiveSucursalId })
       .then((rows) => {
-        if (!cancelled) setClientVentasList(rows);
+        if (!cancelled) setClientVentasList(rows.filter(saleCuentaComoCompraCliente));
       })
       .catch(() => {
         if (!cancelled) setClientVentasList([]);
