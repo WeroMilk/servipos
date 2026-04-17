@@ -265,6 +265,54 @@ type PosTicketSnapshot = {
   devolucionParcial?: boolean;
 };
 
+/** Imprime el ticket térmico con el snapshot ya construido (evita estado React desactualizado). */
+function printPosTicketSnapshot(snap: PosTicketSnapshot) {
+  if (snap.modoDevolucion) {
+    printThermalTicket({
+      negocio: 'SERVIPARTZ',
+      sucursalId: snap.sucursalId,
+      folio: snap.folioVentaOrigen,
+      fecha: formatInAppTimezone(new Date(), {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      }),
+      cliente: snap.clienteNombre,
+      cajeroNombre: snap.cajeroNombre,
+      lineas: snap.lineas,
+      subtotal: snap.subtotal,
+      impuestos: snap.impuestos,
+      total: snap.total,
+      cambio: 0,
+      notas:
+        snap.notas ??
+        'COMPROBANTE DE DEVOLUCIÓN — El ticket original quedó cancelado por devolución.',
+      resumenPagos: snap.resumenPagos,
+      incluirPiePoliticasRefacciones: false,
+    });
+    return;
+  }
+  printThermalTicket({
+    negocio: 'SERVIPARTZ',
+    sucursalId: snap.sucursalId,
+    folio: snap.folio,
+    fecha: formatInAppTimezone(new Date(), {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }),
+    cliente: snap.clienteNombre,
+    cajeroNombre: snap.cajeroNombre,
+    lineas: snap.lineas,
+    subtotal: snap.subtotal,
+    impuestos: snap.impuestos,
+    total: snap.total,
+    cambio: snap.cambio,
+    adeudoPendiente: snap.adeudoPendiente,
+    notas: snap.notas,
+    resumenPagos: snap.resumenPagos,
+    incluirPiePoliticasRefacciones: true,
+  });
+}
+
 export function POS() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -653,7 +701,6 @@ export function POS() {
   const [showClientDialog, setShowClientDialog] = useState(false);
   const [montoRecibidoInput, setMontoRecibidoInput] = useState('');
   /** Últimos 4 dígitos del voucher para el siguiente abono con tarjeta (04/28). */
-  const [tarjetaUltimos4, setTarjetaUltimos4] = useState('');
   /** En parcialidades (PPD), medio del próximo abono (mezcla efectivo + tarjetas sin cambiar el selector lateral). */
   const [ppdAbonoFormaPago, setPpdAbonoFormaPago] = useState('01');
   /** Se incrementa al abrir el diálogo de cobro para inicializar `ppdAbonoFormaPago` sin pisar cambios al mover el selector lateral. */
@@ -827,7 +874,6 @@ export function POS() {
     setShowProductSearch(false);
     setShowClientDialog(false);
     setMontoRecibidoInput('');
-    setTarjetaUltimos4('');
     setProcessingSale(false);
     setGlobalDiscFocus(false);
     setLineDiscountFocusProductId(null);
@@ -1053,7 +1099,6 @@ export function POS() {
   useEffect(() => {
     if (checkoutOpen && checkoutPhase === 'payment') {
       setMontoRecibidoInput('');
-      setTarjetaUltimos4('');
     }
   }, [checkoutOpen, checkoutPhase]);
 
@@ -1078,11 +1123,9 @@ export function POS() {
   /** Forma aplicada al siguiente abono manual (en PPD la elige el diálogo). */
   const formaPagoAbono = metodoPago === 'PPD' ? ppdAbonoFormaPago : formaPago;
 
-  /** Tarjeta en una sola exhibición: solo voucher (4 dígitos), sin capturar monto ni billetes. */
+  /** Tarjeta en una sola exhibición (PUE): cobro total sin campo de monto ni billetes rápidos. */
   const cobroTarjetaPue =
     !esTraspasoTienda && esFormaTarjeta(formaPago) && metodoPago === 'PUE';
-
-  const digitos4TarjetaPendiente = () => tarjetaUltimos4.replace(/\D/g, '').slice(0, 4);
 
   /**
    * Total que quedará cubierto al pulsar «Completar venta» (incluye lo que aún está solo en el campo,
@@ -1098,16 +1141,9 @@ export function POS() {
     if (!Number.isFinite(extra) || extra <= 0) return totalPagadoVenta;
 
     if (metodoPago === 'PPD') {
-      const fpLinea = ppdAbonoFormaPago;
-      if (esFormaTarjeta(fpLinea) && digitos4TarjetaPendiente().length !== 4) {
-        return totalPagadoVenta;
-      }
       return totalPagadoVenta + extra;
     }
     if (metodoPago === 'PUE' && !esFormaDevolucion && !esFormaCotizacion) {
-      if (esFormaTarjeta(formaPago) && digitos4TarjetaPendiente().length !== 4) {
-        return totalPagadoVenta;
-      }
       return totalPagadoVenta + extra;
     }
     return totalPagadoVenta;
@@ -1116,19 +1152,11 @@ export function POS() {
     montoRecibidoInput,
     formaPago,
     metodoPago,
-    ppdAbonoFormaPago,
     esTraspasoTienda,
     cobroTarjetaPue,
-    tarjetaUltimos4,
     esFormaDevolucion,
     esFormaCotizacion,
   ]);
-
-  const toastTarjeta4Requeridos = () =>
-    addToast({
-      type: 'warning',
-      message: 'Ingrese los últimos 4 dígitos de la tarjeta (aparecen en el voucher del terminal)',
-    });
 
   useEffect(() => {
     if (!checkoutOpen || checkoutPhase !== 'payment' || !esTraspasoTienda) return;
@@ -1144,17 +1172,7 @@ export function POS() {
       addToast({ type: 'warning', message: 'Ingrese un monto mayor a cero' });
       return;
     }
-    if (esFormaTarjeta(formaPagoAbono)) {
-      const d4 = digitos4TarjetaPendiente();
-      if (d4.length !== 4) {
-        toastTarjeta4Requeridos();
-        return;
-      }
-      addPago({ formaPago: formaPagoAbono, monto, referencia: d4 });
-      setTarjetaUltimos4('');
-    } else {
-      addPago({ formaPago: formaPagoAbono, monto });
-    }
+    addPago({ formaPago: formaPagoAbono, monto });
     setMontoRecibidoInput('');
   };
 
@@ -2014,7 +2032,7 @@ export function POS() {
         const ratio = monto / totOrig;
         const cajeroNombre =
           user?.name?.trim() || user?.username?.trim() || user?.email?.trim() || undefined;
-        setTicketSnapshot({
+        const devolucionTicketSnap: PosTicketSnapshot = {
           clienteNombre: devolucionSaleResuelta.cliente?.nombre?.trim() || 'Mostrador',
           cajeroNombre,
           lineas,
@@ -2032,7 +2050,9 @@ export function POS() {
               `DEVOLUCIÓN PARCIAL: Reembolso ${formatMoney(monto)}. El ticket original se actualizó (líneas y cobros).`
             : 'DEVOLUCIÓN: Entregue al cliente el importe indicado. El ticket original quedó cancelado por devolución.',
           resumenPagos: [{ label: 'Reembolso (devolución)', monto }],
-        });
+        };
+        setTicketSnapshot(devolucionTicketSnap);
+        printPosTicketSnapshot(devolucionTicketSnap);
         setDevolucionFolioInput('');
         setDevolucionSaleResuelta(null);
         setDevolucionLineasQty({});
@@ -2078,19 +2098,9 @@ export function POS() {
         if (norm) {
           const m = parseFloat(norm);
           if (Number.isFinite(m) && m > 0) {
-            if (esFormaTarjeta(fpLinea)) {
-              const d4 = digitos4TarjetaPendiente();
-              if (d4.length === 4) {
-                addPago({ formaPago: fpLinea, monto: m, referencia: d4 });
-                pagoAgregadoEnEstaInvocacion = true;
-                setMontoRecibidoInput('');
-                setTarjetaUltimos4('');
-              }
-            } else {
-              addPago({ formaPago: fpLinea, monto: m });
-              pagoAgregadoEnEstaInvocacion = true;
-              setMontoRecibidoInput('');
-            }
+            addPago({ formaPago: fpLinea, monto: m });
+            pagoAgregadoEnEstaInvocacion = true;
+            setMontoRecibidoInput('');
           }
         }
       } else if (
@@ -2103,63 +2113,10 @@ export function POS() {
         if (norm) {
           const m = parseFloat(norm);
           if (Number.isFinite(m) && m > 0) {
-            if (esFormaTarjeta(formaPago)) {
-              const d4 = digitos4TarjetaPendiente();
-              if (d4.length === 4) {
-                addPago({ formaPago, monto: m, referencia: d4 });
-                pagoAgregadoEnEstaInvocacion = true;
-                setMontoRecibidoInput('');
-                setTarjetaUltimos4('');
-              }
-            } else {
-              addPago({ formaPago, monto: m });
-              pagoAgregadoEnEstaInvocacion = true;
-              setMontoRecibidoInput('');
-            }
+            addPago({ formaPago, monto: m });
+            pagoAgregadoEnEstaInvocacion = true;
+            setMontoRecibidoInput('');
           }
-        }
-      }
-    }
-
-    if (
-      formaPago !== 'PPC' &&
-      !esTraspasoTienda &&
-      !cobroTarjetaPueLocal &&
-      metodoPago === 'PPD'
-    ) {
-      const norm = montoRecibidoInput.replace(',', '.').trim();
-      if (norm) {
-        const m = parseFloat(norm);
-        if (
-          Number.isFinite(m) &&
-          m > 0 &&
-          esFormaTarjeta(ppdAbonoFormaPago) &&
-          digitos4TarjetaPendiente().length !== 4
-        ) {
-          toastTarjeta4Requeridos();
-          return;
-        }
-      }
-    }
-    if (
-      formaPago !== 'PPC' &&
-      !esTraspasoTienda &&
-      !cobroTarjetaPueLocal &&
-      metodoPago === 'PUE' &&
-      !esFormaDevolucion &&
-      !esFormaCotizacion
-    ) {
-      const norm = montoRecibidoInput.replace(',', '.').trim();
-      if (norm) {
-        const m = parseFloat(norm);
-        if (
-          Number.isFinite(m) &&
-          m > 0 &&
-          esFormaTarjeta(formaPago) &&
-          digitos4TarjetaPendiente().length !== 4
-        ) {
-          toastTarjeta4Requeridos();
-          return;
         }
       }
     }
@@ -2184,15 +2141,7 @@ export function POS() {
       formaPago === 'PPC' ? [] : [...useCartStore.getState().pagos];
 
     if (cobroTarjetaPueLocal) {
-      const d4 = digitos4TarjetaPendiente();
-      if (d4.length !== 4) {
-        addToast({
-          type: 'warning',
-          message: 'Ingrese los 4 dígitos del voucher para cobrar con tarjeta.',
-        });
-        return;
-      }
-      pagosParaVenta = [{ formaPago, monto: cobroReferencia, referencia: d4 }];
+      pagosParaVenta = [{ formaPago, monto: cobroReferencia }];
     } else if (!esTraspasoTienda) {
       const permiteDeuda = puedeVentaConSaldoPendiente || formaPago === 'PPC';
       const totalPagadoTrasAbono = useCartStore.getState().getTotalPagado();
@@ -2211,22 +2160,6 @@ export function POS() {
         }
         addToast({ type: 'error', message: 'El pago es insuficiente' });
         return;
-      }
-    }
-
-    if (!esTraspasoTienda && formaPago !== 'PPC') {
-      for (const p of pagosParaVenta) {
-        if (esFormaTarjeta(p.formaPago)) {
-          const ref = p.referencia?.trim() ?? '';
-          if (!/^\d{4}$/.test(ref)) {
-            addToast({
-              type: 'error',
-              message:
-                'Cada pago con tarjeta debe incluir los 4 dígitos del voucher. Quite el abono y vuelva a agregarlo.',
-            });
-            return;
-          }
-        }
       }
     }
 
@@ -2317,12 +2250,8 @@ export function POS() {
           const resumenPagosCxC = pagosCompletacion.map((p) => ({
             label: labelFormaPago(p.formaPago),
             monto: p.monto,
-            ultimos4:
-              esFormaTarjeta(p.formaPago) && /^\d{4}$/.test(p.referencia?.trim() ?? '')
-                ? p.referencia!.trim()
-                : undefined,
           }));
-          setTicketSnapshot({
+          const ticketSnapCxC: PosTicketSnapshot = {
             clienteNombre,
             cajeroNombre,
             lineas,
@@ -2335,7 +2264,9 @@ export function POS() {
             folio: pend.folio?.trim() || undefined,
             notas: pend.notas ? String(pend.notas) : undefined,
             resumenPagos: resumenPagosCxC,
-          });
+          };
+          setTicketSnapshot(ticketSnapCxC);
+          printPosTicketSnapshot(ticketSnapCxC);
           setOpenSaleResume(null);
           clearCart();
           setCheckoutPhase('success');
@@ -2390,12 +2321,8 @@ export function POS() {
           : pagosParaVenta.map((p) => ({
               label: labelFormaPago(p.formaPago),
               monto: p.monto,
-              ultimos4:
-                esFormaTarjeta(p.formaPago) && /^\d{4}$/.test(p.referencia?.trim() ?? '')
-                  ? p.referencia!.trim()
-                  : undefined,
             }));
-        setTicketSnapshot({
+        const ticketSnapAbierta: PosTicketSnapshot = {
           clienteNombre,
           cajeroNombre,
           lineas,
@@ -2408,7 +2335,9 @@ export function POS() {
           folio: pend.folio?.trim() || undefined,
           notas: pend.notas ? String(pend.notas) : undefined,
           resumenPagos: resumenPagosAbierta,
-        });
+        };
+        setTicketSnapshot(ticketSnapAbierta);
+        printPosTicketSnapshot(ticketSnapAbierta);
         setOpenSaleResume(null);
         clearCart();
         setCheckoutPhase('success');
@@ -2516,14 +2445,10 @@ export function POS() {
           ? pagosParaVenta.map((p) => ({
               label: labelFormaPago(p.formaPago),
               monto: p.monto,
-              ultimos4:
-                esFormaTarjeta(p.formaPago) && /^\d{4}$/.test(p.referencia?.trim() ?? '')
-                  ? p.referencia!.trim()
-                  : undefined,
             }))
           : undefined;
 
-      setTicketSnapshot({
+      const ticketSnapVenta: PosTicketSnapshot = {
         clienteNombre,
         cajeroNombre,
         lineas,
@@ -2536,7 +2461,9 @@ export function POS() {
         folio: folioVenta?.trim() || undefined,
         notas: saleData.notas?.trim() ? String(saleData.notas) : undefined,
         resumenPagos,
-      });
+      };
+      setTicketSnapshot(ticketSnapVenta);
+      printPosTicketSnapshot(ticketSnapVenta);
       clearCart();
       // Mismo portal de diálogo: pasar a "success" evita dos Dialog de Radix a la vez (insertBefore/removeChild).
       setCheckoutPhase('success');
@@ -2644,52 +2571,8 @@ export function POS() {
   ]);
 
   const handlePrintTicket = () => {
-    const snap = ticketSnapshot;
-    if (!snap) return;
-    if (snap.modoDevolucion) {
-      printThermalTicket({
-        negocio: 'SERVIPARTZ',
-        sucursalId: snap.sucursalId,
-        folio: snap.folioVentaOrigen,
-        fecha: formatInAppTimezone(new Date(), {
-          dateStyle: 'medium',
-          timeStyle: 'short',
-        }),
-        cliente: snap.clienteNombre,
-        cajeroNombre: snap.cajeroNombre,
-        lineas: snap.lineas,
-        subtotal: snap.subtotal,
-        impuestos: snap.impuestos,
-        total: snap.total,
-        cambio: 0,
-        notas:
-          snap.notas ??
-          'COMPROBANTE DE DEVOLUCIÓN — El ticket original quedó cancelado por devolución.',
-        resumenPagos: snap.resumenPagos,
-        incluirPiePoliticasRefacciones: false,
-      });
-      return;
-    }
-    printThermalTicket({
-      negocio: 'SERVIPARTZ',
-      sucursalId: snap.sucursalId,
-      folio: snap.folio,
-      fecha: formatInAppTimezone(new Date(), {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-      }),
-      cliente: snap.clienteNombre,
-      cajeroNombre: snap.cajeroNombre,
-      lineas: snap.lineas,
-      subtotal: snap.subtotal,
-      impuestos: snap.impuestos,
-      total: snap.total,
-      cambio: snap.cambio,
-      adeudoPendiente: snap.adeudoPendiente,
-      notas: snap.notas,
-      resumenPagos: snap.resumenPagos,
-      incluirPiePoliticasRefacciones: true,
-    });
+    if (!ticketSnapshot) return;
+    printPosTicketSnapshot(ticketSnapshot);
   };
 
   const checkoutDevolucionListo =
@@ -2733,15 +2616,8 @@ export function POS() {
     if (!norm) return false;
     const m = parseFloat(norm);
     if (!Number.isFinite(m) || m <= 0) return false;
-    if (metodoPago === 'PPD') {
-      const fp = ppdAbonoFormaPago;
-      if (esFormaTarjeta(fp) && digitos4TarjetaPendiente().length !== 4) return false;
-      return true;
-    }
-    if (metodoPago === 'PUE') {
-      if (esFormaTarjeta(formaPago) && digitos4TarjetaPendiente().length !== 4) return false;
-      return true;
-    }
+    if (metodoPago === 'PPD') return true;
+    if (metodoPago === 'PUE') return true;
     return false;
   }, [
     formaPago,
@@ -2751,8 +2627,6 @@ export function POS() {
     cobroTarjetaPue,
     montoRecibidoInput,
     metodoPago,
-    ppdAbonoFormaPago,
-    tarjetaUltimos4,
   ]);
 
   const puedeRegistrarAbonoParcialMixto = useMemo(
@@ -3968,7 +3842,6 @@ export function POS() {
                           value={ppdAbonoFormaSelectValue}
                           onValueChange={(v) => {
                             setPpdAbonoFormaPago(v);
-                            if (!esFormaTarjeta(v)) setTarjetaUltimos4('');
                           }}
                         >
                           <SelectTrigger className="h-10 w-full border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">
@@ -4034,41 +3907,6 @@ export function POS() {
                   </div>
                 ) : null}
 
-                {esFormaTarjeta(formaPagoAbono) &&
-                !esTraspasoTienda &&
-                !checkoutDevolucionListo &&
-                formaPago !== 'PPC' ? (
-                  <div className="space-y-2">
-                    <Label>Últimos 4 dígitos (voucher)</Label>
-                    <Input
-                      type="text"
-                      inputMode="numeric"
-                      autoComplete="off"
-                      placeholder="••••"
-                      maxLength={4}
-                      value={tarjetaUltimos4}
-                      onChange={(e) =>
-                        setTarjetaUltimos4(e.target.value.replace(/\D/g, '').slice(0, 4))
-                      }
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          void handleProcessSale();
-                        }
-                      }}
-                      className="h-11 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-center font-mono text-lg tracking-widest text-slate-900 dark:text-slate-100"
-                    />
-                    <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-500 sm:text-xs">
-                      Los mismos que en el comprobante del terminal, para cruzar ticket y voucher en
-                      auditoría.
-                      {cobroTarjetaPue ?
-                        ' Al completar la venta se registra el cobro por el total mostrado arriba.'
-                      : null}
-                    </p>
-                  </div>
-                ) : null}
-
                 {esFormaEfectivo(formaPagoAbono) &&
                 !esTraspasoTienda &&
                 !checkoutDevolucionListo &&
@@ -4101,10 +3939,6 @@ export function POS() {
                         >
                           <span className="truncate pr-2 text-sm text-slate-700 dark:text-slate-300">
                             {labelFormaPago(pago.formaPago)}
-                            {esFormaTarjeta(pago.formaPago) &&
-                            /^\d{4}$/.test(pago.referencia?.trim() ?? '') ?
-                              <span className="text-slate-600 dark:text-slate-500"> · ****{pago.referencia!.trim()}</span>
-                            : null}
                           </span>
                           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
                             <span className="font-bold text-slate-800 dark:text-slate-200">{formatMoney(pago.monto)}</span>
@@ -4153,7 +3987,7 @@ export function POS() {
                     (checkoutDevolucionListo
                       ? false
                       : cobroTarjetaPue
-                        ? digitos4TarjetaPendiente().length !== 4
+                        ? false
                         : puedeVentaConSaldoPendiente
                           ? false
                           : totalPagadoIncluyeCampoMonto + 0.004 < cobroReferencia &&
