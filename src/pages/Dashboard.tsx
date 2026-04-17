@@ -48,7 +48,6 @@ import {
 import type { DateRange } from 'react-day-picker';
 import {
   addDays,
-  addMonths,
   eachDayOfInterval,
   endOfMonth,
   endOfWeek,
@@ -84,14 +83,9 @@ const LINE_DOT_STROKE = '#164e63';
 
 const WEEKDAY_SHORT_ES = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'] as const;
 
-function shortMonthLabelEs(d: Date): string {
-  const raw = format(d, 'MMM', { locale: es }).replace(/\.$/, '');
-  return raw.charAt(0).toUpperCase() + raw.slice(1);
-}
-
 type ChartTimeRange =
   | { mode: 'week'; weekStart: Date; weekEndExclusive: Date }
-  | { mode: 'months'; months: Date[] };
+  | { mode: 'monthDays'; monthStart: Date };
 
 interface StatCardProps {
   title: string;
@@ -212,28 +206,24 @@ export function Dashboard() {
 
   const { inicio, fin } = useMemo(() => dateRangeToBounds(dateRange), [dateRange]);
 
-  /** Rango que pinta el gráfico: 7 días (lun–dom) en día/semana, o 7 meses (±3) en modo mes. */
+  /** Rango del gráfico: semana lun–dom (día/semana) o cada día del mes seleccionado (modo mes). */
   const chartTimeRange = useMemo((): ChartTimeRange => {
     const anchor = startOfDay(dateRange?.from ?? startOfDayFromDateKey(getMexicoDateKey()));
     if (periodGranularity === 'month') {
-      const centerMonth = startOfMonth(anchor);
-      const months = Array.from({ length: 7 }, (_, i) => addMonths(centerMonth, i - 3));
-      return { mode: 'months', months };
+      return { mode: 'monthDays', monthStart: startOfMonth(anchor) };
     }
     const weekStart = startOfWeek(anchor, { weekStartsOn: 1 });
     const weekEndExclusive = addDays(endOfWeek(weekStart, { weekStartsOn: 1 }), 1);
     return { mode: 'week', weekStart, weekEndExclusive };
   }, [periodGranularity, dateRange?.from]);
 
-  /** Cubre el periodo KPI y el rango completo del gráfico (semana o 7 meses). */
+  /** Cubre el periodo KPI y el rango completo del gráfico (semana o todo el mes del gráfico). */
   const fetchBounds = useMemo(() => {
     let chartStart: Date;
     let chartEndExclusive: Date;
-    if (chartTimeRange.mode === 'months') {
-      const first = chartTimeRange.months[0]!;
-      const last = chartTimeRange.months[6]!;
-      chartStart = startOfMonth(first);
-      chartEndExclusive = addDays(endOfMonth(last), 1);
+    if (chartTimeRange.mode === 'monthDays') {
+      chartStart = startOfMonth(chartTimeRange.monthStart);
+      chartEndExclusive = addDays(endOfMonth(chartTimeRange.monthStart), 1);
     } else {
       chartStart = chartTimeRange.weekStart;
       chartEndExclusive = chartTimeRange.weekEndExclusive;
@@ -372,25 +362,27 @@ export function Dashboard() {
     return m.charAt(0).toUpperCase() + m.slice(1);
   }, [dateRange, periodGranularity]);
 
-  /** 7 puntos: lun–dom (día/semana) o 7 meses consecutivos (modo mes). */
+  /** Puntos: lun–dom (día/semana) o un punto por cada día del mes (modo mes). */
   const chartData = useMemo(() => {
-    if (chartTimeRange.mode === 'months') {
-      return chartTimeRange.months.map((m) => {
-        const ms = startOfMonth(m);
-        const me = addDays(endOfMonth(m), 1);
-        const ventas = salesFetched.reduce((sum, sale) => {
-          if (sale.estado === 'cancelada' || sale.estado === 'pendiente') return sum;
+    if (chartTimeRange.mode === 'monthDays') {
+      const ms = startOfDay(chartTimeRange.monthStart);
+      const last = endOfMonth(ms);
+      const days = eachDayOfInterval({ start: ms, end: last });
+      return days.map((d) => {
+        const day0 = startOfDay(d);
+        const next = addDays(day0, 1);
+        const ventasDelDia = salesFetched.filter((sale) => {
+          if (sale.estado === 'cancelada' || sale.estado === 'pendiente') return false;
           const t = sale.createdAt instanceof Date ? sale.createdAt : new Date(sale.createdAt);
           const x = t.getTime();
-          if (x >= ms.getTime() && x < me.getTime()) {
-            return sum + (Number(sale.total) || 0);
-          }
-          return sum;
-        }, 0);
+          return x >= day0.getTime() && x < next.getTime();
+        });
+        const ventas = ventasDelDia.reduce((sum, sale) => sum + (Number(sale.total) || 0), 0);
         return {
-          name: shortMonthLabelEs(m),
+          name: String(d.getDate()),
           ventas,
-          fullLabel: format(m, 'MMMM yyyy', { locale: es }),
+          transacciones: ventasDelDia.length,
+          fullLabel: format(d, "EEEE d 'de' MMMM yyyy", { locale: es }),
         };
       });
     }
@@ -418,10 +410,27 @@ export function Dashboard() {
     });
   }, [salesFetched, chartTimeRange]);
 
-  const chartCardTitle = periodGranularity === 'month' ? 'Ventas por mes' : 'Ventas por día';
+  /** Mejor día del mes en facturación (solo vista mes). */
+  const chartMonthPeak = useMemo(() => {
+    if (periodGranularity !== 'month' || chartTimeRange.mode !== 'monthDays') return null;
+    let maxV = 0;
+    let best: { label: string; name: string } | null = null;
+    for (const row of chartData) {
+      const v = row.ventas;
+      if (v > maxV) {
+        maxV = v;
+        best = { label: row.fullLabel, name: row.name };
+      }
+    }
+    if (!best || maxV <= 0) return null;
+    return { total: maxV, fullLabel: best.label, dayNum: best.name };
+  }, [periodGranularity, chartTimeRange, chartData]);
+
+  const chartCardTitle =
+    periodGranularity === 'month' ? 'Ventas diarias del mes' : 'Ventas por día';
   const chartCardSubtitle =
     periodGranularity === 'month'
-      ? '7 meses: 3 anteriores, mes seleccionado y 3 posteriores'
+      ? 'Cada punto es un día del mes seleccionado · Pase el cursor para ver total y número de ventas'
       : periodGranularity === 'week'
         ? 'Semana seleccionada (lun–dom)'
         : 'Semana lun–dom que incluye el día seleccionado';
@@ -713,6 +722,12 @@ export function Dashboard() {
                 <span className="text-[10px] font-normal text-slate-600 dark:text-slate-500 sm:text-xs">
                   {chartCardSubtitle}
                 </span>
+                {chartMonthPeak ? (
+                  <span className="text-[10px] font-normal tabular-nums text-slate-600 dark:text-slate-400 sm:text-[11px]">
+                    Mayor facturación en un día: {formatMoney(chartMonthPeak.total)} (
+                    {chartMonthPeak.fullLabel})
+                  </span>
+                ) : null}
               </CardTitle>
             </CardHeader>
             <CardContent className="flex min-h-0 flex-1 flex-col p-2 pt-0 sm:p-3">
@@ -725,20 +740,26 @@ export function Dashboard() {
                   <ResponsiveContainer width="100%" height="100%" minHeight={180}>
                     <LineChart
                       data={chartData}
-                      margin={{ top: 12, right: 8, left: 4, bottom: 36 }}
+                      margin={{
+                        top: 12,
+                        right: 8,
+                        left: 4,
+                        bottom: periodGranularity === 'month' ? 48 : 36,
+                      }}
                     >
                       <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                       <XAxis
                         dataKey="name"
                         stroke="#64748b"
-                        fontSize={11}
+                        fontSize={periodGranularity === 'month' ? 10 : 11}
                         tickLine={false}
                         axisLine={{ stroke: '#334155' }}
                         interval={0}
+                        minTickGap={periodGranularity === 'month' ? 2 : 8}
                         tickMargin={8}
-                        angle={periodGranularity === 'month' ? -16 : -28}
+                        angle={periodGranularity === 'month' ? -32 : -28}
                         textAnchor="end"
-                        height={periodGranularity === 'month' ? 44 : 52}
+                        height={periodGranularity === 'month' ? 56 : 52}
                       />
                       <YAxis
                         width={48}
@@ -760,7 +781,14 @@ export function Dashboard() {
                             ? String(payload[0].payload.fullLabel)
                             : ''
                         }
-                        formatter={(value: number) => [formatMoney(value), 'Ventas']}
+                        formatter={(value: number, name: string, item: { payload?: { transacciones?: number } }) => {
+                          const n = item?.payload?.transacciones;
+                          if (typeof n === 'number') {
+                            const suf = n === 1 ? '1 venta' : `${n} ventas`;
+                            return [`${formatMoney(value)} · ${suf}`, 'Total del día'];
+                          }
+                          return [formatMoney(value), 'Ventas'];
+                        }}
                         cursor={{ stroke: '#475569', strokeWidth: 1, strokeDasharray: '4 4' }}
                       />
                       <Line
