@@ -10,6 +10,7 @@ import {
   Settings,
   Clock,
   Target,
+  Tag,
 } from 'lucide-react';
 import type { Permission } from '@/types';
 
@@ -21,6 +22,8 @@ export interface MainNavItem {
   /** Etiqueta en barra inferior móvil */
   shortLabel: string;
   permission: Permission;
+  /** Si true, no aparece en la barra inferior móvil (solo sidebar escritorio). */
+  desktopOnly?: boolean;
 }
 
 export const MAIN_NAV_ITEMS: MainNavItem[] = [
@@ -38,6 +41,14 @@ export const MAIN_NAV_ITEMS: MainNavItem[] = [
     label: 'Inventario',
     shortLabel: 'Stock',
     permission: 'inventario:ver',
+  },
+  {
+    to: '/etiquetas-productos',
+    icon: Tag,
+    label: 'Etiquetas',
+    shortLabel: 'Etiquetas',
+    permission: 'inventario:ver',
+    desktopOnly: true,
   },
   {
     to: '/mision-inventario',

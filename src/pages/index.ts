@@ -5,6 +5,7 @@
 export { Dashboard } from './Dashboard';
 export { POS } from './POS';
 export { Inventario } from './Inventario';
+export { EtiquetasProductos } from './EtiquetasProductos';
 export { Cotizaciones } from './Cotizaciones';
 export { Facturas } from './Facturas';
 export { Clientes } from './Clientes';

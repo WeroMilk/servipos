@@ -470,6 +470,25 @@ export function Dashboard() {
     return { total: maxV, fullLabel: best.label, dayNum: best.name };
   }, [periodGranularity, chartTimeRange, chartData]);
 
+  /**
+   * Recharts pasa `activeTooltipIndex` según la posición X en el área del gráfico (eje).
+   * Así se puede elegir un día tocando la franja vertical de ese día, no solo el punto (crítico cuando ventas=0 y el punto queda en el borde).
+   */
+  const handleChartPlotClick = useCallback(
+    (state: { activeTooltipIndex?: number } | null | undefined) => {
+      const idx = state?.activeTooltipIndex;
+      if (typeof idx === 'number' && idx >= 0 && idx < chartData.length) {
+        const row = chartData[idx];
+        if (row && typeof row.dayStartMs === 'number') {
+          setKpiDrillDownDayStart(startOfDay(new Date(row.dayStartMs)));
+          return;
+        }
+      }
+      setKpiDrillDownDayStart(null);
+    },
+    [chartData]
+  );
+
   /** Etiqueta del eje X (ej. "Mié") del día consultado en modo "día" (calendario). */
   const selectedDayChartCategory = useMemo(() => {
     if (periodGranularity !== 'day') return null;
@@ -848,9 +867,7 @@ export function Dashboard() {
                         left: 4,
                         bottom: periodGranularity === 'month' ? 48 : 36,
                       }}
-                      onClick={() => {
-                        setKpiDrillDownDayStart((d) => (d ? null : d));
-                      }}
+                      onClick={handleChartPlotClick}
                     >
                       <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                       <XAxis
@@ -931,41 +948,50 @@ export function Dashboard() {
                           const drill = Boolean(payload?.isKpiDrillDown);
                           const sel = Boolean(payload?.isSelectedInChart);
                           const s = drill ? 11 : sel ? 10 : 7;
-                          const setDrill = (e: React.MouseEvent) => {
+                          const setDrill = (e: React.PointerEvent) => {
                             e.stopPropagation();
                             const ms = payload?.dayStartMs;
                             if (typeof ms === 'number') {
                               setKpiDrillDownDayStart(startOfDay(new Date(ms)));
                             }
                           };
-                          const stopChartClear = (e: React.MouseEvent) => {
+                          const stopBubble = (e: React.MouseEvent) => {
                             e.stopPropagation();
                           };
+                          const hitR = 16;
                           return (
-                            <rect
-                              role="button"
-                              tabIndex={0}
-                              onMouseDown={setDrill}
-                              onClick={stopChartClear}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                  e.preventDefault();
-                                  const ms = payload?.dayStartMs;
-                                  if (typeof ms === 'number') {
-                                    setKpiDrillDownDayStart(startOfDay(new Date(ms)));
+                            <g style={{ cursor: 'pointer' }}>
+                              <circle
+                                role="button"
+                                tabIndex={0}
+                                cx={cx}
+                                cy={cy}
+                                r={hitR}
+                                fill="transparent"
+                                onPointerDown={setDrill}
+                                onClick={stopBubble}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    const ms = payload?.dayStartMs;
+                                    if (typeof ms === 'number') {
+                                      setKpiDrillDownDayStart(startOfDay(new Date(ms)));
+                                    }
                                   }
-                                }
-                              }}
-                              style={{ cursor: 'pointer' }}
-                              x={cx - s / 2}
-                              y={cy - s / 2}
-                              width={s}
-                              height={s}
-                              rx={drill || sel ? 2 : 1}
-                              fill={drill ? '#fef3c7' : sel ? '#cffafe' : LINE_DOT_FILL}
-                              stroke={drill ? '#f59e0b' : sel ? '#22d3ee' : LINE_DOT_STROKE}
-                              strokeWidth={drill ? 2.5 : sel ? 2.25 : 1.5}
-                            />
+                                }}
+                              />
+                              <rect
+                                pointerEvents="none"
+                                x={cx - s / 2}
+                                y={cy - s / 2}
+                                width={s}
+                                height={s}
+                                rx={drill || sel ? 2 : 1}
+                                fill={drill ? '#fef3c7' : sel ? '#cffafe' : LINE_DOT_FILL}
+                                stroke={drill ? '#f59e0b' : sel ? '#22d3ee' : LINE_DOT_STROKE}
+                                strokeWidth={drill ? 2.5 : sel ? 2.25 : 1.5}
+                              />
+                            </g>
                           );
                         }}
                         activeDot={(props: { cx?: number; cy?: number }) => {

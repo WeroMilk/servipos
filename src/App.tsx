@@ -11,6 +11,7 @@ import {
   Configuracion,
   Checador,
   MisionInventario,
+  EtiquetasProductos,
 } from '@/pages';
 
 const Facturas = lazy(() =>
@@ -103,6 +104,7 @@ function App() {
           <Route index element={<Dashboard />} />
           <Route path="pos" element={<POS />} />
           <Route path="inventario" element={<Inventario />} />
+          <Route path="etiquetas-productos" element={<EtiquetasProductos />} />
           <Route path="mision-inventario" element={<MisionInventario />} />
           <Route path="cotizaciones" element={<Cotizaciones />} />
           <Route path="checador" element={<Checador />} />
