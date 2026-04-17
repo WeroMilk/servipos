@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { Printer, Tag, Trash2, Package, ArrowLeft } from 'lucide-react';
+import { Printer, Tag, Trash2, Package, ArrowLeft, Settings2, ListFilter } from 'lucide-react';
 import { useProducts } from '@/hooks/useProducts';
 import { useAuthStore, useAppStore } from '@/stores';
 import type { Product } from '@/types';
@@ -204,163 +204,275 @@ export function EtiquetasProductos() {
 
       <div className="grid min-h-0 flex-1 flex-col gap-4 overflow-hidden lg:grid-cols-[1fr_minmax(280px,380px)]">
         <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50">
-          <CardHeader className="shrink-0 space-y-1 pb-2">
+          <CardHeader className="shrink-0 space-y-1 pb-3">
             <CardTitle className="text-base">Agregar a la lista</CardTitle>
-            <CardDescription className="text-xs">
-              Todos los productos activos, por familia (categoría) o artículos sueltos. Las copias se suman si el
-              artículo ya estaba en la lista.
+            <CardDescription className="text-xs leading-relaxed">
+              Defina primero el tamaño de etiqueta y las copias por artículo. Luego elija si añade todo el
+              catálogo activo, solo algunas familias o artículos puntuales. Si un producto ya estaba en la lista,
+              se suman las copias.
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="copias-def" className="text-xs">
-                  Copias por artículo al añadir
-                </Label>
-                <Input
-                  id="copias-def"
-                  type="number"
-                  min={1}
-                  max={999}
-                  className="h-9 w-24"
-                  value={addCopiesDefault}
-                  onChange={(e) => setAddCopiesDefault(Number(e.target.value))}
-                />
+          <CardContent className="flex min-h-0 flex-1 flex-col gap-5 overflow-hidden">
+            {/* Sección 1: opciones de etiqueta */}
+            <section
+              className={cn(
+                'shrink-0 rounded-xl border border-slate-200/90 bg-gradient-to-b from-slate-50/90 to-white p-4',
+                'dark:border-slate-700/80 dark:from-slate-900/50 dark:to-slate-950/80'
+              )}
+            >
+              <div className="mb-3 flex items-center gap-2 text-slate-800 dark:text-slate-100">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-500/15 text-cyan-700 dark:text-cyan-400">
+                  <Settings2 className="h-4 w-4" aria-hidden />
+                </span>
+                <div>
+                  <h2 className="text-sm font-semibold leading-tight">Opciones de etiqueta</h2>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">Rollo Brother y copias al añadir</p>
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="rollo" className="text-xs">
-                  Tamaño de etiqueta (rollo)
-                </Label>
-                <select
-                  id="rollo"
-                  className={cn(
-                    'h-9 w-full min-w-[220px] rounded-md border border-input bg-transparent px-3 text-sm shadow-xs',
-                    'md:max-w-xs'
-                  )}
-                  value={format}
-                  onChange={(e) => setFormat(e.target.value as LabelFormatPreset)}
-                >
-                  {LABEL_FORMAT_OPTIONS.map((o) => (
-                    <option key={o.id} value={o.id}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="copias-def" className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                    Copias por artículo al añadir
+                  </Label>
+                  <Input
+                    id="copias-def"
+                    type="number"
+                    min={1}
+                    max={999}
+                    className="h-10 max-w-[7rem] tabular-nums"
+                    value={addCopiesDefault}
+                    onChange={(e) => setAddCopiesDefault(Number(e.target.value))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="rollo" className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                    Tamaño de etiqueta (rollo)
+                  </Label>
+                  <select
+                    id="rollo"
+                    className={cn(
+                      'h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm shadow-xs',
+                      'focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50'
+                    )}
+                    value={format}
+                    onChange={(e) => setFormat(e.target.value as LabelFormatPreset)}
+                  >
+                    {LABEL_FORMAT_OPTIONS.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-            </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">{LABEL_FORMAT_OPTIONS.find((x) => x.id === format)?.hint}</p>
+              <p className="mt-3 rounded-lg border border-slate-200/80 bg-white/70 px-3 py-2 text-[11px] leading-snug text-slate-600 dark:border-slate-700/80 dark:bg-slate-900/60 dark:text-slate-400">
+                {LABEL_FORMAT_OPTIONS.find((x) => x.id === format)?.hint}
+              </p>
+            </section>
 
             {loading ? (
               <p className="text-sm text-slate-600 dark:text-slate-400">Cargando inventario…</p>
             ) : error ? (
               <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
             ) : (
-              <Tabs defaultValue="all" className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                <TabsList className="h-9 w-full shrink-0 justify-start overflow-x-auto">
-                  <TabsTrigger value="all" className="text-xs">
-                    Todos
-                  </TabsTrigger>
-                  <TabsTrigger value="family" className="text-xs">
-                    Por familia
-                  </TabsTrigger>
-                  <TabsTrigger value="pick" className="text-xs">
-                    Individual
-                  </TabsTrigger>
-                </TabsList>
-                <TabsContent value="all" className="mt-3 flex-shrink-0 space-y-0">
-                  <p className="mb-2 text-xs text-slate-600 dark:text-slate-400">
-                    {activeProducts.length} producto(s) activo(s).
-                  </p>
-                  <Button type="button" size="sm" className="gap-1.5" onClick={addAll}>
-                    <Package className="h-4 w-4" />
-                    Añadir todos a la lista
-                  </Button>
-                </TabsContent>
-                <TabsContent value="family" className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden">
-                  {categoriasEnUso.length === 0 ? (
-                    <p className="text-xs text-slate-600 dark:text-slate-400">
-                      No hay categorías asignadas en productos activos. Asigne familia en inventario o use el modo
-                      individual.
-                    </p>
-                  ) : (
-                    <>
-                      <div className="max-h-48 space-y-2 overflow-y-auto overscroll-y-contain rounded-md border border-slate-200/80 p-2 dark:border-slate-800/50">
-                        {categoriasEnUso.map((cat) => (
-                          <label
-                            key={cat}
-                            className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm hover:bg-slate-100/80 dark:hover:bg-slate-800/40"
-                          >
-                            <input
-                              type="checkbox"
-                              className="rounded border-slate-400"
-                              checked={Boolean(familyPick[cat])}
-                              onChange={(e) =>
-                                setFamilyPick((prev) => ({ ...prev, [cat]: e.target.checked }))
-                              }
-                            />
-                            <span className="truncate">{cat}</span>
-                          </label>
-                        ))}
-                      </div>
-                      <Button type="button" size="sm" className="mt-3 w-fit gap-1.5" onClick={addByFamilies}>
-                        <Package className="h-4 w-4" />
-                        Añadir productos de familias marcadas
-                      </Button>
-                    </>
-                  )}
-                </TabsContent>
-                <TabsContent value="pick" className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden">
-                  <Input
-                    placeholder="Buscar por nombre, SKU o código de barras…"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="mb-2 h-9"
-                  />
-                  <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain rounded-md border border-slate-200/80 dark:border-slate-800/50">
-                    <table className="w-full text-left text-xs">
-                      <thead className="sticky top-0 bg-slate-100/95 dark:bg-slate-900/95">
-                        <tr>
-                          <th className="w-10 px-2 py-1.5">
-                            <span className="sr-only">Elegir</span>
-                          </th>
-                          <th className="px-2 py-1.5">Artículo</th>
-                          <th className="px-2 py-1.5">SKU</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredForPick.map((p) => (
-                          <tr
-                            key={p.id}
-                            className="border-t border-slate-200/60 dark:border-slate-800/50"
-                          >
-                            <td className="px-2 py-1 align-top">
-                              <input
-                                type="checkbox"
-                                className="rounded border-slate-400"
-                                checked={Boolean(individualPick[p.id])}
-                                onChange={(e) =>
-                                  setIndividualPick((prev) => ({ ...prev, [p.id]: e.target.checked }))
-                                }
-                              />
-                            </td>
-                            <td className="max-w-[200px] px-2 py-1">
-                              <span className="line-clamp-2 font-medium">{p.nombre}</span>
-                              {p.categoria?.trim() ? (
-                                <span className="mt-0.5 block text-[10px] text-slate-500">{p.categoria}</span>
-                              ) : null}
-                            </td>
-                            <td className="whitespace-nowrap px-2 py-1 font-mono text-[11px]">{p.sku}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+              /* Sección 2: modo de selección */
+              <section
+                className={cn(
+                  'flex min-h-[280px] flex-1 flex-col overflow-hidden rounded-xl border border-slate-200/90',
+                  'bg-white/40 dark:border-slate-700/80 dark:bg-slate-950/30'
+                )}
+              >
+                <div className="shrink-0 border-b border-slate-200/80 px-4 pb-3 pt-4 dark:border-slate-800/80">
+                  <div className="flex items-center gap-2 text-slate-800 dark:text-slate-100">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/12 text-violet-700 dark:text-violet-400">
+                      <ListFilter className="h-4 w-4" aria-hidden />
+                    </span>
+                    <div>
+                      <h2 className="text-sm font-semibold leading-tight">Qué incluir en la lista</h2>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Todos, por familia de producto o artículos sueltos
+                      </p>
+                    </div>
                   </div>
-                  <Button type="button" size="sm" className="mt-3 w-fit gap-1.5" onClick={addIndividuals}>
-                    <Package className="h-4 w-4" />
-                    Añadir marcados a la lista
-                  </Button>
-                </TabsContent>
-              </Tabs>
+                </div>
+                <Tabs
+                  defaultValue="all"
+                  className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden px-4 pb-4 pt-3"
+                >
+                    <TabsList
+                      className={cn(
+                        'h-auto w-full shrink-0 flex-wrap justify-stretch gap-1 rounded-lg bg-slate-100/90 p-1',
+                        'dark:bg-slate-900/80'
+                      )}
+                    >
+                      <TabsTrigger
+                        value="all"
+                        className={cn(
+                          'flex-1 rounded-md px-3 py-2 text-xs font-medium data-[state=active]:shadow-sm',
+                          'data-[state=active]:bg-white data-[state=active]:text-slate-900',
+                          'dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100'
+                        )}
+                      >
+                        Todos
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="family"
+                        className={cn(
+                          'flex-1 rounded-md px-3 py-2 text-xs font-medium data-[state=active]:shadow-sm',
+                          'data-[state=active]:bg-white data-[state=active]:text-slate-900',
+                          'dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100'
+                        )}
+                      >
+                        Por familia
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="pick"
+                        className={cn(
+                          'flex-1 rounded-md px-3 py-2 text-xs font-medium data-[state=active]:shadow-sm',
+                          'data-[state=active]:bg-white data-[state=active]:text-slate-900',
+                          'dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100'
+                        )}
+                      >
+                        Individual
+                      </TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent
+                      value="all"
+                      className="m-0 flex flex-shrink-0 flex-col gap-3 pt-1 outline-none"
+                    >
+                      <p className="text-xs text-slate-600 dark:text-slate-400">
+                        Hay <span className="font-semibold tabular-nums text-slate-800 dark:text-slate-200">{activeProducts.length}</span>{' '}
+                        producto(s) activo(s); se añadirán a la lista con las copias indicadas arriba.
+                      </p>
+                      <Button type="button" size="default" className="w-full gap-2 sm:w-auto" onClick={addAll}>
+                        <Package className="h-4 w-4" />
+                        Añadir todos a la lista
+                      </Button>
+                    </TabsContent>
+
+                    <TabsContent
+                      value="family"
+                      className="m-0 flex min-h-0 flex-1 flex-col gap-0 overflow-hidden pt-2 outline-none"
+                    >
+                      {categoriasEnUso.length === 0 ? (
+                        <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+                          No hay categorías asignadas en productos activos. Asigne familia en inventario o use el
+                          modo individual.
+                        </p>
+                      ) : (
+                        <div className="flex min-h-0 flex-1 flex-col gap-4">
+                          <div className="min-h-[7rem] max-h-52 flex-1 overflow-y-auto overscroll-y-contain rounded-lg border border-slate-200/90 bg-white/60 px-1 py-1 dark:border-slate-800/80 dark:bg-slate-950/40">
+                            {categoriasEnUso.map((cat) => (
+                              <label
+                                key={cat}
+                                className={cn(
+                                  'flex cursor-pointer items-center gap-3 rounded-md px-2.5 py-2 text-sm',
+                                  'transition-colors hover:bg-slate-100/90 dark:hover:bg-slate-800/50'
+                                )}
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="size-4 shrink-0 rounded border-slate-400 text-cyan-600 focus:ring-cyan-500/40"
+                                  checked={Boolean(familyPick[cat])}
+                                  onChange={(e) =>
+                                    setFamilyPick((prev) => ({ ...prev, [cat]: e.target.checked }))
+                                  }
+                                />
+                                <span className="min-w-0 flex-1 leading-snug text-slate-800 dark:text-slate-200">
+                                  {cat}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                          <div className="flex shrink-0 flex-col border-t border-slate-200/80 pt-4 dark:border-slate-800/80 sm:flex-row sm:justify-end">
+                            <Button type="button" className="w-full gap-2 sm:w-auto" onClick={addByFamilies}>
+                              <Package className="h-4 w-4" />
+                              Añadir productos de familias marcadas
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </TabsContent>
+
+                    <TabsContent
+                      value="pick"
+                      className="m-0 flex min-h-0 flex-1 flex-col gap-0 overflow-hidden pt-2 outline-none"
+                    >
+                      <div className="flex min-h-0 flex-1 flex-col gap-3">
+                        <div className="space-y-1.5 shrink-0">
+                          <Label htmlFor="buscar-etiq" className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                            Buscar artículo
+                          </Label>
+                          <Input
+                            id="buscar-etiq"
+                            placeholder="Nombre, SKU o código de barras…"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="h-10"
+                          />
+                        </div>
+                        <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-slate-200/90 bg-white/60 dark:border-slate-800/80 dark:bg-slate-950/40">
+                          <div className="max-h-[min(22rem,50vh)] overflow-y-auto overscroll-y-contain">
+                            <table className="w-full text-left text-xs">
+                              <thead className="sticky top-0 z-[1] border-b border-slate-200/90 bg-slate-100 dark:border-slate-800 dark:bg-slate-900">
+                                <tr>
+                                  <th className="w-11 px-3 py-2.5">
+                                    <span className="sr-only">Elegir</span>
+                                  </th>
+                                  <th className="px-2 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                    Artículo
+                                  </th>
+                                  <th className="whitespace-nowrap px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                    SKU
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-200/70 dark:divide-slate-800/80">
+                                {filteredForPick.map((p) => (
+                                  <tr
+                                    key={p.id}
+                                    className="bg-white/50 transition-colors hover:bg-cyan-500/[0.04] dark:bg-transparent dark:hover:bg-slate-800/30"
+                                  >
+                                    <td className="px-3 py-2 align-top">
+                                      <input
+                                        type="checkbox"
+                                        className="mt-0.5 size-4 rounded border-slate-400 text-cyan-600 focus:ring-cyan-500/40"
+                                        checked={Boolean(individualPick[p.id])}
+                                        onChange={(e) =>
+                                          setIndividualPick((prev) => ({ ...prev, [p.id]: e.target.checked }))
+                                        }
+                                      />
+                                    </td>
+                                    <td className="max-w-[min(200px,40vw)] px-2 py-2">
+                                      <span className="line-clamp-2 text-[13px] font-medium leading-snug text-slate-900 dark:text-slate-100">
+                                        {p.nombre}
+                                      </span>
+                                      {p.categoria?.trim() ? (
+                                        <span className="mt-1 block text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-500">
+                                          {p.categoria}
+                                        </span>
+                                      ) : null}
+                                    </td>
+                                    <td className="whitespace-nowrap px-3 py-2 font-mono text-[11px] text-slate-700 dark:text-slate-300">
+                                      {p.sku}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 flex-col gap-2 border-t border-slate-200/80 pt-4 dark:border-slate-800/80 sm:flex-row sm:justify-end">
+                          <Button type="button" className="w-full gap-2 sm:w-auto" onClick={addIndividuals}>
+                            <Package className="h-4 w-4" />
+                            Añadir marcados a la lista
+                          </Button>
+                        </div>
+                      </div>
+                    </TabsContent>
+                  </Tabs>
+              </section>
             )}
           </CardContent>
         </Card>

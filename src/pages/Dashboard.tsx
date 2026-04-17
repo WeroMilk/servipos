@@ -926,7 +926,12 @@ export function Dashboard() {
                           }
                           return [formatMoney(value), 'Ventas'];
                         }}
-                        cursor={{ stroke: '#475569', strokeWidth: 1, strokeDasharray: '4 4' }}
+                        cursor={{
+                          stroke: '#475569',
+                          strokeWidth: 1,
+                          strokeDasharray: '4 4',
+                          pointerEvents: 'none',
+                        }}
                       />
                       <Line
                         type="linear"
@@ -948,37 +953,27 @@ export function Dashboard() {
                           const drill = Boolean(payload?.isKpiDrillDown);
                           const sel = Boolean(payload?.isSelectedInChart);
                           const s = drill ? 11 : sel ? 10 : 7;
-                          const setDrill = (e: React.PointerEvent) => {
+                          /** Franja alta (ventas=0 abajo se recorta el círculo) y ancha ~2 categorías en modo mes; el activeDot tapaba el clic. */
+                          const hitW = periodGranularity === 'month' ? 22 : 28;
+                          const hitH = 120;
+                          const selectDay = (e: React.SyntheticEvent) => {
                             e.stopPropagation();
                             const ms = payload?.dayStartMs;
                             if (typeof ms === 'number') {
                               setKpiDrillDownDayStart(startOfDay(new Date(ms)));
                             }
                           };
-                          const stopBubble = (e: React.MouseEvent) => {
-                            e.stopPropagation();
-                          };
-                          const hitR = 16;
                           return (
                             <g style={{ cursor: 'pointer' }}>
-                              <circle
-                                role="button"
-                                tabIndex={0}
-                                cx={cx}
-                                cy={cy}
-                                r={hitR}
+                              <rect
+                                x={cx - hitW / 2}
+                                y={cy - hitH / 2}
+                                width={hitW}
+                                height={hitH}
+                                rx={hitW / 2}
                                 fill="transparent"
-                                onPointerDown={setDrill}
-                                onClick={stopBubble}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter' || e.key === ' ') {
-                                    e.preventDefault();
-                                    const ms = payload?.dayStartMs;
-                                    if (typeof ms === 'number') {
-                                      setKpiDrillDownDayStart(startOfDay(new Date(ms)));
-                                    }
-                                  }
-                                }}
+                                onPointerDown={selectDay}
+                                onClick={selectDay}
                               />
                               <rect
                                 pointerEvents="none"
@@ -1000,7 +995,7 @@ export function Dashboard() {
                           const s = 9;
                           return (
                             <rect
-                              onClick={(e) => e.stopPropagation()}
+                              pointerEvents="none"
                               x={cx - s / 2}
                               y={cy - s / 2}
                               width={s}
