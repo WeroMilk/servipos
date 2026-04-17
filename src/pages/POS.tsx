@@ -389,7 +389,6 @@ export function POS() {
     setClient,
     clearCart,
     replaceCartForOpenSaleResume,
-    getTotalPagado,
     getCambio,
   } = cart;
 
@@ -2062,6 +2061,9 @@ export function POS() {
     const cobroTarjetaPueLocal =
       !esTraspasoTienda && esFormaTarjeta(formaPago) && metodoPago === 'PUE';
 
+    /** Pago mixto (varios medios en un solo ticket): true si en esta invocación se añadió un abono desde el campo. */
+    let pagoAgregadoEnEstaInvocacion = false;
+
     if (formaPago !== 'PPC' && !esTraspasoTienda && !cobroTarjetaPueLocal) {
       if (metodoPago === 'PPD') {
         const fpLinea = ppdAbonoFormaPago;
@@ -2073,11 +2075,13 @@ export function POS() {
               const d4 = digitos4TarjetaPendiente();
               if (d4.length === 4) {
                 addPago({ formaPago: fpLinea, monto: m, referencia: d4 });
+                pagoAgregadoEnEstaInvocacion = true;
                 setMontoRecibidoInput('');
                 setTarjetaUltimos4('');
               }
             } else {
               addPago({ formaPago: fpLinea, monto: m });
+              pagoAgregadoEnEstaInvocacion = true;
               setMontoRecibidoInput('');
             }
           }
@@ -2096,14 +2100,59 @@ export function POS() {
               const d4 = digitos4TarjetaPendiente();
               if (d4.length === 4) {
                 addPago({ formaPago, monto: m, referencia: d4 });
+                pagoAgregadoEnEstaInvocacion = true;
                 setMontoRecibidoInput('');
                 setTarjetaUltimos4('');
               }
             } else {
               addPago({ formaPago, monto: m });
+              pagoAgregadoEnEstaInvocacion = true;
               setMontoRecibidoInput('');
             }
           }
+        }
+      }
+    }
+
+    if (
+      formaPago !== 'PPC' &&
+      !esTraspasoTienda &&
+      !cobroTarjetaPueLocal &&
+      metodoPago === 'PPD'
+    ) {
+      const norm = montoRecibidoInput.replace(',', '.').trim();
+      if (norm) {
+        const m = parseFloat(norm);
+        if (
+          Number.isFinite(m) &&
+          m > 0 &&
+          esFormaTarjeta(ppdAbonoFormaPago) &&
+          digitos4TarjetaPendiente().length !== 4
+        ) {
+          toastTarjeta4Requeridos();
+          return;
+        }
+      }
+    }
+    if (
+      formaPago !== 'PPC' &&
+      !esTraspasoTienda &&
+      !cobroTarjetaPueLocal &&
+      metodoPago === 'PUE' &&
+      !esFormaDevolucion &&
+      !esFormaCotizacion
+    ) {
+      const norm = montoRecibidoInput.replace(',', '.').trim();
+      if (norm) {
+        const m = parseFloat(norm);
+        if (
+          Number.isFinite(m) &&
+          m > 0 &&
+          esFormaTarjeta(formaPago) &&
+          digitos4TarjetaPendiente().length !== 4
+        ) {
+          toastTarjeta4Requeridos();
+          return;
         }
       }
     }
@@ -2139,7 +2188,20 @@ export function POS() {
       pagosParaVenta = [{ formaPago, monto: cobroReferencia, referencia: d4 }];
     } else if (!esTraspasoTienda) {
       const permiteDeuda = puedeVentaConSaldoPendiente || formaPago === 'PPC';
-      if (!permiteDeuda && getTotalPagado() < cobroReferencia) {
+      const totalPagadoTrasAbono = useCartStore.getState().getTotalPagado();
+      if (!permiteDeuda && totalPagadoTrasAbono + 0.004 < cobroReferencia) {
+        if (
+          pagoAgregadoEnEstaInvocacion &&
+          (metodoPago === 'PPD' || metodoPago === 'PUE')
+        ) {
+          const restante = Math.max(0, cobroReferencia - totalPagadoTrasAbono);
+          addToast({
+            type: 'success',
+            message: `Abono registrado. Falta ${formatMoney(restante)}`,
+            logToAppEvents: true,
+          });
+          return;
+        }
         addToast({ type: 'error', message: 'El pago es insuficiente' });
         return;
       }
@@ -2622,6 +2684,57 @@ export function POS() {
   const montoDialogoPrincipal = checkoutDevolucionListo
     ? previewDevolucion?.reembolso ?? 0
     : cobroReferencia;
+
+  /** Campo «Monto recibido» listo para registrar un abono (pago mixto sin dejar saldo en CxC). */
+  const hayCampoMontoParaAbonoValido = useMemo(() => {
+    if (formaPago === 'PPC' || esTraspasoTienda || esFormaDevolucion || esFormaCotizacion) return false;
+    if (cobroTarjetaPue) return false;
+    const norm = montoRecibidoInput.replace(',', '.').trim();
+    if (!norm) return false;
+    const m = parseFloat(norm);
+    if (!Number.isFinite(m) || m <= 0) return false;
+    if (metodoPago === 'PPD') {
+      const fp = ppdAbonoFormaPago;
+      if (esFormaTarjeta(fp) && digitos4TarjetaPendiente().length !== 4) return false;
+      return true;
+    }
+    if (metodoPago === 'PUE') {
+      if (esFormaTarjeta(formaPago) && digitos4TarjetaPendiente().length !== 4) return false;
+      return true;
+    }
+    return false;
+  }, [
+    formaPago,
+    esTraspasoTienda,
+    esFormaDevolucion,
+    esFormaCotizacion,
+    cobroTarjetaPue,
+    montoRecibidoInput,
+    metodoPago,
+    ppdAbonoFormaPago,
+    tarjetaUltimos4,
+  ]);
+
+  const puedeRegistrarAbonoParcialMixto = useMemo(
+    () =>
+      !puedeVentaConSaldoPendiente &&
+      !esTraspasoTienda &&
+      formaPago !== 'PPC' &&
+      !checkoutDevolucionListo &&
+      (metodoPago === 'PPD' || metodoPago === 'PUE') &&
+      hayCampoMontoParaAbonoValido &&
+      totalPagadoIncluyeCampoMonto + 0.004 < cobroReferencia,
+    [
+      puedeVentaConSaldoPendiente,
+      esTraspasoTienda,
+      formaPago,
+      checkoutDevolucionListo,
+      metodoPago,
+      hayCampoMontoParaAbonoValido,
+      totalPagadoIncluyeCampoMonto,
+      cobroReferencia,
+    ]
+  );
 
   const panelClass =
     'rounded-xl border border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 shadow-sm';
@@ -3446,14 +3559,17 @@ export function POS() {
                     momento.
                   </p>
                 ) : null}
-                {metodoPago === 'PPD' &&
+                {(metodoPago === 'PPD' || metodoPago === 'PUE') &&
                 (!client || client.isMostrador || client.id === 'mostrador') &&
                 !esTraspasoTienda &&
                 !esFormaDevolucion &&
                 !esFormaCotizacion &&
                 !esFormaPendientePago ? (
                   <p className="text-[10px] leading-snug text-amber-700 dark:text-amber-400 sm:text-xs">
-                    Para dejar saldo a cuenta elija un cliente registrado (no Mostrador).
+                    Puede registrar varios abonos en el mismo ticket (ej. efectivo y luego tarjeta): en{' '}
+                    <span className="font-medium">Parcialidades</span> elija el medio de cada abono; en{' '}
+                    <span className="font-medium">Una exhibición</span> cambie la forma de pago entre abonos. La suma debe
+                    cubrir el total. Para dejar saldo a cuenta elija un cliente registrado (no Mostrador).
                   </p>
                 ) : null}
 
@@ -4012,7 +4128,8 @@ export function POS() {
                         ? digitos4TarjetaPendiente().length !== 4
                         : puedeVentaConSaldoPendiente
                           ? false
-                          : totalPagadoIncluyeCampoMonto + 0.004 < cobroReferencia)
+                          : totalPagadoIncluyeCampoMonto + 0.004 < cobroReferencia &&
+                            !puedeRegistrarAbonoParcialMixto)
                   }
                   className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white sm:w-auto"
                 >
