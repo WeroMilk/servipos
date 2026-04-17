@@ -181,7 +181,7 @@ export function EtiquetasProductos() {
   );
 
   const desktop = (
-    <div className="hidden min-h-0 flex-1 flex-col gap-4 overflow-hidden md:flex">
+    <div className="hidden min-h-0 flex-1 flex-col gap-4 overflow-hidden md:flex md:min-h-0">
       <div className="flex shrink-0 flex-wrap items-start justify-between gap-3 border-b border-slate-200/80 pb-3 dark:border-slate-800/50">
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -202,8 +202,8 @@ export function EtiquetasProductos() {
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 flex-col gap-4 overflow-hidden lg:grid-cols-[1fr_minmax(280px,380px)]">
-        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-hidden lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)] lg:grid-rows-[minmax(0,1fr)] lg:items-stretch">
+        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 lg:min-h-0 lg:h-full">
           <CardHeader className="shrink-0 space-y-1 pb-3">
             <CardTitle className="text-base">Agregar a la lista</CardTitle>
             <CardDescription className="text-xs leading-relaxed">
@@ -278,7 +278,7 @@ export function EtiquetasProductos() {
               /* Sección 2: modo de selección */
               <section
                 className={cn(
-                  'flex min-h-[280px] flex-1 flex-col overflow-hidden rounded-xl border border-slate-200/90',
+                  'flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200/90',
                   'bg-white/40 dark:border-slate-700/80 dark:bg-slate-950/30'
                 )}
               >
@@ -297,7 +297,7 @@ export function EtiquetasProductos() {
                 </div>
                 <Tabs
                   defaultValue="all"
-                  className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden px-4 pb-4 pt-3"
+                  className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden px-4 pb-2 pt-3 sm:px-4 sm:pb-4"
                 >
                     <TabsList
                       className={cn(
@@ -361,8 +361,8 @@ export function EtiquetasProductos() {
                           modo individual.
                         </p>
                       ) : (
-                        <div className="flex min-h-0 flex-1 flex-col gap-4">
-                          <div className="min-h-[7rem] max-h-52 flex-1 overflow-y-auto overscroll-y-contain rounded-lg border border-slate-200/90 bg-white/60 px-1 py-1 dark:border-slate-800/80 dark:bg-slate-950/40">
+                        <div className="flex min-h-0 flex-1 flex-col gap-3">
+                          <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain rounded-lg border border-slate-200/90 bg-white/60 px-1 py-1 dark:border-slate-800/80 dark:bg-slate-950/40 [scrollbar-gutter:stable]">
                             {categoriasEnUso.map((cat) => (
                               <label
                                 key={cat}
@@ -400,7 +400,7 @@ export function EtiquetasProductos() {
                       className="m-0 flex min-h-0 flex-1 flex-col gap-0 overflow-hidden pt-2 outline-none"
                     >
                       <div className="flex min-h-0 flex-1 flex-col gap-3">
-                        <div className="space-y-1.5 shrink-0">
+                        <div className="shrink-0 space-y-1.5 pb-0.5">
                           <Label htmlFor="buscar-etiq" className="text-xs font-medium text-slate-700 dark:text-slate-300">
                             Buscar artículo
                           </Label>
@@ -409,59 +409,57 @@ export function EtiquetasProductos() {
                             placeholder="Nombre, SKU o código de barras…"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            className="h-10"
+                            className="h-10 w-full"
                           />
                         </div>
-                        <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-slate-200/90 bg-white/60 dark:border-slate-800/80 dark:bg-slate-950/40">
-                          <div className="max-h-[min(22rem,50vh)] overflow-y-auto overscroll-y-contain">
-                            <table className="w-full text-left text-xs">
-                              <thead className="sticky top-0 z-[1] border-b border-slate-200/90 bg-slate-100 dark:border-slate-800 dark:bg-slate-900">
-                                <tr>
-                                  <th className="w-11 px-3 py-2.5">
-                                    <span className="sr-only">Elegir</span>
-                                  </th>
-                                  <th className="px-2 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                                    Artículo
-                                  </th>
-                                  <th className="whitespace-nowrap px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                                    SKU
-                                  </th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-200/70 dark:divide-slate-800/80">
-                                {filteredForPick.map((p) => (
-                                  <tr
-                                    key={p.id}
-                                    className="bg-white/50 transition-colors hover:bg-cyan-500/[0.04] dark:bg-transparent dark:hover:bg-slate-800/30"
-                                  >
-                                    <td className="px-3 py-2 align-top">
-                                      <input
-                                        type="checkbox"
-                                        className="mt-0.5 size-4 rounded border-slate-400 text-cyan-600 focus:ring-cyan-500/40"
-                                        checked={Boolean(individualPick[p.id])}
-                                        onChange={(e) =>
-                                          setIndividualPick((prev) => ({ ...prev, [p.id]: e.target.checked }))
-                                        }
-                                      />
-                                    </td>
-                                    <td className="max-w-[min(200px,40vw)] px-2 py-2">
-                                      <span className="line-clamp-2 text-[13px] font-medium leading-snug text-slate-900 dark:text-slate-100">
-                                        {p.nombre}
+                        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain rounded-lg border border-slate-200/90 bg-white/60 [scrollbar-gutter:stable] dark:border-slate-800/80 dark:bg-slate-950/40">
+                          <table className="w-full text-left text-xs">
+                            <thead className="sticky top-0 z-[1] border-b border-slate-200/90 bg-slate-100 dark:border-slate-800 dark:bg-slate-900">
+                              <tr>
+                                <th className="w-11 px-3 py-2.5">
+                                  <span className="sr-only">Elegir</span>
+                                </th>
+                                <th className="px-2 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                  Artículo
+                                </th>
+                                <th className="whitespace-nowrap px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                  SKU
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200/70 dark:divide-slate-800/80">
+                              {filteredForPick.map((p) => (
+                                <tr
+                                  key={p.id}
+                                  className="bg-white/50 transition-colors hover:bg-cyan-500/[0.04] dark:bg-transparent dark:hover:bg-slate-800/30"
+                                >
+                                  <td className="px-3 py-2 align-top">
+                                    <input
+                                      type="checkbox"
+                                      className="mt-0.5 size-4 rounded border-slate-400 text-cyan-600 focus:ring-cyan-500/40"
+                                      checked={Boolean(individualPick[p.id])}
+                                      onChange={(e) =>
+                                        setIndividualPick((prev) => ({ ...prev, [p.id]: e.target.checked }))
+                                      }
+                                    />
+                                  </td>
+                                  <td className="max-w-[min(200px,40vw)] px-2 py-2">
+                                    <span className="line-clamp-2 text-[13px] font-medium leading-snug text-slate-900 dark:text-slate-100">
+                                      {p.nombre}
+                                    </span>
+                                    {p.categoria?.trim() ? (
+                                      <span className="mt-1 block text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-500">
+                                        {p.categoria}
                                       </span>
-                                      {p.categoria?.trim() ? (
-                                        <span className="mt-1 block text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-500">
-                                          {p.categoria}
-                                        </span>
-                                      ) : null}
-                                    </td>
-                                    <td className="whitespace-nowrap px-3 py-2 font-mono text-[11px] text-slate-700 dark:text-slate-300">
-                                      {p.sku}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
+                                    ) : null}
+                                  </td>
+                                  <td className="whitespace-nowrap px-3 py-2 font-mono text-[11px] text-slate-700 dark:text-slate-300">
+                                    {p.sku}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </div>
                         <div className="flex shrink-0 flex-col gap-2 border-t border-slate-200/80 pt-4 dark:border-slate-800/80 sm:flex-row sm:justify-end">
                           <Button type="button" className="w-full gap-2 sm:w-auto" onClick={addIndividuals}>
@@ -477,7 +475,7 @@ export function EtiquetasProductos() {
           </CardContent>
         </Card>
 
-        <Card className="flex min-h-0 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50">
+        <Card className="flex min-h-0 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 lg:h-full lg:min-h-0">
           <CardHeader className="shrink-0 space-y-1 pb-2">
             <CardTitle className="text-base">Lista para imprimir</CardTitle>
             <CardDescription className="text-xs">
