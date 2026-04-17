@@ -286,6 +286,34 @@ function convertListaPrecioInputToStorage(
   return rounded > 0 ? String(rounded) : '';
 }
 
+/** Solo dígitos y separadores; evita letras mientras se edita el precio. */
+function sanitizeListaPrecioDraft(raw: string): string {
+  return raw.replace(/[^\d.,]/g, '');
+}
+
+/** Une borradores de campos enfocados con el mapa guardado (p. ej. al guardar sin haber hecho blur). */
+function mergeListasPrecioDraftIntoStorage(
+  storage: Record<ClientPriceListId, string>,
+  draft: Partial<Record<ClientPriceListId, string>>,
+  storageIncluyeIva: boolean,
+  modoDisplayConIva: boolean,
+  impuestoPct: number
+): Record<ClientPriceListId, string> {
+  const next = { ...storage };
+  for (const id of CLIENT_PRICE_LIST_ORDER) {
+    const raw = draft[id];
+    if (raw !== undefined) {
+      next[id] = convertListaPrecioInputToStorage(
+        raw,
+        storageIncluyeIva,
+        modoDisplayConIva,
+        impuestoPct
+      );
+    }
+  }
+  return next;
+}
+
 function InventarioPrecioIvaModeToggle({
   value,
   onChange,
@@ -539,6 +567,14 @@ export function Inventario() {
     [preciosDialogProduct]
   );
 
+  useEffect(() => {
+    setListasPrecioMainDraft({});
+  }, [editPreciosListaIvaMode]);
+
+  useEffect(() => {
+    setListasPrecioDialogDraft({});
+  }, [preciosDialogListaIvaMode]);
+
   const [addTemplateComboOpen, setAddTemplateComboOpen] = useState(false);
   const [addTemplateSearch, setAddTemplateSearch] = useState('');
 
@@ -576,6 +612,13 @@ export function Inventario() {
   });
 
   const [preciosListaStr, setPreciosListaStr] = useState(emptyPreciosListaStr);
+  /** Borrador por campo mientras hay foco (evita formatear a 2 decimales en cada tecla y romper "100"). */
+  const [listasPrecioMainDraft, setListasPrecioMainDraft] = useState<
+    Partial<Record<ClientPriceListId, string>>
+  >({});
+  const [listasPrecioDialogDraft, setListasPrecioDialogDraft] = useState<
+    Partial<Record<ClientPriceListId, string>>
+  >({});
   const [addFormTemplateId, setAddFormTemplateId] = useState<string>('__none__');
   const [addProveedorSelectKey, setAddProveedorSelectKey] = useState(0);
   const [addProveedorFilter, setAddProveedorFilter] = useState('');
@@ -803,6 +846,7 @@ export function Inventario() {
           claveProdServ: '',
         });
         setPreciosListaStr(emptyPreciosListaStr());
+        setListasPrecioMainDraft({});
         setAddNumFocus({
           precioVenta: false,
           precioCompra: false,
@@ -834,7 +878,14 @@ export function Inventario() {
   const handleEditProduct = async () => {
     if (!selectedProduct) return;
 
-    const preciosPorListaCliente = parsePreciosListaForm(preciosListaStr);
+    const listaMerged = mergeListasPrecioDraftIntoStorage(
+      preciosListaStr,
+      listasPrecioMainDraft,
+      editListaStorageIncluyeIva,
+      editPreciosListaIvaMode === 'con',
+      formData.impuesto
+    );
+    const preciosPorListaCliente = parsePreciosListaForm(listaMerged);
 
     try {
       const cpsEdit = normalizeClaveProdServ(formData.claveProdServ);
@@ -858,6 +909,7 @@ export function Inventario() {
       });
       setShowEditDialog(false);
       setSelectedProduct(null);
+      setListasPrecioMainDraft({});
       const nombreEdit = upperTxt(formData.nombre.trim());
       const skuEdit = upperTxt((formData.sku ?? '').trim());
       reportAppEvent({
@@ -1001,6 +1053,7 @@ export function Inventario() {
         pl[id] = v != null && Number.isFinite(v) ? String(v) : '';
       }
       setPreciosListaStr(pl);
+      setListasPrecioMainDraft({});
     },
     [productById]
   );
@@ -1053,6 +1106,7 @@ export function Inventario() {
       pl[id] = v != null && Number.isFinite(v) ? String(v) : '';
     }
     setPreciosListaStr(pl);
+    setListasPrecioMainDraft({});
     setStockAdjustment({
       tipo: 'entrada',
       cantidad: 0,
@@ -1099,6 +1153,7 @@ export function Inventario() {
         const v = p.preciosPorListaCliente?.[id];
         pl[id] = v != null && Number.isFinite(v) ? String(v) : '';
       }
+      setListasPrecioDialogDraft({});
       setPreciosDialogListaStr(pl);
       setPreciosDialogProduct(p);
       setPreciosDialogListaIvaMode('sin');
@@ -1111,7 +1166,14 @@ export function Inventario() {
     const p = preciosDialogProduct;
     if (!p) return;
     const fresh = productById.get(p.id) ?? p;
-    const preciosPorListaCliente = parsePreciosListaForm(preciosDialogListaStr);
+    const listaMerged = mergeListasPrecioDraftIntoStorage(
+      preciosDialogListaStr,
+      listasPrecioDialogDraft,
+      preciosDialogListaStorageIncluyeIva,
+      preciosDialogListaIvaMode === 'con',
+      p.impuesto ?? 16
+    );
+    const preciosPorListaCliente = parsePreciosListaForm(listaMerged);
     setPreciosDialogSaving(true);
     try {
       await editProduct(fresh.id, {
@@ -1120,6 +1182,7 @@ export function Inventario() {
       addToast({ type: 'success', message: 'Precios por lista actualizados', logToAppEvents: true });
       setPreciosDialogOpen(false);
       setPreciosDialogProduct(null);
+      setListasPrecioDialogDraft({});
     } catch (err: unknown) {
       addToast({
         type: 'error',
@@ -1300,6 +1363,7 @@ export function Inventario() {
       claveProdServ: '',
     });
     setPreciosListaStr(emptyPreciosListaStr());
+    setListasPrecioMainDraft({});
   };
 
   const handleDescargarInventario = useCallback(() => {
@@ -3127,23 +3191,51 @@ export function Inventario() {
                         type="text"
                         inputMode="decimal"
                         placeholder="—"
-                        value={convertListaPrecioStrForDisplay(
-                          preciosListaStr[id],
-                          editListaStorageIncluyeIva,
-                          editPreciosListaIvaMode === 'con',
-                          formData.impuesto
-                        )}
-                        onChange={(e) =>
-                          setPreciosListaStr((prev) => ({
+                        value={
+                          listasPrecioMainDraft[id] !== undefined
+                            ? listasPrecioMainDraft[id]!
+                            : convertListaPrecioStrForDisplay(
+                                preciosListaStr[id],
+                                editListaStorageIncluyeIva,
+                                editPreciosListaIvaMode === 'con',
+                                formData.impuesto
+                              )
+                        }
+                        onFocus={() => {
+                          setListasPrecioMainDraft((prev) => ({
                             ...prev,
-                            [id]: convertListaPrecioInputToStorage(
-                              e.target.value,
+                            [id]: convertListaPrecioStrForDisplay(
+                              preciosListaStr[id],
                               editListaStorageIncluyeIva,
                               editPreciosListaIvaMode === 'con',
                               formData.impuesto
                             ),
+                          }));
+                        }}
+                        onChange={(e) =>
+                          setListasPrecioMainDraft((prev) => ({
+                            ...prev,
+                            [id]: sanitizeListaPrecioDraft(e.target.value),
                           }))
                         }
+                        onBlur={() => {
+                          const raw = listasPrecioMainDraft[id];
+                          if (raw === undefined) return;
+                          setPreciosListaStr((prev) => ({
+                            ...prev,
+                            [id]: convertListaPrecioInputToStorage(
+                              raw,
+                              editListaStorageIncluyeIva,
+                              editPreciosListaIvaMode === 'con',
+                              formData.impuesto
+                            ),
+                          }));
+                          setListasPrecioMainDraft((prev) => {
+                            const next = { ...prev };
+                            delete next[id];
+                            return next;
+                          });
+                        }}
                         className="h-9 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                       />
                     </div>
@@ -3351,6 +3443,7 @@ export function Inventario() {
             setPreciosDialogProduct(null);
             setPreciosDialogListaStr(emptyPreciosListaStr());
             setPreciosDialogListaIvaMode('sin');
+            setListasPrecioDialogDraft({});
           }
         }}
       >
@@ -3410,23 +3503,51 @@ export function Inventario() {
                       inputMode="decimal"
                       placeholder="—"
                       disabled={preciosDialogSaving}
-                      value={convertListaPrecioStrForDisplay(
-                        preciosDialogListaStr[id],
-                        preciosDialogListaStorageIncluyeIva,
-                        preciosDialogListaIvaMode === 'con',
-                        preciosDialogProduct?.impuesto ?? 16
-                      )}
-                      onChange={(e) =>
-                        setPreciosDialogListaStr((prev) => ({
+                      value={
+                        listasPrecioDialogDraft[id] !== undefined
+                          ? listasPrecioDialogDraft[id]!
+                          : convertListaPrecioStrForDisplay(
+                              preciosDialogListaStr[id],
+                              preciosDialogListaStorageIncluyeIva,
+                              preciosDialogListaIvaMode === 'con',
+                              preciosDialogProduct?.impuesto ?? 16
+                            )
+                      }
+                      onFocus={() => {
+                        setListasPrecioDialogDraft((prev) => ({
                           ...prev,
-                          [id]: convertListaPrecioInputToStorage(
-                            e.target.value,
+                          [id]: convertListaPrecioStrForDisplay(
+                            preciosDialogListaStr[id],
                             preciosDialogListaStorageIncluyeIva,
                             preciosDialogListaIvaMode === 'con',
                             preciosDialogProduct?.impuesto ?? 16
                           ),
+                        }));
+                      }}
+                      onChange={(e) =>
+                        setListasPrecioDialogDraft((prev) => ({
+                          ...prev,
+                          [id]: sanitizeListaPrecioDraft(e.target.value),
                         }))
                       }
+                      onBlur={() => {
+                        const raw = listasPrecioDialogDraft[id];
+                        if (raw === undefined) return;
+                        setPreciosDialogListaStr((prev) => ({
+                          ...prev,
+                          [id]: convertListaPrecioInputToStorage(
+                            raw,
+                            preciosDialogListaStorageIncluyeIva,
+                            preciosDialogListaIvaMode === 'con',
+                            preciosDialogProduct?.impuesto ?? 16
+                          ),
+                        }));
+                        setListasPrecioDialogDraft((prev) => {
+                          const next = { ...prev };
+                          delete next[id];
+                          return next;
+                        });
+                      }}
                       className="h-9 border-slate-300 dark:border-slate-700 bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100"
                     />
                   </div>
