@@ -44,9 +44,10 @@ function servipartzLogoUrl(): string {
 function barcodeSvgHtml(code: string, preset: LabelFormatPreset): string {
   const t = code.trim();
   if (!t) return '';
-  const barHeight = preset === 'dk1201' ? 38 : 30;
-  const barWidth = preset === 'dk1201' ? 1.05 : 1.05;
-  const fontSize = preset === 'dk1201' ? 10 : 9;
+  /** Tamaños ~2× respecto a la versión inicial para aprovechar rollo DK (QL-800). */
+  const barHeight = preset === 'dk1201' ? 72 : 44;
+  const barWidth = preset === 'dk1201' ? 1.85 : 1.35;
+  const fontSize = preset === 'dk1201' ? 18 : 14;
   try {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     JsBarcode(svg, t, {
@@ -59,7 +60,7 @@ function barcodeSvgHtml(code: string, preset: LabelFormatPreset): string {
     });
     return svg.outerHTML;
   } catch {
-    return `<p style="font-size:7.5pt;margin:0">${escapeHtml(t)}</p>`;
+    return `<p style="font-size:11pt;margin:0">${escapeHtml(t)}</p>`;
   }
 }
 
@@ -89,11 +90,15 @@ function labelBlock(p: Product, preset: LabelFormatPreset, logoSrc: string): str
 
   return `
     <section class="label label-dk1201">
-      <div class="logo-wrap">${logoImg}</div>
-      <div class="nombre">${escapeHtml(p.nombre)}</div>
-      <div class="precio">${escapeHtml(precio)}</div>
-      ${bc ? `<div class="bc">${bc}</div>` : ''}
-      <div class="sku">SKU: ${escapeHtml(p.sku)}</div>
+      <div class="blk blk-logo"><div class="logo-wrap">${logoImg}</div></div>
+      <div class="blk blk-text">
+        <div class="nombre">${escapeHtml(p.nombre)}</div>
+        <div class="precio">${escapeHtml(precio)}</div>
+      </div>
+      <div class="blk blk-code">
+        ${bc ? `<div class="bc">${bc}</div>` : ''}
+        <div class="sku">SKU: ${escapeHtml(p.sku)}</div>
+      </div>
     </section>`;
 }
 
@@ -114,20 +119,20 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       flex-direction: row;
       align-items: flex-start;
       justify-content: flex-start;
-      gap: 1.8mm;
-      padding: 1.2mm 1.5mm;
+      gap: 2mm;
+      padding: 1mm 1.5mm;
     }
     .label-dk1209 .logo-wrap {
       flex-shrink: 0;
-      width: 14mm;
-      max-height: 11mm;
+      width: 20mm;
+      max-height: 18mm;
       display: flex;
       align-items: center;
       justify-content: center;
     }
     .label-dk1209 .logo-img {
-      max-width: 14mm;
-      max-height: 11mm;
+      max-width: 20mm;
+      max-height: 18mm;
       width: auto;
       height: auto;
       object-fit: contain;
@@ -148,15 +153,15 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       gap: 0.35mm;
     }
     .label-dk1209 .nombre {
-      font-size: 7pt;
-      line-height: 1.1;
-      max-height: 7.5mm;
+      font-size: 12pt;
+      line-height: 1.08;
+      max-height: 11mm;
       overflow: hidden;
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
     }
-    .label-dk1209 .precio { font-size: 8.5pt; font-weight: 800; }
+    .label-dk1209 .precio { font-size: 15pt; font-weight: 800; }
     .label-dk1209 .tr-foot {
       flex-shrink: 0;
       margin-top: auto;
@@ -169,41 +174,54 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
     }
     .label-dk1209 .bc { max-width: 46mm; }
     .label-dk1209 .bc svg { max-width: 100%; height: auto; display: block; }
-    .label-dk1209 .sku { font-size: 6.5pt; font-weight: 600; text-align: right; white-space: nowrap; }
+    .label-dk1209 .sku { font-size: 11pt; font-weight: 600; text-align: right; white-space: nowrap; }
   `;
 
   const cssTall = `
     .label-dk1201 {
       flex-direction: column;
       align-items: stretch;
-      justify-content: flex-start;
-      gap: 1.2mm;
-      padding: 1.5mm;
+      justify-content: space-between;
+      gap: 0;
+      padding: 2mm 1.2mm;
+      min-height: 100%;
+    }
+    .label-dk1201 .blk { flex-shrink: 0; }
+    .label-dk1201 .blk-logo {
+      display: flex;
+      justify-content: center;
+      align-items: center;
     }
     .label-dk1201 .logo-wrap {
       display: flex;
       justify-content: center;
       align-items: center;
-      max-height: 14mm;
-      margin-bottom: 0.5mm;
+      max-height: 24mm;
     }
     .label-dk1201 .logo-img {
-      max-height: 12mm;
-      max-width: 22mm;
+      max-height: 24mm;
+      max-width: 26mm;
       width: auto;
       height: auto;
       object-fit: contain;
     }
+    .label-dk1201 .blk-text {
+      text-align: center;
+      padding: 1mm 0;
+    }
     .label-dk1201 .nombre {
-      font-size: 8pt;
-      line-height: 1.15;
+      font-size: 16pt;
+      line-height: 1.12;
       font-weight: 700;
       word-break: break-word;
     }
-    .label-dk1201 .precio { font-size: 11pt; font-weight: 800; }
-    .label-dk1201 .bc { margin-top: 0.5mm; text-align: center; }
+    .label-dk1201 .precio { font-size: 22pt; font-weight: 800; margin-top: 1.5mm; }
+    .label-dk1201 .blk-code {
+      text-align: center;
+    }
+    .label-dk1201 .bc { margin-top: 0; }
     .label-dk1201 .bc svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
-    .label-dk1201 .sku { font-size: 7.5pt; font-weight: 600; text-align: center; margin-top: 0.5mm; }
+    .label-dk1201 .sku { font-size: 15pt; font-weight: 600; margin-top: 1.5mm; }
   `;
 
   const html = `<!DOCTYPE html><html lang="es"><head>

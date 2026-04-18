@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+type IncludeMode = 'all' | 'family' | 'pick';
 
 type QueueLine = {
   key: string;
@@ -48,6 +48,7 @@ export function EtiquetasProductos() {
   const [familyPick, setFamilyPick] = useState<Record<string, boolean>>({});
   const [individualPick, setIndividualPick] = useState<Record<string, boolean>>({});
   const [search, setSearch] = useState('');
+  const [includeMode, setIncludeMode] = useState<IncludeMode>('all');
 
   const activeProducts = useMemo(
     () => products.filter((p) => p.activo).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')),
@@ -275,20 +276,19 @@ export function EtiquetasProductos() {
             ) : error ? (
               <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
             ) : (
-              /* Sección 2: modo de selección */
+              /* Sección 2: modo de selección (sin Tabs de Radix: evita altura 0 en flex) */
               <section
                 className={cn(
-                  'flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200/90',
-                  'max-lg:min-h-[min(22rem,55vh)]',
-                  'bg-white/40 dark:border-slate-700/80 dark:bg-slate-950/30'
+                  'min-w-0 rounded-xl border border-slate-200/90 bg-white/40 dark:border-slate-700/80 dark:bg-slate-950/30',
+                  'lg:flex lg:min-h-0 lg:flex-1 lg:flex-col'
                 )}
               >
-                <div className="shrink-0 border-b border-slate-200/80 px-4 pb-3 pt-4 dark:border-slate-800/80">
+                <div className="shrink-0 border-b border-slate-200/80 px-3 pb-3 pt-3 sm:px-4 sm:pt-4 dark:border-slate-800/80">
                   <div className="flex items-center gap-2 text-slate-800 dark:text-slate-100">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/12 text-violet-700 dark:text-violet-400">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-500/12 text-violet-700 dark:text-violet-400">
                       <ListFilter className="h-4 w-4" aria-hidden />
                     </span>
-                    <div>
+                    <div className="min-w-0">
                       <h2 className="text-sm font-semibold leading-tight">Qué incluir en la lista</h2>
                       <p className="text-[11px] text-slate-500 dark:text-slate-400">
                         Todos, por familia de producto o artículos sueltos
@@ -296,80 +296,79 @@ export function EtiquetasProductos() {
                     </div>
                   </div>
                 </div>
-                <Tabs
-                  defaultValue="all"
-                  className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden px-4 pb-3 pt-3 sm:px-4 sm:pb-4 max-lg:min-h-[min(18rem,42vh)]"
-                >
-                    <TabsList
-                      className={cn(
-                        'h-auto w-full shrink-0 flex-wrap justify-stretch gap-1 rounded-lg bg-slate-100/90 p-1',
-                        'dark:bg-slate-900/80'
-                      )}
-                    >
-                      <TabsTrigger
-                        value="all"
-                        className={cn(
-                          'flex-1 rounded-md px-3 py-2 text-xs font-medium data-[state=active]:shadow-sm',
-                          'data-[state=active]:bg-white data-[state=active]:text-slate-900',
-                          'dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100'
-                        )}
-                      >
-                        Todos
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="family"
-                        className={cn(
-                          'flex-1 rounded-md px-3 py-2 text-xs font-medium data-[state=active]:shadow-sm',
-                          'data-[state=active]:bg-white data-[state=active]:text-slate-900',
-                          'dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100'
-                        )}
-                      >
-                        Por familia
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="pick"
-                        className={cn(
-                          'flex-1 rounded-md px-3 py-2 text-xs font-medium data-[state=active]:shadow-sm',
-                          'data-[state=active]:bg-white data-[state=active]:text-slate-900',
-                          'dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100'
-                        )}
-                      >
-                        Individual
-                      </TabsTrigger>
-                    </TabsList>
 
-                    <TabsContent
-                      value="all"
-                      className="m-0 flex flex-shrink-0 flex-col gap-3 pt-1 outline-none"
-                    >
+                <div className="flex min-w-0 flex-col gap-3 px-3 pb-4 pt-3 sm:px-4 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
+                  <div
+                    role="tablist"
+                    aria-label="Cómo elegir productos"
+                    className="grid min-w-0 grid-cols-1 gap-1 rounded-lg bg-slate-100/90 p-1 sm:grid-cols-3 dark:bg-slate-900/80"
+                  >
+                    {(
+                      [
+                        { id: 'all' as const, label: 'Todos' },
+                        { id: 'family' as const, label: 'Por familia' },
+                        { id: 'pick' as const, label: 'Individual' },
+                      ] as const
+                    ).map(({ id, label }) => (
+                      <button
+                        key={id}
+                        type="button"
+                        role="tab"
+                        aria-selected={includeMode === id}
+                        className={cn(
+                          'min-h-[2.75rem] w-full min-w-0 rounded-md px-2 py-2 text-center text-xs font-medium transition-[box-shadow,background-color]',
+                          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40',
+                          includeMode === id
+                            ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-slate-100'
+                            : 'text-slate-600 hover:bg-slate-200/40 dark:text-slate-400 dark:hover:bg-slate-800/50'
+                        )}
+                        onClick={() => setIncludeMode(id)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {includeMode === 'all' ? (
+                    <div className="flex flex-col gap-3 pt-1">
                       <p className="text-xs text-slate-600 dark:text-slate-400">
-                        Hay <span className="font-semibold tabular-nums text-slate-800 dark:text-slate-200">{activeProducts.length}</span>{' '}
+                        Hay{' '}
+                        <span className="font-semibold tabular-nums text-slate-800 dark:text-slate-200">
+                          {activeProducts.length}
+                        </span>{' '}
                         producto(s) activo(s); se añadirán a la lista con las copias indicadas arriba.
                       </p>
                       <Button type="button" size="default" className="w-full gap-2 sm:w-auto" onClick={addAll}>
                         <Package className="h-4 w-4" />
                         Añadir todos a la lista
                       </Button>
-                    </TabsContent>
+                    </div>
+                  ) : null}
 
-                    <TabsContent
-                      value="family"
-                      className="m-0 flex min-h-0 flex-1 flex-col gap-0 overflow-hidden pt-2 outline-none"
-                    >
+                  {includeMode === 'family' ? (
+                    <div className="flex min-w-0 flex-col gap-3 pt-1 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
                       {categoriasEnUso.length === 0 ? (
                         <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-400">
                           No hay categorías asignadas en productos activos. Asigne familia en inventario o use el
                           modo individual.
                         </p>
                       ) : (
-                        <div className="flex min-h-0 flex-1 flex-col gap-3">
-                          <div className="shrink-0 sm:flex sm:justify-end">
-                            <Button type="button" className="w-full gap-2 sm:w-auto" onClick={addByFamilies}>
-                              <Package className="h-4 w-4" />
-                              Añadir productos de familias marcadas
-                            </Button>
-                          </div>
-                          <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain rounded-lg border border-slate-200/90 bg-white/60 px-1 py-1 dark:border-slate-800/80 dark:bg-slate-950/40 [scrollbar-gutter:stable]">
+                        <>
+                          <Button
+                            type="button"
+                            className="w-full gap-2 sm:w-auto sm:self-end"
+                            onClick={addByFamilies}
+                          >
+                            <Package className="h-4 w-4" />
+                            Añadir productos de familias marcadas
+                          </Button>
+                          <div
+                            className={cn(
+                              'min-h-[12rem] w-full min-w-0 overflow-x-hidden overflow-y-auto overscroll-y-contain rounded-lg border border-slate-200/90 bg-white/60 px-1 py-1',
+                              'max-h-[min(50dvh,28rem)] lg:max-h-none lg:min-h-0 lg:flex-1',
+                              '[scrollbar-gutter:stable] dark:border-slate-800/80 dark:bg-slate-950/40'
+                            )}
+                          >
                             {categoriasEnUso.map((cat) => (
                               <label
                                 key={cat}
@@ -392,85 +391,94 @@ export function EtiquetasProductos() {
                               </label>
                             ))}
                           </div>
-                        </div>
+                        </>
                       )}
-                    </TabsContent>
+                    </div>
+                  ) : null}
 
-                    <TabsContent
-                      value="pick"
-                      className="m-0 flex min-h-0 flex-1 flex-col gap-0 overflow-hidden pt-2 outline-none"
-                    >
-                      <div className="flex min-h-0 flex-1 flex-col gap-3">
-                        <div className="shrink-0 space-y-1.5 pb-0.5">
-                          <Label htmlFor="buscar-etiq" className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                            Buscar artículo
-                          </Label>
-                          <Input
-                            id="buscar-etiq"
-                            placeholder="Nombre, SKU o código de barras…"
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            className="h-10 w-full"
-                          />
-                        </div>
-                        <div className="shrink-0 sm:flex sm:justify-end">
-                          <Button type="button" className="w-full gap-2 sm:w-auto" onClick={addIndividuals}>
-                            <Package className="h-4 w-4" />
-                            Añadir marcados a la lista
-                          </Button>
-                        </div>
-                        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain rounded-lg border border-slate-200/90 bg-white/60 [scrollbar-gutter:stable] dark:border-slate-800/80 dark:bg-slate-950/40">
-                          <table className="w-full text-left text-xs">
-                            <thead className="sticky top-0 z-[1] border-b border-slate-200/90 bg-slate-100 dark:border-slate-800 dark:bg-slate-900">
-                              <tr>
-                                <th className="w-11 px-3 py-2.5">
-                                  <span className="sr-only">Elegir</span>
-                                </th>
-                                <th className="px-2 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                                  Artículo
-                                </th>
-                                <th className="whitespace-nowrap px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                                  SKU
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-200/70 dark:divide-slate-800/80">
-                              {filteredForPick.map((p) => (
-                                <tr
-                                  key={p.id}
-                                  className="bg-white/50 transition-colors hover:bg-cyan-500/[0.04] dark:bg-transparent dark:hover:bg-slate-800/30"
-                                >
-                                  <td className="px-3 py-2 align-top">
-                                    <input
-                                      type="checkbox"
-                                      className="mt-0.5 size-4 rounded border-slate-400 text-cyan-600 focus:ring-cyan-500/40"
-                                      checked={Boolean(individualPick[p.id])}
-                                      onChange={(e) =>
-                                        setIndividualPick((prev) => ({ ...prev, [p.id]: e.target.checked }))
-                                      }
-                                    />
-                                  </td>
-                                  <td className="max-w-[min(200px,40vw)] px-2 py-2">
-                                    <span className="line-clamp-2 text-[13px] font-medium leading-snug text-slate-900 dark:text-slate-100">
-                                      {p.nombre}
-                                    </span>
-                                    {p.categoria?.trim() ? (
-                                      <span className="mt-1 block text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-500">
-                                        {p.categoria}
-                                      </span>
-                                    ) : null}
-                                  </td>
-                                  <td className="whitespace-nowrap px-3 py-2 font-mono text-[11px] text-slate-700 dark:text-slate-300">
-                                    {p.sku}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
+                  {includeMode === 'pick' ? (
+                    <div className="flex min-w-0 flex-col gap-3 pt-1 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
+                      <div className="min-w-0 space-y-1.5">
+                        <Label
+                          htmlFor="buscar-etiq"
+                          className="text-xs font-medium text-slate-700 dark:text-slate-300"
+                        >
+                          Buscar artículo
+                        </Label>
+                        <Input
+                          id="buscar-etiq"
+                          placeholder="Nombre, SKU o código de barras…"
+                          value={search}
+                          onChange={(e) => setSearch(e.target.value)}
+                          className="h-10 w-full min-w-0"
+                        />
                       </div>
-                    </TabsContent>
-                  </Tabs>
+                      <Button
+                        type="button"
+                        className="w-full gap-2 sm:w-auto sm:self-end"
+                        onClick={addIndividuals}
+                      >
+                        <Package className="h-4 w-4" />
+                        Añadir marcados a la lista
+                      </Button>
+                      <div
+                        className={cn(
+                          'min-h-[14rem] w-full min-w-0 overflow-auto overscroll-y-contain rounded-lg border border-slate-200/90 bg-white/60',
+                          'max-h-[min(55dvh,36rem)] lg:max-h-none lg:min-h-0 lg:flex-1',
+                          '[scrollbar-gutter:stable] dark:border-slate-800/80 dark:bg-slate-950/40'
+                        )}
+                      >
+                        <table className="w-full min-w-0 text-left text-xs">
+                          <thead className="sticky top-0 z-[1] border-b border-slate-200/90 bg-slate-100 dark:border-slate-800 dark:bg-slate-900">
+                            <tr>
+                              <th className="w-11 px-3 py-2.5">
+                                <span className="sr-only">Elegir</span>
+                              </th>
+                              <th className="min-w-0 px-2 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                Artículo
+                              </th>
+                              <th className="whitespace-nowrap px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                SKU
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200/70 dark:divide-slate-800/80">
+                            {filteredForPick.map((p) => (
+                              <tr
+                                key={p.id}
+                                className="bg-white/50 transition-colors hover:bg-cyan-500/[0.04] dark:bg-transparent dark:hover:bg-slate-800/30"
+                              >
+                                <td className="px-3 py-2 align-top">
+                                  <input
+                                    type="checkbox"
+                                    className="mt-0.5 size-4 rounded border-slate-400 text-cyan-600 focus:ring-cyan-500/40"
+                                    checked={Boolean(individualPick[p.id])}
+                                    onChange={(e) =>
+                                      setIndividualPick((prev) => ({ ...prev, [p.id]: e.target.checked }))
+                                    }
+                                  />
+                                </td>
+                                <td className="min-w-0 max-w-[min(220px,52vw)] px-2 py-2">
+                                  <span className="line-clamp-2 text-[13px] font-medium leading-snug text-slate-900 dark:text-slate-100">
+                                    {p.nombre}
+                                  </span>
+                                  {p.categoria?.trim() ? (
+                                    <span className="mt-1 block text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-500">
+                                      {p.categoria}
+                                    </span>
+                                  ) : null}
+                                </td>
+                                <td className="whitespace-nowrap px-3 py-2 font-mono text-[11px] text-slate-700 dark:text-slate-300">
+                                  {p.sku}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
               </section>
             )}
           </CardContent>
