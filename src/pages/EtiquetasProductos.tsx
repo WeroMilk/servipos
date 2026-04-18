@@ -37,7 +37,7 @@ function expandForPrint(queue: QueueLine[]): Product[] {
   return out;
 }
 
-/** Formato de impresión fijo: 29×65 mm (largo 6,5 cm), alineado con @page en productLabelPrint. */
+/** Formato fijo: 65×30 mm (largo 6,5 cm × ancho 3 cm), ver FORMATS.dk1201 en productLabelPrint. */
 const PRINT_LABEL_FORMAT = 'dk1201' as const;
 const ADD_LIST_COPIES = 1;
 
@@ -197,7 +197,7 @@ export function EtiquetasProductos() {
           </div>
           <p className="text-xs text-slate-600 dark:text-slate-400">
             Brother QL-800 · Arme la lista y use <span className="font-medium">Imprimir</span>; en el diálogo del
-            sistema elija la impresora y el rollo <span className="font-medium">DK-1201 (29×65 mm, largo 6,5 cm)</span>.
+            sistema elija la impresora y el rollo <span className="font-medium">DK-1201 (65×30 mm: largo 6,5 cm, ancho 3 cm)</span>.
           </p>
         </div>
       </div>
