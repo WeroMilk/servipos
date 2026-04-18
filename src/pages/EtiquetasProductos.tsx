@@ -1,11 +1,11 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { Printer, Tag, Trash2, Package, ArrowLeft, Settings2, ListFilter } from 'lucide-react';
+import { Printer, Tag, Trash2, Package, ArrowLeft, ListFilter } from 'lucide-react';
 import { useProducts } from '@/hooks/useProducts';
 import { useAuthStore, useAppStore } from '@/stores';
 import type { Product } from '@/types';
 import { cn, formatMoney } from '@/lib/utils';
-import { printProductLabels, LABEL_FORMAT_OPTIONS, type LabelFormatPreset } from '@/lib/productLabelPrint';
+import { printProductLabels } from '@/lib/productLabelPrint';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,14 +37,16 @@ function expandForPrint(queue: QueueLine[]): Product[] {
   return out;
 }
 
+/** Formato de impresión fijo (UI de opciones oculta). */
+const PRINT_LABEL_FORMAT = 'dk1209' as const;
+const ADD_LIST_COPIES = 1;
+
 export function EtiquetasProductos() {
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const { addToast } = useAppStore();
   const { products, loading, error } = useProducts();
 
   const [queue, setQueue] = useState<QueueLine[]>([]);
-  const [format, setFormat] = useState<LabelFormatPreset>('dk1209');
-  const [addCopiesDefault, setAddCopiesDefault] = useState(1);
   const [familyPick, setFamilyPick] = useState<Record<string, boolean>>({});
   const [individualPick, setIndividualPick] = useState<Record<string, boolean>>({});
   const [search, setSearch] = useState('');
@@ -76,10 +78,9 @@ export function EtiquetasProductos() {
   }, [activeProducts, search]);
 
   const addAll = useCallback(() => {
-    const n = addCopiesDefault < 1 ? 1 : Math.min(999, Math.floor(addCopiesDefault));
-    setQueue((prev) => mergeIntoQueue(prev, activeProducts, n));
+    setQueue((prev) => mergeIntoQueue(prev, activeProducts, ADD_LIST_COPIES));
     addToast({ type: 'success', message: `Lista actualizada (${activeProducts.length} artículos).` });
-  }, [activeProducts, addCopiesDefault, addToast]);
+  }, [activeProducts, addToast]);
 
   const addByFamilies = useCallback(() => {
     const families = Object.entries(familyPick)
@@ -98,11 +99,10 @@ export function EtiquetasProductos() {
       addToast({ type: 'warning', message: 'No hay artículos en las familias elegidas.' });
       return;
     }
-    const n = addCopiesDefault < 1 ? 1 : Math.min(999, Math.floor(addCopiesDefault));
-    setQueue((prev) => mergeIntoQueue(prev, subset, n));
+    setQueue((prev) => mergeIntoQueue(prev, subset, ADD_LIST_COPIES));
     setFamilyPick({});
     addToast({ type: 'success', message: `Añadidos ${subset.length} artículo(s) por familia.` });
-  }, [activeProducts, familyPick, addCopiesDefault, addToast]);
+  }, [activeProducts, familyPick, addToast]);
 
   const addIndividuals = useCallback(() => {
     const ids = Object.entries(individualPick)
@@ -114,11 +114,10 @@ export function EtiquetasProductos() {
     }
     const idSet = new Set(ids);
     const subset = activeProducts.filter((p) => idSet.has(p.id));
-    const n = addCopiesDefault < 1 ? 1 : Math.min(999, Math.floor(addCopiesDefault));
-    setQueue((prev) => mergeIntoQueue(prev, subset, n));
+    setQueue((prev) => mergeIntoQueue(prev, subset, ADD_LIST_COPIES));
     setIndividualPick({});
     addToast({ type: 'success', message: `Añadidos ${subset.length} artículo(s).` });
-  }, [activeProducts, individualPick, addCopiesDefault, addToast]);
+  }, [activeProducts, individualPick, addToast]);
 
   const clearQueue = useCallback(() => {
     setQueue([]);
@@ -147,7 +146,7 @@ export function EtiquetasProductos() {
       });
       return;
     }
-    const ok = printProductLabels(flat, format);
+    const ok = printProductLabels(flat, PRINT_LABEL_FORMAT);
     if (!ok) {
       addToast({
         type: 'error',
@@ -159,7 +158,7 @@ export function EtiquetasProductos() {
       type: 'success',
       message: 'Cuando se abra el cuadro de impresión, elija la Brother QL-800 y el rollo correcto.',
     });
-  }, [queue, format, addToast]);
+  }, [queue, addToast]);
 
   if (!hasPermission('inventario:ver')) {
     return <Navigate to="/" replace />;
@@ -198,7 +197,7 @@ export function EtiquetasProductos() {
           </div>
           <p className="text-xs text-slate-600 dark:text-slate-400">
             Brother QL-800 · Arme la lista y use <span className="font-medium">Imprimir</span>; en el diálogo del
-            sistema elija la impresora y el rollo DK que corresponda al tamaño elegido.
+            sistema elija la impresora y el rollo <span className="font-medium">DK-1209 (62×29 mm)</span>.
           </p>
         </div>
       </div>
@@ -208,69 +207,12 @@ export function EtiquetasProductos() {
           <CardHeader className="shrink-0 space-y-1 pb-3">
             <CardTitle className="text-base">Agregar a la lista</CardTitle>
             <CardDescription className="text-xs leading-relaxed">
-              Defina primero el tamaño de etiqueta y las copias por artículo. Luego elija si añade todo el
-              catálogo activo, solo algunas familias o artículos puntuales. Si un producto ya estaba en la lista,
-              se suman las copias.
+              Elija si añade todo el catálogo activo, solo algunas familias o artículos puntuales. Cada artículo se
+              añade con una copia; puede ajustar cantidades en la lista de la derecha. Si un producto ya estaba en
+              la lista, se suman las copias.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex min-h-0 flex-1 flex-col gap-5">
-            {/* Sección 1: opciones de etiqueta */}
-            <section
-              className={cn(
-                'shrink-0 rounded-xl border border-slate-200/90 bg-gradient-to-b from-slate-50/90 to-white p-4',
-                'dark:border-slate-700/80 dark:from-slate-900/50 dark:to-slate-950/80'
-              )}
-            >
-              <div className="mb-3 flex items-center gap-2 text-slate-800 dark:text-slate-100">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-500/15 text-cyan-700 dark:text-cyan-400">
-                  <Settings2 className="h-4 w-4" aria-hidden />
-                </span>
-                <div>
-                  <h2 className="text-sm font-semibold leading-tight">Opciones de etiqueta</h2>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">Rollo Brother y copias al añadir</p>
-                </div>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="copias-def" className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                    Copias por artículo al añadir
-                  </Label>
-                  <Input
-                    id="copias-def"
-                    type="number"
-                    min={1}
-                    max={999}
-                    className="h-10 max-w-[7rem] tabular-nums"
-                    value={addCopiesDefault}
-                    onChange={(e) => setAddCopiesDefault(Number(e.target.value))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="rollo" className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                    Tamaño de etiqueta (rollo)
-                  </Label>
-                  <select
-                    id="rollo"
-                    className={cn(
-                      'h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm shadow-xs',
-                      'focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50'
-                    )}
-                    value={format}
-                    onChange={(e) => setFormat(e.target.value as LabelFormatPreset)}
-                  >
-                    {LABEL_FORMAT_OPTIONS.map((o) => (
-                      <option key={o.id} value={o.id}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <p className="mt-3 rounded-lg border border-slate-200/80 bg-white/70 px-3 py-2 text-[11px] leading-snug text-slate-600 dark:border-slate-700/80 dark:bg-slate-900/60 dark:text-slate-400">
-                {LABEL_FORMAT_OPTIONS.find((x) => x.id === format)?.hint}
-              </p>
-            </section>
-
             {loading ? (
               <p className="text-sm text-slate-600 dark:text-slate-400">Cargando inventario…</p>
             ) : error ? (

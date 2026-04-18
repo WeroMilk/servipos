@@ -14,14 +14,15 @@ export const LABEL_FORMAT_OPTIONS: { id: LabelFormatPreset; label: string; hint:
   },
   {
     id: 'dk1201',
-    label: 'DK-1201 · 29×90 mm',
-    hint: 'Etiqueta vertical (nombre largo).',
+    label: 'Etiqueta larga · 29×65 mm (6,5 cm)',
+    hint: 'Etiqueta vertical; largo total 6,5 cm para alinear con el corte del rollo.',
   },
 ];
 
 const FORMATS: Record<LabelFormatPreset, { pageW: string; pageH: string }> = {
   dk1209: { pageW: '62mm', pageH: '29mm' },
-  dk1201: { pageW: '29mm', pageH: '90mm' },
+  /** Ancho típico 29 mm; largo 6,5 cm según configuración de impresión. */
+  dk1201: { pageW: '29mm', pageH: '65mm' },
 };
 
 function escapeHtml(s: string): string {
@@ -41,13 +42,30 @@ function servipartzLogoUrl(): string {
   }
 }
 
+/**
+ * Dimensiones del CODE128 orientadas a escáner: barras más altas, módulos más anchos
+ * y margen (zona silenciosa). Códigos largos bajan un poco el `width` solo para que quepa
+ * sin reducir tanto el SVG en CSS (reducir deja barras demasiado finas).
+ */
 function barcodeSvgHtml(code: string, preset: LabelFormatPreset): string {
   const t = code.trim();
   if (!t) return '';
-  /** Tamaños ~2× respecto a la versión inicial para aprovechar rollo DK (QL-800). */
-  const barHeight = preset === 'dk1201' ? 72 : 44;
-  const barWidth = preset === 'dk1201' ? 1.85 : 1.35;
-  const fontSize = preset === 'dk1201' ? 18 : 14;
+  const len = t.length;
+
+  let barWidth: number;
+  let barHeight: number;
+  let fontSize: number;
+
+  if (preset === 'dk1201') {
+    barHeight = len > 18 ? 56 : 62;
+    barWidth = len > 22 ? 1.45 : len > 14 ? 1.85 : 2.15;
+    fontSize = len > 16 ? 11 : 13;
+  } else {
+    barHeight = len > 22 ? 48 : 54;
+    barWidth = len > 26 ? 1.55 : len > 16 ? 1.95 : 2.25;
+    fontSize = len > 20 ? 11 : 13;
+  }
+
   try {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     JsBarcode(svg, t, {
@@ -56,7 +74,7 @@ function barcodeSvgHtml(code: string, preset: LabelFormatPreset): string {
       height: barHeight,
       displayValue: true,
       fontSize,
-      margin: 0,
+      margin: 8,
     });
     return svg.outerHTML;
   } catch {
@@ -69,7 +87,7 @@ function labelBlock(p: Product, preset: LabelFormatPreset, logoSrc: string): str
   const bc = barcodeSvgHtml(code, preset);
   const precio = formatMoney(Number(p.precioVenta) || 0);
 
-  const logoImg = `<img class="logo-img" src="${escapeHtml(logoSrc)}" alt="" width="120" height="120" />`;
+  const logoImg = `<img class="logo-img" src="${escapeHtml(logoSrc)}" alt="" width="200" height="200" />`;
 
   if (preset === 'dk1209') {
     return `
@@ -79,10 +97,6 @@ function labelBlock(p: Product, preset: LabelFormatPreset, logoSrc: string): str
           <div class="nombre">${escapeHtml(p.nombre)}</div>
           <div class="precio">${escapeHtml(precio)}</div>
           ${bc ? `<div class="bc">${bc}</div>` : ''}
-        </div>
-        <div class="col-sku">
-          <div class="sku-label">SKU</div>
-          <div class="sku-val">${escapeHtml(p.sku)}</div>
         </div>
       </section>`;
   }
@@ -96,7 +110,6 @@ function labelBlock(p: Product, preset: LabelFormatPreset, logoSrc: string): str
       </div>
       <div class="blk blk-code">
         ${bc ? `<div class="bc">${bc}</div>` : ''}
-        <div class="sku">SKU: ${escapeHtml(p.sku)}</div>
       </div>
     </section>`;
 }
@@ -118,19 +131,19 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       flex-direction: row;
       align-items: stretch;
       justify-content: flex-start;
-      gap: 1mm;
-      padding: 0.6mm 0.8mm;
+      gap: 1.2mm;
+      padding: 0.5mm 0.8mm;
     }
     .label-dk1209 .logo-wrap {
       flex-shrink: 0;
-      width: 15mm;
+      width: 23mm;
       display: flex;
       align-items: center;
       justify-content: center;
     }
     .label-dk1209 .logo-img {
-      max-width: 15mm;
-      max-height: 14mm;
+      max-width: 23mm;
+      max-height: 22mm;
       width: auto;
       height: auto;
       object-fit: contain;
@@ -142,46 +155,28 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       flex-direction: column;
       justify-content: center;
       align-items: flex-start;
-      gap: 0.2mm;
+      gap: 0.15mm;
     }
     .label-dk1209 .nombre {
-      font-size: 11pt;
-      line-height: 1.08;
-      max-height: 10mm;
+      font-size: 10pt;
+      line-height: 1.06;
+      max-height: 8.5mm;
       overflow: hidden;
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
     }
-    .label-dk1209 .precio { font-size: 13pt; font-weight: 800; }
-    .label-dk1209 .bc { max-width: 100%; margin-top: 0.2mm; }
-    .label-dk1209 .bc svg { max-width: 100%; height: auto; display: block; }
-    .label-dk1209 .col-sku {
-      flex: 0 0 11.5mm;
-      width: 11.5mm;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: flex-end;
-      text-align: right;
-      padding-left: 0.4mm;
-      border-left: 0.12mm solid #94a3b8;
+    .label-dk1209 .precio { font-size: 12pt; font-weight: 800; }
+    .label-dk1209 .bc {
+      width: 100%;
+      margin-top: 0.3mm;
+      overflow: visible;
     }
-    .label-dk1209 .sku-label {
-      font-size: 7pt;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.02em;
-      color: #475569;
-      line-height: 1;
-    }
-    .label-dk1209 .sku-val {
-      font-size: 10.5pt;
-      font-weight: 800;
-      font-variant-numeric: tabular-nums;
-      line-height: 1.1;
-      margin-top: 0.6mm;
-      word-break: break-all;
+    .label-dk1209 .bc svg {
+      display: block;
+      max-width: 100%;
+      width: auto;
+      height: auto;
     }
   `;
 
@@ -191,7 +186,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       align-items: stretch;
       justify-content: space-between;
       gap: 0;
-      padding: 2mm 1.2mm;
+      padding: 1.2mm 1mm;
       min-height: 100%;
     }
     .label-dk1201 .blk { flex-shrink: 0; }
@@ -208,28 +203,33 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
     }
     .label-dk1201 .logo-img {
       max-height: 24mm;
-      max-width: 26mm;
+      max-width: 27mm;
       width: auto;
       height: auto;
       object-fit: contain;
     }
     .label-dk1201 .blk-text {
       text-align: center;
-      padding: 1mm 0;
+      padding: 0.4mm 0;
     }
     .label-dk1201 .nombre {
-      font-size: 16pt;
-      line-height: 1.12;
+      font-size: 13pt;
+      line-height: 1.08;
       font-weight: 700;
       word-break: break-word;
     }
-    .label-dk1201 .precio { font-size: 22pt; font-weight: 800; margin-top: 1.5mm; }
+    .label-dk1201 .precio { font-size: 17pt; font-weight: 800; margin-top: 0.8mm; }
     .label-dk1201 .blk-code {
       text-align: center;
     }
-    .label-dk1201 .bc { margin-top: 0; }
-    .label-dk1201 .bc svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
-    .label-dk1201 .sku { font-size: 15pt; font-weight: 600; margin-top: 1.5mm; }
+    .label-dk1201 .bc { margin-top: 0; width: 100%; overflow: visible; }
+    .label-dk1201 .bc svg {
+      display: block;
+      max-width: 100%;
+      width: auto;
+      height: auto;
+      margin: 0 auto;
+    }
   `;
 
   const html = `<!DOCTYPE html><html lang="es"><head>
@@ -250,7 +250,6 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
   }
   .nombre { font-weight: 700; }
   .precio { color: #0f172a; }
-  .sku { color: #1e293b; }
   ${preset === 'dk1209' ? cssWide : cssTall}
 </style></head><body>${sections.join('')}</body></html>`;
 

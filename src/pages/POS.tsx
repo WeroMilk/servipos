@@ -177,12 +177,38 @@ function productFromQuotationLineForResume(line: QuotationItem, fromCatalog: Pro
 // PUNTO DE VENTA (POS) — Vista tipo app: lg+ sin scroll del contenedor (solo carrito / panel cobro); móvil conserva scroll vertical.
 // ============================================
 
+/** Cantidad opcional al inicio: `10*` + código o nombre (escáner pega tras el asterisco). */
+function parsePosQuantityPrefix(raw: string): {
+  quantity: number;
+  rest: string;
+  hadQtyPrefix: boolean;
+} {
+  const t = raw.trim();
+  const m = t.match(/^(\d+)\*\s*(.*)$/);
+  if (!m) return { quantity: 1, rest: t, hadQtyPrefix: false };
+  const n = parseInt(m[1]!, 10);
+  if (!Number.isFinite(n) || n < 1) return { quantity: 1, rest: t, hadQtyPrefix: false };
+  return {
+    quantity: Math.min(9999, Math.max(1, n)),
+    rest: (m[2] ?? '').trim(),
+    hadQtyPrefix: true,
+  };
+}
+
+/** Texto enviado al buscador de productos (sin prefijo `N*`). */
+function posSearchEffectiveQuery(rawTrim: string): string {
+  const p = parsePosQuantityPrefix(rawTrim);
+  return p.hadQtyPrefix ? p.rest : rawTrim;
+}
+
 /**
  * Texto que puede ser SKU/código de barras (no nombre con espacios).
  * El auto-envío por silencio corto solo aplica si además la secuencia de teclas fue una ráfaga (pistola), no tipeo manual.
  */
 function looksLikePosScanToken(s: string): boolean {
-  const t = s.trim();
+  const { rest } = parsePosQuantityPrefix(s);
+  const t = rest.trim();
+  if (!t) return false;
   if (t.length < 4 || /\s/.test(t)) return false;
   if (/^\d{8,}$/.test(t)) return true;
   if (/^\d{4,}$/.test(t)) return true;
@@ -767,9 +793,10 @@ export function POS() {
       void searchProducts('');
       return;
     }
+    const qSearch = posSearchEffectiveQuery(q);
     const t = window.setTimeout(() => {
-      setDebouncedSearchQuery(q);
-      void searchProducts(q);
+      setDebouncedSearchQuery(qSearch);
+      void searchProducts(qSearch);
     }, 280);
     return () => window.clearTimeout(t);
   }, [searchQuery, searchProducts]);
@@ -1200,22 +1227,27 @@ export function POS() {
     setMontoRecibidoInput('');
   };
 
-  const handleAddProduct = useCallback((product: Product) => {
+  const handleAddProduct = useCallback((product: Product, quantityArg?: number) => {
     try {
-      addItem(product, 1);
+      const parsed = parsePosQuantityPrefix(searchQuery.trim());
+      const qty = Math.max(1, Math.min(9999, Math.floor(quantityArg ?? parsed.quantity) || 1));
+      addItem(product, qty);
       setSearchQuery('');
       posSearchPrevKeyTsRef.current = 0;
       posSearchFirstKeyTsRef.current = 0;
       posSearchHadSlowKeyGapRef.current = false;
       setShowProductSearch(false);
-      addToast({ type: 'success', message: `${product.nombre} agregado` });
+      addToast({
+        type: 'success',
+        message: qty > 1 ? `${product.nombre} agregado · ${qty} pz` : `${product.nombre} agregado`,
+      });
     } catch (error: unknown) {
       addToast({
         type: 'error',
         message: error instanceof Error ? error.message : 'Error al agregar',
       });
     }
-  }, [addItem, addToast]);
+  }, [addItem, addToast, searchQuery]);
 
   /** Escáner USB: Enter o corte por silencio breve; evita doble envío concurrente. */
   const commitSearchEnter = useCallback(
@@ -1223,18 +1255,27 @@ export function POS() {
       if (posScanCommittingRef.current) return;
       const q = raw.trim();
       if (!q) return;
+      const { quantity, rest, hadQtyPrefix } = parsePosQuantityPrefix(q);
+      if (hadQtyPrefix && !rest) {
+        addToast({
+          type: 'warning',
+          message: 'Escriba o escanee el código después de la cantidad (ej. 10* y luego el código de barras).',
+        });
+        return;
+      }
+      const qLookup = rest;
       posScanCommittingRef.current = true;
       try {
-        const byBarcode = await searchByBarcode(q);
+        const byBarcode = await searchByBarcode(qLookup);
         if (byBarcode) {
-          handleAddProduct(byBarcode);
+          handleAddProduct(byBarcode, quantity);
           return;
         }
-        const matches = await searchProducts(q);
+        const matches = await searchProducts(qLookup);
         if (matches.length === 1) {
-          handleAddProduct(matches[0]);
+          handleAddProduct(matches[0], quantity);
         } else if (matches.length === 0) {
-          addToast({ type: 'warning', message: `Sin coincidencias para: ${q}` });
+          addToast({ type: 'warning', message: `Sin coincidencias para: ${qLookup}` });
           setShowProductSearch(true);
         } else {
           setShowProductSearch(true);
@@ -1316,8 +1357,9 @@ export function POS() {
   const onPosSearchInputKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
       const trim = searchQuery.trim();
+      const effective = posSearchEffectiveQuery(trim);
       const settled =
-        trim.length > 0 && debouncedSearchQuery === trim && !productSearchLoading;
+        effective.length > 0 && debouncedSearchQuery === effective && !productSearchLoading;
       const n = searchResults.length;
       const listNavOk = settled && n > 0;
 
@@ -1353,7 +1395,8 @@ export function POS() {
         posSearchFirstKeyTsRef.current = 0;
         posSearchHadSlowKeyGapRef.current = false;
         if (listNavOk && posSearchHighlightIdx >= 0 && posSearchHighlightIdx < n) {
-          handleAddProduct(searchResults[posSearchHighlightIdx]);
+          const qty = parsePosQuantityPrefix(trim).quantity;
+          handleAddProduct(searchResults[posSearchHighlightIdx], qty);
           return;
         }
         void commitSearchEnter((e.currentTarget as HTMLInputElement).value);
@@ -2679,8 +2722,9 @@ export function POS() {
     'rounded-xl border border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 shadow-sm';
 
   const posSearchTrim = searchQuery.trim();
+  const posSearchEffective = posSearchEffectiveQuery(posSearchTrim);
   const posSearchSettled =
-    posSearchTrim.length > 0 && debouncedSearchQuery === posSearchTrim && !productSearchLoading;
+    posSearchEffective.length > 0 && debouncedSearchQuery === posSearchEffective && !productSearchLoading;
   const showPosSearchDropdown = showProductSearch && posSearchTrim.length > 0;
 
   return (
@@ -2813,7 +2857,7 @@ export function POS() {
                     onPaste={onPosSearchPaste}
                     onKeyDown={onPosSearchInputKeyDown}
                     onFocus={() => setShowProductSearch(true)}
-                    placeholder="Escanear aquí · F2 · ↑↓ · Enter · nombre"
+                    placeholder="Escanear · cant*p. ej. 10* · F2 · ↑↓ · Enter"
                     className="h-10 border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 pl-9 text-base text-slate-900 dark:text-slate-100 placeholder:text-slate-600 focus:border-cyan-500/50 sm:h-11 sm:pl-10 md:text-sm"
                   />
                 </div>
