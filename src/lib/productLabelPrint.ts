@@ -14,15 +14,15 @@ export const LABEL_FORMAT_OPTIONS: { id: LabelFormatPreset; label: string; hint:
   },
   {
     id: 'dk1201',
-    label: 'Etiqueta 65×30 mm (largo 6,5 cm × ancho 3 cm)',
-    hint: 'Tira horizontal: largo en sentido de avance del rollo 6,5 cm; ancho (altura de cinta) 3 cm.',
+    label: 'Etiqueta 60×30 mm (largo 6 cm × ancho 3 cm)',
+    hint: 'Tira horizontal 6×3 cm; en impresión use escala 100 % y tamaño de página exacto si el navegador lo agranda.',
   },
 ];
 
 const FORMATS: Record<LabelFormatPreset, { pageW: string; pageH: string }> = {
   dk1209: { pageW: '62mm', pageH: '29mm' },
-  /** Largo 6,5 cm = ancho de página; ancho 3 cm = alto de página (cinta). */
-  dk1201: { pageW: '65mm', pageH: '30mm' },
+  /** Largo 6 cm × ancho de cinta 3 cm (CSS: ancho de página × alto). */
+  dk1201: { pageW: '60mm', pageH: '30mm' },
 };
 
 function escapeHtml(s: string): string {
@@ -43,8 +43,7 @@ function servipartzLogoUrl(): string {
 }
 
 /**
- * CODE128 para escáner: DK-1209 prioriza barras; DK-1201 (65×30 mm) acorta barras un poco
- * para dejar el número legible (SKU/código) más grande.
+ * CODE128: DK-1201 (60×30 mm) usa barras más altas/módulo ancho para buena lectura al escalar al ancho útil.
  */
 function barcodeSvgHtml(code: string, preset: LabelFormatPreset): string {
   const t = code.trim();
@@ -56,10 +55,9 @@ function barcodeSvgHtml(code: string, preset: LabelFormatPreset): string {
   let fontSize: number;
 
   if (preset === 'dk1201') {
-    barHeight = len > 14 ? 58 : 64;
-    barWidth = len > 24 ? 1.95 : len > 12 ? 2.15 : 2.3;
-    /** Texto humano bajo las barras (más grande que en DK-1209). */
-    fontSize = len > 18 ? 13 : len > 14 ? 14 : 16;
+    barHeight = len > 14 ? 78 : 86;
+    barWidth = len > 24 ? 2.2 : len > 12 ? 2.45 : 2.65;
+    fontSize = len > 18 ? 12 : len > 14 ? 13 : 15;
   } else {
     barHeight = len > 14 ? 80 : 88;
     barWidth = len > 24 ? 2.05 : len > 12 ? 2.25 : 2.45;
@@ -74,8 +72,8 @@ function barcodeSvgHtml(code: string, preset: LabelFormatPreset): string {
       height: barHeight,
       displayValue: true,
       fontSize,
-      textMargin: preset === 'dk1201' ? 4 : 6,
-      margin: preset === 'dk1201' ? 8 : 12,
+      textMargin: preset === 'dk1201' ? 3 : 6,
+      margin: preset === 'dk1201' ? 6 : 12,
     });
     return svg.outerHTML;
   } catch {
@@ -131,7 +129,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
     }
     .label-dk1201 .logo-wrap {
       flex-shrink: 0;
-      width: 14mm;
+      width: 12mm;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -144,13 +142,13 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       object-fit: contain;
     }
     .label-dk1201 .logo-img {
-      max-width: 14mm;
-      max-height: 26mm;
+      max-width: 12mm;
+      max-height: 28mm;
       width: auto;
       height: auto;
       object-fit: contain;
     }
-    .label-dk1209 .col-main, .label-dk1201 .col-main {
+    .label-dk1209 .col-main {
       flex: 1 1 0;
       min-width: 0;
       display: flex;
@@ -158,6 +156,16 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       justify-content: center;
       align-items: flex-start;
       gap: 0.15mm;
+    }
+    .label-dk1201 .col-main {
+      flex: 1 1 0;
+      min-width: 0;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: stretch;
+      gap: 0.2mm;
     }
     .label-dk1209 .nombre {
       font-size: 9pt;
@@ -169,10 +177,11 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       -webkit-box-orient: vertical;
     }
     .label-dk1201 .nombre {
-      font-size: 10.5pt;
-      line-height: 1.18;
+      flex: 0 0 auto;
+      font-size: 9.5pt;
+      line-height: 1.12;
       font-weight: 800;
-      max-height: 10mm;
+      max-height: 7.5mm;
       overflow: hidden;
       display: -webkit-box;
       -webkit-line-clamp: 2;
@@ -181,12 +190,27 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       hyphens: auto;
     }
     .label-dk1209 .precio { font-size: 11pt; font-weight: 800; }
-    .label-dk1201 .precio { font-size: 11pt; font-weight: 800; line-height: 1.1; flex-shrink: 0; }
-    .label-dk1209 .bc, .label-dk1201 .bc {
+    .label-dk1201 .precio {
+      flex: 0 0 auto;
+      font-size: 10.5pt;
+      font-weight: 800;
+      line-height: 1.05;
+    }
+    .label-dk1209 .bc {
       width: 100%;
       margin-top: 0.15mm;
       overflow: visible;
       flex-shrink: 0;
+    }
+    .label-dk1201 .bc {
+      flex: 1 1 auto;
+      min-height: 0;
+      width: 100%;
+      margin-top: 0.1mm;
+      overflow: hidden;
+      display: flex;
+      align-items: flex-end;
+      justify-content: flex-start;
     }
     .label-dk1209 .bc svg {
       display: block;
@@ -196,10 +220,11 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
     }
     .label-dk1201 .bc svg {
       display: block;
-      max-width: 100%;
-      width: auto;
+      width: 100%;
       height: auto;
-      max-height: 13mm;
+      max-height: 100%;
+      object-fit: contain;
+      object-position: left bottom;
     }
   `;
 
@@ -208,6 +233,9 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
 <title>Etiquetas de producto</title>
 <style>
   @page { size: ${f.pageW} ${f.pageH}; margin: 0; }
+  @media print {
+    html, body { width: ${f.pageW}; margin: 0 !important; padding: 0 !important; }
+  }
   * { box-sizing: border-box; }
   body { margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-family: system-ui, "Segoe UI", sans-serif; color: #0f172a; }
   .label {
