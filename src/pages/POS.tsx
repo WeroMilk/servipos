@@ -754,7 +754,9 @@ export function POS() {
   const unitPriceManualInputRef = useRef<HTMLInputElement>(null);
   /** En navegador el handle es `number`; evitar choque con tipos de Node (`Timeout`). */
   const posScanIdleTimerRef = useRef<number | null>(null);
-  const posScanCommittingRef = useRef(false);
+  /** Cola de códigos (pistola rápida): no se pierde un Enter mientras el anterior aún resuelve). */
+  const posScanQueueRef = useRef<string[]>([]);
+  const posScanProcessingRef = useRef(false);
   /** Timestamps de la secuencia actual en el buscador (para distinguir pistola vs tipeo manual). */
   const posSearchPrevKeyTsRef = useRef(0);
   const posSearchFirstKeyTsRef = useRef(0);
@@ -1241,6 +1243,9 @@ export function POS() {
         type: 'success',
         message: qty > 1 ? `${product.nombre} agregado · ${qty} pz` : `${product.nombre} agregado`,
       });
+      requestAnimationFrame(() => {
+        searchInputRef.current?.focus();
+      });
     } catch (error: unknown) {
       addToast({
         type: 'error',
@@ -1249,42 +1254,60 @@ export function POS() {
     }
   }, [addItem, addToast, searchQuery]);
 
-  /** Escáner USB: Enter o corte por silencio breve; evita doble envío concurrente. */
-  const commitSearchEnter = useCallback(
-    async (raw: string) => {
-      if (posScanCommittingRef.current) return;
-      const q = raw.trim();
-      if (!q) return;
-      const { quantity, rest, hadQtyPrefix } = parsePosQuantityPrefix(q);
-      if (hadQtyPrefix && !rest) {
-        addToast({
-          type: 'warning',
-          message: 'Escriba o escanee el código después de la cantidad (ej. 10* y luego el código de barras).',
-        });
-        return;
-      }
-      const qLookup = rest;
-      posScanCommittingRef.current = true;
-      try {
+  /** Escáner USB: Enter o silencio breve; cola para lecturas seguidas (incluye las que llegan durante un `await`). */
+  const processPosScanQueue = useCallback(async () => {
+    if (posScanProcessingRef.current) return;
+    posScanProcessingRef.current = true;
+    try {
+      while (posScanQueueRef.current.length > 0) {
+        const qTrim = posScanQueueRef.current.shift()!.trim();
+        if (!qTrim) continue;
+        const { quantity, rest, hadQtyPrefix } = parsePosQuantityPrefix(qTrim);
+        if (hadQtyPrefix && !rest) {
+          addToast({
+            type: 'warning',
+            message:
+              'Escriba o escanee el código después de la cantidad (ej. 10* y luego el código de barras).',
+          });
+          continue;
+        }
+        const qLookup = rest;
         const byBarcode = await searchByBarcode(qLookup);
         if (byBarcode) {
           handleAddProduct(byBarcode, quantity);
-          return;
+          continue;
         }
         const matches = await searchProducts(qLookup);
         if (matches.length === 1) {
           handleAddProduct(matches[0], quantity);
-        } else if (matches.length === 0) {
+          continue;
+        }
+        if (matches.length === 0) {
           addToast({ type: 'warning', message: `Sin coincidencias para: ${qLookup}` });
           setShowProductSearch(true);
-        } else {
-          setShowProductSearch(true);
+          posScanQueueRef.current = [];
+          break;
         }
-      } finally {
-        posScanCommittingRef.current = false;
+        setShowProductSearch(true);
+        posScanQueueRef.current = [];
+        break;
       }
+    } finally {
+      posScanProcessingRef.current = false;
+      if (posScanQueueRef.current.length > 0) {
+        void processPosScanQueue();
+      }
+    }
+  }, [searchByBarcode, handleAddProduct, searchProducts, addToast]);
+
+  const commitSearchEnter = useCallback(
+    (raw: string) => {
+      const q = raw.trim();
+      if (!q) return;
+      posScanQueueRef.current.push(q);
+      void processPosScanQueue();
     },
-    [searchByBarcode, handleAddProduct, searchProducts, addToast]
+    [processPosScanQueue]
   );
 
   const flushPosScanFromInput = useCallback(() => {

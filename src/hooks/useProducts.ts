@@ -17,7 +17,6 @@ import {
   createProductFirestore,
   updateProductFirestore,
   deleteProductFirestore,
-  getProductByBarcodeFirestore,
 } from '@/lib/firestore/productsFirestore';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 import { coerceProductList } from '@/lib/productCoerce';
@@ -419,10 +418,20 @@ export function useProductSearch(options?: { maxResults?: number }) {
   const searchByBarcode = useCallback(
     async (barcode: string) => {
       try {
-        setLoading(true);
         if (sucursalId) {
-          return (await getProductByBarcodeFirestore(sucursalId, barcode)) || null;
+          /** Catálogo ya en memoria (misma fuente que la búsqueda por texto): evita un fetch completo por cada pistola. */
+          const list = coerceProductList(getProductCatalogSnapshot());
+          const key = normSkuBarcode(barcode);
+          if (!key) return null;
+          const ok = (p: Product) => p.activo !== false;
+          const byBar = list.find(
+            (p) => ok(p) && normSkuBarcode(String(p.codigoBarras ?? '')) === key
+          );
+          if (byBar) return byBar;
+          const bySku = list.find((p) => ok(p) && normSkuBarcode(String(p.sku ?? '')) === key);
+          return bySku ?? null;
         }
+        setLoading(true);
         const product = await getProductByBarcode(barcode);
         return product || null;
       } catch (err) {
@@ -430,7 +439,7 @@ export function useProductSearch(options?: { maxResults?: number }) {
         console.error('Error al buscar por código:', err);
         return null;
       } finally {
-        setLoading(false);
+        if (!sucursalId) setLoading(false);
       }
     },
     [sucursalId]
