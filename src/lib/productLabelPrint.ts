@@ -43,9 +43,9 @@ function servipartzLogoUrl(): string {
 }
 
 /**
- * Dimensiones del CODE128 orientadas a escáner: barras más altas, módulos más anchos
- * y margen (zona silenciosa). Códigos largos bajan un poco el `width` solo para que quepa
- * sin reducir tanto el SVG en CSS (reducir deja barras demasiado finas).
+ * CODE128 para escáner: `height` alto para que, al escalar el SVG al ancho de la etiqueta,
+ * las barras queden más gruesas. Márgenes amplios (zona silenciosa). Códigos largos: texto
+ * bajo el código más pequeño para no robar alto útil a las barras.
  */
 function barcodeSvgHtml(code: string, preset: LabelFormatPreset): string {
   const t = code.trim();
@@ -57,13 +57,14 @@ function barcodeSvgHtml(code: string, preset: LabelFormatPreset): string {
   let fontSize: number;
 
   if (preset === 'dk1201') {
-    barHeight = len > 18 ? 56 : 62;
-    barWidth = len > 22 ? 1.45 : len > 14 ? 1.85 : 2.15;
-    fontSize = len > 16 ? 11 : 13;
+    barHeight = len > 16 ? 78 : 86;
+    barWidth = len > 20 ? 2.0 : len > 12 ? 2.2 : 2.35;
+    fontSize = len > 14 ? 10 : 12;
   } else {
-    barHeight = len > 22 ? 48 : 54;
-    barWidth = len > 26 ? 1.55 : len > 16 ? 1.95 : 2.25;
-    fontSize = len > 20 ? 11 : 13;
+    /** DK-1209: priorizar altura de barras (la escala al ancho las hace más legibles). */
+    barHeight = len > 14 ? 80 : 88;
+    barWidth = len > 24 ? 2.05 : len > 12 ? 2.25 : 2.45;
+    fontSize = len > 18 ? 10 : 12;
   }
 
   try {
@@ -74,7 +75,7 @@ function barcodeSvgHtml(code: string, preset: LabelFormatPreset): string {
       height: barHeight,
       displayValue: true,
       fontSize,
-      margin: 8,
+      margin: 12,
     });
     return svg.outerHTML;
   } catch {
@@ -136,14 +137,14 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
     }
     .label-dk1209 .logo-wrap {
       flex-shrink: 0;
-      width: 23mm;
+      width: 19mm;
       display: flex;
       align-items: center;
       justify-content: center;
     }
     .label-dk1209 .logo-img {
-      max-width: 23mm;
-      max-height: 22mm;
+      max-width: 19mm;
+      max-height: 20mm;
       width: auto;
       height: auto;
       object-fit: contain;
@@ -158,19 +159,20 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       gap: 0.15mm;
     }
     .label-dk1209 .nombre {
-      font-size: 10pt;
-      line-height: 1.06;
-      max-height: 8.5mm;
+      font-size: 9pt;
+      line-height: 1.05;
+      max-height: 7mm;
       overflow: hidden;
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
     }
-    .label-dk1209 .precio { font-size: 12pt; font-weight: 800; }
+    .label-dk1209 .precio { font-size: 11pt; font-weight: 800; }
     .label-dk1209 .bc {
       width: 100%;
-      margin-top: 0.3mm;
+      margin-top: 0.2mm;
       overflow: visible;
+      flex-shrink: 0;
     }
     .label-dk1209 .bc svg {
       display: block;
@@ -258,6 +260,11 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
   w.document.close();
   w.onload = () => {
     w.focus();
+    const closeAfterPrint = () => {
+      w.removeEventListener('afterprint', closeAfterPrint);
+      w.close();
+    };
+    w.addEventListener('afterprint', closeAfterPrint);
     w.print();
   };
   return true;

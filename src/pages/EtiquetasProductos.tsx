@@ -37,8 +37,8 @@ function expandForPrint(queue: QueueLine[]): Product[] {
   return out;
 }
 
-/** Formato de impresión fijo (UI de opciones oculta). */
-const PRINT_LABEL_FORMAT = 'dk1209' as const;
+/** Formato de impresión fijo: 29×65 mm (largo 6,5 cm), alineado con @page en productLabelPrint. */
+const PRINT_LABEL_FORMAT = 'dk1201' as const;
 const ADD_LIST_COPIES = 1;
 
 export function EtiquetasProductos() {
@@ -197,7 +197,7 @@ export function EtiquetasProductos() {
           </div>
           <p className="text-xs text-slate-600 dark:text-slate-400">
             Brother QL-800 · Arme la lista y use <span className="font-medium">Imprimir</span>; en el diálogo del
-            sistema elija la impresora y el rollo <span className="font-medium">DK-1209 (62×29 mm)</span>.
+            sistema elija la impresora y el rollo <span className="font-medium">DK-1201 (29×65 mm, largo 6,5 cm)</span>.
           </p>
         </div>
       </div>
@@ -388,13 +388,17 @@ export function EtiquetasProductos() {
                             {filteredForPick.map((p) => (
                               <tr
                                 key={p.id}
-                                className="bg-white/50 transition-colors hover:bg-cyan-500/[0.04] dark:bg-transparent dark:hover:bg-slate-800/30"
+                                className="cursor-pointer bg-white/50 transition-colors hover:bg-cyan-500/[0.04] dark:bg-transparent dark:hover:bg-slate-800/30"
+                                onClick={() =>
+                                  setIndividualPick((prev) => ({ ...prev, [p.id]: !prev[p.id] }))
+                                }
                               >
                                 <td className="px-3 py-2 align-top">
                                   <input
                                     type="checkbox"
                                     className="mt-0.5 size-4 rounded border-slate-400 text-cyan-600 focus:ring-cyan-500/40"
                                     checked={Boolean(individualPick[p.id])}
+                                    onClick={(e) => e.stopPropagation()}
                                     onChange={(e) =>
                                       setIndividualPick((prev) => ({ ...prev, [p.id]: e.target.checked }))
                                     }
