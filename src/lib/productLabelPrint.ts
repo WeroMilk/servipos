@@ -75,15 +75,14 @@ function labelBlock(p: Product, preset: LabelFormatPreset, logoSrc: string): str
     return `
       <section class="label label-dk1209">
         <div class="logo-wrap">${logoImg}</div>
-        <div class="body">
-          <div class="head">
-            <div class="nombre">${escapeHtml(p.nombre)}</div>
-            <div class="precio">${escapeHtml(precio)}</div>
-          </div>
-          <div class="tr-foot">
-            ${bc ? `<div class="bc">${bc}</div>` : ''}
-            <div class="sku">SKU: ${escapeHtml(p.sku)}</div>
-          </div>
+        <div class="col-main">
+          <div class="nombre">${escapeHtml(p.nombre)}</div>
+          <div class="precio">${escapeHtml(precio)}</div>
+          ${bc ? `<div class="bc">${bc}</div>` : ''}
+        </div>
+        <div class="col-sku">
+          <div class="sku-label">SKU</div>
+          <div class="sku-val">${escapeHtml(p.sku)}</div>
         </div>
       </section>`;
   }
@@ -117,64 +116,73 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
   const cssWide = `
     .label-dk1209 {
       flex-direction: row;
-      align-items: flex-start;
+      align-items: stretch;
       justify-content: flex-start;
-      gap: 2mm;
-      padding: 1mm 1.5mm;
+      gap: 1mm;
+      padding: 0.6mm 0.8mm;
     }
     .label-dk1209 .logo-wrap {
       flex-shrink: 0;
-      width: 20mm;
-      max-height: 18mm;
+      width: 15mm;
       display: flex;
       align-items: center;
       justify-content: center;
     }
     .label-dk1209 .logo-img {
-      max-width: 20mm;
-      max-height: 18mm;
+      max-width: 15mm;
+      max-height: 14mm;
       width: auto;
       height: auto;
       object-fit: contain;
     }
-    .label-dk1209 .body {
-      flex: 1;
+    .label-dk1209 .col-main {
+      flex: 1 1 0;
       min-width: 0;
       display: flex;
       flex-direction: column;
-      justify-content: flex-start;
-      align-items: stretch;
-      min-height: 0;
-    }
-    .label-dk1209 .head {
-      flex-shrink: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 0.35mm;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 0.2mm;
     }
     .label-dk1209 .nombre {
-      font-size: 12pt;
+      font-size: 11pt;
       line-height: 1.08;
-      max-height: 11mm;
+      max-height: 10mm;
       overflow: hidden;
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
     }
-    .label-dk1209 .precio { font-size: 15pt; font-weight: 800; }
-    .label-dk1209 .tr-foot {
-      flex-shrink: 0;
-      margin-top: auto;
-      align-self: flex-end;
+    .label-dk1209 .precio { font-size: 13pt; font-weight: 800; }
+    .label-dk1209 .bc { max-width: 100%; margin-top: 0.2mm; }
+    .label-dk1209 .bc svg { max-width: 100%; height: auto; display: block; }
+    .label-dk1209 .col-sku {
+      flex: 0 0 11.5mm;
+      width: 11.5mm;
       display: flex;
       flex-direction: column;
+      justify-content: center;
       align-items: flex-end;
-      gap: 0.25mm;
-      max-width: 100%;
+      text-align: right;
+      padding-left: 0.4mm;
+      border-left: 0.12mm solid #94a3b8;
     }
-    .label-dk1209 .bc { max-width: 46mm; }
-    .label-dk1209 .bc svg { max-width: 100%; height: auto; display: block; }
-    .label-dk1209 .sku { font-size: 11pt; font-weight: 600; text-align: right; white-space: nowrap; }
+    .label-dk1209 .sku-label {
+      font-size: 7pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      color: #475569;
+      line-height: 1;
+    }
+    .label-dk1209 .sku-val {
+      font-size: 10.5pt;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.1;
+      margin-top: 0.6mm;
+      word-break: break-all;
+    }
   `;
 
   const cssTall = `
@@ -235,7 +243,10 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
     width: ${f.pageW};
     height: ${f.pageH};
     page-break-after: always;
+    page-break-inside: avoid;
+    break-inside: avoid;
     display: flex;
+    overflow: hidden;
   }
   .nombre { font-weight: 700; }
   .precio { color: #0f172a; }
