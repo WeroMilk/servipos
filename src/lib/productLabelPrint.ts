@@ -59,9 +59,9 @@ function barcodeSvgHtml(code: string, preset: LabelFormatPreset): string {
   let fontSize: number;
 
   if (preset === 'dk1201') {
-    barHeight = len > 14 ? 72 : 80;
-    barWidth = len > 24 ? 2.35 : len > 12 ? 2.55 : 2.75;
-    fontSize = len > 18 ? 12 : len > 14 ? 13 : 15;
+    barHeight = len > 14 ? 88 : 96;
+    barWidth = len > 24 ? 2.5 : len > 12 ? 2.7 : 2.9;
+    fontSize = len > 18 ? 11 : len > 14 ? 12 : 14;
   } else {
     barHeight = len > 14 ? 80 : 88;
     barWidth = len > 24 ? 2.05 : len > 12 ? 2.25 : 2.45;
@@ -76,8 +76,8 @@ function barcodeSvgHtml(code: string, preset: LabelFormatPreset): string {
       height: barHeight,
       displayValue: true,
       fontSize,
-      textMargin: preset === 'dk1201' ? 3 : 6,
-      margin: preset === 'dk1201' ? 6 : 12,
+      textMargin: preset === 'dk1201' ? 2 : 6,
+      margin: preset === 'dk1201' ? 4 : 12,
     });
     /** Quitar width/height fijos del SVG: si no, el ancho intrínseco (miles de px) ensancha el flex y deja banda blanca. */
     svg.removeAttribute('width');
@@ -142,8 +142,13 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       flex-direction: row;
       align-items: stretch;
       justify-content: flex-start;
-      gap: 1mm;
+      gap: 0.9mm;
+    }
+    .label-dk1209 {
       padding: 0.45mm 0.6mm;
+    }
+    .label-dk1201 {
+      padding: 0.7mm 0.55mm 0.85mm 0.55mm;
     }
     .label-dk1209 .logo-wrap {
       flex-shrink: 0;
@@ -154,7 +159,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
     }
     .label-dk1201 .logo-wrap {
       flex-shrink: 0;
-      width: 13mm;
+      width: 16mm;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -167,8 +172,8 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       object-fit: contain;
     }
     .label-dk1201 .logo-img {
-      max-width: 13mm;
-      max-height: 26mm;
+      max-width: 16mm;
+      max-height: 27mm;
       width: auto;
       height: auto;
       object-fit: contain;
@@ -190,14 +195,15 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       min-height: 0;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
+      justify-content: flex-start;
       align-items: stretch;
-      gap: 0.35mm;
+      gap: 0.25mm;
     }
     .label-dk1201 .text-block {
       flex: 0 0 auto;
       width: 100%;
       min-width: 0;
+      padding-top: 0.55mm;
     }
     .label-dk1209 .nombre {
       font-size: 9pt;
@@ -209,10 +215,10 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       -webkit-box-orient: vertical;
     }
     .label-dk1201 .nombre {
-      font-size: 8.5pt;
-      line-height: 1.08;
+      font-size: 7.25pt;
+      line-height: 1.07;
       font-weight: 800;
-      max-height: 9mm;
+      max-height: 8mm;
       overflow: hidden;
       display: -webkit-box;
       -webkit-line-clamp: 3;
@@ -220,11 +226,12 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       word-break: break-word;
       overflow-wrap: anywhere;
       hyphens: auto;
+      margin-top: 0.2mm;
     }
     .label-dk1209 .precio { font-size: 11pt; font-weight: 800; }
     .label-dk1201 .text-block .precio {
-      margin-top: 0.15mm;
-      font-size: 11pt;
+      margin-top: 0.12mm;
+      font-size: 10.5pt;
       font-weight: 800;
       line-height: 1.05;
     }
@@ -235,14 +242,15 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       flex-shrink: 0;
     }
     .label-dk1201 .bc {
-      flex: 1 1 0;
-      min-height: 10mm;
+      flex: 1 1 auto;
+      min-height: 9mm;
       width: 100%;
       align-self: stretch;
-      margin-top: 0;
+      margin-top: 0.15mm;
+      padding-bottom: 0.15mm;
       overflow: hidden;
       display: flex;
-      align-items: flex-end;
+      align-items: flex-start;
       justify-content: flex-start;
     }
     .label-dk1209 .bc svg {
