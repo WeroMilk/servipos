@@ -6,7 +6,7 @@ import { useAuthStore, useAppStore } from '@/stores';
 import type { Product } from '@/types';
 import { cn, formatMoney } from '@/lib/utils';
 import { printProductLabels } from '@/lib/productLabelPrint';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -156,7 +156,7 @@ export function EtiquetasProductos() {
     }
     addToast({
       type: 'success',
-      message: 'Cuando se abra el cuadro de impresión, elija la Brother QL-800 y el rollo correcto.',
+      message: 'Use el cuadro de impresión del sistema para finalizar.',
     });
   }, [queue, addToast]);
 
@@ -183,7 +183,7 @@ export function EtiquetasProductos() {
   const desktop = (
     <div className="hidden min-h-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden overscroll-y-contain md:flex md:min-h-0">
       <div className="flex shrink-0 flex-wrap items-start justify-between gap-3 border-b border-slate-200/80 pb-3 dark:border-slate-800/50">
-        <div className="min-w-0 space-y-1">
+        <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="ghost" size="sm" className="h-8 gap-1 px-2" asChild>
               <Link to="/inventario">
@@ -195,23 +195,13 @@ export function EtiquetasProductos() {
               Etiquetas de productos
             </h1>
           </div>
-          <p className="text-xs text-slate-600 dark:text-slate-400">
-            Brother QL-800 · Arme la lista y use <span className="font-medium">Imprimir</span>; en el diálogo del
-            en el cuadro de impresión use tamaño <span className="font-medium">29 × 60 mm</span> (no 29 × 90) y{' '}
-            <span className="font-medium">escala 100 %</span>. Si no existe en la lista, tamaño personalizado en el driver Brother.
-          </p>
         </div>
       </div>
 
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)] lg:grid-rows-[minmax(0,1fr)] lg:items-stretch lg:overflow-hidden">
         <Card className="flex min-h-0 flex-1 flex-col border-slate-200/80 dark:border-slate-800/50 lg:min-h-0 lg:h-full">
-          <CardHeader className="shrink-0 space-y-1 pb-3">
+          <CardHeader className="shrink-0 pb-3">
             <CardTitle className="text-base">Agregar a la lista</CardTitle>
-            <CardDescription className="text-xs leading-relaxed">
-              Elija si añade todo el catálogo activo, solo algunas familias o artículos puntuales. Cada artículo se
-              añade con una copia; puede ajustar cantidades en la lista de la derecha. Si un producto ya estaba en
-              la lista, se suman las copias.
-            </CardDescription>
           </CardHeader>
           <CardContent className="flex min-h-0 flex-1 flex-col gap-5">
             {loading ? (
@@ -432,12 +422,8 @@ export function EtiquetasProductos() {
         </Card>
 
         <Card className="flex min-h-0 flex-col border-slate-200/80 dark:border-slate-800/50 lg:h-full lg:min-h-0 lg:overflow-hidden">
-          <CardHeader className="shrink-0 space-y-1 pb-2">
+          <CardHeader className="shrink-0 pb-2">
             <CardTitle className="text-base">Lista para imprimir</CardTitle>
-            <CardDescription className="text-xs">
-              Ajuste cuántas etiquetas físicas por producto. Cada copia genera una página en el PDF de
-              impresión.
-            </CardDescription>
           </CardHeader>
           <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
             <div className="flex shrink-0 flex-wrap gap-2">

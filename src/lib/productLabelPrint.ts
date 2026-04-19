@@ -78,6 +78,10 @@ function barcodeSvgHtml(code: string, preset: LabelFormatPreset): string {
       fontSize,
       textMargin: preset === 'dk1201' ? 2 : 6,
       margin: preset === 'dk1201' ? 4 : 12,
+      lineColor: '#000000',
+      background: '#ffffff',
+      font: 'Arial, Helvetica, sans-serif',
+      fontOptions: 'bold',
     });
     /** Quitar width/height fijos del SVG: si no, el ancho intrínseco (miles de px) ensancha el flex y deja banda blanca. */
     svg.removeAttribute('width');
@@ -301,9 +305,10 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
     overflow-x: hidden;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
-    font-family: system-ui, "Segoe UI", sans-serif;
-    color: #0f172a;
+    font-family: Arial, Helvetica, "Segoe UI", sans-serif;
+    color: #000;
     background: #525252;
+    text-rendering: geometricPrecision;
   }
   @media print {
     .print-hint-screen { display: none !important; }
@@ -314,6 +319,8 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       margin: 0 !important;
       padding: 0 !important;
       background: white !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
     }
   }
   .label {
@@ -322,14 +329,32 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
     max-width: ${f.pageW};
     height: ${f.pageH};
     background: #fff;
+    color: #000;
     page-break-after: always;
     page-break-inside: avoid;
     break-inside: avoid;
     display: flex;
     overflow: hidden;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    font-synthesis: none;
   }
-  .nombre { font-weight: 700; }
-  .precio { color: #0f172a; }
+  .nombre { font-weight: 700; color: #000; }
+  .precio { color: #000; }
+  .logo-img {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    image-rendering: auto;
+  }
+  .label .bc svg path,
+  .label .bc svg rect,
+  .label .bc svg line {
+    shape-rendering: crispEdges;
+  }
+  .label .bc svg text {
+    fill: #000;
+    text-rendering: geometricPrecision;
+  }
   ${cssStrip}
 </style></head><body>${printHint}${sections.join('')}</body></html>`;
 
