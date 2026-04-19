@@ -1,6 +1,7 @@
 import JsBarcode from 'jsbarcode';
 import type { Product } from '@/types';
 import { BRAND_LOGO_URL } from '@/lib/branding';
+import { getProductPrecioPublicoRegular } from '@/lib/productListPricing';
 import { formatMoney } from '@/lib/utils';
 
 /** Rollos DK habituales para Brother QL (QL-800 y similares). */
@@ -98,7 +99,8 @@ function barcodeSvgHtml(code: string, preset: LabelFormatPreset): string {
 function labelBlock(p: Product, preset: LabelFormatPreset, logoSrc: string): string {
   const code = (p.codigoBarras && p.codigoBarras.trim()) || p.sku.trim();
   const bc = barcodeSvgHtml(code, preset);
-  const precio = formatMoney(Number(p.precioVenta) || 0);
+  /** Siempre lista Regular al público, con IVA (misma regla que el POS para “precio mostrador”). */
+  const precio = formatMoney(getProductPrecioPublicoRegular(p));
 
   const logoImg = `<img class="logo-img" src="${escapeHtml(logoSrc)}" alt="" width="200" height="200" />`;
   const nombre = escapeHtml(p.nombre);
@@ -211,6 +213,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
     }
     .label-dk1209 .nombre {
       font-size: 9pt;
+      font-weight: 400;
       line-height: 1.05;
       max-height: 7mm;
       overflow: hidden;
@@ -221,7 +224,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
     .label-dk1201 .nombre {
       font-size: 7.25pt;
       line-height: 1.07;
-      font-weight: 800;
+      font-weight: 400;
       max-height: 8mm;
       overflow: hidden;
       display: -webkit-box;
@@ -339,7 +342,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
     print-color-adjust: exact;
     font-synthesis: none;
   }
-  .nombre { font-weight: 700; color: #000; }
+  .nombre { font-weight: 400; color: #000; }
   .precio { color: #000; }
   .logo-img {
     -webkit-print-color-adjust: exact;
