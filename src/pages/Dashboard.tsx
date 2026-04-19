@@ -208,6 +208,17 @@ export function Dashboard() {
   /** Día concreto (inicio local) para filtrar solo los KPI de arriba; la gráfica sigue mostrando el periodo visual. */
   const [kpiDrillDownDayStart, setKpiDrillDownDayStart] = useState<Date | null>(null);
   const chartPanelRef = useRef<HTMLDivElement | null>(null);
+  /**
+   * Al hacer clic en «Ventas recientes», un pointerdown en document puede borrar el drill-down antes del click.
+   * Guardamos aquí la fecha México a mostrar en el diálogo (día del gráfico o hoy) en la fase capture de la tarjeta.
+   */
+  const ventasRecientesOpenSnapshotRef = useRef<string | undefined>(undefined);
+
+  const onVentasRecientesPointerDownCapture = useCallback(() => {
+    ventasRecientesOpenSnapshotRef.current = kpiDrillDownDayStart
+      ? getMexicoDateKey(kpiDrillDownDayStart)
+      : getMexicoDateKey();
+  }, [kpiDrillDownDayStart]);
 
   const { inicio, fin } = useMemo(() => dateRangeToBounds(dateRange), [dateRange]);
 
@@ -252,7 +263,7 @@ export function Dashboard() {
 
   useEffect(() => {
     if (!kpiDrillDownDayStart) return;
-    const onDown = (e: MouseEvent) => {
+    const onDown = (e: PointerEvent) => {
       const t = e.target;
       if (t instanceof Element && t.closest('[data-preserve-kpi-drill]')) return;
       const el = chartPanelRef.current;
@@ -260,8 +271,8 @@ export function Dashboard() {
         setKpiDrillDownDayStart(null);
       }
     };
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
+    document.addEventListener('pointerdown', onDown);
+    return () => document.removeEventListener('pointerdown', onDown);
   }, [kpiDrillDownDayStart]);
 
   useEffect(() => {
@@ -337,12 +348,18 @@ export function Dashboard() {
 
   const goInventarioStock = () => navigate('/inventario?tab=stock');
 
-  const openTodaySalesDialog = () => {
-    setReprintDayKey(
-      kpiDrillDownDayStart ? getMexicoDateKey(kpiDrillDownDayStart) : getMexicoDateKey()
-    );
+  const openTodaySalesDialog = useCallback(() => {
+    let dayKey: string;
+    if (kpiDrillDownDayStart) {
+      dayKey = getMexicoDateKey(kpiDrillDownDayStart);
+    } else {
+      const snap = ventasRecientesOpenSnapshotRef.current;
+      ventasRecientesOpenSnapshotRef.current = undefined;
+      dayKey = snap !== undefined ? snap : getMexicoDateKey();
+    }
+    setReprintDayKey(dayKey);
     setTodaySalesOpen(true);
-  };
+  }, [kpiDrillDownDayStart]);
 
   const confirmCancelSaleFromPanel = useCallback(async () => {
     if (!saleToCancel) return;
@@ -1091,6 +1108,7 @@ export function Dashboard() {
               role="button"
               tabIndex={0}
               data-preserve-kpi-drill
+              onPointerDownCapture={onVentasRecientesPointerDownCapture}
               onClick={openTodaySalesDialog}
               onKeyDown={recentSalesCardKeyHandler}
               className={cn(

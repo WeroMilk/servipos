@@ -47,44 +47,89 @@ function servipartzLogoUrl(): string {
   }
 }
 
+/** Factor extra de píxeles al rasterizar el código de barras (mejor nitidez al imprimir / escalar). */
+const BARCODE_PRINT_SUPERSAMPLE = 3;
+
+const jsBarcodeBaseOptions = {
+  format: 'CODE128' as const,
+  lineColor: '#000000',
+  background: '#ffffff',
+  font: 'Arial, Helvetica, sans-serif',
+  fontOptions: 'bold' as const,
+  displayValue: true,
+};
+
+function barcodeDimensions(code: string, preset: LabelFormatPreset): {
+  barHeight: number;
+  barWidth: number;
+  fontSize: number;
+  textMargin: number;
+  margin: number;
+} {
+  const len = code.trim().length;
+  if (preset === 'dk1201') {
+    return {
+      barHeight: len > 14 ? 88 : 96,
+      barWidth: len > 24 ? 2.5 : len > 12 ? 2.7 : 2.9,
+      fontSize: len > 18 ? 11 : len > 14 ? 12 : 14,
+      textMargin: 2,
+      margin: 4,
+    };
+  }
+  return {
+    barHeight: len > 14 ? 80 : 88,
+    barWidth: len > 24 ? 2.05 : len > 12 ? 2.25 : 2.45,
+    fontSize: len > 18 ? 10 : 12,
+    textMargin: 6,
+    margin: 12,
+  };
+}
+
 /**
- * CODE128: tira 60×29 mm (largo × cinta): barras y texto ajustados a ~29 mm de alto útil.
+ * CODE128 raster (PNG de alta resolución): al reducir a la etiqueta las barras se ven más nítidas que escalando SVG.
  */
+function barcodeRasterImgHtml(code: string, preset: LabelFormatPreset): string {
+  const t = code.trim();
+  if (!t || typeof document === 'undefined') return '';
+  const s = BARCODE_PRINT_SUPERSAMPLE;
+  const { barHeight, barWidth, fontSize, textMargin, margin } = barcodeDimensions(t, preset);
+  try {
+    const canvas = document.createElement('canvas');
+    JsBarcode(canvas, t, {
+      ...jsBarcodeBaseOptions,
+      width: barWidth * s,
+      height: Math.round(barHeight * s),
+      fontSize: Math.round(fontSize * s),
+      textMargin: Math.round(textMargin * s),
+      margin: Math.round(margin * s),
+    });
+    const data = canvas.toDataURL('image/png');
+    /** Sin escape: `data:` no debe alterarse (p. ej. `&` en base64 raro pero válido). */
+    return `<img class="bc-img" src="${data}" alt="" width="${canvas.width}" height="${canvas.height}" decoding="sync" />`;
+  } catch {
+    return '';
+  }
+}
+
+/** Respaldo vectorial si el canvas falla. */
 function barcodeSvgHtml(code: string, preset: LabelFormatPreset): string {
   const t = code.trim();
   if (!t) return '';
-  const len = t.length;
-
-  let barHeight: number;
-  let barWidth: number;
-  let fontSize: number;
-
-  if (preset === 'dk1201') {
-    barHeight = len > 14 ? 88 : 96;
-    barWidth = len > 24 ? 2.5 : len > 12 ? 2.7 : 2.9;
-    fontSize = len > 18 ? 11 : len > 14 ? 12 : 14;
-  } else {
-    barHeight = len > 14 ? 80 : 88;
-    barWidth = len > 24 ? 2.05 : len > 12 ? 2.25 : 2.45;
-    fontSize = len > 18 ? 10 : 12;
-  }
-
+  const { barHeight, barWidth, fontSize, textMargin, margin } = barcodeDimensions(t, preset);
   try {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     JsBarcode(svg, t, {
-      format: 'CODE128',
+      ...jsBarcodeBaseOptions,
       width: barWidth,
       height: barHeight,
-      displayValue: true,
       fontSize,
-      textMargin: preset === 'dk1201' ? 2 : 6,
-      margin: preset === 'dk1201' ? 4 : 12,
-      lineColor: '#000000',
-      background: '#ffffff',
-      font: 'Arial, Helvetica, sans-serif',
-      fontOptions: 'bold',
+      textMargin,
+      margin,
     });
-    /** Quitar width/height fijos del SVG: si no, el ancho intrínseco (miles de px) ensancha el flex y deja banda blanca. */
+    svg.setAttribute('shape-rendering', 'crispEdges');
+    svg.querySelectorAll('rect, line, path').forEach((el) => {
+      el.setAttribute('shape-rendering', 'crispEdges');
+    });
     svg.removeAttribute('width');
     svg.removeAttribute('height');
     if (!svg.getAttribute('preserveAspectRatio')) {
@@ -96,13 +141,19 @@ function barcodeSvgHtml(code: string, preset: LabelFormatPreset): string {
   }
 }
 
+function barcodePrintHtml(code: string, preset: LabelFormatPreset): string {
+  const raster = barcodeRasterImgHtml(code, preset);
+  if (raster) return raster;
+  return barcodeSvgHtml(code, preset);
+}
+
 function labelBlock(p: Product, preset: LabelFormatPreset, logoSrc: string): string {
   const code = (p.codigoBarras && p.codigoBarras.trim()) || p.sku.trim();
-  const bc = barcodeSvgHtml(code, preset);
+  const bc = barcodePrintHtml(code, preset);
   /** Siempre lista Regular al público, con IVA (misma regla que el POS para “precio mostrador”). */
   const precio = formatMoney(getProductPrecioPublicoRegular(p));
 
-  const logoImg = `<img class="logo-img" src="${escapeHtml(logoSrc)}" alt="" width="200" height="200" />`;
+  const logoImg = `<img class="logo-img" src="${escapeHtml(logoSrc)}" alt="" width="640" height="640" decoding="sync" />`;
   const nombre = escapeHtml(p.nombre);
   const precioH = escapeHtml(precio);
 
@@ -262,18 +313,30 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       align-items: flex-start;
       justify-content: flex-start;
     }
+    .label-dk1209 .bc .bc-img,
     .label-dk1209 .bc svg {
       display: block;
       max-width: 100%;
       width: auto;
       height: auto;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
     }
+    .label-dk1201 .bc .bc-img,
     .label-dk1201 .bc svg {
       display: block;
       width: 100% !important;
       max-width: 100%;
       height: auto;
       max-height: 100%;
+      object-fit: contain;
+      object-position: left top;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
     }
   `;
 
@@ -349,7 +412,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
   .logo-img {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
-    image-rendering: auto;
+    image-rendering: high-quality;
     border-radius: 0.85mm;
   }
   .label .bc svg path,
