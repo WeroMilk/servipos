@@ -14,15 +14,19 @@ export const LABEL_FORMAT_OPTIONS: { id: LabelFormatPreset; label: string; hint:
   },
   {
     id: 'dk1201',
-    label: 'Etiqueta 6×3 cm',
-    hint: 'Largo 6 cm × cinta 3 cm. Vista previa: el documento se fuerza a 6 cm de ancho.',
+    label: 'Brother · 29×60 mm (cinta × largo de corte)',
+    hint:
+      'Mismo ancho de cinta 29 mm que en el driver; largo 60 mm (no 90). En impresión elija ese tamaño o personalizado 60×29 mm.',
   },
 ];
 
 const FORMATS: Record<LabelFormatPreset, { pageW: string; pageH: string }> = {
   dk1209: { pageW: '62mm', pageH: '29mm' },
-  /** `cm` explícito: algunos navegadores aplican mejor el ancho del lienzo que con mm. */
-  dk1201: { pageW: '6cm', pageH: '3cm' },
+  /**
+   * Brother en el driver suele listar «29 × 90 mm» (cinta × largo). Aquí largo 60 mm.
+   * En CSS @page: primero ancho del “fajo” horizontal = 60 mm, alto = 29 mm (cinta).
+   */
+  dk1201: { pageW: '60mm', pageH: '29mm' },
 };
 
 function escapeHtml(s: string): string {
@@ -43,7 +47,7 @@ function servipartzLogoUrl(): string {
 }
 
 /**
- * CODE128: DK-1201 (60×30 mm) usa barras más altas/módulo ancho para buena lectura al escalar al ancho útil.
+ * CODE128: tira 60×29 mm (largo × cinta): barras y texto ajustados a ~29 mm de alto útil.
  */
 function barcodeSvgHtml(code: string, preset: LabelFormatPreset): string {
   const t = code.trim();
@@ -55,9 +59,9 @@ function barcodeSvgHtml(code: string, preset: LabelFormatPreset): string {
   let fontSize: number;
 
   if (preset === 'dk1201') {
-    barHeight = len > 14 ? 82 : 92;
+    barHeight = len > 14 ? 72 : 80;
     barWidth = len > 24 ? 2.35 : len > 12 ? 2.55 : 2.75;
-    fontSize = len > 18 ? 13 : len > 14 ? 14 : 16;
+    fontSize = len > 18 ? 12 : len > 14 ? 13 : 15;
   } else {
     barHeight = len > 14 ? 80 : 88;
     barWidth = len > 24 ? 2.05 : len > 12 ? 2.25 : 2.45;
@@ -98,7 +102,7 @@ function labelBlock(p: Product, preset: LabelFormatPreset, logoSrc: string): str
 
   if (preset === 'dk1201') {
     return `
-      <section class="label label-dk1201" style="width:6cm;min-width:6cm;max-width:6cm;height:3cm;box-sizing:border-box;">
+      <section class="label label-dk1201" style="width:60mm;min-width:60mm;max-width:60mm;height:29mm;box-sizing:border-box;">
         <div class="logo-wrap">${logoImg}</div>
         <div class="col-main">
           <div class="text-block">
@@ -164,7 +168,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
     }
     .label-dk1201 .logo-img {
       max-width: 13mm;
-      max-height: 28mm;
+      max-height: 26mm;
       width: auto;
       height: auto;
       object-fit: contain;
@@ -205,10 +209,10 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       -webkit-box-orient: vertical;
     }
     .label-dk1201 .nombre {
-      font-size: 8.75pt;
-      line-height: 1.1;
+      font-size: 8.5pt;
+      line-height: 1.08;
       font-weight: 800;
-      max-height: 10mm;
+      max-height: 9mm;
       overflow: hidden;
       display: -webkit-box;
       -webkit-line-clamp: 3;
@@ -232,7 +236,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
     }
     .label-dk1201 .bc {
       flex: 1 1 0;
-      min-height: 12mm;
+      min-height: 10mm;
       width: 100%;
       align-self: stretch;
       margin-top: 0;
@@ -255,6 +259,15 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       max-height: 100%;
     }
   `;
+
+  const printHint =
+    preset === 'dk1201'
+      ? `<p class="print-hint-screen" style="margin:0 0 8px;padding:8px 10px;font:12px/1.35 system-ui,sans-serif;color:#e5e5e5;background:#404040;border-radius:6px;max-width:60mm">
+  <strong>Impresora Brother (29 mm cinta):</strong> en el cuadro de impresión el tamaño debe ser
+  <strong>29 × 60 mm</strong> (largo de corte 60 mm), no 29 × 90 mm. Si no aparece, use
+  <strong>tamaño personalizado</strong> / pestaña del driver Brother y defina 60 mm de longitud, o elija la opción más cercana y compruebe <strong>escala 100&nbsp;%</strong>.
+</p>`
+      : '';
 
   const html = `<!DOCTYPE html><html lang="es"><head>
 <meta charset="utf-8"/>
@@ -285,6 +298,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
     background: #525252;
   }
   @media print {
+    .print-hint-screen { display: none !important; }
     html, body {
       width: ${f.pageW} !important;
       min-width: ${f.pageW} !important;
@@ -309,7 +323,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
   .nombre { font-weight: 700; }
   .precio { color: #0f172a; }
   ${cssStrip}
-</style></head><body>${sections.join('')}</body></html>`;
+</style></head><body>${printHint}${sections.join('')}</body></html>`;
 
   w.document.open();
   w.document.write(html);

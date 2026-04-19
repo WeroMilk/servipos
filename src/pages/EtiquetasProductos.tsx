@@ -37,7 +37,7 @@ function expandForPrint(queue: QueueLine[]): Product[] {
   return out;
 }
 
-/** Formato fijo 6×3 cm — ver FORMATS.dk1201 en productLabelPrint. */
+/** Formato fijo Brother 29 mm (cinta) × 60 mm (largo) — ver FORMATS.dk1201. */
 const PRINT_LABEL_FORMAT = 'dk1201' as const;
 const ADD_LIST_COPIES = 1;
 
@@ -197,8 +197,8 @@ export function EtiquetasProductos() {
           </div>
           <p className="text-xs text-slate-600 dark:text-slate-400">
             Brother QL-800 · Arme la lista y use <span className="font-medium">Imprimir</span>; en el diálogo del
-            sistema elija la impresora con etiqueta <span className="font-medium">6×3 cm</span>; en el cuadro de impresión use{' '}
-            <span className="font-medium">escala 100 %</span>.
+            en el cuadro de impresión use tamaño <span className="font-medium">29 × 60 mm</span> (no 29 × 90) y{' '}
+            <span className="font-medium">escala 100 %</span>. Si no existe en la lista, tamaño personalizado en el driver Brother.
           </p>
         </div>
       </div>
