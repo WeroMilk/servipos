@@ -14,15 +14,15 @@ export const LABEL_FORMAT_OPTIONS: { id: LabelFormatPreset; label: string; hint:
   },
   {
     id: 'dk1201',
-    label: 'Etiqueta 60×30 mm (largo 6 cm × ancho 3 cm)',
-    hint: 'Tira horizontal 6×3 cm; en impresión use escala 100 % y tamaño de página exacto si el navegador lo agranda.',
+    label: 'Etiqueta 6×3 cm',
+    hint: 'Largo 6 cm × cinta 3 cm. Vista previa: el documento se fuerza a 6 cm de ancho.',
   },
 ];
 
 const FORMATS: Record<LabelFormatPreset, { pageW: string; pageH: string }> = {
   dk1209: { pageW: '62mm', pageH: '29mm' },
-  /** Largo 6 cm × ancho de cinta 3 cm (CSS: ancho de página × alto). */
-  dk1201: { pageW: '60mm', pageH: '30mm' },
+  /** `cm` explícito: algunos navegadores aplican mejor el ancho del lienzo que con mm. */
+  dk1201: { pageW: '6cm', pageH: '3cm' },
 };
 
 function escapeHtml(s: string): string {
@@ -75,6 +75,12 @@ function barcodeSvgHtml(code: string, preset: LabelFormatPreset): string {
       textMargin: preset === 'dk1201' ? 3 : 6,
       margin: preset === 'dk1201' ? 6 : 12,
     });
+    /** Quitar width/height fijos del SVG: si no, el ancho intrínseco (miles de px) ensancha el flex y deja banda blanca. */
+    svg.removeAttribute('width');
+    svg.removeAttribute('height');
+    if (!svg.getAttribute('preserveAspectRatio')) {
+      svg.setAttribute('preserveAspectRatio', 'xMinYMid meet');
+    }
     return svg.outerHTML;
   } catch {
     return `<p style="font-size:11pt;margin:0">${escapeHtml(t)}</p>`;
@@ -92,7 +98,7 @@ function labelBlock(p: Product, preset: LabelFormatPreset, logoSrc: string): str
 
   if (preset === 'dk1201') {
     return `
-      <section class="label label-dk1201">
+      <section class="label label-dk1201" style="width:6cm;min-width:6cm;max-width:6cm;height:3cm;box-sizing:border-box;">
         <div class="logo-wrap">${logoImg}</div>
         <div class="col-main">
           <div class="text-block">
@@ -173,7 +179,9 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       gap: 0.15mm;
     }
     .label-dk1201 .col-main {
-      flex: 1 1 0;
+      flex: 1 1 0%;
+      flex-grow: 1;
+      width: 0;
       min-width: 0;
       min-height: 0;
       display: flex;
@@ -226,11 +234,12 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       flex: 1 1 0;
       min-height: 12mm;
       width: 100%;
+      align-self: stretch;
       margin-top: 0;
       overflow: hidden;
       display: flex;
       align-items: flex-end;
-      justify-content: stretch;
+      justify-content: flex-start;
     }
     .label-dk1209 .bc svg {
       display: block;
@@ -257,32 +266,40 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
     margin: 0;
     padding: 0;
     width: ${f.pageW};
+    min-width: ${f.pageW};
     max-width: ${f.pageW};
-    overflow-x: clip;
+    overflow-x: hidden;
+    background: #525252;
   }
   body {
     margin: 0;
     padding: 0;
     width: ${f.pageW};
+    min-width: ${f.pageW};
     max-width: ${f.pageW};
-    overflow-x: clip;
+    overflow-x: hidden;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
     font-family: system-ui, "Segoe UI", sans-serif;
     color: #0f172a;
+    background: #525252;
   }
   @media print {
     html, body {
       width: ${f.pageW} !important;
+      min-width: ${f.pageW} !important;
       max-width: ${f.pageW} !important;
       margin: 0 !important;
       padding: 0 !important;
+      background: white !important;
     }
   }
   .label {
     width: ${f.pageW};
-    max-width: 100%;
+    min-width: ${f.pageW};
+    max-width: ${f.pageW};
     height: ${f.pageH};
+    background: #fff;
     page-break-after: always;
     page-break-inside: avoid;
     break-inside: avoid;
