@@ -5,6 +5,7 @@ import { useProducts } from '@/hooks/useProducts';
 import { useAuthStore, useAppStore } from '@/stores';
 import type { Product } from '@/types';
 import { cn, formatMoney } from '@/lib/utils';
+import { getProductPrecioPublicoRegular } from '@/lib/productListPricing';
 import { printProductLabels } from '@/lib/productLabelPrint';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -465,7 +466,7 @@ export function EtiquetasProductos() {
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-medium leading-tight">{line.product.nombre}</p>
                         <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                          {line.product.sku} · {formatMoney(line.product.precioVenta)}
+                          {line.product.sku} · {formatMoney(getProductPrecioPublicoRegular(line.product))}
                         </p>
                       </div>
                       <div className="flex items-center gap-1">
