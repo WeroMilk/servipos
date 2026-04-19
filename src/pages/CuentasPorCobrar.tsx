@@ -223,10 +223,6 @@ export function CuentasPorCobrar() {
               <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
                 Tickets con saldo pendiente
               </p>
-              <p className="text-[11px] text-slate-600 dark:text-slate-400 sm:text-xs">
-                Incluye ventas con forma «Pendiente de pago» y cobros parciales (PPD). El listado refleja las
-                ventas recientes cargadas en el dispositivo (hasta ~500 en nube).
-              </p>
             </div>
             {loading ? (
               <p className="p-6 text-center text-sm text-slate-600 dark:text-slate-400">Cargando…</p>
@@ -285,9 +281,6 @@ export function CuentasPorCobrar() {
             <div className="border-b border-slate-200/80 px-3 py-2 dark:border-slate-800/50 sm:px-4">
               <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
                 Abonos por cliente
-              </p>
-              <p className="text-[11px] text-slate-600 dark:text-slate-400 sm:text-xs">
-                Los abonos reducen el saldo global del cliente y generan comprobante térmico para el cliente.
               </p>
             </div>
             {loadingClients ? (

@@ -267,10 +267,6 @@ export function HistorialAbastoConfig({ enabled }: Props) {
             </Table>
           )}
         </div>
-        <p className="text-xs text-slate-500 dark:text-slate-500 sm:text-[11px]">
-          Se consultan todas las entradas registradas de la sucursal; aquí solo se listan las que califican como
-          llegada de mercancía (proveedor y/o precio de compra en la entrada).
-        </p>
       </CardContent>
     </Card>
   );

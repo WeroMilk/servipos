@@ -253,8 +253,10 @@ export function Dashboard() {
   useEffect(() => {
     if (!kpiDrillDownDayStart) return;
     const onDown = (e: MouseEvent) => {
+      const t = e.target;
+      if (t instanceof Element && t.closest('[data-preserve-kpi-drill]')) return;
       const el = chartPanelRef.current;
-      if (el && !el.contains(e.target as Node)) {
+      if (el && !el.contains(t as Node)) {
         setKpiDrillDownDayStart(null);
       }
     };
@@ -769,6 +771,7 @@ export function Dashboard() {
           <Card
             role="button"
             tabIndex={0}
+            data-preserve-kpi-drill
             onClick={openTodaySalesDialog}
             onKeyDown={recentSalesCardKeyHandler}
             className={cn(
@@ -1087,6 +1090,7 @@ export function Dashboard() {
             <Card
               role="button"
               tabIndex={0}
+              data-preserve-kpi-drill
               onClick={openTodaySalesDialog}
               onKeyDown={recentSalesCardKeyHandler}
               className={cn(

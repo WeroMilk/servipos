@@ -824,7 +824,7 @@ export function Facturas() {
                         type="checkbox"
                         checked={printAfterCreate}
                         onChange={(e) => setPrintAfterCreate(e.target.checked)}
-                        className="mt-1 h-4 w-4 shrink-0 rounded border-slate-400 text-cyan-600 focus:ring-cyan-500"
+                        className="mt-1 h-4 w-4 shrink-0 rounded border-slate-400 accent-blue-600 focus:ring-blue-500/40"
                       />
                       <span className="text-sm text-slate-700 dark:text-slate-300">
                         <span className="font-medium text-slate-900 dark:text-slate-100">

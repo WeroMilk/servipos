@@ -316,7 +316,7 @@ export function EtiquetasProductos() {
                               >
                                 <input
                                   type="checkbox"
-                                  className="size-4 shrink-0 rounded border-slate-400 text-cyan-600 focus:ring-cyan-500/40"
+                                  className="size-4 shrink-0 rounded border-slate-400 accent-blue-600 focus:ring-blue-500/40"
                                   checked={Boolean(familyPick[cat])}
                                   onChange={(e) =>
                                     setFamilyPick((prev) => ({ ...prev, [cat]: e.target.checked }))
@@ -383,7 +383,7 @@ export function EtiquetasProductos() {
                                 <td className="px-3 py-2 align-top">
                                   <input
                                     type="checkbox"
-                                    className="mt-0.5 size-4 rounded border-slate-400 text-cyan-600 focus:ring-cyan-500/40"
+                                    className="mt-0.5 size-4 rounded border-slate-400 accent-blue-600 focus:ring-blue-500/40"
                                     checked={inPrintQueue}
                                     onClick={(e) => e.stopPropagation()}
                                     onChange={(e) => setPickProductInQueue(p, e.target.checked)}
