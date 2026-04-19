@@ -335,7 +335,12 @@ export function Dashboard() {
 
   const goInventarioStock = () => navigate('/inventario?tab=stock');
 
-  const openTodaySalesDialog = () => setTodaySalesOpen(true);
+  const openTodaySalesDialog = () => {
+    setReprintDayKey(
+      kpiDrillDownDayStart ? getMexicoDateKey(kpiDrillDownDayStart) : getMexicoDateKey()
+    );
+    setTodaySalesOpen(true);
+  };
 
   const confirmCancelSaleFromPanel = useCallback(async () => {
     if (!saleToCancel) return;
@@ -1150,7 +1155,7 @@ export function Dashboard() {
         open={todaySalesOpen}
         onOpenChange={(open) => {
           setTodaySalesOpen(open);
-          setReprintDayKey(getMexicoDateKey());
+          if (!open) setReprintDayKey(getMexicoDateKey());
         }}
       >
         <DialogContent className="flex w-full min-w-0 max-h-[92dvh] flex-col gap-0 overflow-hidden border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 p-0 text-slate-900 dark:text-slate-100 md:max-w-[min(92vw,48rem)] lg:max-w-[min(92vw,56rem)]">

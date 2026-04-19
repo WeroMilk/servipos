@@ -177,6 +177,82 @@ const THERMAL_BASE_STYLES = `@page { size: 80mm auto; margin: 4mm; }
   .ticket-barcode-wrap { margin-top: 14px; text-align: center; }
   .ticket-barcode-wrap img { display: block; margin: 0 auto; max-width: 100%; height: auto; image-rendering: pixelated; }`;
 
+/**
+ * Cierre de turno (sesión de caja), arqueo previo y reporte de ventas de la sesión:
+ * rollo 80 mm con el mismo ancho útil y márgenes que `ticket-venta` (impresora térmica).
+ */
+const THERMAL_CIERRE_TURNO_STYLES = `
+  @page { size: 80mm auto; margin: 5.5mm 5.5mm 6mm 5.5mm; }
+  @media print {
+    html { width: 80mm; margin: 0 auto; }
+  }
+  * { box-sizing: border-box; }
+  body.ticket-cierre-turno {
+    position: static;
+    width: 64mm;
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 8px 4px 12px;
+    font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+    font-size: 15px;
+    line-height: 1.35;
+    color: #111;
+  }
+  body.ticket-cierre-turno h1 {
+    font-size: 17px;
+    text-align: center;
+    margin: 0 0 8px;
+    line-height: 1.2;
+  }
+  body.ticket-cierre-turno .meta {
+    font-size: 12px;
+    margin-bottom: 8px;
+    border-bottom: 1px dashed #333;
+    padding-bottom: 6px;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  body.ticket-cierre-turno table { table-layout: fixed; width: 100%; border-collapse: collapse; }
+  body.ticket-cierre-turno td {
+    font-size: 13px;
+    padding: 2px 0;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  body.ticket-cierre-turno td.right { text-align: right; white-space: normal; }
+  body.ticket-cierre-turno .tot {
+    margin-top: 8px;
+    border-top: 1px dashed #333;
+    padding-top: 8px;
+    font-size: 14px;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  body.ticket-cierre-turno .tot strong { font-size: 19px; }
+  body.ticket-cierre-turno p { overflow-wrap: anywhere; word-break: break-word; }
+  body.ticket-cierre-turno .pie-sucursal {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px dashed #999;
+    text-align: center;
+    font-size: 9px;
+    line-height: 1.4;
+    width: 100%;
+  }
+  body.ticket-cierre-turno .pie-sucursal .titulo-suc {
+    font-size: 11px;
+    font-weight: 800;
+    margin-bottom: 3px;
+  }
+  body.ticket-cierre-turno .pie-sucursal > div { text-align: center; }
+`;
+
+/** ~80 mm de ancho en pantalla previa (96 DPI) para ventana de impresión térmica. */
+const THERMAL_80MM_WINDOW_FEATURES = 'width=302,height=720';
+
 const TICKET_POLITICAS_REFACCIONES_LINES = [
   'En partes electricas, no hay garantia',
   'Cambios dentro de 48 hrs, excepto partes electricas',
@@ -605,7 +681,7 @@ export function printThermalClientAbonoReceipt(input: {
   openAndPrintHtml(html, 'width=360,height=720', 250);
 }
 
-/** Resumen del día para cierre de caja (80 mm). */
+/** Resumen de ventas para cierre de turno / día — formato ticket térmico 80 mm. */
 export function printThermalDailySalesReport(input: {
   fechaLabel: string;
   sucursalId?: string;
@@ -653,8 +729,8 @@ export function printThermalDailySalesReport(input: {
         .map((ln) => `<div>${escapeHtml(ln)}</div>`)
         .join('')}</div>`
     : '';
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Reporte ventas</title>
-<style>${THERMAL_BASE_STYLES}</style></head><body>
+  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/><meta name="viewport" content="width=302"/><title>Reporte ventas</title>
+<style>${THERMAL_CIERRE_TURNO_STYLES}</style></head><body class="ticket-cierre-turno">
   <h1>REPORTE VENTAS</h1>
   <div class="meta">${escapeHtml(input.fechaLabel)}<br/>${list.length} ticket(s)</div>
   <table>${rows || '<tr><td>Sin ventas.</td></tr>'}</table>
@@ -674,10 +750,10 @@ export function printThermalDailySalesReport(input: {
   </div>
   ${pie}
 </body></html>`;
-  openAndPrintHtml(html, 'width=360,height=720', 250);
+  openAndPrintHtml(html, THERMAL_80MM_WINDOW_FEATURES, 250);
 }
 
-/** Comprobante de cierre de caja o arqueo previo (80 mm). */
+/** Comprobante de cierre de turno (sesión) o arqueo previo — ticket térmico 80 mm. */
 export function printThermalCajaCierre(input: {
   fechaLabel: string;
   sucursalId?: string;
@@ -769,8 +845,8 @@ export function printThermalCajaCierre(input: {
     return `<div style="font-size:19px;font-weight:600;margin:8px 0 2px;">Detalle retiros</div>${rows}`;
   })();
 
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${escapeHtml(titulo)}</title>
-<style>${THERMAL_BASE_STYLES}</style></head><body>
+  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/><meta name="viewport" content="width=302"/><title>${escapeHtml(titulo)}</title>
+<style>${THERMAL_CIERRE_TURNO_STYLES}</style></head><body class="ticket-cierre-turno">
   <h1>${escapeHtml(titulo)}</h1>
   <div class="meta">
     ${escapeHtml(input.fechaLabel)}<br/>
@@ -801,7 +877,7 @@ export function printThermalCajaCierre(input: {
   </div>
   ${pie}
 </body></html>`;
-  openAndPrintHtml(html, 'width=360,height=720', 250);
+  openAndPrintHtml(html, THERMAL_80MM_WINDOW_FEATURES, 250);
 }
 
 /** Texto estándar para documentos que no son válidos ante el SAT. */

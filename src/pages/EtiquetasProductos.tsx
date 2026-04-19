@@ -49,7 +49,6 @@ export function EtiquetasProductos() {
 
   const [queue, setQueue] = useState<QueueLine[]>([]);
   const [familyPick, setFamilyPick] = useState<Record<string, boolean>>({});
-  const [individualPick, setIndividualPick] = useState<Record<string, boolean>>({});
   const [search, setSearch] = useState('');
   const [includeMode, setIncludeMode] = useState<IncludeMode>('all');
 
@@ -105,20 +104,24 @@ export function EtiquetasProductos() {
     addToast({ type: 'success', message: `Añadidos ${subset.length} artículo(s) por familia.` });
   }, [activeProducts, familyPick, addToast]);
 
-  const addIndividuals = useCallback(() => {
-    const ids = Object.entries(individualPick)
-      .filter(([, v]) => v)
-      .map(([k]) => k);
-    if (ids.length === 0) {
-      addToast({ type: 'warning', message: 'Marque al menos un artículo.' });
-      return;
-    }
-    const idSet = new Set(ids);
-    const subset = activeProducts.filter((p) => idSet.has(p.id));
-    setQueue((prev) => mergeIntoQueue(prev, subset, ADD_LIST_COPIES));
-    setIndividualPick({});
-    addToast({ type: 'success', message: `Añadidos ${subset.length} artículo(s).` });
-  }, [activeProducts, individualPick, addToast]);
+  /** Modo individual: marcar fila añade/quita en la cola de impresión al momento. */
+  const togglePickProductInQueue = useCallback((p: Product) => {
+    setQueue((prev) => {
+      if (prev.some((l) => l.productId === p.id)) {
+        return prev.filter((l) => l.productId !== p.id);
+      }
+      return mergeIntoQueue(prev, [p], ADD_LIST_COPIES);
+    });
+  }, []);
+
+  const setPickProductInQueue = useCallback((p: Product, inQueue: boolean) => {
+    setQueue((prev) => {
+      const exists = prev.some((l) => l.productId === p.id);
+      if (inQueue && !exists) return mergeIntoQueue(prev, [p], ADD_LIST_COPIES);
+      if (!inQueue && exists) return prev.filter((l) => l.productId !== p.id);
+      return prev;
+    });
+  }, []);
 
   const clearQueue = useCallback(() => {
     setQueue([]);
@@ -347,14 +350,6 @@ export function EtiquetasProductos() {
                           className="h-10 w-full min-w-0"
                         />
                       </div>
-                      <Button
-                        type="button"
-                        className="w-full gap-2 sm:w-auto sm:self-end"
-                        onClick={addIndividuals}
-                      >
-                        <Package className="h-4 w-4" />
-                        Añadir marcados a la lista
-                      </Button>
                       <div
                         className={cn(
                           'min-h-[14rem] w-full min-w-0 overflow-auto overscroll-y-contain rounded-lg border border-slate-200/90 bg-white/60',
@@ -377,23 +372,21 @@ export function EtiquetasProductos() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-200/70 dark:divide-slate-800/80">
-                            {filteredForPick.map((p) => (
+                            {filteredForPick.map((p) => {
+                              const inPrintQueue = queue.some((l) => l.productId === p.id);
+                              return (
                               <tr
                                 key={p.id}
                                 className="cursor-pointer bg-white/50 transition-colors hover:bg-cyan-500/[0.04] dark:bg-transparent dark:hover:bg-slate-800/30"
-                                onClick={() =>
-                                  setIndividualPick((prev) => ({ ...prev, [p.id]: !prev[p.id] }))
-                                }
+                                onClick={() => togglePickProductInQueue(p)}
                               >
                                 <td className="px-3 py-2 align-top">
                                   <input
                                     type="checkbox"
                                     className="mt-0.5 size-4 rounded border-slate-400 text-cyan-600 focus:ring-cyan-500/40"
-                                    checked={Boolean(individualPick[p.id])}
+                                    checked={inPrintQueue}
                                     onClick={(e) => e.stopPropagation()}
-                                    onChange={(e) =>
-                                      setIndividualPick((prev) => ({ ...prev, [p.id]: e.target.checked }))
-                                    }
+                                    onChange={(e) => setPickProductInQueue(p, e.target.checked)}
                                   />
                                 </td>
                                 <td className="min-w-0 max-w-[min(220px,52vw)] px-2 py-2">
@@ -410,7 +403,8 @@ export function EtiquetasProductos() {
                                   {p.sku}
                                 </td>
                               </tr>
-                            ))}
+                            );
+                            })}
                           </tbody>
                         </table>
                       </div>

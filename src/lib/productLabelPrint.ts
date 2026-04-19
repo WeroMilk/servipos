@@ -348,6 +348,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
     image-rendering: auto;
+    border-radius: 0.85mm;
   }
   .label .bc svg path,
   .label .bc svg rect,
