@@ -202,12 +202,11 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       gap: 0.35mm;
     }
     .label-dk1209 {
-      padding: 0.4mm 0.2mm;
+      padding: 0.75mm 0.3mm 0.45mm 0.5mm;
     }
-    /* Márgenes horizontales asimétricos (más a la derecha) para compensar impresoras/driver
-       que desplazan el raster hacia la derecha y cortan texto en el borde de la cinta. */
+    /* Márgenes amplios arriba e izquierda (área no imprimible / alineación Brother); derecha e inferior algo menores. */
     .label-dk1201 {
-      padding: 0.55mm 1.1mm 0.65mm 0.45mm;
+      padding: 1.35mm 0.75mm 0.5mm 1.25mm;
     }
     .label-dk1209 .logo-wrap {
       flex-shrink: 0;
@@ -218,7 +217,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
     }
     .label-dk1201 .logo-wrap {
       flex-shrink: 0;
-      width: 13.5mm;
+      width: 13mm;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -232,8 +231,8 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       object-position: left center;
     }
     .label-dk1201 .logo-img {
-      max-width: 13.5mm;
-      max-height: 25mm;
+      max-width: 13mm;
+      max-height: 23.5mm;
       width: auto;
       height: auto;
       object-fit: contain;
@@ -264,7 +263,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       flex: 0 0 auto;
       width: 100%;
       min-width: 0;
-      padding-top: 0.55mm;
+      padding-top: 0.3mm;
     }
     .label-dk1209 .nombre {
       font-size: 9pt;
