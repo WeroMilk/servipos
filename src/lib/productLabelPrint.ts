@@ -199,13 +199,15 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       flex-direction: row;
       align-items: stretch;
       justify-content: flex-start;
-      gap: 0.5mm;
+      gap: 0.35mm;
     }
     .label-dk1209 {
       padding: 0.4mm 0.2mm;
     }
+    /* Márgenes horizontales asimétricos (más a la derecha) para compensar impresoras/driver
+       que desplazan el raster hacia la derecha y cortan texto en el borde de la cinta. */
     .label-dk1201 {
-      padding: 0.65mm 0.22mm 0.75mm 0.22mm;
+      padding: 0.55mm 1.1mm 0.65mm 0.45mm;
     }
     .label-dk1209 .logo-wrap {
       flex-shrink: 0;
@@ -216,10 +218,10 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
     }
     .label-dk1201 .logo-wrap {
       flex-shrink: 0;
-      width: 16mm;
+      width: 13.5mm;
       display: flex;
       align-items: center;
-      justify-content: flex-start;
+      justify-content: center;
     }
     .label-dk1209 .logo-img {
       max-width: 19mm;
@@ -230,12 +232,12 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       object-position: left center;
     }
     .label-dk1201 .logo-img {
-      max-width: 16mm;
-      max-height: 27mm;
+      max-width: 13.5mm;
+      max-height: 25mm;
       width: auto;
       height: auto;
       object-fit: contain;
-      object-position: left center;
+      object-position: center center;
     }
     .label-dk1209 .col-main {
       flex: 1 1 0;
@@ -275,10 +277,10 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       -webkit-box-orient: vertical;
     }
     .label-dk1201 .nombre {
-      font-size: 7.25pt;
-      line-height: 1.07;
+      font-size: 6.85pt;
+      line-height: 1.06;
       font-weight: 400;
-      max-height: 8mm;
+      max-height: 8.6mm;
       overflow: hidden;
       display: -webkit-box;
       -webkit-line-clamp: 3;
@@ -286,7 +288,8 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       word-break: break-word;
       overflow-wrap: anywhere;
       hyphens: auto;
-      margin-top: 0.2mm;
+      margin-top: 0.15mm;
+      padding-right: 0.15mm;
     }
     .label-dk1209 .precio { font-size: 11pt; font-weight: 800; }
     .label-dk1201 .text-block .precio {
@@ -306,12 +309,12 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       min-height: 9mm;
       width: 100%;
       align-self: stretch;
-      margin-top: 0.15mm;
-      padding-bottom: 0.15mm;
+      margin-top: 0.12mm;
+      padding-bottom: 0.12mm;
       overflow: hidden;
       display: flex;
       align-items: flex-start;
-      justify-content: flex-start;
+      justify-content: center;
     }
     .label-dk1209 .bc .bc-img,
     .label-dk1209 .bc svg {
@@ -332,7 +335,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       height: auto;
       max-height: 100%;
       object-fit: contain;
-      object-position: left top;
+      object-position: center top;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
       image-rendering: -webkit-optimize-contrast;
@@ -343,9 +346,9 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
   const printHint =
     preset === 'dk1201'
       ? `<p class="print-hint-screen" style="margin:0 0 8px;padding:8px 10px;font:12px/1.35 system-ui,sans-serif;color:#e5e5e5;background:#404040;border-radius:6px;max-width:60mm">
-  <strong>Impresora Brother (29 mm cinta):</strong> en el cuadro de impresión el tamaño debe ser
-  <strong>29 × 60 mm</strong> (largo de corte 60 mm), no 29 × 90 mm. Si no aparece, use
-  <strong>tamaño personalizado</strong> / pestaña del driver Brother y defina 60 mm de longitud, o elija la opción más cercana y compruebe <strong>escala 100&nbsp;%</strong>.
+  <strong>Brother QL (cinta 29&nbsp;mm):</strong> en impresión elija tamaño de etiqueta
+  <strong>60&nbsp;mm de largo</strong> (suele figurar como <strong>29&nbsp;×&nbsp;60&nbsp;mm</strong> o similar), no solo «29&nbsp;mm» ni 29&nbsp;×&nbsp;90&nbsp;mm.
+  <strong>Escala 100&nbsp;%</strong> (sin «ajustar a página»). Si el texto sale cortado o girado, revise ese tamaño y la orientación en la pestaña del driver Brother.
 </p>`
       : '';
 

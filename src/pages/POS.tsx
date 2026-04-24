@@ -18,6 +18,7 @@ import {
   Clock,
   ClipboardCheck,
   ClipboardList,
+  Eye,
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { Button } from '@/components/ui/button';
@@ -735,6 +736,8 @@ export function POS() {
   const [globalDiscFocus, setGlobalDiscFocus] = useState(false);
   /** Fila del carrito cuyo % descuento está enfocado (vacío visual si es 0, como desc. global). */
   const [lineDiscountFocusProductId, setLineDiscountFocusProductId] = useState<string | null>(null);
+  /** Producto cuyo popup de descripción está abierto (carrito). */
+  const [productDescriptionDialog, setProductDescriptionDialog] = useState<Product | null>(null);
   const [ventaResetConfirmOpen, setVentaResetConfirmOpen] = useState(false);
   const [ventaResetBusy, setVentaResetBusy] = useState(false);
   const [unitPriceDialogOpen, setUnitPriceDialogOpen] = useState(false);
@@ -905,6 +908,7 @@ export function POS() {
     setProcessingSale(false);
     setGlobalDiscFocus(false);
     setLineDiscountFocusProductId(null);
+    setProductDescriptionDialog(null);
     setDevolucionFolioInput('');
     setDevolucionSaleResuelta(null);
     setDevolucionLineasQty({});
@@ -2999,7 +3003,20 @@ export function POS() {
                         className="grid gap-2 p-2 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-3 sm:p-3"
                       >
                         <div className="min-w-0">
-                          <p className="truncate font-medium text-slate-800 dark:text-slate-200">{item.product.nombre}</p>
+                          <div className="flex items-start gap-1">
+                            <p className="min-w-0 flex-1 truncate font-medium text-slate-800 dark:text-slate-200">
+                              {item.product.nombre}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => setProductDescriptionDialog(item.product)}
+                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-blue-600 transition-colors hover:bg-blue-500/15 dark:text-blue-400 dark:hover:bg-blue-500/15"
+                              aria-label="Ver descripción del producto"
+                              title="Descripción"
+                            >
+                              <Eye className="h-4 w-4" strokeWidth={2.25} />
+                            </button>
+                          </div>
                           <p className="text-xs text-slate-600 dark:text-slate-500">SKU {item.product.sku}</p>
                           <p className="text-xs text-cyan-400/90 sm:text-sm">
                             {formatMoney(
@@ -4526,6 +4543,34 @@ export function POS() {
             </Button>
             <Button type="button" disabled={listasPrecioCatalogSaving} onClick={() => void saveListasPrecioCatalogFromPos()}>
               {listasPrecioCatalogSaving ? 'Guardando…' : 'Confirmar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={productDescriptionDialog != null}
+        onOpenChange={(open) => {
+          if (!open) setProductDescriptionDialog(null);
+        }}
+      >
+        <DialogContent className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="pr-6 text-left text-base font-semibold leading-snug text-slate-900 dark:text-slate-100">
+              {productDescriptionDialog?.nombre ?? 'Producto'}
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              Descripción del producto según el catálogo.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[min(50vh,20rem)] overflow-y-auto whitespace-pre-wrap rounded-md border border-slate-200/80 bg-white/90 px-3 py-2.5 text-sm leading-relaxed text-slate-700 dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-200">
+            {productDescriptionDialog?.descripcion?.trim()
+              ? productDescriptionDialog.descripcion.trim()
+              : 'Sin descripción registrada para este producto.'}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="secondary" onClick={() => setProductDescriptionDialog(null)}>
+              Cerrar
             </Button>
           </DialogFooter>
         </DialogContent>
