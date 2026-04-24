@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { Printer, Tag, Trash2, Package, ArrowLeft, ListFilter } from 'lucide-react';
+import { Printer, Tag, Trash2, Package, ArrowLeft, ListFilter, Pencil } from 'lucide-react';
 import { useProducts } from '@/hooks/useProducts';
 import { useAuthStore, useAppStore } from '@/stores';
 import type { Product } from '@/types';
@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 type IncludeMode = 'all' | 'family' | 'pick';
 
 type QueueLine = {
@@ -18,6 +19,8 @@ type QueueLine = {
   productId: string;
   product: Product;
   copies: number;
+  /** Precio manual para etiqueta (con IVA), sin tocar catálogo. */
+  customLabelPrice?: number;
 };
 
 function mergeIntoQueue(prev: QueueLine[], products: Product[], addCopies: number): QueueLine[] {
@@ -33,9 +36,26 @@ function mergeIntoQueue(prev: QueueLine[], products: Product[], addCopies: numbe
 function expandForPrint(queue: QueueLine[]): Product[] {
   const out: Product[] = [];
   for (const line of queue) {
-    for (let i = 0; i < line.copies; i++) out.push(line.product);
+    for (let i = 0; i < line.copies; i++) {
+      if (typeof line.customLabelPrice === 'number' && Number.isFinite(line.customLabelPrice)) {
+        out.push({
+          ...line.product,
+          __labelPrecioOverride: line.customLabelPrice,
+        } as Product);
+      } else {
+        out.push(line.product);
+      }
+    }
   }
   return out;
+}
+
+function parseLabelPriceInput(raw: string): number | null {
+  const normalized = raw.replace(/[^\d.,-]/g, '').replace(',', '.').trim();
+  if (!normalized) return null;
+  const n = Number(normalized);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.round(n * 100) / 100;
 }
 
 /** Formato fijo Brother 29 mm (cinta) × 60 mm (largo) — ver FORMATS.dk1201. */
@@ -51,6 +71,8 @@ export function EtiquetasProductos() {
   const [familyPick, setFamilyPick] = useState<Record<string, boolean>>({});
   const [search, setSearch] = useState('');
   const [includeMode, setIncludeMode] = useState<IncludeMode>('all');
+  const [priceEditProductId, setPriceEditProductId] = useState<string | null>(null);
+  const [priceEditInput, setPriceEditInput] = useState('');
 
   const activeProducts = useMemo(
     () => products.filter((p) => p.activo).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')),
@@ -137,6 +159,39 @@ export function EtiquetasProductos() {
     setQueue((prev) => prev.filter((l) => l.productId !== productId));
   }, []);
 
+  const openPriceEdit = useCallback((line: QueueLine) => {
+    const cur =
+      typeof line.customLabelPrice === 'number' ? line.customLabelPrice : getProductPrecioPublicoRegular(line.product);
+    setPriceEditProductId(line.productId);
+    setPriceEditInput(cur.toFixed(2));
+  }, []);
+
+  const closePriceEdit = useCallback(() => {
+    setPriceEditProductId(null);
+    setPriceEditInput('');
+  }, []);
+
+  const saveCustomPrice = useCallback(() => {
+    if (!priceEditProductId) return;
+    const parsed = parseLabelPriceInput(priceEditInput);
+    if (parsed == null) {
+      addToast({ type: 'warning', message: 'Ingrese un precio válido mayor o igual a 0.' });
+      return;
+    }
+    setQueue((prev) => prev.map((l) => (l.productId === priceEditProductId ? { ...l, customLabelPrice: parsed } : l)));
+    addToast({ type: 'success', message: 'Precio de etiqueta actualizado.' });
+    closePriceEdit();
+  }, [priceEditProductId, priceEditInput, addToast, closePriceEdit]);
+
+  const clearCustomPrice = useCallback(() => {
+    if (!priceEditProductId) return;
+    setQueue((prev) =>
+      prev.map((l) => (l.productId === priceEditProductId ? { ...l, customLabelPrice: undefined } : l))
+    );
+    addToast({ type: 'success', message: 'Precio de etiqueta restaurado al precio regular.' });
+    closePriceEdit();
+  }, [priceEditProductId, addToast, closePriceEdit]);
+
   const handlePrint = useCallback(() => {
     if (queue.length === 0) {
       addToast({ type: 'warning', message: 'Agregue artículos a la lista antes de imprimir.' });
@@ -163,6 +218,11 @@ export function EtiquetasProductos() {
       message: 'Use el cuadro de impresión del sistema para finalizar.',
     });
   }, [queue, addToast]);
+
+  const editingLine = useMemo(
+    () => (priceEditProductId ? queue.find((l) => l.productId === priceEditProductId) ?? null : null),
+    [priceEditProductId, queue]
+  );
 
   if (!hasPermission('inventario:ver')) {
     return <Navigate to="/" replace />;
@@ -460,7 +520,13 @@ export function EtiquetasProductos() {
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-medium leading-tight">{line.product.nombre}</p>
                         <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                          {line.product.sku} · {formatMoney(getProductPrecioPublicoRegular(line.product))}
+                          {line.product.sku} ·{' '}
+                          {formatMoney(
+                            typeof line.customLabelPrice === 'number'
+                              ? line.customLabelPrice
+                              : getProductPrecioPublicoRegular(line.product)
+                          )}
+                          {typeof line.customLabelPrice === 'number' ? ' · personalizado' : ''}
                         </p>
                       </div>
                       <div className="flex items-center gap-1">
@@ -476,6 +542,17 @@ export function EtiquetasProductos() {
                           value={line.copies}
                           onChange={(e) => updateCopies(line.productId, Number(e.target.value))}
                         />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 shrink-0 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                          onClick={() => openPriceEdit(line)}
+                          aria-label="Editar precio de etiqueta"
+                          title="Editar precio de etiqueta"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
                         <Button
                           type="button"
                           variant="ghost"
@@ -502,6 +579,58 @@ export function EtiquetasProductos() {
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-y-contain">
       {mobileBlock}
       {desktop}
+      <Dialog
+        open={priceEditProductId != null}
+        onOpenChange={(open) => {
+          if (!open) closePriceEdit();
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editar precio de etiqueta</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <div>
+              <p className="text-sm font-medium text-slate-800 dark:text-slate-200">
+                {editingLine?.product.nombre ?? 'Producto'}
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">SKU {editingLine?.product.sku ?? '—'}</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-label-price">Precio en etiqueta (con IVA)</Label>
+              <Input
+                id="edit-label-price"
+                inputMode="decimal"
+                placeholder="0.00"
+                value={priceEditInput}
+                onChange={(e) => setPriceEditInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    saveCustomPrice();
+                  }
+                }}
+              />
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Este precio solo afecta la impresión de esta etiqueta; no modifica el catálogo.
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:justify-between">
+            <Button type="button" variant="outline" onClick={clearCustomPrice} disabled={!editingLine}>
+              Restablecer
+            </Button>
+            <div className="flex gap-2">
+              <Button type="button" variant="ghost" onClick={closePriceEdit}>
+                Cancelar
+              </Button>
+              <Button type="button" onClick={saveCustomPrice}>
+                Guardar precio
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

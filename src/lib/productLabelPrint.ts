@@ -151,7 +151,12 @@ function labelBlock(p: Product, preset: LabelFormatPreset, logoSrc: string): str
   const code = (p.codigoBarras && p.codigoBarras.trim()) || p.sku.trim();
   const bc = barcodePrintHtml(code, preset);
   /** Siempre lista Regular al público, con IVA (misma regla que el POS para “precio mostrador”). */
-  const precio = formatMoney(getProductPrecioPublicoRegular(p));
+  const precioOverride = (p as Product & { __labelPrecioOverride?: unknown }).__labelPrecioOverride;
+  const precioBase =
+    typeof precioOverride === 'number' && Number.isFinite(precioOverride) && precioOverride >= 0
+      ? precioOverride
+      : getProductPrecioPublicoRegular(p);
+  const precio = formatMoney(precioBase);
 
   const logoImg = `<img class="logo-img" src="${escapeHtml(logoSrc)}" alt="" width="640" height="640" decoding="sync" />`;
   const nombre = escapeHtml(p.nombre);
@@ -160,8 +165,9 @@ function labelBlock(p: Product, preset: LabelFormatPreset, logoSrc: string): str
   if (preset === 'dk1201') {
     /** Códigos cortos → barras estrechas al estirar al 100% del ancho; sube mucho el bloque y el nombre queda pegado arriba. */
     const bcShort = code.trim().length <= 12;
+    const bcLong = code.trim().length >= 13;
     return `
-      <section class="label label-dk1201${bcShort ? ' label-dk1201-bc-short' : ''}">
+      <section class="label label-dk1201${bcShort ? ' label-dk1201-bc-short' : ''}${bcLong ? ' label-dk1201-bc-long' : ''}">
         <div class="logo-wrap">${logoImg}</div>
         <div class="col-main">
           <div class="text-block">
@@ -272,6 +278,12 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
     }
     .label-dk1201-bc-short .col-main {
       padding-top: 0.35mm;
+    }
+    .label-dk1201-bc-long .text-block {
+      padding-top: 0.95mm;
+    }
+    .label-dk1201-bc-long .col-main {
+      padding-top: 0.2mm;
     }
     .label-dk1209 .nombre {
       font-size: 9pt;
