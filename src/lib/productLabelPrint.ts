@@ -159,7 +159,7 @@ function labelBlock(p: Product, preset: LabelFormatPreset, logoSrc: string): str
 
   if (preset === 'dk1201') {
     return `
-      <section class="label label-dk1201" style="width:60mm;min-width:60mm;max-width:60mm;height:29mm;box-sizing:border-box;">
+      <section class="label label-dk1201">
         <div class="logo-wrap">${logoImg}</div>
         <div class="col-main">
           <div class="text-block">
@@ -204,9 +204,9 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
     .label-dk1209 {
       padding: 0.75mm 0.3mm 0.45mm 0.5mm;
     }
-    /* Márgenes amplios arriba e izquierda (área no imprimible / alineación Brother); derecha e inferior algo menores. */
+    /* Margen interno extra (además del hueco de página en @media print para dk1201). */
     .label-dk1201 {
-      padding: 1.35mm 0.75mm 0.5mm 1.25mm;
+      padding: 1.1mm 0.65mm 0.45mm 1mm;
     }
     .label-dk1209 .logo-wrap {
       flex-shrink: 0;
@@ -217,7 +217,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
     }
     .label-dk1201 .logo-wrap {
       flex-shrink: 0;
-      width: 13mm;
+      width: 12mm;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -231,8 +231,8 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       object-position: left center;
     }
     .label-dk1201 .logo-img {
-      max-width: 13mm;
-      max-height: 23.5mm;
+      max-width: 12mm;
+      max-height: 22mm;
       width: auto;
       height: auto;
       object-fit: contain;
@@ -276,10 +276,10 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       -webkit-box-orient: vertical;
     }
     .label-dk1201 .nombre {
-      font-size: 6.85pt;
-      line-height: 1.06;
+      font-size: 6.55pt;
+      line-height: 1.05;
       font-weight: 400;
-      max-height: 8.6mm;
+      max-height: 7.8mm;
       overflow: hidden;
       display: -webkit-box;
       -webkit-line-clamp: 3;
@@ -342,12 +342,40 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
     }
   `;
 
+  /** Brother QL suele no imprimir o recortar los primeros mm arriba/izquierda: hueco en página + etiqueta más chica. */
+  const dk1201PageInsetCss =
+    preset === 'dk1201'
+      ? `
+  body.labels-dk1201 {
+    padding: 3.25mm 0.55mm 0.4mm 3.25mm;
+    box-sizing: border-box;
+  }
+  body.labels-dk1201 .label.label-dk1201 {
+    width: calc(${f.pageW} - 3.8mm);
+    min-width: 0;
+    max-width: calc(${f.pageW} - 3.8mm);
+    height: calc(${f.pageH} - 3.65mm);
+  }
+  @media print {
+    body.labels-dk1201 {
+      padding: 3.25mm 0.55mm 0.4mm 3.25mm !important;
+      box-sizing: border-box !important;
+    }
+    body.labels-dk1201 .label.label-dk1201 {
+      width: calc(${f.pageW} - 3.8mm) !important;
+      min-width: 0 !important;
+      max-width: calc(${f.pageW} - 3.8mm) !important;
+      height: calc(${f.pageH} - 3.65mm) !important;
+    }
+  }`
+      : '';
+
   const printHint =
     preset === 'dk1201'
       ? `<p class="print-hint-screen" style="margin:0 0 8px;padding:8px 10px;font:12px/1.35 system-ui,sans-serif;color:#e5e5e5;background:#404040;border-radius:6px;max-width:60mm">
   <strong>Brother QL (cinta 29&nbsp;mm):</strong> en impresión elija tamaño de etiqueta
   <strong>60&nbsp;mm de largo</strong> (suele figurar como <strong>29&nbsp;×&nbsp;60&nbsp;mm</strong> o similar), no solo «29&nbsp;mm» ni 29&nbsp;×&nbsp;90&nbsp;mm.
-  <strong>Escala 100&nbsp;%</strong> (sin «ajustar a página»). Si el texto sale cortado o girado, revise ese tamaño y la orientación en la pestaña del driver Brother.
+  <strong>Escala 100&nbsp;%</strong> (sin «ajustar a página»). En vista previa verá un margen blanco arriba/izquierda: compensa la zona que la QL suele no imprimir.
 </p>`
       : '';
 
@@ -427,7 +455,8 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
     text-rendering: geometricPrecision;
   }
   ${cssStrip}
-</style></head><body>${printHint}${sections.join('')}</body></html>`;
+  ${dk1201PageInsetCss}
+</style></head><body${preset === 'dk1201' ? ' class="labels-dk1201"' : ''}>${printHint}${sections.join('')}</body></html>`;
 
   w.document.open();
   w.document.write(html);
