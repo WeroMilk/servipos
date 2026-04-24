@@ -158,8 +158,10 @@ function labelBlock(p: Product, preset: LabelFormatPreset, logoSrc: string): str
   const precioH = escapeHtml(precio);
 
   if (preset === 'dk1201') {
+    /** Códigos cortos → barras estrechas al estirar al 100% del ancho; sube mucho el bloque y el nombre queda pegado arriba. */
+    const bcShort = code.trim().length <= 12;
     return `
-      <section class="label label-dk1201">
+      <section class="label label-dk1201${bcShort ? ' label-dk1201-bc-short' : ''}">
         <div class="logo-wrap">${logoImg}</div>
         <div class="col-main">
           <div class="text-block">
@@ -264,6 +266,12 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       width: 100%;
       min-width: 0;
       padding-top: 0.3mm;
+    }
+    .label-dk1201-bc-short .text-block {
+      padding-top: 1.45mm;
+    }
+    .label-dk1201-bc-short .col-main {
+      padding-top: 0.35mm;
     }
     .label-dk1209 .nombre {
       font-size: 9pt;
