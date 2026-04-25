@@ -1129,7 +1129,7 @@ export function POS() {
   };
 
   useEffect(() => {
-    if (checkoutOpen && checkoutPhase === 'payment') {
+    if (checkoutOpen && (checkoutPhase === 'payment' || checkoutPhase === 'success')) {
       setMontoRecibidoInput('');
     }
   }, [checkoutOpen, checkoutPhase]);
@@ -2179,6 +2179,12 @@ export function POS() {
       return;
     }
 
+    /** Sin líneas no debe registrarse cobro: antes se llamaba `addPago` y luego se abortaba, dejando `pagos` huérfanos que se sumaban al siguiente ticket. */
+    if (items.length === 0) {
+      addToast({ type: 'error', message: 'Agregue productos al carrito' });
+      return;
+    }
+
     const cobroTarjetaPueLocal =
       !esTraspasoTienda && esFormaTarjeta(formaPago) && metodoPago === 'PUE';
 
@@ -2213,11 +2219,6 @@ export function POS() {
           }
         }
       }
-    }
-
-    if (items.length === 0) {
-      addToast({ type: 'error', message: 'Agregue productos al carrito' });
-      return;
     }
 
     if (formaPago === 'PPC') {

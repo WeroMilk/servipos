@@ -143,13 +143,19 @@ function catalogProductSyncSignature(p: Product): string {
 function sanitizeCartDraft(draft: Partial<CartDraftSnapshot> | null | undefined): CartDraftSnapshot {
   if (!draft) return { ...EMPTY_CART_DRAFT };
   const listId = draft.precioClienteListaId;
+  const items = Array.isArray(draft.items)
+    ? draft.items.map((row) => coerceCartItemPrecioLista(row as CartItem))
+    : [];
+  const pagosRaw = Array.isArray(draft.pagos) ? draft.pagos : [];
+  /** Cobros en borrador solo aplican a un ticket con líneas; sin ítems, descartar (evita sync/localStorage con efectivo “pegado”). */
+  const pagos = items.length === 0 ? [] : pagosRaw;
   return {
-    items: Array.isArray(draft.items) ? draft.items.map((row) => coerceCartItemPrecioLista(row as CartItem)) : [],
+    items,
     client: draft.client ?? null,
     discount: Number.isFinite(Number(draft.discount)) ? Number(draft.discount) : 0,
     formaPago: typeof draft.formaPago === 'string' && draft.formaPago.trim() ? draft.formaPago : '01',
     metodoPago: typeof draft.metodoPago === 'string' && draft.metodoPago.trim() ? draft.metodoPago : 'PUE',
-    pagos: Array.isArray(draft.pagos) ? draft.pagos : [],
+    pagos,
     notas: typeof draft.notas === 'string' ? draft.notas : '',
     transferenciaDestinoSucursalId:
       typeof draft.transferenciaDestinoSucursalId === 'string' ? draft.transferenciaDestinoSucursalId : '',
@@ -187,7 +193,12 @@ export const useCartStore = create<CartState>((set, get) => ({
   },
 
   removeItem: (productId: string) => {
-    set({ items: get().items.filter((item) => item.product.id !== productId) });
+    const next = get().items.filter((item) => item.product.id !== productId);
+    if (next.length === 0) {
+      set({ items: next, pagos: [] });
+    } else {
+      set({ items: next });
+    }
   },
 
   updateQuantity: (productId: string, quantity: number) => {

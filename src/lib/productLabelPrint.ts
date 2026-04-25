@@ -313,10 +313,10 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
     .label-dk1201-bc-long .text-block {
       padding-top: 0.95mm;
     }
-    /** Códigos largos → barras al 100% del ancho; deja hueco claro bajo el precio (evita que se vea “comido” arriba). */
+    /** Códigos largos → hueco bajo el precio (compacto para no empujar el código fuera de la etiqueta). */
     .label-dk1201-bc-long .col-main {
       padding-top: 0.2mm;
-      gap: 0.55mm;
+      gap: 0.35mm;
     }
     .label-dk1209 .nombre {
       font-size: 9pt;
@@ -356,9 +356,12 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       overflow: visible;
       flex-shrink: 0;
     }
-    /** Sin flex-grow: el alto del bloque sigue al PNG/SVG del código (evita % raros con muchas páginas). */
+    /**
+     * flex: 1 + min-height: 0: el bloque toma el espacio libre bajo el texto y el % max-height
+     * del PNG encaja el código completo sin recortar abajo (height:auto + max-height:none lo rompía).
+     */
     .label-dk1201 .bc {
-      flex: 0 1 auto;
+      flex: 1 1 auto;
       min-height: 0;
       width: 100%;
       align-self: stretch;
@@ -370,7 +373,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       justify-content: center;
     }
     .label-dk1201-bc-long .bc {
-      margin-top: 0.45mm;
+      margin-top: 0.28mm;
     }
     .label-dk1209 .bc .bc-img,
     .label-dk1209 .bc svg {
@@ -389,7 +392,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       width: 100% !important;
       max-width: 100%;
       height: auto;
-      max-height: none;
+      max-height: 100%;
       object-fit: contain;
       object-position: center top;
       -webkit-print-color-adjust: exact;
