@@ -363,10 +363,10 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       -webkit-box-orient: vertical;
     }
     .label-dk1201 .nombre {
-      font-size: 6.55pt;
+      font-size: 7.1pt;
       line-height: 1.05;
       font-weight: 400;
-      max-height: 7.2mm;
+      max-height: 7.6mm;
       overflow: hidden;
       display: -webkit-box;
       -webkit-line-clamp: 3;
