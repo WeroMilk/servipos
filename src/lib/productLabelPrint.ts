@@ -149,26 +149,41 @@ function barcodePrintHtml(code: string, preset: LabelFormatPreset): string {
   return barcodeSvgHtml(code, preset);
 }
 
+type ProductLabelPrintExtras = Product & {
+  __labelPrecioOverride?: unknown;
+  __labelNombreOverride?: unknown;
+  /** Solo `false` oculta el código; ausente u otro valor mantiene el comportamiento habitual. */
+  __labelShowBarcode?: unknown;
+};
+
 function labelBlock(p: Product, preset: LabelFormatPreset, logoSrc: string): string {
+  const ext = p as ProductLabelPrintExtras;
   const code = (p.codigoBarras && p.codigoBarras.trim()) || p.sku.trim();
-  const bc = barcodePrintHtml(code, preset);
+  const showBarcode = ext.__labelShowBarcode !== false;
+  const bc = showBarcode ? barcodePrintHtml(code, preset) : '';
   /** Siempre lista Regular al público, con IVA (misma regla que el POS para “precio mostrador”). */
-  const precioOverride = (p as Product & { __labelPrecioOverride?: unknown }).__labelPrecioOverride;
+  const precioOverride = ext.__labelPrecioOverride;
   const precioBase =
     typeof precioOverride === 'number' && Number.isFinite(precioOverride) && precioOverride >= 0
       ? precioOverride
       : getProductPrecioPublicoRegular(p);
   const precio = formatMoney(precioBase);
 
+  const nomOverride = ext.__labelNombreOverride;
+  const nombreFuente =
+    typeof nomOverride === 'string' && nomOverride.trim() ? nomOverride.trim() : p.nombre;
+
   const logoImg = `<img class="logo-img" src="${escapeHtml(logoSrc)}" alt="" width="640" height="640" decoding="sync" />`;
-  const nombre = escapeHtml(p.nombre);
+  const nombre = escapeHtml(nombreFuente);
   const precioH = escapeHtml(precio);
 
   if (preset === 'dk1201') {
-    const bcShort = code.trim().length <= 12;
-    const bcLong = code.trim().length >= 13;
+    const hasBc = Boolean(bc);
+    const bcShort = hasBc && code.trim().length <= 12;
+    const bcLong = hasBc && code.trim().length >= 13;
+    const dk1201BcClass = !hasBc ? ' label-dk1201-no-bc' : `${bcShort ? ' label-dk1201-bc-short' : ''}${bcLong ? ' label-dk1201-bc-long' : ''}`;
     return `
-      <section class="label label-dk1201${bcShort ? ' label-dk1201-bc-short' : ''}${bcLong ? ' label-dk1201-bc-long' : ''}">
+      <section class="label label-dk1201${dk1201BcClass}">
         <div class="logo-wrap">${logoImg}</div>
         <div class="col-main">
           <div class="stack">

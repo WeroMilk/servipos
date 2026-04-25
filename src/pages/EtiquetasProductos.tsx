@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
 type IncludeMode = 'all' | 'family' | 'pick';
 
 type QueueLine = {
@@ -21,6 +22,10 @@ type QueueLine = {
   copies: number;
   /** Precio manual para etiqueta (con IVA), sin tocar catálogo. */
   customLabelPrice?: number;
+  /** Texto del nombre solo para impresión; si coincide con el catálogo no se guarda. */
+  customLabelNombre?: string;
+  /** `false` = no imprimir código de barras en la etiqueta. */
+  labelShowBarcode?: boolean;
 };
 
 function mergeIntoQueue(prev: QueueLine[], products: Product[], addCopies: number): QueueLine[] {
@@ -37,17 +42,30 @@ function expandForPrint(queue: QueueLine[]): Product[] {
   const out: Product[] = [];
   for (const line of queue) {
     for (let i = 0; i < line.copies; i++) {
+      const extras: Record<string, unknown> = {};
       if (typeof line.customLabelPrice === 'number' && Number.isFinite(line.customLabelPrice)) {
-        out.push({
-          ...line.product,
-          __labelPrecioOverride: line.customLabelPrice,
-        } as Product);
+        extras.__labelPrecioOverride = line.customLabelPrice;
+      }
+      const nameO = line.customLabelNombre?.trim();
+      if (nameO && nameO !== line.product.nombre.trim()) {
+        extras.__labelNombreOverride = nameO;
+      }
+      if (line.labelShowBarcode === false) {
+        extras.__labelShowBarcode = false;
+      }
+      if (Object.keys(extras).length > 0) {
+        out.push({ ...line.product, ...extras } as Product);
       } else {
         out.push(line.product);
       }
     }
   }
   return out;
+}
+
+function labelNombreMostrado(line: QueueLine): string {
+  const o = line.customLabelNombre?.trim();
+  return o || line.product.nombre;
 }
 
 function parseLabelPriceInput(raw: string): number | null {
@@ -71,8 +89,10 @@ export function EtiquetasProductos() {
   const [familyPick, setFamilyPick] = useState<Record<string, boolean>>({});
   const [search, setSearch] = useState('');
   const [includeMode, setIncludeMode] = useState<IncludeMode>('all');
-  const [priceEditProductId, setPriceEditProductId] = useState<string | null>(null);
-  const [priceEditInput, setPriceEditInput] = useState('');
+  const [labelEditProductId, setLabelEditProductId] = useState<string | null>(null);
+  const [labelEditPriceInput, setLabelEditPriceInput] = useState('');
+  const [labelEditNombreInput, setLabelEditNombreInput] = useState('');
+  const [labelEditShowBarcode, setLabelEditShowBarcode] = useState(true);
 
   const activeProducts = useMemo(
     () => products.filter((p) => p.activo).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')),
@@ -159,38 +179,62 @@ export function EtiquetasProductos() {
     setQueue((prev) => prev.filter((l) => l.productId !== productId));
   }, []);
 
-  const openPriceEdit = useCallback((line: QueueLine) => {
+  const openLabelEdit = useCallback((line: QueueLine) => {
     const cur =
       typeof line.customLabelPrice === 'number' ? line.customLabelPrice : getProductPrecioPublicoRegular(line.product);
-    setPriceEditProductId(line.productId);
-    setPriceEditInput(cur.toFixed(2));
+    setLabelEditProductId(line.productId);
+    setLabelEditPriceInput(cur.toFixed(2));
+    setLabelEditNombreInput(labelNombreMostrado(line));
+    setLabelEditShowBarcode(line.labelShowBarcode !== false);
   }, []);
 
-  const closePriceEdit = useCallback(() => {
-    setPriceEditProductId(null);
-    setPriceEditInput('');
+  const closeLabelEdit = useCallback(() => {
+    setLabelEditProductId(null);
+    setLabelEditPriceInput('');
+    setLabelEditNombreInput('');
+    setLabelEditShowBarcode(true);
   }, []);
 
-  const saveCustomPrice = useCallback(() => {
-    if (!priceEditProductId) return;
-    const parsed = parseLabelPriceInput(priceEditInput);
+  const saveLabelEdit = useCallback(() => {
+    if (!labelEditProductId) return;
+    const parsed = parseLabelPriceInput(labelEditPriceInput);
     if (parsed == null) {
       addToast({ type: 'warning', message: 'Ingrese un precio válido mayor o igual a 0.' });
       return;
     }
-    setQueue((prev) => prev.map((l) => (l.productId === priceEditProductId ? { ...l, customLabelPrice: parsed } : l)));
-    addToast({ type: 'success', message: 'Precio de etiqueta actualizado.' });
-    closePriceEdit();
-  }, [priceEditProductId, priceEditInput, addToast, closePriceEdit]);
-
-  const clearCustomPrice = useCallback(() => {
-    if (!priceEditProductId) return;
+    const nombreTrim = labelEditNombreInput.trim();
+    if (!nombreTrim) {
+      addToast({ type: 'warning', message: 'El nombre en la etiqueta no puede quedar vacío.' });
+      return;
+    }
     setQueue((prev) =>
-      prev.map((l) => (l.productId === priceEditProductId ? { ...l, customLabelPrice: undefined } : l))
+      prev.map((l) =>
+        l.productId === labelEditProductId
+          ? {
+              ...l,
+              customLabelPrice: parsed,
+              customLabelNombre: nombreTrim === l.product.nombre.trim() ? undefined : nombreTrim,
+              labelShowBarcode: labelEditShowBarcode ? undefined : false,
+            }
+          : l
+      )
     );
-    addToast({ type: 'success', message: 'Precio de etiqueta restaurado al precio regular.' });
-    closePriceEdit();
-  }, [priceEditProductId, addToast, closePriceEdit]);
+    addToast({ type: 'success', message: 'Opciones de etiqueta actualizadas.' });
+    closeLabelEdit();
+  }, [labelEditProductId, labelEditPriceInput, labelEditNombreInput, labelEditShowBarcode, addToast, closeLabelEdit]);
+
+  const resetLabelOverrides = useCallback(() => {
+    if (!labelEditProductId) return;
+    setQueue((prev) =>
+      prev.map((l) =>
+        l.productId === labelEditProductId
+          ? { ...l, customLabelPrice: undefined, customLabelNombre: undefined, labelShowBarcode: undefined }
+          : l
+      )
+    );
+    addToast({ type: 'success', message: 'Etiqueta restaurada a los datos del catálogo.' });
+    closeLabelEdit();
+  }, [labelEditProductId, addToast, closeLabelEdit]);
 
   const handlePrint = useCallback(() => {
     if (queue.length === 0) {
@@ -220,8 +264,8 @@ export function EtiquetasProductos() {
   }, [queue, addToast]);
 
   const editingLine = useMemo(
-    () => (priceEditProductId ? queue.find((l) => l.productId === priceEditProductId) ?? null : null),
-    [priceEditProductId, queue]
+    () => (labelEditProductId ? queue.find((l) => l.productId === labelEditProductId) ?? null : null),
+    [labelEditProductId, queue]
   );
 
   if (!hasPermission('inventario:ver')) {
@@ -518,7 +562,7 @@ export function EtiquetasProductos() {
                       className="flex flex-wrap items-center gap-2 px-3 py-2 text-sm"
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium leading-tight">{line.product.nombre}</p>
+                        <p className="truncate font-medium leading-tight">{labelNombreMostrado(line)}</p>
                         <p className="text-[11px] text-slate-500 dark:text-slate-400">
                           {line.product.sku} ·{' '}
                           {formatMoney(
@@ -526,7 +570,12 @@ export function EtiquetasProductos() {
                               ? line.customLabelPrice
                               : getProductPrecioPublicoRegular(line.product)
                           )}
-                          {typeof line.customLabelPrice === 'number' ? ' · personalizado' : ''}
+                          {typeof line.customLabelPrice === 'number' ? ' · precio personalizado' : ''}
+                          {line.customLabelNombre?.trim() &&
+                          line.customLabelNombre.trim() !== line.product.nombre.trim()
+                            ? ' · nombre en etiqueta'
+                            : ''}
+                          {line.labelShowBarcode === false ? ' · sin código de barras' : ''}
                         </p>
                       </div>
                       <div className="flex items-center gap-1">
@@ -547,9 +596,9 @@ export function EtiquetasProductos() {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 shrink-0 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                          onClick={() => openPriceEdit(line)}
-                          aria-label="Editar precio de etiqueta"
-                          title="Editar precio de etiqueta"
+                          onClick={() => openLabelEdit(line)}
+                          aria-label="Editar etiqueta"
+                          title="Editar nombre, precio y código de barras de la etiqueta"
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -580,16 +629,16 @@ export function EtiquetasProductos() {
       {mobileBlock}
       {desktop}
       <Dialog
-        open={priceEditProductId != null}
+        open={labelEditProductId != null}
         onOpenChange={(open) => {
-          if (!open) closePriceEdit();
+          if (!open) closeLabelEdit();
         }}
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Editar precio de etiqueta</DialogTitle>
+            <DialogTitle>Editar etiqueta</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 py-1">
+          <div className="space-y-4 py-1">
             <div>
               <p className="text-sm font-medium text-slate-800 dark:text-slate-200">
                 {editingLine?.product.nombre ?? 'Producto'}
@@ -597,35 +646,63 @@ export function EtiquetasProductos() {
               <p className="text-xs text-slate-500 dark:text-slate-400">SKU {editingLine?.product.sku ?? '—'}</p>
             </div>
             <div className="space-y-1.5">
+              <Label htmlFor="edit-label-nombre">Nombre en la etiqueta</Label>
+              <Input
+                id="edit-label-nombre"
+                placeholder="Texto que saldrá impreso"
+                value={labelEditNombreInput}
+                onChange={(e) => setLabelEditNombreInput(e.target.value)}
+              />
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Solo cambia lo impreso; el nombre en inventario no se modifica.
+              </p>
+            </div>
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200/80 px-3 py-2.5 dark:border-slate-700/80">
+              <div className="min-w-0 space-y-0.5">
+                <Label htmlFor="edit-label-barcode" className="text-sm font-medium leading-none">
+                  Código de barras
+                </Label>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Incluir en la etiqueta (SKU o código del artículo)
+                </p>
+              </div>
+              <Switch
+                id="edit-label-barcode"
+                checked={labelEditShowBarcode}
+                onCheckedChange={setLabelEditShowBarcode}
+                className="shrink-0"
+              />
+            </div>
+            <div className="space-y-1.5">
               <Label htmlFor="edit-label-price">Precio en etiqueta (con IVA)</Label>
               <Input
                 id="edit-label-price"
                 inputMode="decimal"
                 placeholder="0.00"
-                value={priceEditInput}
-                onChange={(e) => setPriceEditInput(e.target.value)}
+                value={labelEditPriceInput}
+                onChange={(e) => setLabelEditPriceInput(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
-                    saveCustomPrice();
+                    saveLabelEdit();
                   }
                 }}
               />
               <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                Este precio solo afecta la impresión de esta etiqueta; no modifica el catálogo.
+                Solo afecta la impresión; no modifica precios del catálogo.
               </p>
             </div>
           </div>
           <DialogFooter className="gap-2 sm:justify-between">
-            <Button type="button" variant="outline" onClick={clearCustomPrice} disabled={!editingLine}>
-              Restablecer
+            <Button type="button" variant="outline" onClick={resetLabelOverrides} disabled={!editingLine}>
+              Restablecer todo
             </Button>
             <div className="flex gap-2">
-              <Button type="button" variant="ghost" onClick={closePriceEdit}>
+              <Button type="button" variant="ghost" onClick={closeLabelEdit}>
                 Cancelar
               </Button>
-              <Button type="button" onClick={saveCustomPrice}>
-                Guardar precio
+              <Button type="button" onClick={saveLabelEdit}>
+                Guardar
               </Button>
             </div>
           </DialogFooter>
