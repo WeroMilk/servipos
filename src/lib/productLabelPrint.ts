@@ -68,10 +68,12 @@ function barcodeDimensions(code: string, preset: LabelFormatPreset): {
 } {
   const len = code.trim().length;
   if (preset === 'dk1201') {
+    /** Códigos largos (EAN, etc.): barras más bajas para que nombre+precio+código quepan centrados. */
+    const long = len >= 13;
     return {
-      barHeight: len > 14 ? 88 : 96,
+      barHeight: long ? (len > 18 ? 70 : 74) : len > 14 ? 88 : 96,
       barWidth: len > 24 ? 2.5 : len > 12 ? 2.7 : 2.9,
-      fontSize: len > 18 ? 11 : len > 14 ? 12 : 14,
+      fontSize: long ? (len > 18 ? 10 : 11) : len > 18 ? 11 : len > 14 ? 12 : 14,
       textMargin: 2,
       margin: 4,
     };
@@ -163,18 +165,19 @@ function labelBlock(p: Product, preset: LabelFormatPreset, logoSrc: string): str
   const precioH = escapeHtml(precio);
 
   if (preset === 'dk1201') {
-    /** Códigos cortos → barras estrechas al estirar al 100% del ancho; sube mucho el bloque y el nombre queda pegado arriba. */
     const bcShort = code.trim().length <= 12;
     const bcLong = code.trim().length >= 13;
     return `
       <section class="label label-dk1201${bcShort ? ' label-dk1201-bc-short' : ''}${bcLong ? ' label-dk1201-bc-long' : ''}">
         <div class="logo-wrap">${logoImg}</div>
         <div class="col-main">
-          <div class="text-block">
-            <div class="nombre">${nombre}</div>
-            <div class="precio">${precioH}</div>
+          <div class="stack">
+            <div class="text-block">
+              <div class="nombre">${nombre}</div>
+              <div class="precio">${precioH}</div>
+            </div>
+            ${bc ? `<div class="bc">${bc}</div>` : ''}
           </div>
-          ${bc ? `<div class="bc">${bc}</div>` : ''}
         </div>
       </section>`;
   }
@@ -286,6 +289,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       align-items: flex-start;
       gap: 0.15mm;
     }
+    /** Centrado vertical del bloque nombre+precio+código (misma lógica corto/largo y 1 o N hojas). */
     .label-dk1201 .col-main {
       flex: 1 1 0%;
       flex-grow: 1;
@@ -294,29 +298,44 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       min-height: 0;
       display: flex;
       flex-direction: column;
-      justify-content: flex-start;
+      justify-content: center;
       align-items: stretch;
-      gap: 0.25mm;
+      padding-top: 0.15mm;
+      padding-bottom: 0.15mm;
+      gap: 0;
+    }
+    /** Lote: baja un poco el bloque (driver / vista previa multipágina). Una sola: sube un poco. */
+    body.labels-print-batch.labels-dk1201 .label-dk1201 .col-main {
+      padding-top: 0.42mm;
+      padding-bottom: 0.08mm;
+    }
+    body.labels-print-one.labels-dk1201 .label-dk1201 .col-main {
+      padding-top: 0.06mm;
+      padding-bottom: 0.38mm;
+    }
+    .label-dk1201 .stack {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: flex-start;
+      width: 100%;
+      flex: 0 1 auto;
+      min-height: 0;
+      max-height: 100%;
+      overflow: hidden;
+      gap: 0.26mm;
+    }
+    .label-dk1201-bc-short .stack {
+      gap: 0.22mm;
+    }
+    .label-dk1201-bc-long .stack {
+      gap: 0.36mm;
     }
     .label-dk1201 .text-block {
       flex: 0 0 auto;
       width: 100%;
       min-width: 0;
-      padding-top: 0.3mm;
-    }
-    .label-dk1201-bc-short .text-block {
-      padding-top: 1.45mm;
-    }
-    .label-dk1201-bc-short .col-main {
-      padding-top: 0.35mm;
-    }
-    .label-dk1201-bc-long .text-block {
-      padding-top: 0.95mm;
-    }
-    /** Códigos largos → hueco bajo el precio (compacto para no empujar el código fuera de la etiqueta). */
-    .label-dk1201-bc-long .col-main {
-      padding-top: 0.2mm;
-      gap: 0.35mm;
+      padding-top: 0;
     }
     .label-dk1209 .nombre {
       font-size: 9pt;
@@ -332,7 +351,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       font-size: 6.55pt;
       line-height: 1.05;
       font-weight: 400;
-      max-height: 7.8mm;
+      max-height: 7.2mm;
       overflow: hidden;
       display: -webkit-box;
       -webkit-line-clamp: 3;
@@ -340,7 +359,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       word-break: break-word;
       overflow-wrap: anywhere;
       hyphens: auto;
-      margin-top: 0.15mm;
+      margin-top: 0;
       padding-right: 0.15mm;
     }
     .label-dk1209 .precio { font-size: 11pt; font-weight: 800; }
@@ -365,15 +384,12 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       min-height: 0;
       width: 100%;
       align-self: stretch;
-      margin-top: 0.12mm;
-      padding-bottom: 0.12mm;
+      margin-top: 0;
+      padding-bottom: 0.1mm;
       overflow: hidden;
       display: flex;
       align-items: flex-start;
       justify-content: center;
-    }
-    .label-dk1201-bc-long .bc {
-      margin-top: 0.28mm;
     }
     .label-dk1209 .bc .bc-img,
     .label-dk1209 .bc svg {
@@ -516,7 +532,11 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
   }
   ${cssStrip}
   ${dk1201PageInsetCss}
-</style></head><body${preset === 'dk1201' ? ' class="labels-dk1201"' : ''}>${printHint}${sections.join('')}</body></html>`;
+</style></head><body${
+    preset === 'dk1201'
+      ? ` class="labels-dk1201 ${products.length === 1 ? 'labels-print-one' : 'labels-print-batch'}"`
+      : ''
+  }>${printHint}${sections.join('')}</body></html>`;
 
   w.document.open();
   w.document.write(html);
