@@ -191,6 +191,37 @@ function labelBlock(p: Product, preset: LabelFormatPreset, logoSrc: string): str
 }
 
 /**
+ * Con muchas etiquetas, `print()` demasiado pronto puede medir mal el layout o rasterizar
+ * antes de que los `data:` del código de barras terminen; una sola suele alcanzar a pintar.
+ */
+function runWhenPrintWindowReady(win: Window, fn: () => void): void {
+  const doc = win.document;
+  const kick = () => {
+    const imgs = [...doc.images];
+    const waitOne = (img: HTMLImageElement) =>
+      new Promise<void>((resolve) => {
+        if (img.complete) {
+          resolve();
+          return;
+        }
+        const done = () => resolve();
+        img.addEventListener('load', done, { once: true });
+        img.addEventListener('error', done, { once: true });
+      });
+    void Promise.all(imgs.map(waitOne)).then(() => {
+      win.requestAnimationFrame(() => {
+        win.requestAnimationFrame(fn);
+      });
+    });
+  };
+  if (doc.readyState === 'complete') {
+    kick();
+  } else {
+    win.addEventListener('load', kick, { once: true });
+  }
+}
+
+/**
  * Abre una ventana de impresión con una página por etiqueta, dimensionada al rollo.
  * El navegador enviará el trabajo a la impresora elegida (p. ej. Brother QL-800).
  */
@@ -282,8 +313,10 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
     .label-dk1201-bc-long .text-block {
       padding-top: 0.95mm;
     }
+    /** Códigos largos → barras al 100% del ancho; deja hueco claro bajo el precio (evita que se vea “comido” arriba). */
     .label-dk1201-bc-long .col-main {
       padding-top: 0.2mm;
+      gap: 0.55mm;
     }
     .label-dk1209 .nombre {
       font-size: 9pt;
@@ -323,9 +356,10 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       overflow: visible;
       flex-shrink: 0;
     }
+    /** Sin flex-grow: el alto del bloque sigue al PNG/SVG del código (evita % raros con muchas páginas). */
     .label-dk1201 .bc {
-      flex: 1 1 auto;
-      min-height: 9mm;
+      flex: 0 1 auto;
+      min-height: 0;
       width: 100%;
       align-self: stretch;
       margin-top: 0.12mm;
@@ -334,6 +368,9 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       display: flex;
       align-items: flex-start;
       justify-content: center;
+    }
+    .label-dk1201-bc-long .bc {
+      margin-top: 0.45mm;
     }
     .label-dk1209 .bc .bc-img,
     .label-dk1209 .bc svg {
@@ -352,7 +389,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       width: 100% !important;
       max-width: 100%;
       height: auto;
-      max-height: 100%;
+      max-height: none;
       object-fit: contain;
       object-position: center top;
       -webkit-print-color-adjust: exact;
@@ -481,7 +518,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
   w.document.open();
   w.document.write(html);
   w.document.close();
-  w.onload = () => {
+  runWhenPrintWindowReady(w, () => {
     w.focus();
     const closeAfterPrint = () => {
       w.removeEventListener('afterprint', closeAfterPrint);
@@ -489,6 +526,6 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
     };
     w.addEventListener('afterprint', closeAfterPrint);
     w.print();
-  };
+  });
   return true;
 }
