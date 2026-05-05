@@ -3,8 +3,9 @@
  * Normaliza precios en Supabase (`public.products`): si el valor en centavos termina en **01**, pasa a **00**
  * (ej. 950.01 → 950.00).
  *
- * Campos revisados en cada producto (JSON `doc`): `precioVenta`, `precioCompra` / `precio_compra`,
- * `preciosPorListaCliente`, objeto `precios` si existe. No modifica existencias ni otros datos.
+ * Campos: cualquier clave que parezca precio (`precio*`, `lista*`, listas mayoreo/técnico/cananea, etc.),
+ * más todo el contenido de `preciosPorListaCliente` y `precios`. Interpreta montos en string con coma o punto.
+ * No modifica existencias, impuesto, cantidades ni descuentos porcentuales en `descuento`.
  *
  * Requiere: SUPABASE_URL (o VITE_SUPABASE_URL) y SUPABASE_SERVICE_ROLE_KEY.
  *
@@ -69,10 +70,51 @@ function parseArgs() {
   return out;
 }
 
-/** Si los centavos son exactamente 01 (positivos), bajar a .00. */
+/** Campos numéricos que no son montos (no tocar). */
+const NEVER_NORMALIZE_KEYS = new Set([
+  'existencia',
+  'existenciaminima',
+  'impuesto',
+  'cantidad',
+  'cantidadanterior',
+  'cantidadnueva',
+  'descuento',
+  'stock',
+]);
+
+/** Subárboles donde todo número/cadena monetaria se normaliza (objeto anidado). */
+const MONEY_SUBTREE_KEYS = new Set(['preciosporlistacliente', 'precios']);
+
+/**
+ * Interpreta número guardado como number o string (coma/punto, miles).
+ */
+function parseMoneyScalar(raw) {
+  if (raw === null || raw === undefined) return NaN;
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+  if (typeof raw === 'bigint') {
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : NaN;
+  }
+  if (typeof raw === 'object' && raw !== null && 'value' in raw) {
+    return parseMoneyScalar(/** @type {{ value?: unknown }} */ (raw).value);
+  }
+  if (typeof raw !== 'string') return NaN;
+  let s = raw.trim().replace(/^\$/, '').replace(/\s/g, '');
+  if (!s) return NaN;
+  const lastComma = s.lastIndexOf(',');
+  const lastDot = s.lastIndexOf('.');
+  if (lastComma > lastDot) {
+    s = s.replace(/\./g, '').replace(',', '.');
+  } else {
+    s = s.replace(/,/g, '');
+  }
+  const n = Number(s);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+/** Si los centavos son exactamente .01, pasar a .00 (ej. 950.01 → 950). */
 function normalizeOneCentEnding(raw) {
-  if (raw === null || raw === undefined) return { next: raw, changed: false };
-  const n = typeof raw === 'number' ? raw : Number(String(raw).trim());
+  const n = parseMoneyScalar(raw);
   if (!Number.isFinite(n)) return { next: raw, changed: false };
   const units = Math.round(n * 100);
   const frac = ((units % 100) + 100) % 100;
@@ -81,54 +123,84 @@ function normalizeOneCentEnding(raw) {
   return { next: newUnits / 100, changed: true };
 }
 
-function normalizeListaLike(obj) {
-  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return false;
-  let touched = false;
-  for (const key of Object.keys(obj)) {
-    const v = obj[key];
-    if (typeof v === 'number' || (typeof v === 'string' && String(v).trim() !== '' && Number.isFinite(Number(v)))) {
-      const { next, changed } = normalizeOneCentEnding(v);
-      if (changed) {
-        obj[key] = next;
-        touched = true;
-      }
-    }
-  }
-  return touched;
+function keyLooksLikePriceKey(key) {
+  const x = key.toLowerCase();
+  if (NEVER_NORMALIZE_KEYS.has(x)) return false;
+  if (x.includes('existencia')) return false;
+  if (x.includes('precio')) return true;
+  if (x.startsWith('lista')) return true;
+  if (x.includes('mayoreo') || x.includes('tecnico') || x.includes('cananea')) return true;
+  if (x.includes('regular') && x.includes('iva')) return true;
+  if (x === 'subtotal' || x === 'total') return true;
+  return false;
+}
+
+function looksLikeMoneyString(s) {
+  if (typeof s !== 'string') return false;
+  const t = s.trim();
+  if (!t) return false;
+  return /^[\s$-]?[\d.,]+$/.test(t);
 }
 
 /**
+ * Recorre `doc` y corrige …01 → …00 en cualquier precio conocido o dentro de mapas de precios.
  * @returns {boolean} si el doc cambió
  */
 function normalizeProductDocPrices(doc) {
   if (!doc || typeof doc !== 'object') return false;
   let changed = false;
 
-  if ('precioVenta' in doc && doc.precioVenta != null) {
-    const { next, changed: c } = normalizeOneCentEnding(doc.precioVenta);
-    if (c) {
-      doc.precioVenta = next;
-      changed = true;
+  /**
+   * @param {unknown} obj
+   * @param {boolean} insideMoneySubtree
+   */
+  function walk(obj, insideMoneySubtree) {
+    if (obj === null || obj === undefined) return;
+    if (Array.isArray(obj)) {
+      for (const item of obj) walk(item, insideMoneySubtree);
+      return;
+    }
+    if (typeof obj !== 'object') return;
+
+    for (const key of Object.keys(obj)) {
+      const kl = key.toLowerCase();
+      const v = /** @type {Record<string, unknown>} */ (obj)[key];
+      const subtree =
+        insideMoneySubtree ||
+        MONEY_SUBTREE_KEYS.has(kl);
+
+      if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
+        walk(v, subtree || MONEY_SUBTREE_KEYS.has(kl));
+        continue;
+      }
+
+      const normalizeThisLeaf =
+        subtree ||
+        (keyLooksLikePriceKey(key) && !NEVER_NORMALIZE_KEYS.has(kl));
+
+      if (!normalizeThisLeaf) continue;
+
+      if (typeof v === 'number') {
+        const { next, changed: c } = normalizeOneCentEnding(v);
+        if (c) {
+          /** @type {Record<string, unknown>} */ (obj)[key] = next;
+          changed = true;
+        }
+        continue;
+      }
+      if (typeof v === 'string' && looksLikeMoneyString(v)) {
+        const parsed = parseMoneyScalar(v);
+        if (!Number.isFinite(parsed)) continue;
+        const { next, changed: c } = normalizeOneCentEnding(parsed);
+        if (c) {
+          /** @type {Record<string, unknown>} */ (obj)[key] = next;
+          changed = true;
+        }
+      }
     }
   }
 
-  for (const pk of ['precioCompra', 'precio_compra']) {
-    if (!(pk in doc) || doc[pk] === null || doc[pk] === undefined || doc[pk] === '') continue;
-    const { next, changed: c } = normalizeOneCentEnding(doc[pk]);
-    if (c) {
-      doc[pk] = next;
-      changed = true;
-    }
-  }
-
-  if (doc.preciosPorListaCliente != null && typeof doc.preciosPorListaCliente === 'object') {
-    if (normalizeListaLike(doc.preciosPorListaCliente)) changed = true;
-  }
-
-  if (doc.precios != null && typeof doc.precios === 'object' && !Array.isArray(doc.precios)) {
-    if (normalizeListaLike(doc.precios)) changed = true;
-  }
-
+  walk(doc, false);
   return changed;
 }
 
