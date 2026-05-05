@@ -6,6 +6,7 @@ import type {
   InventoryMovement,
   PurchaseOrder,
   Client,
+  ClientAbonoHistorialEntry,
   Sale,
   SaleItem,
   Quotation,
@@ -1500,6 +1501,25 @@ export async function registrarAbonoACuentaCliente(
   const sid = options?.sucursalId?.trim();
   const now = new Date();
   const usuarioNombre = options?.usuarioNombre?.trim();
+  const entrada: ClientAbonoHistorialEntry = {
+    at: now,
+    monto: m,
+    saldoAnterior: current,
+    saldoNuevo: next,
+    usuarioNombre: usuarioNombre || undefined,
+  };
+  const prevHist = Array.isArray(row.abonosHistorial) ? row.abonosHistorial : [];
+  const abonosHistorial = [
+    entrada,
+    ...prevHist.map((e) => ({
+      at: e.at instanceof Date ? e.at : new Date(e.at),
+      monto: Math.round(Math.max(0, Number(e.monto) || 0) * 100) / 100,
+      saldoAnterior: Math.round(Math.max(0, Number(e.saldoAnterior) || 0) * 100) / 100,
+      saldoNuevo: Math.round(Math.max(0, Number(e.saldoNuevo) || 0) * 100) / 100,
+      usuarioNombre: e.usuarioNombre?.trim() || undefined,
+    })),
+  ].slice(0, 80);
+
   const patch = {
     saldoAdeudado: next,
     ultimoAbonoMonto: m,
@@ -1507,6 +1527,7 @@ export async function registrarAbonoACuentaCliente(
     ultimoAbonoSaldoAnterior: current,
     ultimoAbonoSaldoNuevo: next,
     ultimoAbonoUsuarioNombre: usuarioNombre || undefined,
+    abonosHistorial,
   } as const;
   if (sid) {
     await updateClientFirestore(sid, clienteId, patch);

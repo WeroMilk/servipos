@@ -4,7 +4,7 @@ import { mapProfileRowToUser, userFromAuthOnly } from '@/lib/mapFirestoreUser';
 import { useSucursalContextStore } from '@/stores/sucursalContextStore';
 import { reportAppEvent } from '@/lib/appEventLog';
 import { userHasPermission } from '@/lib/userPermissions';
-import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
+import type { Session } from '@supabase/supabase-js';
 import { getSupabase } from '@/lib/supabaseClient';
 
 async function loadUserProfile(userId: string, email: string | null): Promise<User> {
@@ -17,8 +17,6 @@ async function loadUserProfile(userId: string, email: string | null): Promise<Us
 }
 
 type AuthStore = AuthState;
-const LOGIN_EVENT_DEDUP_WINDOW_MS = 60_000;
-const lastLoginEventAtByUserId = new Map<string, number>();
 
 export const useAuthStore = create<AuthStore>((set) => ({
   user: null,
@@ -79,20 +77,9 @@ export const useAuthStore = create<AuthStore>((set) => ({
  * (p. ej. vía setTimeout) para no bloquear el lock de Auth al llamar a `supabase.from(...)`.
  * @see https://github.com/supabase/supabase-js — evitar async/await dentro del callback.
  */
-type ApplyAuthSessionOptions = {
-  reportLoginEvent?: boolean;
-};
-
-async function applyAuthSession(
-  session: Session | null,
-  { reportLoginEvent = true }: ApplyAuthSessionOptions = {}
-): Promise<void> {
+async function applyAuthSession(session: Session | null): Promise<void> {
   if (!session?.user) {
     const prev = useAuthStore.getState().user;
-    if (prev?.id) {
-      // Permite registrar nuevamente si el usuario cierra sesión y vuelve a entrar.
-      lastLoginEventAtByUserId.delete(prev.id);
-    }
     useSucursalContextStore.getState().setActiveSucursalId(null);
     if (prev) {
       reportAppEvent({
@@ -113,15 +100,6 @@ async function applyAuthSession(
   try {
     const user = await loadUserProfile(session.user.id, session.user.email ?? null);
     useAuthStore.setState({ user, isAuthenticated: true, authReady: true });
-    if (reportLoginEvent) {
-      reportAppEvent({
-        kind: 'success',
-        source: 'auth',
-        title: 'Sesión iniciada',
-        detail: user.email,
-        meta: { userId: user.id, role: user.role },
-      });
-    }
   } catch (e) {
     console.error('Error cargando perfil:', e);
     const user = userFromAuthOnly(session.user.id, session.user.email ?? null);
@@ -130,36 +108,7 @@ async function applyAuthSession(
       isAuthenticated: true,
       authReady: true,
     });
-    if (reportLoginEvent) {
-      reportAppEvent({
-        kind: 'warning',
-        source: 'auth',
-        title: 'Sesión iniciada (perfil incompleto)',
-        detail: user.email,
-        meta: { userId: user.id },
-      });
-    }
   }
-}
-
-function shouldReportLoginEvent(event: AuthChangeEvent, session: Session | null): boolean {
-  if (event !== 'SIGNED_IN') return false;
-  const nextUserId = session?.user?.id ?? null;
-  if (!nextUserId) return false;
-  const { isAuthenticated, user } = useAuthStore.getState();
-  const currentUserId = user?.id ?? null;
-  const isSessionChange = !isAuthenticated || currentUserId !== nextUserId;
-
-  // Supabase puede emitir SIGNED_IN al recuperar foco de pestaña.
-  // Solo notificamos cuando la sesión realmente "cambia" desde estado no autenticado.
-  if (!isSessionChange) return false;
-
-  // Segundo filtro anti-rebote para evitar duplicados idénticos en ráfaga.
-  const now = Date.now();
-  const lastReportedAt = lastLoginEventAtByUserId.get(nextUserId) ?? 0;
-  if (now - lastReportedAt < LOGIN_EVENT_DEDUP_WINDOW_MS) return false;
-  lastLoginEventAtByUserId.set(nextUserId, now);
-  return true;
 }
 
 /** Suscripción global: sesión Supabase + perfil en `profiles`. */
@@ -169,9 +118,7 @@ export function subscribeSupabaseAuth(): () => void {
     setTimeout(() => {
       // Solo renovación de JWT: no llamar a PostgREST dentro del flujo de auth.
       if (event === 'TOKEN_REFRESHED') return;
-      void applyAuthSession(session, {
-        reportLoginEvent: shouldReportLoginEvent(event, session),
-      });
+      void applyAuthSession(session);
     }, 0);
   });
   return () => {

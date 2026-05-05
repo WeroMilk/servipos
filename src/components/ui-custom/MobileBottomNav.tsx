@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores';
 import { userCanSeeInventoryMissions, userCanSeeMissionProgressOnly } from '@/lib/userPermissions';
 import { MAIN_NAV_ITEMS } from '@/lib/mainNavItems';
@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
  */
 export function MobileBottomNav() {
   const location = useLocation();
+  const navigate = useNavigate();
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const user = useAuthStore((s) => s.user);
 
@@ -37,12 +38,13 @@ export function MobileBottomNav() {
               : location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
 
           return (
-            <NavLink
+            <button
               key={item.to}
-              to={item.to}
-              title={item.label}
+              type="button"
+              onClick={() => navigate(item.to)}
+              aria-label={item.label}
               className={cn(
-                'flex min-w-0 flex-1 flex-col items-center justify-center gap-px rounded-lg px-px py-0.5 transition-colors',
+                'flex min-w-0 flex-1 cursor-pointer flex-col items-center justify-center gap-px rounded-lg border border-transparent bg-transparent px-px py-0.5 transition-colors',
                 'active:scale-[0.98]',
                 isActive
                   ? 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300'
@@ -66,7 +68,7 @@ export function MobileBottomNav() {
               >
                 {item.shortLabel}
               </span>
-            </NavLink>
+            </button>
           );
         })}
       </div>

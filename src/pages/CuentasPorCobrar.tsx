@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Wallet, ShoppingCart, Ban, Printer } from 'lucide-react';
+import { Wallet, ShoppingCart, Ban, Printer, History } from 'lucide-react';
 import { PageShell } from '@/components/ui-custom/PageShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,8 +38,9 @@ import type { Client, Sale, SaleItem } from '@/types';
 import { formatMoney } from '@/lib/utils';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
-import { printThermalClientAbonoReceipt } from '@/lib/printTicket';
+import { printThermalClientAbonoReceipt, type ThermalClientAbonoReceiptInput } from '@/lib/printTicket';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
+import { listaAbonosCxCMostrable } from '@/lib/clientAbonoHistorialUi';
 import { parrafosAyudaCancelacionVentaAdmin } from '@/lib/cancelacionVentaAdminUi';
 import { efectivoNetoEnCajaPorVenta } from '@/lib/cajaResumen';
 
@@ -120,6 +121,13 @@ export function CuentasPorCobrar() {
   const [abonoMonto, setAbonoMonto] = useState('');
   const [abonoBusy, setAbonoBusy] = useState(false);
 
+  const [copiaClienteOpen, setCopiaClienteOpen] = useState(false);
+  const [copiaClientePayload, setCopiaClientePayload] = useState<ThermalClientAbonoReceiptInput | null>(
+    null
+  );
+
+  const [historialCliente, setHistorialCliente] = useState<Client | null>(null);
+
   const [ticketSeleccionado, setTicketSeleccionado] = useState<{
     sale: Sale;
     adeudo: number;
@@ -143,21 +151,23 @@ export function CuentasPorCobrar() {
     setAbonoBusy(true);
     try {
       const saldoAnterior = saldoCliente(abonoCliente);
-      await registrarAbonoCuenta(abonoCliente.id, m, {
-        usuarioNombre: user?.name?.trim() || user?.email || undefined,
-      });
-      const saldoNuevo = Math.max(0, Math.round((saldoAnterior - m) * 100) / 100);
-      printThermalClientAbonoReceipt({
+      const receipt: ThermalClientAbonoReceiptInput = {
         fechaLabel: formatInAppTimezone(new Date(), { dateStyle: 'short', timeStyle: 'short' }),
-        sucursalId: effectiveSucursalId,
+        sucursalId: effectiveSucursalId ?? undefined,
         cajeroNombre: user?.name?.trim() || user?.email || undefined,
         clienteNombre: abonoCliente.nombre,
         montoAbono: m,
         saldoAnterior,
-        saldoNuevo,
+        saldoNuevo: Math.max(0, Math.round((saldoAnterior - m) * 100) / 100),
+      };
+      await registrarAbonoCuenta(abonoCliente.id, m, {
+        usuarioNombre: user?.name?.trim() || user?.email || undefined,
       });
+      printThermalClientAbonoReceipt(receipt);
       addToast({ type: 'success', message: `Abono registrado: ${formatMoney(m)}`, logToAppEvents: true });
       cerrarAbono();
+      setCopiaClientePayload(receipt);
+      setCopiaClienteOpen(true);
     } catch (e: unknown) {
       addToast({
         type: 'error',
@@ -200,20 +210,28 @@ export function CuentasPorCobrar() {
   return (
     <PageShell title="Cuentas por cobrar">
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200/80 bg-slate-50/90 px-3 py-2.5 dark:border-slate-800/50 dark:bg-slate-900/50 sm:px-4">
-          <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
-            <Wallet className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
-            <div>
-              <p className="text-xs text-slate-600 dark:text-slate-400">Total por cobrar</p>
-              <p className="text-lg font-bold tabular-nums text-cyan-600 dark:text-cyan-400">
-                {formatMoney(totalSaldoPendienteTickets)}
-              </p>
+        <div className="flex shrink-0 flex-col gap-2 rounded-xl border border-slate-200/80 bg-slate-50/90 px-3 py-2.5 dark:border-slate-800/50 dark:bg-slate-900/50 sm:px-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
+              <Wallet className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+              <div>
+                <p className="text-xs text-slate-600 dark:text-slate-400">Total por cobrar</p>
+                <p className="text-lg font-bold tabular-nums text-cyan-600 dark:text-cyan-400">
+                  {formatMoney(totalSaldoPendienteTickets)}
+                </p>
+              </div>
             </div>
+            <p className="text-[11px] text-slate-600 dark:text-slate-500 sm:text-xs">
+              {deudores.length} cliente{deudores.length === 1 ? '' : 's'} · {ticketsConSaldo.length} ticket
+              {ticketsConSaldo.length === 1 ? '' : 's'} con saldo
+              <span className="hidden sm:inline"> (últimos movimientos sincronizados)</span>
+            </p>
           </div>
-          <p className="text-[11px] text-slate-600 dark:text-slate-500 sm:text-xs">
-            {deudores.length} cliente{deudores.length === 1 ? '' : 's'} · {ticketsConSaldo.length} ticket
-            {ticketsConSaldo.length === 1 ? '' : 's'} con saldo
-            <span className="hidden sm:inline"> (últimos movimientos sincronizados)</span>
+          <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-500 sm:text-xs">
+            Fiado: en el POS elija un cliente registrado y cobre con{' '}
+            <span className="font-medium text-slate-800 dark:text-slate-200">Pendiente de pago</span> o{' '}
+            <span className="font-medium text-slate-800 dark:text-slate-200">Parcialidades (PPD)</span>; el saldo
+            aparece aquí. Los abonos globales del cliente se registran con «Abonar» (ticket térmico).
           </p>
         </div>
 
@@ -280,7 +298,10 @@ export function CuentasPorCobrar() {
           <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/50">
             <div className="border-b border-slate-200/80 px-3 py-2 dark:border-slate-800/50 sm:px-4">
               <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-                Abonos por cliente
+                Saldo por cliente y abonos
+              </p>
+              <p className="mt-0.5 text-[11px] text-slate-600 dark:text-slate-500">
+                Historial de abonos con fecha e importe; también puede cobrar por ticket desde «Abrir venta» en el POS.
               </p>
             </div>
             {loadingClients ? (
@@ -331,6 +352,16 @@ export function CuentasPorCobrar() {
                           >
                             Abonar
                           </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="whitespace-nowrap border-slate-300 dark:border-slate-600"
+                            onClick={() => setHistorialCliente(c)}
+                          >
+                            <History className="mr-1.5 h-3.5 w-3.5" />
+                            Historial
+                          </Button>
                           {c.ultimoAbonoMonto != null &&
                           c.ultimoAbonoAt &&
                           c.ultimoAbonoSaldoAnterior != null &&
@@ -346,7 +377,7 @@ export function CuentasPorCobrar() {
                                     dateStyle: 'short',
                                     timeStyle: 'short',
                                   }),
-                                  sucursalId: effectiveSucursalId,
+                                  sucursalId: effectiveSucursalId ?? undefined,
                                   cajeroNombre: c.ultimoAbonoUsuarioNombre || undefined,
                                   clienteNombre: c.nombre,
                                   montoAbono: c.ultimoAbonoMonto!,
@@ -562,6 +593,90 @@ export function CuentasPorCobrar() {
               onClick={() => void confirmarAbono()}
             >
               {abonoBusy ? 'Guardando…' : 'Guardar abono'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog
+        open={copiaClienteOpen}
+        onOpenChange={(open) => {
+          setCopiaClienteOpen(open);
+          if (!open) setCopiaClientePayload(null);
+        }}
+      >
+        <AlertDialogContent className="border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900">
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Imprimir copia para el cliente?</AlertDialogTitle>
+            <AlertDialogDescription className="text-left text-sm">
+              Ya se imprimió el comprobante marcado como «Tienda». Si lo desea, puede imprimir una segunda copia con
+              leyenda «Copia cliente» para quien realizó el abono.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>No, gracias</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700"
+              onClick={(e) => {
+                e.preventDefault();
+                if (copiaClientePayload) {
+                  printThermalClientAbonoReceipt({ ...copiaClientePayload, copiaCliente: true });
+                }
+                setCopiaClienteOpen(false);
+                setCopiaClientePayload(null);
+              }}
+            >
+              Sí, imprimir copia cliente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={historialCliente != null} onOpenChange={(o) => !o && setHistorialCliente(null)}>
+        <DialogContent className="max-h-[min(85dvh,calc(100dvh-2rem))] overflow-y-auto border-slate-200 bg-slate-50 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Historial de abonos</DialogTitle>
+            <DialogDescription className="text-left text-sm text-slate-600 dark:text-slate-400">
+              {historialCliente?.nombre}
+            </DialogDescription>
+          </DialogHeader>
+          {historialCliente ?
+            listaAbonosCxCMostrable(historialCliente).length === 0 ?
+              <p className="py-2 text-sm text-slate-600 dark:text-slate-400">Sin abonos registrados.</p>
+            : <div className="max-h-[55vh] overflow-auto rounded-md border border-slate-200 dark:border-slate-700">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-slate-200 hover:bg-transparent dark:border-slate-800">
+                      <TableHead className="text-slate-700 dark:text-slate-300">Fecha</TableHead>
+                      <TableHead className="text-right text-slate-700 dark:text-slate-300">Abono</TableHead>
+                      <TableHead className="text-right text-slate-700 dark:text-slate-300">Saldo después</TableHead>
+                      <TableHead className="text-slate-700 dark:text-slate-300">Cajero</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {listaAbonosCxCMostrable(historialCliente).map((row, idx) => (
+                      <TableRow key={`${row.at.getTime()}-${idx}`} className="border-slate-200 dark:border-slate-800">
+                        <TableCell className="whitespace-nowrap text-xs text-slate-800 dark:text-slate-200">
+                          {formatInAppTimezone(row.at, { dateStyle: 'short', timeStyle: 'short' })}
+                        </TableCell>
+                        <TableCell className="text-right text-sm font-semibold tabular-nums text-cyan-700 dark:text-cyan-400">
+                          {formatMoney(row.monto)}
+                        </TableCell>
+                        <TableCell className="text-right text-sm tabular-nums text-slate-700 dark:text-slate-300">
+                          {formatMoney(row.saldoNuevo)}
+                        </TableCell>
+                        <TableCell className="max-w-[8rem] truncate text-xs text-slate-600 dark:text-slate-400">
+                          {row.usuarioNombre?.trim() || '—'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+          : null}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setHistorialCliente(null)}>
+              Cerrar
             </Button>
           </DialogFooter>
         </DialogContent>

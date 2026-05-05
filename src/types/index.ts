@@ -236,6 +236,15 @@ export interface PurchaseOrderItem {
   cantidadRecibida?: number;
 }
 
+/** Entrada en historial de abonos (Cuentas por cobrar); `at` más reciente primero en el arreglo. */
+export interface ClientAbonoHistorialEntry {
+  at: Date;
+  monto: number;
+  saldoAnterior: number;
+  saldoNuevo: number;
+  usuarioNombre?: string;
+}
+
 // ============================================
 // CLIENTES
 // ============================================
@@ -274,6 +283,11 @@ export interface Client {
   ultimoAbonoSaldoAnterior?: number;
   ultimoAbonoSaldoNuevo?: number;
   ultimoAbonoUsuarioNombre?: string;
+  /**
+   * Abonos registrados en Cuentas por cobrar (más reciente primero).
+   * Limitado en servidor/local para no inflar el documento del cliente.
+   */
+  abonosHistorial?: ClientAbonoHistorialEntry[];
   /** Notas solo para el equipo (no se muestran al cliente ni en CFDI). */
   notasInternas?: string;
   /** Aislamiento por tienda en datos locales (Dexie). */

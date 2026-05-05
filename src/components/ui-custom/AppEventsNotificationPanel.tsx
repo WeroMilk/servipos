@@ -49,6 +49,11 @@ function kindStyles(k: AppEventLogRecord['kind']): string {
   }
 }
 
+/** Oculta avisos de login en el panel (ya no se generan; filtra también histórico guardado). */
+function isSesionIniciadaAuthEvent(ev: AppEventLogRecord): boolean {
+  return ev.source === 'auth' && ev.title.includes('Sesión iniciada');
+}
+
 type AppEventsNotificationPanelProps = {
   /** `sidebar`: popover hacia la derecha (barra lateral). `header`: alineado al header (móvil). */
   dock?: 'header' | 'sidebar';
@@ -79,7 +84,7 @@ export function AppEventsNotificationPanel({
   }, [user?.id]);
 
   const visibleEvents = useMemo(
-    () => events.filter((ev) => ev.source !== 'sync'),
+    () => events.filter((ev) => ev.source !== 'sync' && !isSesionIniciadaAuthEvent(ev)),
     [events]
   );
 

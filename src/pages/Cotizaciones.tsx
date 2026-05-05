@@ -16,6 +16,7 @@ import {
   Calendar,
   ArrowDownAZ,
   ArrowUpAZ,
+  Download,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -60,6 +61,7 @@ import { cn, formatMoney } from '@/lib/utils';
 import { PageShell } from '@/components/ui-custom/PageShell';
 import { SendEmailDialog } from '@/components/ui-custom/SendEmailDialog';
 import { printLetterDocument, printThermalQuotation } from '@/lib/printTicket';
+import { buildQuotationLetterInnerHtml, exportQuotationLetterToPdf } from '@/lib/quotationPdfExport';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 
 const statusColors: Record<string, string> = {
@@ -142,10 +144,6 @@ const ORDEN_LABELS: Record<CotizacionOrden, string> = {
   'nombre-desc': 'Nombre: Z → A',
 };
 
-function esc(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
 function cajeroNombreFromUser(u: { name?: string; username?: string; email?: string } | null | undefined): string {
   if (!u) return '';
   return (u.name?.trim() || u.username?.trim() || u.email?.trim() || '').trim();
@@ -177,28 +175,7 @@ function buildQuotationEmailBody(q: Quotation): string {
 }
 
 function printQuotationLetter(q: Quotation, fallbackSucursalId?: string | null): void {
-  const rows = q.productos
-    .map(
-      (it) =>
-        `<tr><td>${esc(it.producto?.nombre?.trim() || 'Producto')}</td><td class="right">${it.cantidad}</td><td class="right">${formatMoney(it.precioUnitario)}</td><td class="right">${formatMoney(it.total)}</td></tr>`
-    )
-    .join('');
-  const html = `
-    <p><strong>Cliente:</strong> ${esc(q.cliente?.nombre ?? 'Mostrador')}</p>
-    <p><strong>Fecha:</strong> ${esc(formatInAppTimezone(q.createdAt, { dateStyle: 'medium', timeStyle: 'short' }))}</p>
-    <p><strong>Cajero:</strong> ${esc(q.usuarioNombre?.trim() || '—')}</p>
-    <p><strong>Vigencia:</strong> ${esc(formatInAppTimezone(q.fechaVigencia, { dateStyle: 'medium' }))}</p>
-    <table>
-      <thead><tr><th>Producto</th><th class="right">Cant.</th><th class="right">P. unit.</th><th class="right">Total</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-    <div class="tot">
-      <p>Subtotal: ${formatMoney(q.subtotal)}</p>
-      <p>Impuestos: ${formatMoney(q.impuestos)}</p>
-      <p><strong>Total: ${formatMoney(q.total)}</strong></p>
-    </div>
-  `;
-  printLetterDocument(`Cotización ${q.folio}`, html, {
+  printLetterDocument(`Cotización ${q.folio}`, buildQuotationLetterInnerHtml(q), {
     sucursalId: q.sucursalId ?? fallbackSucursalId ?? null,
   });
 }
@@ -239,6 +216,7 @@ export function Cotizaciones() {
   const [reverting, setReverting] = useState(false);
   const [deleteQuotationTarget, setDeleteQuotationTarget] = useState<Quotation | null>(null);
   const [deletingQuotation, setDeletingQuotation] = useState(false);
+  const [quotationPdfBusyId, setQuotationPdfBusyId] = useState<string | null>(null);
 
   const filteredProducts = useMemo(() => {
     const q = productSearchQuery.trim().toLowerCase();
@@ -276,6 +254,22 @@ export function Cotizaciones() {
     setEmailSubject(`Cotización ${q.folio} — SERVIPARTZ POS`);
     setEmailBody(buildQuotationEmailBody(q));
     setEmailOpen(true);
+  };
+
+  const handleDownloadQuotationPdf = async (q: Quotation) => {
+    setQuotationPdfBusyId(q.id);
+    try {
+      await exportQuotationLetterToPdf(q, effectiveSucursalId);
+      addToast({ type: 'success', message: 'PDF descargado (formato carta)', logToAppEvents: true });
+    } catch (e) {
+      addToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'No se pudo generar el PDF',
+        logToAppEvents: true,
+      });
+    } finally {
+      setQuotationPdfBusyId(null);
+    }
   };
 
   const handleAddItem = (product: Product) => {
@@ -720,6 +714,14 @@ export function Cotizaciones() {
                                   Imprimir carta
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
+                                  disabled={quotationPdfBusyId === quotation.id}
+                                  onClick={() => void handleDownloadQuotationPdf(quotation)}
+                                  className="text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:bg-slate-800 hover:text-slate-900 dark:text-slate-100"
+                                >
+                                  <Download className="mr-2 h-4 w-4" />
+                                  {quotationPdfBusyId === quotation.id ? 'Generando PDF…' : 'Descargar PDF'}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
                                   onClick={() =>
                                     printThermalQuotation(quotation, {
                                       sucursalId: effectiveSucursalId,
@@ -963,7 +965,7 @@ export function Cotizaciones() {
               {postSaveQuotation ? `Cotización ${postSaveQuotation.folio} guardada` : 'Cotización guardada'}
             </DialogTitle>
             <DialogDescription className="text-slate-600 dark:text-slate-400">
-              Imprima en carta o en ticket térmico (80 mm), o cree otra cotización.
+              Imprima en carta, descargue PDF (misma vista carta), ticket térmico (80 mm), o cree otra cotización.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2">
@@ -978,6 +980,20 @@ export function Cotizaciones() {
             >
               <Printer className="mr-2 h-4 w-4" />
               Imprimir carta
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={postSaveQuotation != null && quotationPdfBusyId === postSaveQuotation.id}
+              className="border border-slate-300 bg-slate-200 text-slate-900 hover:bg-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+              onClick={() => {
+                if (postSaveQuotation) void handleDownloadQuotationPdf(postSaveQuotation);
+              }}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              {postSaveQuotation != null && quotationPdfBusyId === postSaveQuotation.id ?
+                'Generando PDF…'
+              : 'Descargar PDF'}
             </Button>
             <Button
               type="button"
@@ -1098,6 +1114,16 @@ export function Cotizaciones() {
                 >
                   <Printer className="mr-2 h-4 w-4" />
                   Imprimir carta
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={quotationPdfBusyId === selectedQuotation.id}
+                  className="border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300"
+                  onClick={() => void handleDownloadQuotationPdf(selectedQuotation)}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  {quotationPdfBusyId === selectedQuotation.id ? 'Generando PDF…' : 'Descargar PDF'}
                 </Button>
                 <Button
                   type="button"

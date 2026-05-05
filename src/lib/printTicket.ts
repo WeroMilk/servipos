@@ -640,7 +640,7 @@ export function printThermalMissionInventoryReport(input: {
 }
 
 /** Comprobante de abono a cuenta por cobrar (80 mm). */
-export function printThermalClientAbonoReceipt(input: {
+export type ThermalClientAbonoReceiptInput = {
   fechaLabel: string;
   sucursalId?: string;
   cajeroNombre?: string;
@@ -648,7 +648,11 @@ export function printThermalClientAbonoReceipt(input: {
   montoAbono: number;
   saldoAnterior: number;
   saldoNuevo: number;
-}): void {
+  /** Segundo ticket con leyenda orientada al cliente. */
+  copiaCliente?: boolean;
+};
+
+export function printThermalClientAbonoReceipt(input: ThermalClientAbonoReceiptInput): void {
   const lines = getThermalTicketSucursalFooterLines(input.sucursalId);
   const pie =
     lines?.length ?
@@ -660,9 +664,15 @@ export function printThermalClientAbonoReceipt(input: {
   const cajero = input.cajeroNombre?.trim() ? escapeHtml(input.cajeroNombre.trim()) : '—';
   const cliente = input.clienteNombre.trim() ? escapeHtml(input.clienteNombre.trim()) : 'Cliente';
   const saldoNuevo = Math.max(0, Number(input.saldoNuevo) || 0);
+  const copia = Boolean(input.copiaCliente);
+  const rolTitulo = copia ? 'COPIA CLIENTE' : 'TIENDA';
+  const notaPie = copia ?
+    'Conserve este comprobante como respaldo de su pago.'
+  : 'Comprobante de archivo interno. Entregue copia al cliente si corresponde.';
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Comprobante de abono</title>
 <style>${THERMAL_BASE_STYLES}</style></head><body>
   <h1>COMPROBANTE DE ABONO</h1>
+  <div style="text-align:center;font-size:20px;font-weight:700;margin:-6px 0 8px;">(${escapeHtml(rolTitulo)})</div>
   <div class="meta">
     ${escapeHtml(input.fechaLabel)}<br/>
     Cliente: ${cliente}<br/>
@@ -674,7 +684,7 @@ export function printThermalClientAbonoReceipt(input: {
     <div style="margin-top:6px;font-size:26px;"><strong>Saldo actual: ${formatMoney(saldoNuevo)}</strong></div>
   </div>
   <p style="margin-top:12px;font-size:19px;line-height:1.4;text-align:center;">
-    Gracias. Conserve este comprobante como respaldo de su pago.
+    ${escapeHtml(notaPie)}
   </p>
   ${pie}
 </body></html>`;
@@ -884,22 +894,33 @@ export function printThermalCajaCierre(input: {
 export const AVISO_DOC_FISCAL_PRUEBA =
   'DOCUMENTO DE PRUEBA — SIN VALIDEZ FISCAL ANTE EL SAT';
 
-/** Documento tamaño carta (facturas / cotizaciones) en ventana de impresión. */
-export function printLetterDocument(
+/** HTML completo tamaño carta (impresión, vista previa o PDF). */
+export function buildLetterDocumentHtml(
   title: string,
   innerHtml: string,
   options?: { sucursalId?: string | null; avisoPrueba?: string }
-): void {
+): string {
   const head = buildLetterHeaderHtml();
   const foot = buildLetterFooterHtml(options?.sucursalId);
   const aviso =
     options?.avisoPrueba != null && options.avisoPrueba !== ''
       ? `<div class="aviso-prueba">${escapeHtml(options.avisoPrueba)}</div>`
       : '';
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${escapeHtml(title)}</title>
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${escapeHtml(title)}</title>
 <style>
-  @page { size: letter; margin: 12mm; }
-  body { font-family: system-ui, sans-serif; font-size: 11pt; color: #111; line-height: 1.4; }
+  /* Laterales más amplios que arriba/abajo (carta); @page rige impresión / PDF. */
+  @page { size: letter; margin: 11mm 22mm; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, sans-serif; font-size: 11pt; color: #111; line-height: 1.4; margin: 0; }
+  /* La vista previa en pantalla no aplica @page: mismo margen lateral que al imprimir. */
+  @media screen {
+    body {
+      max-width: 8.5in;
+      margin-left: auto;
+      margin-right: auto;
+      padding: 12mm 22mm 18mm;
+    }
+  }
   h1 { font-size: 16pt; margin: 0 0 12px; }
   h2 { font-size: 12pt; margin: 16px 0 8px; color: #333; }
   table { width: 100%; border-collapse: collapse; margin-top: 12px; }
@@ -925,7 +946,15 @@ ${aviso}
 ${innerHtml}
 ${foot}
 </body></html>`;
+}
 
+/** Documento tamaño carta (facturas / cotizaciones) en ventana de impresión. */
+export function printLetterDocument(
+  title: string,
+  innerHtml: string,
+  options?: { sucursalId?: string | null; avisoPrueba?: string }
+): void {
+  const html = buildLetterDocumentHtml(title, innerHtml, options);
   openCfdiLetterPrint(html, { printDelayMs: 300 });
 }
 

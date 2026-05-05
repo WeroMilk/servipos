@@ -6,7 +6,6 @@ import {
   Moon,
   Sun,
   User,
-  Zap,
   Power,
   PowerOff,
   ClipboardList,
@@ -55,7 +54,6 @@ export function Header() {
   const cajaPosHeader = useCajaPosHeaderStore();
   const { modificarSaldoVisible, openModificarSaldo } = cajaPosHeader;
   const ventasAbiertasHeader = useVentasAbiertasPosHeaderStore();
-  const { isOnline, isSyncing, pendingCount, sync } = useSyncStore();
   const toggleTheme = useAppStore((s) => s.toggleTheme);
   const resolvedDark = useAppStore((s) => getResolvedIsDark(s));
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -69,10 +67,6 @@ export function Header() {
     await logout();
     navigate('/login');
   };
-
-  const enModoNube = Boolean(effectiveSucursalId);
-  /** En sucursal nube el dato vivo es Firestore; no mostrar pendientes de IndexedDB aunque queden filas locales. */
-  const pendingDisplay = enModoNube ? 0 : pendingCount;
 
   const closeMobileMenu = () => setMobileMenuOpen(false);
 
@@ -295,15 +289,6 @@ export function Header() {
     </>
   ) : null;
 
-  const syncButtonClass = cn(
-    'flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm transition-all duration-200',
-    isSyncing
-      ? 'bg-cyan-500/15 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-400'
-      : pendingDisplay > 0
-        ? 'bg-amber-500/15 text-black dark:bg-amber-500/20 dark:text-amber-100 dark:hover:bg-amber-500/30'
-        : 'bg-slate-200/80 text-slate-600 hover:bg-slate-300/80 dark:bg-slate-800/50 dark:text-slate-400 dark:hover:bg-slate-700/50'
-  );
-
   const normalizedUsername = (user?.username ?? '').trim().toLowerCase();
   const normalizedName = (user?.name ?? '').trim().toLowerCase();
   const emailLocalPart = (user?.email ?? '').split('@')[0]?.trim().toLowerCase() ?? '';
@@ -415,31 +400,6 @@ export function Header() {
 
           <div className="flex min-w-0 flex-1 items-center justify-end gap-1 sm:gap-2 md:gap-3">
             <AdminSucursalSwitcher />
-            <button
-              type="button"
-              onClick={() => void sync(effectiveSucursalId)}
-              disabled={!isOnline || isSyncing}
-              aria-label={
-                isSyncing
-                  ? 'Comprobando sincronización'
-                  : pendingDisplay > 0
-                    ? `${pendingDisplay} pendientes. Comprobar sincronización`
-                    : 'Comprobar sincronización'
-              }
-              className={cn(
-                'flex shrink-0 items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-all duration-200 sm:px-3',
-                isSyncing
-                  ? 'bg-cyan-500/15 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-400'
-                  : pendingDisplay > 0
-                    ? 'bg-amber-500/15 text-black dark:bg-amber-500/20 dark:text-amber-100 dark:hover:bg-amber-500/30'
-                    : 'bg-slate-200/80 text-slate-600 hover:bg-slate-300/80 dark:bg-slate-800/50 dark:text-slate-400 dark:hover:bg-slate-700/50'
-              )}
-            >
-              <Zap className={cn('h-4 w-4', isSyncing && 'animate-pulse')} />
-              <span className="hidden sm:inline">
-                {isSyncing ? 'Comprobando…' : pendingDisplay > 0 ? `${pendingDisplay} pendientes` : 'Sincronizado'}
-              </span>
-            </button>
 
             <Button
               type="button"
@@ -521,7 +481,7 @@ export function Header() {
           <SheetHeader className="shrink-0 space-y-2 border-b border-slate-200/80 pb-3 pr-2 text-left dark:border-slate-800/80">
             <SheetTitle className="text-base text-slate-900 dark:text-slate-100">Menú</SheetTitle>
             <SheetDescription className="sr-only">
-              Menú móvil con navegación, estado de sincronización y accesos de la cuenta.
+              Menú móvil con navegación y accesos de la cuenta.
             </SheetDescription>
             {user && hasPermission('reportes:ver') ? (
               <div className="flex items-center justify-between gap-2 rounded-xl border border-slate-200/80 bg-slate-50/50 px-3 py-2 dark:border-slate-800/60 dark:bg-slate-900/40">
@@ -598,18 +558,6 @@ export function Header() {
                 <div className="flex flex-wrap gap-2">{posToolbar}</div>
               </div>
             ) : null}
-
-            <button
-              type="button"
-              onClick={() => void sync(effectiveSucursalId)}
-              disabled={!isOnline || isSyncing}
-              className={cn(syncButtonClass, 'w-full justify-center')}
-            >
-              <Zap className={cn('h-4 w-4', isSyncing && 'animate-pulse')} />
-              <span>
-                {isSyncing ? 'Comprobando…' : pendingDisplay > 0 ? `${pendingDisplay} pendientes` : 'Sincronizado'}
-              </span>
-            </button>
 
             <div className="flex items-center gap-2">
               <Button

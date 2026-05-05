@@ -1,4 +1,4 @@
-import type { Client } from '@/types';
+import type { Client, ClientAbonoHistorialEntry } from '@/types';
 import { normalizeClientPriceListId } from '@/lib/clientPriceLists';
 import { getSupabase } from '@/lib/supabaseClient';
 
@@ -17,6 +17,31 @@ function firestoreTimestampToDate(value: unknown): Date {
   }
   if (value instanceof Date) return value;
   return new Date();
+}
+
+function parseAbonosHistorialDoc(raw: unknown): ClientAbonoHistorialEntry[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  const out: ClientAbonoHistorialEntry[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const o = item as Record<string, unknown>;
+    if (o.at == null) continue;
+    const at = firestoreTimestampToDate(o.at);
+    const monto = Number(o.monto);
+    if (!Number.isFinite(monto) || monto < 0) continue;
+    const saldoAnt = Number(o.saldoAnterior);
+    const saldoNvo = Number(o.saldoNuevo);
+    const usuarioNombreRaw = o.usuarioNombre != null ? String(o.usuarioNombre).trim() : '';
+    out.push({
+      at,
+      monto: Math.max(0, Math.round(monto * 100) / 100),
+      saldoAnterior:
+        Number.isFinite(saldoAnt) ? Math.max(0, Math.round(saldoAnt * 100) / 100) : 0,
+      saldoNuevo: Number.isFinite(saldoNvo) ? Math.max(0, Math.round(saldoNvo * 100) / 100) : 0,
+      usuarioNombre: usuarioNombreRaw || undefined,
+    });
+  }
+  return out.length ? out : undefined;
 }
 
 export function docToClient(sucursalId: string, id: string, d: Record<string, unknown>): Client {
@@ -68,6 +93,7 @@ export function docToClient(sucursalId: string, id: string, d: Record<string, un
       d.ultimoAbonoUsuarioNombre != null && String(d.ultimoAbonoUsuarioNombre).trim() !== ''
         ? String(d.ultimoAbonoUsuarioNombre).trim()
         : undefined,
+    abonosHistorial: parseAbonosHistorialDoc(d.abonosHistorial),
     notasInternas:
       d.notasInternas != null && String(d.notasInternas).trim() !== ''
         ? String(d.notasInternas)
@@ -214,6 +240,19 @@ export async function updateClientFirestore(
   if (updates.ultimoAbonoUsuarioNombre !== undefined) {
     const t = updates.ultimoAbonoUsuarioNombre?.trim();
     doc.ultimoAbonoUsuarioNombre = t ? t : null;
+  }
+  if (updates.abonosHistorial !== undefined) {
+    const arr = updates.abonosHistorial;
+    doc.abonosHistorial =
+      arr && arr.length > 0 ?
+        arr.map((e) => ({
+          at: new Date(e.at).toISOString(),
+          monto: Math.max(0, Math.round(Number(e.monto) * 100) / 100),
+          saldoAnterior: Math.max(0, Math.round(Number(e.saldoAnterior) * 100) / 100),
+          saldoNuevo: Math.max(0, Math.round(Number(e.saldoNuevo) * 100) / 100),
+          usuarioNombre: e.usuarioNombre?.trim() ? e.usuarioNombre.trim() : null,
+        }))
+      : null;
   }
   if (updates.notasInternas !== undefined) {
     const t = updates.notasInternas?.trim();
