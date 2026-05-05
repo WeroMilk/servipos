@@ -61,6 +61,7 @@ import {
 import { useAppStore, useAuthStore, useInventoryListsStore } from '@/stores';
 import { setInventarioHeaderBridge, clearInventarioHeaderBridge } from '@/stores/inventarioHeaderStore';
 import type { InventoryMovement, Product, Sucursal } from '@/types';
+import { productEsServicio } from '@/lib/productServicio';
 import {
   CLIENT_PRICE_LIST_ORDER,
   CLIENT_PRICE_LABELS,
@@ -176,7 +177,8 @@ function compareInventoryProducts(
  * Stock bajo: sin existencia; existencia &lt; 15% del mínimo (si hay mínimo &gt; 0);
  * o existencia en o por debajo del mínimo configurado.
  */
-function isStockBajo(p: { existencia: number; existenciaMinima: number }): boolean {
+function isStockBajo(p: { existencia: number; existenciaMinima: number; esServicio?: boolean; categoria?: string }): boolean {
+  if (productEsServicio(p)) return false;
   if (p.existencia <= 0) return true;
   if (p.existenciaMinima > 0 && p.existencia / p.existenciaMinima < 0.15) return true;
   return p.existencia <= p.existenciaMinima;
@@ -1223,10 +1225,10 @@ export function Inventario() {
 
   const valorInventarioTotal = useMemo(
     () =>
-      products.reduce(
-        (sum, p) => sum + getProductPrecioPublicoRegular(p) * p.existencia,
-        0
-      ),
+      products.reduce((sum, p) => {
+        if (productEsServicio(p)) return sum;
+        return sum + getProductPrecioPublicoRegular(p) * p.existencia;
+      }, 0),
     [products]
   );
   const isInventoryLoadingUi = loading || inventoryBootstrapping;

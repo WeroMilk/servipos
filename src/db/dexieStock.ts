@@ -1,5 +1,6 @@
 import { db } from './database';
 import type { StockEntradaMeta } from '@/types';
+import { productEsServicio } from '@/lib/productServicio';
 
 /**
  * Ajuste de existencias solo en Dexie (modo sin sucursal / local).
@@ -15,6 +16,7 @@ export async function updateStockDexie(
 ): Promise<void> {
   const product = await db.products.get(productId);
   if (!product) throw new Error('Producto no encontrado');
+  if (productEsServicio(product)) return;
 
   const cantidadAnterior = product.existencia;
   let cantidadNueva: number;

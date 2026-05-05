@@ -21,6 +21,7 @@ import {
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 import { coerceProductList } from '@/lib/productCoerce';
 import { normSkuBarcode } from '@/lib/productCatalogUniqueness';
+import { productEsServicio } from '@/lib/productServicio';
 import {
   auditActorSuffix,
   diffProductCatalogUpdates,
@@ -454,7 +455,12 @@ export function useLowStockProducts() {
   const [loading, setLoading] = useState(true);
 
   const filterLow = useCallback((list: Product[]) => {
-    return list.filter((p) => p.activo === true && p.existencia <= p.existenciaMinima);
+    return list.filter(
+      (p) =>
+        p.activo === true &&
+        !productEsServicio(p) &&
+        p.existencia <= p.existenciaMinima
+    );
   }, []);
 
   const loadLowStockLocal = useCallback(async () => {

@@ -121,9 +121,14 @@ function listInventoryXlsx(dir) {
   return names.map((n) => join(dir, n));
 }
 
-export function mergeRowsFromDir(dir, ultimoGana) {
-  const files = listInventoryXlsx(dir);
-  if (files.length === 0) throw new Error(`No hay archivos .xlsx en: ${dir}`);
+export function mergeRowsFromDir(dir, ultimoGana, opts = {}) {
+  let files = listInventoryXlsx(dir);
+  const only = opts.onlyBasenames;
+  if (Array.isArray(only) && only.length > 0) {
+    const allow = new Set(only.map((n) => basename(String(n)).toLowerCase()));
+    files = files.filter((fp) => allow.has(basename(fp).toLowerCase()));
+  }
+  if (files.length === 0) throw new Error(`No hay archivos .xlsx en: ${dir}${only?.length ? ' (tras filtro de nombres)' : ''}`);
 
   const bySku = new Map();
   const duplicateSkus = [];

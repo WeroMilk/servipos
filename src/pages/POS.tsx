@@ -113,6 +113,7 @@ import {
   getProductUnitConIvaForClienteList,
   getProductUnitSinIvaForClienteList,
 } from '@/lib/productListPricing';
+import { productEsServicio } from '@/lib/productServicio';
 import {
   buildDevolucionTicketLineas,
   previewReembolsoDevolucion,
@@ -2954,12 +2955,14 @@ export function POS() {
                           <p
                             className={cn(
                               'text-xs',
-                              product.existencia <= product.existenciaMinima
-                                ? 'text-amber-400'
-                                : 'text-slate-600 dark:text-slate-500'
+                              productEsServicio(product)
+                                ? 'text-slate-500 dark:text-slate-500'
+                                : product.existencia <= product.existenciaMinima
+                                  ? 'text-amber-400'
+                                  : 'text-slate-600 dark:text-slate-500'
                             )}
                           >
-                            Stk {product.existencia}
+                            {productEsServicio(product) ? 'Servicio' : `Stk ${product.existencia}`}
                           </p>
                         </div>
                       </button>

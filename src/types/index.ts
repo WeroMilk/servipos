@@ -173,6 +173,8 @@ export interface Product {
   unidadMedida: string;
   /** Clave de producto o servicio SAT (8 dígitos), ej. 31171504 — requerida para facturar correctamente. */
   claveProdServ?: string;
+  /** Si es true (o categoría SERVICIOS), el POS y los RPC no mueven existencias por ventas ni ajustes manuales en DB (ver `productServicio`). */
+  esServicio?: boolean;
   activo: boolean;
   createdAt: Date;
   updatedAt: Date;

@@ -14,6 +14,7 @@ import type {
   SyncLog,
   Permission,
 } from '@/types';
+import { productEsServicio } from '@/lib/productServicio';
 import { updateStockUnified } from '@/data/stockBridge';
 import {
   createSaleFirestore,
@@ -510,7 +511,12 @@ export async function searchProducts(query: string): Promise<Product[]> {
 
 export async function getLowStockProducts(): Promise<Product[]> {
   return await db.products
-    .filter(p => p.activo === true && p.existencia <= p.existenciaMinima)
+    .filter(
+      (p) =>
+        p.activo === true &&
+        !productEsServicio(p) &&
+        p.existencia <= p.existenciaMinima
+    )
     .toArray();
 }
 

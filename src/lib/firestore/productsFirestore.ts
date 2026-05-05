@@ -94,6 +94,7 @@ export function docToProduct(row: { id: string; doc: Record<string, unknown> }):
       const raw = d.claveProdServ != null ? String(d.claveProdServ).replace(/\D/g, '').slice(0, 8) : '';
       return raw.length === 8 ? raw : undefined;
     })(),
+    esServicio: d.esServicio === true,
     activo: d.activo !== false,
     createdAt: firestoreTimestampToDate(d.createdAt),
     updatedAt: firestoreTimestampToDate(d.updatedAt),
@@ -127,6 +128,7 @@ function productToDocPayload(
       normalizeClaveProdServ(product.claveProdServ).length === 8
         ? normalizeClaveProdServ(product.claveProdServ)
         : null,
+    esServicio: product.esServicio === true ? true : null,
     activo: product.activo,
   };
 }
@@ -260,6 +262,7 @@ const PRODUCT_UPDATE_KEYS = [
   'imagen',
   'unidadMedida',
   'activo',
+  'esServicio',
 ] as const satisfies readonly (keyof Product)[];
 
 export async function updateProductFirestore(
@@ -403,6 +406,7 @@ export async function ensureProductAtDestForTransfer(
         od.preciosPorListaCliente != null && typeof od.preciosPorListaCliente === 'object'
           ? od.preciosPorListaCliente
           : null,
+      esServicio: od.esServicio === true ? true : null,
       activo: true,
       createdAt: ts,
       updatedAt: ts,

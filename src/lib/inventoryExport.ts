@@ -2,12 +2,14 @@ import type { Product } from '@/types';
 import { CLIENT_PRICE_LIST_ORDER, CLIENT_PRICE_LABELS } from '@/lib/clientPriceLists';
 import { getProductPrecioPublicoRegular } from '@/lib/productListPricing';
 import { formatInAppTimezone } from '@/lib/appTimezone';
+import { productEsServicio } from '@/lib/productServicio';
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-function esStockBajo(p: { existencia: number; existenciaMinima: number }): boolean {
+function esStockBajo(p: Product): boolean {
+  if (productEsServicio(p)) return false;
   if (p.existencia <= 0) return true;
   if (p.existenciaMinima > 0 && p.existencia / p.existenciaMinima < 0.15) return true;
   return p.existencia <= p.existenciaMinima;
