@@ -19,6 +19,7 @@
     "export:rtf-precios-audit": "node scripts/export-rtf-precios-audit.mjs",
     "import:csv-olivares-to-supabase": "node scripts/import-csv-precios-olivares-to-supabase.mjs",
     "import:xlsx-inventario-supabase": "node scripts/import-xlsx-inventario-supabase.mjs",
+    "normalize:precios-centavo01-supabase": "node scripts/normalize-product-prices-one-cent-supabase.mjs",
     "etl:olivares-csv-py": "python scripts/python/olivares_xlsx_rtf_to_csv.py",
     "supabase:db:push": "supabase db push"
   },

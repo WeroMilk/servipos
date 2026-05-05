@@ -13,9 +13,9 @@ import {
   Trash2,
   RotateCcw,
   ArrowDownWideNarrow,
-  Calendar,
-  ArrowDownAZ,
-  ArrowUpAZ,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   Download,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -51,6 +51,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
@@ -83,11 +85,10 @@ const statusLabels: Record<string, string> = {
 
 type CotizacionStatusFiltro = 'todas' | 'cobrada' | 'pendiente' | 'expirada';
 
-type CotizacionOrden =
-  | 'fecha-desc'
-  | 'fecha-asc'
-  | 'nombre-asc'
-  | 'nombre-desc';
+/** Columnas ordenables de la tabla (Acciones no aplica). */
+type CotizacionSortColumn = 'folio' | 'cliente' | 'fecha' | 'vigencia' | 'total' | 'estado';
+
+type CotizacionSort = { column: CotizacionSortColumn; dir: 'asc' | 'desc' };
 
 function vigenciaTs(q: Quotation): number {
   const d = q.fechaVigencia;
@@ -113,36 +114,138 @@ function coincideFiltroEstado(q: Quotation, filtro: CotizacionStatusFiltro): boo
   return !esCotizacionExpirada(q) && q.estado !== 'convertida';
 }
 
-function nombreOrden(q: Quotation): string {
+function nombreClienteOrden(q: Quotation): string {
   return (q.cliente?.nombre?.trim() || q.folio || '').toLocaleLowerCase('es');
 }
 
-function ordenarCotizaciones(list: Quotation[], orden: CotizacionOrden): Quotation[] {
-  const out = [...list];
-  switch (orden) {
-    case 'fecha-desc':
-      return out.sort((a, b) => createdTs(b) - createdTs(a));
-    case 'fecha-asc':
-      return out.sort((a, b) => createdTs(a) - createdTs(b));
-    case 'nombre-asc':
-      return out.sort((a, b) =>
-        nombreOrden(a).localeCompare(nombreOrden(b), 'es', { sensitivity: 'base' })
-      );
-    case 'nombre-desc':
-      return out.sort((a, b) =>
-        nombreOrden(b).localeCompare(nombreOrden(a), 'es', { sensitivity: 'base' })
-      );
+/** Primera vez que se elige una columna: fechas/montos suelen ir del más nuevo al más viejo; texto de A→Z. */
+function defaultSortDir(column: CotizacionSortColumn): 'asc' | 'desc' {
+  switch (column) {
+    case 'fecha':
+    case 'vigencia':
+    case 'total':
+      return 'desc';
     default:
-      return out;
+      return 'asc';
   }
 }
 
-const ORDEN_LABELS: Record<CotizacionOrden, string> = {
-  'fecha-desc': 'Fecha: más reciente primero',
-  'fecha-asc': 'Fecha: más antigua primero',
-  'nombre-asc': 'Nombre: A → Z',
-  'nombre-desc': 'Nombre: Z → A',
-};
+function estadoSortKey(q: Quotation): number {
+  const order: Record<Quotation['estado'], number> = {
+    pendiente: 0,
+    aceptada: 1,
+    rechazada: 2,
+    vencida: 3,
+    convertida: 4,
+  };
+  return order[q.estado] ?? 99;
+}
+
+function ordenarCotizaciones(list: Quotation[], sort: CotizacionSort): Quotation[] {
+  const out = [...list];
+  const mul = sort.dir === 'asc' ? 1 : -1;
+  out.sort((a, b) => {
+    let cmp = 0;
+    switch (sort.column) {
+      case 'folio':
+        cmp = String(a.folio ?? '').localeCompare(String(b.folio ?? ''), 'es', {
+          numeric: true,
+          sensitivity: 'base',
+        });
+        break;
+      case 'cliente':
+        cmp = nombreClienteOrden(a).localeCompare(nombreClienteOrden(b), 'es', {
+          sensitivity: 'base',
+        });
+        break;
+      case 'fecha':
+        cmp = createdTs(a) - createdTs(b);
+        break;
+      case 'vigencia':
+        cmp = vigenciaTs(a) - vigenciaTs(b);
+        break;
+      case 'total':
+        cmp = (Number(a.total) || 0) - (Number(b.total) || 0);
+        break;
+      case 'estado':
+        cmp = estadoSortKey(a) - estadoSortKey(b);
+        break;
+      default:
+        cmp = 0;
+    }
+    if (cmp !== 0) return mul * cmp;
+    return createdTs(b) - createdTs(a);
+  });
+  return out;
+}
+
+function sortSummaryLabel(sort: CotizacionSort): string {
+  const colLabels: Record<CotizacionSortColumn, string> = {
+    folio: 'Folio',
+    cliente: 'Cliente',
+    fecha: 'Fecha',
+    vigencia: 'Vigencia',
+    total: 'Total',
+    estado: 'Estado',
+  };
+  const dirLabel = sort.dir === 'asc' ? 'ascendente' : 'descendente';
+  return `${colLabels[sort.column]} · ${dirLabel}`;
+}
+
+function SortableTableHead({
+  column,
+  label,
+  sort,
+  onSort,
+  alignRight,
+}: {
+  column: CotizacionSortColumn;
+  label: string;
+  sort: CotizacionSort;
+  onSort: (column: CotizacionSortColumn) => void;
+  alignRight?: boolean;
+}) {
+  const active = sort.column === column;
+  return (
+    <TableHead className={cn('text-slate-600 dark:text-slate-400', alignRight && 'text-right')}>
+      <button
+        type="button"
+        onClick={() => onSort(column)}
+        className={cn(
+          'inline-flex max-w-full items-center gap-1 rounded px-0.5 py-0.5 text-left font-medium outline-none transition-colors hover:text-cyan-700 dark:hover:text-cyan-300 focus-visible:ring-2 focus-visible:ring-cyan-500/40',
+          alignRight && 'ml-auto flex-row-reverse text-right'
+        )}
+      >
+        <span className="truncate">{label}</span>
+        {active ?
+          sort.dir === 'asc' ?
+            <ArrowUp className="h-3.5 w-3.5 shrink-0 text-cyan-600 dark:text-cyan-400" aria-hidden />
+          : <ArrowDown className="h-3.5 w-3.5 shrink-0 text-cyan-600 dark:text-cyan-400" aria-hidden />
+        : <ArrowUpDown className="h-3.5 w-3.5 shrink-0 opacity-35" aria-hidden />}
+      </button>
+    </TableHead>
+  );
+}
+
+function sortMatches(a: CotizacionSort, b: CotizacionSort): boolean {
+  return a.column === b.column && a.dir === b.dir;
+}
+
+/** Opciones explícitas para móvil (misma lógica que los encabezados de la tabla). */
+const MOBILE_SORT_PRESETS: { sort: CotizacionSort; label: string }[] = [
+  { sort: { column: 'folio', dir: 'asc' }, label: 'Folio · ascendente (A→Z)' },
+  { sort: { column: 'folio', dir: 'desc' }, label: 'Folio · descendente (Z→A)' },
+  { sort: { column: 'cliente', dir: 'asc' }, label: 'Cliente · ascendente (A→Z)' },
+  { sort: { column: 'cliente', dir: 'desc' }, label: 'Cliente · descendente (Z→A)' },
+  { sort: { column: 'fecha', dir: 'desc' }, label: 'Fecha · más reciente primero' },
+  { sort: { column: 'fecha', dir: 'asc' }, label: 'Fecha · más antigua primero' },
+  { sort: { column: 'vigencia', dir: 'desc' }, label: 'Vigencia · fecha fin más lejana primero' },
+  { sort: { column: 'vigencia', dir: 'asc' }, label: 'Vigencia · fecha fin más cercana primero' },
+  { sort: { column: 'total', dir: 'desc' }, label: 'Total · mayor primero' },
+  { sort: { column: 'total', dir: 'asc' }, label: 'Total · menor primero' },
+  { sort: { column: 'estado', dir: 'asc' }, label: 'Estado · orden del flujo (pendiente → cobrada)' },
+  { sort: { column: 'estado', dir: 'desc' }, label: 'Estado · orden inverso' },
+];
 
 function cajeroNombreFromUser(u: { name?: string; username?: string; email?: string } | null | undefined): string {
   if (!u) return '';
@@ -197,7 +300,10 @@ export function Cotizaciones() {
   const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filtroEstado, setFiltroEstado] = useState<CotizacionStatusFiltro>('todas');
-  const [ordenCotizaciones, setOrdenCotizaciones] = useState<CotizacionOrden>('fecha-desc');
+  const [cotizacionSort, setCotizacionSort] = useState<CotizacionSort>({
+    column: 'fecha',
+    dir: 'desc',
+  });
   const [productSearchQuery, setProductSearchQuery] = useState('');
 
   const [emailOpen, setEmailOpen] = useState(false);
@@ -428,8 +534,17 @@ export function Cotizaciones() {
 
   const displayQuotations = useMemo(() => {
     const porEstado = filteredQuotations.filter((q) => coincideFiltroEstado(q, filtroEstado));
-    return ordenarCotizaciones(porEstado, ordenCotizaciones);
-  }, [filteredQuotations, filtroEstado, ordenCotizaciones]);
+    return ordenarCotizaciones(porEstado, cotizacionSort);
+  }, [filteredQuotations, filtroEstado, cotizacionSort]);
+
+  const handleSortColumnClick = (column: CotizacionSortColumn) => {
+    setCotizacionSort((prev) => {
+      if (prev.column !== column) {
+        return { column, dir: defaultSortDir(column) };
+      }
+      return { column, dir: prev.dir === 'asc' ? 'desc' : 'asc' };
+    });
+  };
 
   const openDetail = (q: Quotation) => {
     setSelectedQuotation(q);
@@ -470,58 +585,38 @@ export function Cotizaciones() {
                 <Button
                   type="button"
                   variant="outline"
-                  size="icon"
-                  className="h-9 w-9 shrink-0 border-slate-200 bg-slate-50/90 dark:border-slate-800 dark:bg-slate-900/50 sm:h-10 sm:w-10"
-                  title={ORDEN_LABELS[ordenCotizaciones]}
-                  aria-label="Ordenar lista"
+                  size="sm"
+                  className="h-9 shrink-0 gap-1.5 border-slate-200 bg-slate-50/90 px-2 dark:border-slate-800 dark:bg-slate-900/50 sm:h-10 sm:gap-2 sm:px-3"
+                  title={sortSummaryLabel(cotizacionSort)}
+                  aria-label="Ordenar cotizaciones"
                 >
-                  <ArrowDownWideNarrow className="h-4 w-4 text-slate-700 dark:text-slate-300" />
+                  <ArrowDownWideNarrow className="h-4 w-4 shrink-0 text-slate-700 dark:text-slate-300" />
+                  <span className="hidden max-w-[10rem] truncate text-xs text-slate-700 dark:text-slate-300 sm:inline sm:text-sm">
+                    {sortSummaryLabel(cotizacionSort)}
+                  </span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="end"
-                className="min-w-[14rem] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
+                className="max-h-[min(70vh,24rem)] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
               >
-                <DropdownMenuItem
-                  onClick={() => setOrdenCotizaciones('fecha-desc')}
-                  className={cn(
-                    'gap-2 text-slate-700 dark:text-slate-300',
-                    ordenCotizaciones === 'fecha-desc' && 'bg-cyan-500/15 text-cyan-800 dark:text-cyan-200'
-                  )}
-                >
-                  <Calendar className="h-4 w-4 shrink-0 opacity-70" />
-                  {ORDEN_LABELS['fecha-desc']}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => setOrdenCotizaciones('fecha-asc')}
-                  className={cn(
-                    'gap-2 text-slate-700 dark:text-slate-300',
-                    ordenCotizaciones === 'fecha-asc' && 'bg-cyan-500/15 text-cyan-800 dark:text-cyan-200'
-                  )}
-                >
-                  <Calendar className="h-4 w-4 shrink-0 opacity-70" />
-                  {ORDEN_LABELS['fecha-asc']}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => setOrdenCotizaciones('nombre-asc')}
-                  className={cn(
-                    'gap-2 text-slate-700 dark:text-slate-300',
-                    ordenCotizaciones === 'nombre-asc' && 'bg-cyan-500/15 text-cyan-800 dark:text-cyan-200'
-                  )}
-                >
-                  <ArrowDownAZ className="h-4 w-4 shrink-0 opacity-70" />
-                  {ORDEN_LABELS['nombre-asc']}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => setOrdenCotizaciones('nombre-desc')}
-                  className={cn(
-                    'gap-2 text-slate-700 dark:text-slate-300',
-                    ordenCotizaciones === 'nombre-desc' && 'bg-cyan-500/15 text-cyan-800 dark:text-cyan-200'
-                  )}
-                >
-                  <ArrowUpAZ className="h-4 w-4 shrink-0 opacity-70" />
-                  {ORDEN_LABELS['nombre-desc']}
-                </DropdownMenuItem>
+                <DropdownMenuLabel className="text-xs font-normal text-slate-500 dark:text-slate-400">
+                  Orden (mismo criterio que columnas en escritorio)
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {MOBILE_SORT_PRESETS.map(({ sort: presetSort, label }) => (
+                  <DropdownMenuItem
+                    key={`${presetSort.column}-${presetSort.dir}`}
+                    onClick={() => setCotizacionSort(presetSort)}
+                    className={cn(
+                      'text-slate-700 dark:text-slate-300',
+                      sortMatches(cotizacionSort, presetSort) &&
+                        'bg-cyan-500/15 text-cyan-800 dark:text-cyan-200'
+                    )}
+                  >
+                    {label}
+                  </DropdownMenuItem>
+                ))}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -646,12 +741,42 @@ export function Cotizaciones() {
                 <Table>
                   <TableHeader>
                     <TableRow className="border-slate-200 dark:border-slate-800">
-                      <TableHead className="text-slate-600 dark:text-slate-400">Folio</TableHead>
-                      <TableHead className="text-slate-600 dark:text-slate-400">Cliente</TableHead>
-                      <TableHead className="text-slate-600 dark:text-slate-400">Fecha</TableHead>
-                      <TableHead className="text-slate-600 dark:text-slate-400">Vigencia</TableHead>
-                      <TableHead className="text-slate-600 dark:text-slate-400">Total</TableHead>
-                      <TableHead className="text-slate-600 dark:text-slate-400">Estado</TableHead>
+                      <SortableTableHead
+                        column="folio"
+                        label="Folio"
+                        sort={cotizacionSort}
+                        onSort={handleSortColumnClick}
+                      />
+                      <SortableTableHead
+                        column="cliente"
+                        label="Cliente"
+                        sort={cotizacionSort}
+                        onSort={handleSortColumnClick}
+                      />
+                      <SortableTableHead
+                        column="fecha"
+                        label="Fecha"
+                        sort={cotizacionSort}
+                        onSort={handleSortColumnClick}
+                      />
+                      <SortableTableHead
+                        column="vigencia"
+                        label="Vigencia"
+                        sort={cotizacionSort}
+                        onSort={handleSortColumnClick}
+                      />
+                      <SortableTableHead
+                        column="total"
+                        label="Total"
+                        sort={cotizacionSort}
+                        onSort={handleSortColumnClick}
+                      />
+                      <SortableTableHead
+                        column="estado"
+                        label="Estado"
+                        sort={cotizacionSort}
+                        onSort={handleSortColumnClick}
+                      />
                       <TableHead className="text-right text-slate-600 dark:text-slate-400">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
