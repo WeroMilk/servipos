@@ -12,6 +12,24 @@ function roundMoney2(n: number): number {
   return Math.round((Number(n) || 0) * 100) / 100;
 }
 
+/**
+ * Lista Regular (precio mostrador): si el público con IVA redondeado a centavo termina en `.01`,
+ * bajar un centavo el público y usar la base sin IVA exacta (`conIva / (1 + tasa)`).
+ * Evita artefactos tipo `818.97 × 1.16 → 950.01` cuando el precio deseado es `.00`.
+ * No aplica `roundMoney2` al resultado ajustado: volvería a reproducir el `.01`.
+ */
+function snapRegularSinIvaAvoidDotZeroOneConIva(coreSinIvaRounded: number, product: Product): number {
+  if (!(coreSinIvaRounded > 0) || !Number.isFinite(coreSinIvaRounded)) return coreSinIvaRounded;
+  const imp = impuestoPct(product);
+  const factor = 1 + imp / 100;
+  const con = roundMoney2(coreSinIvaRounded * factor);
+  const cents = Math.round(con * 100) % 100;
+  if (cents !== 1) return coreSinIvaRounded;
+  const conAdj = roundMoney2(con - 0.01);
+  if (!(conAdj > 0)) return coreSinIvaRounded;
+  return conAdj / factor;
+}
+
 /** Convierte importe fijo de lista (según bandera IVA del producto) a unitario sin IVA. */
 function explicitListaToSinIva(product: Product, explicit: number): number {
   if (effectiveListaPreciosIncluyenIva(product)) {
@@ -54,12 +72,12 @@ function getRegularUnitSinIva(product: Product): number {
   }
 
   if (core > 0) {
-    return roundMoney2(core);
+    return snapRegularSinIvaAvoidDotZeroOneConIva(roundMoney2(core), product);
   }
 
   const alt = firstSinIvaFromAnyLista(product);
   if (alt > 0) {
-    return roundMoney2(alt * (1 - pctReg / 100));
+    return snapRegularSinIvaAvoidDotZeroOneConIva(roundMoney2(alt * (1 - pctReg / 100)), product);
   }
   return 0;
 }
