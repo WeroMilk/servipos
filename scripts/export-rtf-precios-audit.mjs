@@ -4,7 +4,7 @@
  * Columnas: con IVA (como en Crystal) y sin IVA (como en BD con --iva=16).
  *
  * Uso:
- *   node scripts/export-rtf-precios-audit.mjs --rtf="C:\...\lista de precios.rtf" --out="./data/audit-precios-rtf.csv"
+ *   node scripts/export-rtf-precios-audit.mjs --rtf="C:\...\lista.pdf" --out="./data/audit-precios.csv"
  *
  * Opciones:
  *   --iva=16
@@ -16,16 +16,16 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   LIST_KEYS,
-  parsePreciosRtfBlocks,
+  parseListaPreciosBlocks,
   conIvaASinIva,
-  loadRtfTextFromFile,
+  loadListaPreciosTextFromFile,
   normNombreKey,
 } from './lib/olivaresRtfPrecios.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 function parseArgs() {
-  const out = { rtf: '', outPath: join(__dirname, '..', 'data', 'audit-precios-rtf.csv'), ivaPct: 16, pad5: true };
+  const out = { rtf: '', outPath: join(__dirname, '..', 'data', 'audit-precios-rtf.csv'), ivaPct: 16, pad5: false };
   for (const a of process.argv.slice(2)) {
     if (a.startsWith('--rtf=')) out.rtf = a.slice(6).trim();
     else if (a.startsWith('--out=')) out.outPath = a.slice(6).trim();
@@ -44,12 +44,12 @@ function csvCell(s) {
 function main() {
   const args = parseArgs();
   if (!args.rtf) {
-    console.error('Uso: node scripts/export-rtf-precios-audit.mjs --rtf="...lista de precios.rtf" [--out=./data/audit.csv]');
+    console.error('Uso: node scripts/export-rtf-precios-audit.mjs --rtf="...lista.rtf|.pdf" [--out=./data/audit.csv]');
     process.exit(1);
   }
 
-  const rtfText = loadRtfTextFromFile(args.rtf);
-  const blocks = parsePreciosRtfBlocks(rtfText, { pad5: args.pad5 });
+  const listaText = loadListaPreciosTextFromFile(args.rtf);
+  const blocks = parseListaPreciosBlocks(listaText, { pad5: args.pad5 });
 
   const header = [
     'sku',
@@ -70,14 +70,20 @@ function main() {
 
     const sin = {};
     for (const k of LIST_KEYS) {
-      sin[k] = conIvaASinIva(row.preciosConIva[k] ?? 0, args.ivaPct);
+      const c = row.preciosConIva[k];
+      sin[k] =
+        c != null && Number.isFinite(Number(c)) ? conIvaASinIva(Number(c), args.ivaPct) : '';
     }
 
     const cells = [
       row.sku,
       row.nombre,
-      ...LIST_KEYS.map((k) => String(row.preciosConIva[k] ?? '')),
-      ...LIST_KEYS.map((k) => String(sin[k] ?? '')),
+      ...LIST_KEYS.map((k) =>
+        row.preciosConIva[k] != null && Number.isFinite(Number(row.preciosConIva[k]))
+          ? String(row.preciosConIva[k])
+          : ''
+      ),
+      ...LIST_KEYS.map((k) => (sin[k] !== '' ? String(sin[k]) : '')),
       nk,
     ];
     lines.push(cells.map(csvCell).join(','));

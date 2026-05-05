@@ -27,6 +27,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 import { mergeRowsFromDir, disambiguateNombres, buildDescripcion } from './lib/olivaresInventoryFromDir.mjs';
+import { unidadSatProductoOlivares } from './lib/olivaresUnidadSat.mjs';
 import { LIST_KEYS } from './lib/olivaresRtfPrecios.mjs';
 
 /** Excels de categoría SERVIPOS (solo estos se leen si no pasa --dir-include-all-xlsx). */
@@ -141,7 +142,12 @@ function coalesceLista(prev) {
 function buildInventoryDoc({ r, prev, nowIso, createdAt, incluirRefId }) {
   const cat = String(r.categoria ?? '').trim();
   const esServicio = cat.toUpperCase() === 'SERVICIOS';
-  const existencia = esServicio ? 0 : Math.max(0, Math.round(num(r.existencia)));
+  const unidadMedida = esServicio ? 'E48' : unidadSatProductoOlivares(r.nombre, cat, prev?.unidadMedida);
+  const existencia = esServicio
+    ? 0
+    : unidadMedida === 'MTR' || unidadMedida === 'CMT'
+      ? Math.max(0, Math.round(num(r.existencia) * 1000) / 1000)
+      : Math.max(0, Math.round(num(r.existencia)));
   const lista = coalesceLista(prev);
   const precioVenta =
     prev != null && typeof prev.precioVenta === 'number' && Number.isFinite(prev.precioVenta)
@@ -178,7 +184,7 @@ function buildInventoryDoc({ r, prev, nowIso, createdAt, incluirRefId }) {
     preciosPorListaCliente: lista,
     preciosListaIncluyenIva,
     imagen: prev?.imagen != null ? String(prev.imagen) : null,
-    unidadMedida: esServicio ? 'E48' : 'H87',
+    unidadMedida,
     claveProdServ:
       prev?.claveProdServ != null && String(prev.claveProdServ).replace(/\D/g, '').length === 8
         ? String(prev.claveProdServ).replace(/\D/g, '').slice(0, 8)

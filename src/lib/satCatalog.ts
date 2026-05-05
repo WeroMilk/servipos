@@ -94,8 +94,50 @@ export function parseCantidadLlegadaSat(value: string, permitirDecimal: boolean)
   return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
+/** Paso de +/- en carrito POS: medio metro; centímetro en entero. */
+export function deltaCantidadBotonMasMenosSat(unidadMedida: string | undefined | null): number {
+  const u = normalizeClaveUnidadSat(unidadMedida);
+  if (u === 'MTR') return 0.5;
+  if (u === 'CMT') return 1;
+  return 1;
+}
+
+/** Cantidad válida por línea en ticket (PZ entero 1–9999; MTR/CMT con hasta 3 decimales). */
+export function snapCantidadLineaVenta(unidadMedida: string | undefined | null, qtyRaw: number): number {
+  const u = normalizeClaveUnidadSat(unidadMedida);
+  if (u === 'MTR' || u === 'CMT') {
+    const clamped = Math.min(999999, Math.max(0.001, Number(qtyRaw) || 0));
+    return Math.round(clamped * 1000) / 1000;
+  }
+  return Math.min(9999, Math.max(1, Math.floor(Number(qtyRaw)) || 0));
+}
+
 /** Existencia en formulario inventario: enteros salvo metro/centímetro. */
 export function parseExistenciaInventarioForm(value: string, unidadMedida: string): number {
   const u = normalizeClaveUnidadSat(unidadMedida);
   return parseCantidadLlegadaSat(value, u === 'MTR' || u === 'CMT');
+}
+
+/** Agrupa cantidad en línea POS / mensajes («pz» vs «m» / «cm»). */
+export function abrevCantidadVentaPorUnidadSat(clave: string | undefined | null): string {
+  switch (normalizeClaveUnidadSat(clave)) {
+    case 'MTR':
+      return 'm';
+    case 'CMT':
+      return 'cm';
+    default:
+      return 'pz';
+  }
+}
+
+/** Texto estable para cantidad en carrito (decimales solo metro/cm). */
+export function formatearCantidadLineaVentaSat(clave: string | undefined | null, qty: number): string {
+  const u = normalizeClaveUnidadSat(clave);
+  if (u === 'MTR' || u === 'CMT') {
+    const r = Math.round(Math.max(0, qty) * 1000) / 1000;
+    if (Number.isFinite(r) && Number.isInteger(r)) return String(r);
+    const s = r.toFixed(3);
+    return s.replace(/\.?0+$/, '');
+  }
+  return String(Math.max(1, Math.floor(qty)));
 }

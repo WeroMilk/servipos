@@ -2,18 +2,10 @@
 /**
  * Une el inventario exportado (CSV SERVIPARTZ) con "lista de precios.rtf" (Crystal Reports).
  *
- * Del RTF se toman los 5 importes **con IVA** (pesos) de la **fecha más reciente**:
- * por cada producto se usa el día calendario con la última captura y, dentro de ese día,
- * las **últimas 5** líneas con precio (si hay menos de 5 ese día, se rellenan con capturas
- * anteriores en el tiempo). Si aún hay menos de 5 líneas, **por defecto** se repite el último
- * precio hasta completar 5 (caso típico: solo actualizaron un importe en el RTF). Use `--no-pad`
- * para omitir productos incompletos como antes.
- *
- * Esos cinco importes se asignan así:
- *   1) Cananea: el precio con IVA que **tiene centavos** (no termina en .00); si hay varios con
- *      centavos, el **menor** de ellos; si **ninguno** tiene centavos, cananea = el **menor** de los cinco.
- *   2) Regular, técnico, mayoreo −, mayoreo +: los **cuatro** restantes, de **mayor a menor**
- *      (mayor = regular, … menor = mayoreo +).
+ * De la lista (RTF o PDF vía extracción de texto) se toman hasta **5** líneas de precio **más
+ * recientes por fecha/hora** (no limitadas a un solo día); se ordenan de **mayor a menor** y se
+ * asignan a Regular, Técnico, Mayoreo −, Mayoreo + y Cananea. Listas sin dato quedan vacías en el CSV.
+ * Con `--pad-5` se repite el último precio hasta completar 5 filas.
  *
  * Convierte precios **con IVA** a **sin IVA** para el catálogo.
  *
@@ -25,12 +17,12 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  parsePreciosRtf,
+  parsePreciosListaAuto,
   conIvaASinIva,
   normSkuKey,
   LIST_KEYS,
   buildPrecioIndexes,
-  loadRtfTextFromFile,
+  loadListaPreciosTextFromFile,
   matchRowToPrecios,
 } from './lib/olivaresRtfPrecios.mjs';
 
@@ -43,7 +35,7 @@ function parseArgs() {
     outPath: join(__dirname, '..', 'data', 'precios-merged-olivares.csv'),
     ivaPct: 16,
     sinIvaEnRtf: false,
-    pad5: true,
+    pad5: false,
   };
   for (const a of process.argv.slice(2)) {
     if (a.startsWith('--csv=')) out.csv = a.slice('--csv='.length).trim();
@@ -120,14 +112,14 @@ function main() {
     process.exit(1);
   }
   if (!existsSync(args.rtf)) {
-    console.error('No existe el RTF:', args.rtf);
+    console.error('No existe la lista (RTF o PDF):', args.rtf);
     process.exit(1);
   }
 
-  const rtfText = loadRtfTextFromFile(args.rtf);
-  const preciosMap = parsePreciosRtf(rtfText, { pad5: args.pad5 });
+  const listaText = loadListaPreciosTextFromFile(args.rtf);
+  const preciosMap = parsePreciosListaAuto(listaText, { pad5: args.pad5 });
   console.error(
-    `Productos con precios en RTF (por SKU): ${preciosMap.size}${args.pad5 ? ' (relleno a 5 precios si faltan líneas)' : ' (--no-pad: solo bloques con 5+ capturas usables)'}`
+    `Productos con precios parseados (por SKU): ${preciosMap.size}${args.pad5 ? ' (relleno a 5)' : ''}`
   );
 
   const idx = buildPrecioIndexes(preciosMap);
@@ -159,6 +151,7 @@ function main() {
   let missing = 0;
 
   for (const row of inv.rows) {
+    const skuKey = normSkuKey(row.sku);
     const hit = matchRowToPrecios(preciosMap, idx.preciosByNombre, idx.preciosByNombreLoose, row.sku, row.nombre);
     if (!hit) {
       missing++;
@@ -173,17 +166,24 @@ function main() {
     const rec = {};
     const cols = [];
     for (const k of LIST_KEYS) {
-      const con = p.preciosConIva[k] ?? 0;
-      const sin = args.sinIvaEnRtf ? Math.round(con * 100) / 100 : conIvaASinIva(con, args.ivaPct);
+      const con = p.preciosConIva[k];
+      if (con == null || !Number.isFinite(Number(con))) continue;
+      const sin = args.sinIvaEnRtf ? Math.round(Number(con) * 100) / 100 : conIvaASinIva(Number(con), args.ivaPct);
       rec[k] = sin;
     }
-    const precioVenta = rec.regular ?? 0;
+    let precioVenta = rec.regular ?? 0;
+    if (!precioVenta) {
+      for (const k of LIST_KEYS) {
+        const v = rec[k];
+        if (v != null && Number(v) > precioVenta) precioVenta = Number(v);
+      }
+    }
 
     cols.push(
       csvEscape(skuKey),
       csvEscape(row.nombre),
       String(precioVenta),
-      ...LIST_KEYS.map((k) => String(rec[k] ?? 0)),
+      ...LIST_KEYS.map((k) => (rec[k] != null ? String(rec[k]) : '')),
       csvEscape(JSON.stringify(rec))
     );
     linesOut.push(cols.join(','));
@@ -196,9 +196,7 @@ function main() {
   console.error(`Filas del inventario sin coincidencia en RTF (ni SKU ni nombre): ${missing}`);
   console.error(`Salida: ${args.outPath}`);
   console.error('');
-  console.error(
-    'Revise 2–3 productos: cananea = precio con centavos (o el menor si todos son .00); las otras cuatro listas van de mayor a menor.'
-  );
+  console.error('Revise 2–3 productos: las 5 capturas más recientes → orden mayor→menor → Regular…Cananea.');
 }
 
 main();

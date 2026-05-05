@@ -115,6 +115,13 @@ import {
 } from '@/lib/productListPricing';
 import { productEsServicio } from '@/lib/productServicio';
 import {
+  abrevCantidadVentaPorUnidadSat,
+  deltaCantidadBotonMasMenosSat,
+  formatearCantidadLineaVentaSat,
+  normalizeClaveUnidadSat,
+  snapCantidadLineaVenta,
+} from '@/lib/satCatalog';
+import {
   buildDevolucionTicketLineas,
   previewReembolsoDevolucion,
   type DevolucionLineInput,
@@ -179,19 +186,19 @@ function productFromQuotationLineForResume(line: QuotationItem, fromCatalog: Pro
 // PUNTO DE VENTA (POS) — Vista tipo app: lg+ sin scroll del contenedor (solo carrito / panel cobro); móvil conserva scroll vertical.
 // ============================================
 
-/** Cantidad opcional al inicio: `10*` + código o nombre (escáner pega tras el asterisco). */
+/** Cantidad opcional al inicio: `10*`, `2,5*` o `2.5*` + código o nombre (piezas siguen entrando como entero tras snap). */
 function parsePosQuantityPrefix(raw: string): {
   quantity: number;
   rest: string;
   hadQtyPrefix: boolean;
 } {
   const t = raw.trim();
-  const m = t.match(/^(\d+)\*\s*(.*)$/);
+  const m = t.match(/^([0-9]+(?:[.,][0-9]+)?)\*\s*(.*)$/);
   if (!m) return { quantity: 1, rest: t, hadQtyPrefix: false };
-  const n = parseInt(m[1]!, 10);
-  if (!Number.isFinite(n) || n < 1) return { quantity: 1, rest: t, hadQtyPrefix: false };
+  const n = parseFloat(m[1]!.replace(',', '.'));
+  if (!Number.isFinite(n) || n <= 0) return { quantity: 1, rest: t, hadQtyPrefix: false };
   return {
-    quantity: Math.min(9999, Math.max(1, n)),
+    quantity: Math.min(999999, n),
     rest: (m[2] ?? '').trim(),
     hadQtyPrefix: true,
   };
@@ -737,6 +744,10 @@ export function POS() {
   const [globalDiscFocus, setGlobalDiscFocus] = useState(false);
   /** Fila del carrito cuyo % descuento está enfocado (vacío visual si es 0, como desc. global). */
   const [lineDiscountFocusProductId, setLineDiscountFocusProductId] = useState<string | null>(null);
+  /** Cantidad mética en edición hasta blur (metro/cm como texto decimal). */
+  const [qtyLineEdit, setQtyLineEdit] = useState<{ productId: string; text: string } | null>(
+    null
+  );
   /** Producto cuyo popup de descripción está abierto (carrito). */
   const [productDescriptionDialog, setProductDescriptionDialog] = useState<Product | null>(null);
   const [ventaResetConfirmOpen, setVentaResetConfirmOpen] = useState(false);
@@ -1237,16 +1248,23 @@ export function POS() {
   const handleAddProduct = useCallback((product: Product, quantityArg?: number) => {
     try {
       const parsed = parsePosQuantityPrefix(searchQuery.trim());
-      const qty = Math.max(1, Math.min(9999, Math.floor(quantityArg ?? parsed.quantity) || 1));
+      const rawQty = quantityArg ?? parsed.quantity;
+      const qty = snapCantidadLineaVenta(product.unidadMedida, rawQty);
       addItem(product, qty);
       setSearchQuery('');
       posSearchPrevKeyTsRef.current = 0;
       posSearchFirstKeyTsRef.current = 0;
       posSearchHadSlowKeyGapRef.current = false;
       setShowProductSearch(false);
+      const u = normalizeClaveUnidadSat(product.unidadMedida);
+      const esMetrico = u === 'MTR' || u === 'CMT';
+      const qtySuffix =
+        qty > 1 || esMetrico
+          ? ` · ${formatearCantidadLineaVentaSat(product.unidadMedida, qty)} ${abrevCantidadVentaPorUnidadSat(product.unidadMedida)}`
+          : '';
       addToast({
         type: 'success',
-        message: qty > 1 ? `${product.nombre} agregado · ${qty} pz` : `${product.nombre} agregado`,
+        message: `${product.nombre} agregado${qtySuffix}`,
       });
       requestAnimationFrame(() => {
         searchInputRef.current?.focus();
@@ -1272,7 +1290,7 @@ export function POS() {
           addToast({
             type: 'warning',
             message:
-              'Escriba o escanee el código después de la cantidad (ej. 10* y luego el código de barras).',
+              'Escriba el código después de la cantidad (ej. 10* o 2,5* y luego el código de barras).',
           });
           continue;
         }
@@ -3003,7 +3021,9 @@ export function POS() {
               ) : (
                 <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
                   <div className="divide-y divide-slate-200 dark:divide-slate-800/50">
-                    {items.map((item) => (
+                    {items.map((item) => {
+                      const umLine = normalizeClaveUnidadSat(item.product.unidadMedida);
+                      return (
                       <div
                         key={item.product.id}
                         className="grid gap-2 p-2 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-3 sm:p-3"
@@ -3029,7 +3049,7 @@ export function POS() {
                               cartLineUnitSinIva(item, precioClienteListaId) *
                                 (1 + (Number(item.product.impuesto) || 16) / 100)
                             )}{' '}
-                            c/u{' '}
+                            {umLine === 'MTR' ? 'por m' : umLine === 'CMT' ? 'por cm' : 'c/u'}{' '}
                             <span className="text-slate-500 dark:text-slate-400">con IVA</span>
                           </p>
                           <p className="text-[10px] text-slate-500 dark:text-slate-400">
@@ -3043,47 +3063,163 @@ export function POS() {
 
                         <div className="flex flex-wrap items-center justify-between gap-2 sm:justify-end">
                           <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                try {
-                                  updateQuantity(item.product.id, item.quantity - 1);
-                                } catch (err: unknown) {
-                                  addToast({
-                                    type: 'error',
-                                    message:
-                                      err instanceof Error
-                                        ? err.message
-                                        : 'No se pudo actualizar la cantidad',
-                                  });
-                                }
-                              }}
-                              className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-200 dark:bg-slate-800 transition-colors hover:bg-slate-700"
-                            >
-                              <Minus className="h-4 w-4" />
-                            </button>
-                            <span className="w-8 text-center text-sm font-medium">
-                              {item.quantity}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                try {
-                                  updateQuantity(item.product.id, item.quantity + 1);
-                                } catch (err: unknown) {
-                                  addToast({
-                                    type: 'error',
-                                    message:
-                                      err instanceof Error
-                                        ? err.message
-                                        : 'No se pudo actualizar la cantidad',
-                                  });
-                                }
-                              }}
-                              className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-200 dark:bg-slate-800 transition-colors hover:bg-slate-700"
-                            >
-                              <Plus className="h-4 w-4" />
-                            </button>
+                            {umLine === 'MTR' || umLine === 'CMT' ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    try {
+                                      setQtyLineEdit(null);
+                                      const step = deltaCantidadBotonMasMenosSat(
+                                        item.product.unidadMedida
+                                      );
+                                      updateQuantity(item.product.id, item.quantity - step);
+                                    } catch (err: unknown) {
+                                      addToast({
+                                        type: 'error',
+                                        message:
+                                          err instanceof Error
+                                            ? err.message
+                                            : 'No se pudo actualizar la cantidad',
+                                      });
+                                    }
+                                  }}
+                                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-200 dark:bg-slate-800 transition-colors hover:bg-slate-700"
+                                  aria-label={
+                                    umLine === 'MTR' ? 'Menos medio metro' : 'Menos un centímetro'
+                                  }
+                                >
+                                  <Minus className="h-4 w-4" />
+                                </button>
+                                <Input
+                                  type="text"
+                                  inputMode="decimal"
+                                  className="h-8 min-w-[3.75rem] max-w-[5rem] border-slate-300 bg-slate-200 px-1 text-center text-sm tabular-nums text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                                  aria-label={
+                                    umLine === 'MTR' ? 'Cantidad en metros' : 'Cantidad en centímetros'
+                                  }
+                                  title={
+                                    umLine === 'MTR'
+                                      ? 'Use decimales o 0,5 en cada clic (±)'
+                                      : 'Cantidad decimal o entera'
+                                  }
+                                  value={
+                                    qtyLineEdit?.productId === item.product.id
+                                      ? qtyLineEdit.text
+                                      : formatearCantidadLineaVentaSat(
+                                          item.product.unidadMedida,
+                                          item.quantity
+                                        )
+                                  }
+                                  onFocus={() =>
+                                    setQtyLineEdit({
+                                      productId: item.product.id,
+                                      text: formatearCantidadLineaVentaSat(
+                                        item.product.unidadMedida,
+                                        item.quantity
+                                      ),
+                                    })
+                                  }
+                                  onChange={(e) =>
+                                    setQtyLineEdit({
+                                      productId: item.product.id,
+                                      text: e.target.value,
+                                    })
+                                  }
+                                  onBlur={(e) => {
+                                    const raw = e.target.value.trim().replace(',', '.');
+                                    const n = parseFloat(raw);
+                                    setQtyLineEdit(null);
+                                    if (raw === '' || !Number.isFinite(n) || n <= 0) return;
+                                    try {
+                                      updateQuantity(item.product.id, n);
+                                    } catch (err: unknown) {
+                                      addToast({
+                                        type: 'error',
+                                        message:
+                                          err instanceof Error
+                                            ? err.message
+                                            : 'No se pudo actualizar la cantidad',
+                                      });
+                                    }
+                                  }}
+                                />
+                                <span className="shrink-0 text-xs tabular-nums text-slate-500 dark:text-slate-400">
+                                  {abrevCantidadVentaPorUnidadSat(item.product.unidadMedida)}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    try {
+                                      setQtyLineEdit(null);
+                                      const step = deltaCantidadBotonMasMenosSat(
+                                        item.product.unidadMedida
+                                      );
+                                      updateQuantity(item.product.id, item.quantity + step);
+                                    } catch (err: unknown) {
+                                      addToast({
+                                        type: 'error',
+                                        message:
+                                          err instanceof Error
+                                            ? err.message
+                                            : 'No se pudo actualizar la cantidad',
+                                      });
+                                    }
+                                  }}
+                                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-200 dark:bg-slate-800 transition-colors hover:bg-slate-700"
+                                  aria-label={umLine === 'MTR' ? 'Más medio metro' : 'Más un centímetro'}
+                                >
+                                  <Plus className="h-4 w-4" />
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    try {
+                                      updateQuantity(item.product.id, item.quantity - 1);
+                                    } catch (err: unknown) {
+                                      addToast({
+                                        type: 'error',
+                                        message:
+                                          err instanceof Error
+                                            ? err.message
+                                            : 'No se pudo actualizar la cantidad',
+                                      });
+                                    }
+                                  }}
+                                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-200 dark:bg-slate-800 transition-colors hover:bg-slate-700"
+                                >
+                                  <Minus className="h-4 w-4" />
+                                </button>
+                                <span className="min-w-[3rem] text-center tabular-nums text-sm font-medium">
+                                  {formatearCantidadLineaVentaSat(
+                                    item.product.unidadMedida,
+                                    item.quantity
+                                  )}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    try {
+                                      updateQuantity(item.product.id, item.quantity + 1);
+                                    } catch (err: unknown) {
+                                      addToast({
+                                        type: 'error',
+                                        message:
+                                          err instanceof Error
+                                            ? err.message
+                                            : 'No se pudo actualizar la cantidad',
+                                      });
+                                    }
+                                  }}
+                                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-200 dark:bg-slate-800 transition-colors hover:bg-slate-700"
+                                >
+                                  <Plus className="h-4 w-4" />
+                                </button>
+                              </>
+                            )}
                           </div>
 
                           <div className="flex items-center gap-1.5">
@@ -3137,7 +3273,8 @@ export function POS() {
                           </button>
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}

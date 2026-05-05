@@ -170,47 +170,90 @@ def extract_nombre_producto(block: str) -> str:
     return ""
 
 
+TIER_BY_RANK = ["regular", "tecnico", "mayoreo_menos", "mayoreo_mas", "cananea"]
+REAL_TS_MIN = 946684800.0  # > 2000-01-01 (segundos; alineado con ms en Node / 1000)
+
+
 def parse_mx_datetime(s: str) -> float:
-    m = re.match(
-        r"(\d{1,2})/(\d{1,2})/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})",
-        s,
+    """DD/MM/AAAA + hora; admite `a. m.` / `p. m.` al final (Crystal / PDF)."""
+    s_norm = " ".join(s.strip().split())
+    s_am = (
+        s_norm.replace("a. m.", "AM")
+        .replace("p. m.", "PM")
+        .replace("a.m.", "AM")
+        .replace("p.m.", "PM")
     )
-    if not m:
-        return 0.0
-    mo, d, y, hh, mm, ss = map(int, m.groups())
-    try:
-        return datetime(y, mo, d, hh, mm, ss).timestamp()
-    except ValueError:
-        return 0.0
+    m12 = re.match(
+        r"^(\d{1,2})/(\d{1,2})/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})\s*([AP]M)$",
+        s_am,
+        re.I,
+    )
+    if m12:
+        day_s, mo_s, y_s, hh_s, mm_s, ss_s, ap = m12.groups()
+        hour = int(hh_s)
+        if ap.upper() == "PM" and hour != 12:
+            hour += 12
+        if ap.upper() == "AM" and hour == 12:
+            hour = 0
+        try:
+            return datetime(int(y_s), int(mo_s), int(day_s), hour, int(mm_s), int(ss_s)).timestamp()
+        except ValueError:
+            return 0.0
+    m24 = re.match(
+        r"^(\d{1,2})/(\d{1,2})/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})$",
+        s_norm,
+    )
+    if m24:
+        day_s, mo_s, y_s, hh_s, mm_s, ss_s = m24.groups()
+        try:
+            return datetime(
+                int(y_s), int(mo_s), int(day_s), int(hh_s), int(mm_s), int(ss_s)
+            ).timestamp()
+        except ValueError:
+            return 0.0
+    return 0.0
 
 
-def con_iva_tiene_centavos(p: float) -> bool:
-    cents = round(float(p) * 100) % 100
-    return cents != 0
+def is_real_ts(t: Any) -> bool:
+    return isinstance(t, (int, float)) and float(t) > REAL_TS_MIN
 
 
-def map_five_con_iva_prices_to_lists(prices_con_iva: list[float]) -> dict[str, float] | None:
-    arr = prices_con_iva[:5]
-    if len(arr) < 5 or any(not isinstance(p, (int, float)) or p < 0 for p in arr):
+def map_recent_con_iva_prices_to_lists(prices: list[float]) -> dict[str, float] | None:
+    arr = [float(p) for p in prices if isinstance(p, (int, float)) and float(p) >= 0]
+    if not arr:
         return None
-    indexed = [{"price": float(p), "index": i} for i, p in enumerate(arr)]
-    with_cents = [x for x in indexed if con_iva_tiene_centavos(x["price"])]
-    if len(with_cents) == 1:
-        cananea_pick = with_cents[0]
-    elif len(with_cents) > 1:
-        cananea_pick = min(with_cents, key=lambda x: x["price"])
+    arr_sorted = sorted(arr, reverse=True)
+    out: dict[str, float] = {}
+    for i, p in enumerate(arr_sorted[:5]):
+        out[TIER_BY_RANK[i]] = p
+    return out
+
+
+def pick_recent_price_rows(rows: list[dict[str, Any]], pad5: bool) -> list[float]:
+    if not rows:
+        return []
+    with_ord: list[dict[str, Any]] = [{**r, "ord": r.get("ord", i)} for i, r in enumerate(rows)]
+    real = [r for r in with_ord if is_real_ts(r["t"])]
+    ordered_pick: list[dict[str, Any]] = []
+    if real:
+        real.sort(key=lambda x: float(x["t"]), reverse=True)
+        ordered_pick = real[:5]
+        if len(ordered_pick) < 5:
+            fake = [r for r in with_ord if not is_real_ts(r["t"])]
+            fake.sort(key=lambda x: int(x["ord"]), reverse=True)
+            for r in fake:
+                if len(ordered_pick) >= 5:
+                    break
+                ordered_pick.append(r)
     else:
-        cananea_pick = min(indexed, key=lambda x: x["price"])
-    cananea = cananea_pick["price"]
-    rest = [x["price"] for x in indexed if x["index"] != cananea_pick["index"]]
-    rest.sort(reverse=True)
-    return {
-        "regular": rest[0],
-        "tecnico": rest[1],
-        "mayoreo_menos": rest[2],
-        "mayoreo_mas": rest[3],
-        "cananea": cananea,
-    }
+        copy = sorted(with_ord, key=lambda x: int(x["ord"]), reverse=True)
+        ordered_pick = copy[:5]
+    chosen = [float(r["price"]) for r in ordered_pick]
+    if len(chosen) < 5 and pad5 and chosen:
+        last = chosen[-1]
+        while len(chosen) < 5:
+            chosen.append(last)
+    return chosen
 
 
 def con_iva_a_sin_iva(con_iva: float, iva_pct: float) -> float:
@@ -224,9 +267,9 @@ def parse_precios_rtf(
     pad5: bool,
     regla_precios: str,
 ) -> dict[str, dict[str, Any]]:
-    """SKU normalizado -> { nombre, preciosConIva }."""
+    """SKU normalizado -> { nombre, preciosConIva }. `regla_precios` se ignora (comportamiento unificado con Node)."""
+    del regla_precios  # API estable; misma lógica que scripts/lib/olivaresRtfPrecios.mjs
     s = strip_rtf_pict_blocks(rtf_text)
-    # [\\]cf1: evita ambigüedad con \c en regex; alfanumérico (p. ej. w10010044); al menos un dígito (evita global\par)
     sku_re = re.compile(r"[\\]cf1\s+([A-Za-z0-9]{1,24})\s*\\par")
     hits = list(sku_re.finditer(s))
     out: dict[str, dict[str, Any]] = {}
@@ -244,35 +287,32 @@ def parse_precios_rtf(
             continue
 
         rows: list[dict[str, Any]] = []
-        seq = 0
+        ord_i = 0
         for part in block.split("\\par"):
             if "$" not in part:
                 continue
-            price_m = re.search(r"\$(\d+(?:\.\d+)?)", part)
+            price_m = re.search(r"\$(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?)", part)
             if not price_m:
                 continue
-            time_m = re.search(r"(\d{1,2}/\d{1,2}/\d{4}\s+\d{1,2}:\d{2}:\d{2})", part)
-            t = parse_mx_datetime(time_m.group(1)) if time_m else float(seq)
-            seq += 1
-            rows.append({"t": t, "price": float(price_m.group(1))})
+            price = float(price_m.group(1).replace(",", ""))
+            time_m = re.search(
+                r"(\d{1,2}/\d{1,2}/\d{4}\s+\d{1,2}:\d{2}:\d{2}(?:\s*[ap]\.\s*m\.)?)",
+                part,
+                re.I,
+            )
+            o = ord_i
+            ord_i += 1
+            t = parse_mx_datetime(time_m.group(1)) if time_m else float(o)
+            rows.append({"t": t, "price": price, "ord": o})
 
         if not rows:
             continue
 
-        if regla_precios == "mas-recientes":
-            ordered = sorted(rows, key=lambda r: r["t"], reverse=True)
-        else:
-            ordered = sorted(rows, key=lambda r: r["t"])
-
-        prices_con_iva = [r["price"] for r in ordered[:5]]
-        if len(prices_con_iva) < 5 and pad5 and prices_con_iva:
-            last = prices_con_iva[-1]
-            while len(prices_con_iva) < 5:
-                prices_con_iva.append(last)
-        if len(prices_con_iva) < 5:
+        prices_con_iva = pick_recent_price_rows(rows, pad5)
+        if not prices_con_iva:
             continue
 
-        precios_con_iva = map_five_con_iva_prices_to_lists(prices_con_iva)
+        precios_con_iva = map_recent_con_iva_prices_to_lists(prices_con_iva)
         if not precios_con_iva:
             continue
 
@@ -578,13 +618,19 @@ def main() -> None:
                 matched_loose += 1
 
             rec = {}
-            cols_num = []
+            cols_out: list[str | float] = []
+            pv_candidates: list[float] = []
             for k in LIST_KEYS:
-                con = float(p["preciosConIva"].get(k) or 0)
+                raw = p["preciosConIva"].get(k)
+                if raw is None:
+                    cols_out.append("")
+                    continue
+                con = float(raw)
                 sin_p = con if args.sin_iva_en_rtf else con_iva_a_sin_iva(con, args.iva)
                 rec[k] = sin_p
-                cols_num.append(sin_p)
-            precio_venta = rec["regular"]
+                cols_out.append(sin_p)
+                pv_candidates.append(sin_p)
+            precio_venta = float(rec["regular"]) if "regular" in rec else max(pv_candidates) if pv_candidates else 0.0
 
         w.writerow(
             [
@@ -594,7 +640,7 @@ def main() -> None:
                 r["categoria"],
                 r["sourceFile"],
                 str(precio_venta),
-                *[str(x) for x in cols_num],
+                *[str(x) for x in cols_out],
                 json.dumps(rec, ensure_ascii=False, separators=(",", ":")),
             ]
         )

@@ -5,6 +5,7 @@ import {
   getCartLineUnitSinIvaBase,
   getProductUnitSinIvaForClienteList,
 } from '@/lib/productListPricing';
+import { snapCantidadLineaVenta } from '@/lib/satCatalog';
 
 // ============================================
 // STORE DEL CARRITO DE COMPRAS (POS)
@@ -178,16 +179,19 @@ export const useCartStore = create<CartState>((set, get) => ({
   addItem: (product: Product, quantity: number = 1) => {
     const { items } = get();
     const existingItem = items.find((item) => item.product.id === product.id);
+    const qty = snapCantidadLineaVenta(product.unidadMedida, quantity);
 
     if (existingItem) {
       set({
         items: items.map((item) =>
-          item.product.id === product.id ? { ...item, quantity: item.quantity + quantity } : item
+          item.product.id === product.id
+            ? { ...item, quantity: snapCantidadLineaVenta(product.unidadMedida, item.quantity + qty) }
+            : item
         ),
       });
     } else {
       set({
-        items: [...items, { product, quantity, discount: 0 }],
+        items: [...items, { product, quantity: qty, discount: 0 }],
       });
     }
   },
@@ -206,10 +210,12 @@ export const useCartStore = create<CartState>((set, get) => ({
       get().removeItem(productId);
       return;
     }
-
+    const line = get().items.find((item) => item.product.id === productId);
+    if (!line) return;
+    const next = snapCantidadLineaVenta(line.product.unidadMedida, quantity);
     set({
       items: get().items.map((item) =>
-        item.product.id === productId ? { ...item, quantity } : item
+        item.product.id === productId ? { ...item, quantity: next } : item
       ),
     });
   },

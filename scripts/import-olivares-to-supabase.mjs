@@ -4,8 +4,8 @@
  * (tabla public.products para la sucursal indicada).
  *
  * Reglas de precios (igual que merge-olivares-precios-rtf.mjs):
- *   Cananea = precio con IVA con centavos (o el menor si ninguno tiene centavos);
- *   Regular / técnico / mayoreo − / mayoreo + = los otros cuatro, de mayor a menor.
+ *   Hasta 5 capturas **más recientes por fecha** por artículo; se ordenan de mayor a menor →
+ *   Regular, Técnico, Mayoreo −, Mayoreo +, Cananea. Listas sin dato no se guardan (no 0).
  *   Se guardan sin IVA en doc.preciosPorListaCliente y preciosListaIncluyenIva: false.
  *
  * Requiere: SUPABASE_URL (o VITE_SUPABASE_URL en .env) y SUPABASE_SERVICE_ROLE_KEY (service_role, NO anon).
@@ -21,8 +21,8 @@
  *   --strict-precios       Falla si un producto no tiene match en el RTF
  *   --iva=16
  *   --sin-iva-en-rtf
- *   --no-pad               No rellenar a 5 precios si el RTF trae menos líneas (comportamiento antiguo)
- *   --pad-5                Forzar relleno (es el comportamiento por defecto)
+ *   --pad-5                Repetir el último precio hasta completar 5 filas (compat. Crystal)
+ *   --no-pad               Por defecto: solo las capturas reales (p. ej. 1 precio → solo Regular)
  *   --sucursal-nombre=...  Texto para crear fila en public.sucursales si no existe (default: id capitalizado)
  *   --batch=150
  *   --export-sin-rtf=./ruta.csv   CSV SKU,Nombre,Archivo para filas sin match en RTF
@@ -33,14 +33,15 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 import {
-  parsePreciosRtf,
   buildPrecioIndexes,
   matchRowToPrecios,
   preciosConIvaToSinIvaRecord,
-  loadRtfTextFromFile,
+  loadListaPreciosTextFromFile,
+  parsePreciosListaAuto,
   LIST_KEYS,
 } from './lib/olivaresRtfPrecios.mjs';
 import { mergeRowsFromDir, disambiguateNombres, buildDescripcion } from './lib/olivaresInventoryFromDir.mjs';
+import { unidadSatProductoOlivares } from './lib/olivaresUnidadSat.mjs';
 
 function loadEnvFiles() {
   for (const name of ['.env', '.env.local']) {
@@ -94,7 +95,7 @@ function parseArgs() {
     strictPrecios: false,
     ivaPct: 16,
     sinIvaEnRtf: false,
-    pad5: true,
+    pad5: false,
     batch: 150,
     /** Ruta CSV: SKUs sin match en RTF (SKU,Nombre,Archivo). */
     exportSinRtf: '',
@@ -126,14 +127,24 @@ function productIdForSku(sucursalId, sku) {
     .slice(0, 32);
 }
 
+function maxListaPrecio(recSinIva) {
+  let best = 0;
+  for (const k of LIST_KEYS) {
+    const v = recSinIva[k];
+    if (v != null && Number.isFinite(v) && v > best) best = v;
+  }
+  return best > 0 ? best : 0;
+}
+
 function buildProductDoc(r, recSinIva, incluirRefId, createdAtIso, updatedAtIso) {
-  const unidadMedida = r.categoria === 'SERVICIOS' ? 'E48' : 'H87';
+  const unidadMedida = unidadSatProductoOlivares(r.nombre, r.categoria);
   const descripcion = buildDescripcion(r, incluirRefId);
-  const precioVenta = recSinIva.regular ?? 0;
   const lista = {};
   for (const k of LIST_KEYS) {
-    lista[k] = recSinIva[k] ?? 0;
+    const v = recSinIva[k];
+    if (v != null && Number.isFinite(v)) lista[k] = v;
   }
+  const precioVenta = recSinIva.regular ?? maxListaPrecio(recSinIva);
   return {
     sku: r.sku,
     codigoBarras: null,
@@ -215,7 +226,7 @@ async function main() {
     process.exit(1);
   }
   if (!existsSync(args.rtf)) {
-    console.error('No existe el RTF:', args.rtf);
+    console.error('No existe la lista de precios (RTF o PDF):', args.rtf);
     process.exit(1);
   }
 
@@ -249,8 +260,8 @@ async function main() {
     process.exit(1);
   }
 
-  const rtfText = loadRtfTextFromFile(args.rtf);
-  const preciosMap = parsePreciosRtf(rtfText, { pad5: args.pad5 });
+  const listaText = loadListaPreciosTextFromFile(args.rtf);
+  const preciosMap = parsePreciosListaAuto(listaText, { pad5: args.pad5 });
   const idx = buildPrecioIndexes(preciosMap);
 
   if (idx.nombreDup.length) {
@@ -260,7 +271,7 @@ async function main() {
     console.error(`Aviso: ${idx.nombreLooseDup.length} nombre(s) suelto(s) repetido(s) en RTF.`);
   }
 
-  console.error(`RTF: ${preciosMap.size} productos con 5 precios parseados.`);
+  console.error(`Lista de precios: ${preciosMap.size} SKU(s) con precios parseados.`);
   console.error(`Carpeta: ${files.length} archivo(s) .xlsx.`);
 
   const rows = Array.from(bySku.values());
