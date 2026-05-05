@@ -257,11 +257,13 @@ export function EtiquetasProductos() {
       });
       return;
     }
+    closeLabelEdit();
+    setQueue([]);
     addToast({
       type: 'success',
-      message: 'Use el cuadro de impresión del sistema para finalizar.',
+      message: 'Use el cuadro de impresión del sistema para finalizar. La lista quedó vacía.',
     });
-  }, [queue, addToast]);
+  }, [queue, addToast, closeLabelEdit]);
 
   const editingLine = useMemo(
     () => (labelEditProductId ? queue.find((l) => l.productId === labelEditProductId) ?? null : null),

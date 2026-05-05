@@ -908,18 +908,19 @@ export function buildLetterDocumentHtml(
       : '';
   return `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${escapeHtml(title)}</title>
 <style>
-  /* Laterales más amplios que arriba/abajo (carta); @page rige impresión / PDF. */
-  @page { size: letter; margin: 11mm 22mm; }
+  /* Mismo criterio de márgenes / ancho útil que la representación impresa CFDI (factura). */
+  @page { size: letter; margin: 9mm 11mm; }
   * { box-sizing: border-box; }
-  body { font-family: system-ui, sans-serif; font-size: 11pt; color: #111; line-height: 1.4; margin: 0; }
-  /* La vista previa en pantalla no aplica @page: mismo margen lateral que al imprimir. */
-  @media screen {
-    body {
-      max-width: 8.5in;
-      margin-left: auto;
-      margin-right: auto;
-      padding: 12mm 22mm 18mm;
-    }
+  body {
+    font-family: system-ui, sans-serif;
+    font-size: 11pt;
+    color: #111;
+    line-height: 1.4;
+    margin: 0 auto;
+    max-width: 7.5in;
+    padding: 0;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   h1 { font-size: 16pt; margin: 0 0 12px; }
   h2 { font-size: 12pt; margin: 16px 0 8px; color: #333; }
