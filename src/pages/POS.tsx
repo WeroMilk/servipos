@@ -1325,11 +1325,13 @@ export function POS() {
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = e.target.value;
       setSearchQuery(val);
+      const trim = val.trim();
+      /** Si el foco no cambió, `onFocus` no corre tras agregar con Enter y el panel queda cerrado. */
+      if (trim.length > 0) setShowProductSearch(true);
       if (posScanIdleTimerRef.current != null) {
         window.clearTimeout(posScanIdleTimerRef.current);
         posScanIdleTimerRef.current = null;
       }
-      const trim = val.trim();
       if (!trim) {
         posSearchPrevKeyTsRef.current = 0;
         posSearchFirstKeyTsRef.current = 0;
