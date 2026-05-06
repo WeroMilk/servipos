@@ -1,5 +1,5 @@
 import type { Product, CartItem } from '@/types';
-import { type ClientPriceListId } from '@/lib/clientPriceLists';
+import { CLIENT_PRICE_LIST_ORDER, type ClientPriceListId } from '@/lib/clientPriceLists';
 import { inferPrecioVentaSinIvaFromListas, normalizeListaPrecioValue } from '@/lib/precioListaNorm';
 import { getListaPrecioClientePct } from '@/stores/clientPriceListStore';
 import { effectiveListaPreciosIncluyenIva } from '@/lib/catalogPricingFlags';
@@ -40,35 +40,40 @@ function explicitListaToSinIva(product: Product, explicit: number): number {
 }
 
 /**
- * Precio unitario sin IVA de la lista **Regular** (referencia para comparar otras listas).
- * Si hay precio fijo en `preciosPorListaCliente.regular` **y** `precioVenta` en catálogo, se usa el **mayor**:
- * corrige legado donde en “Regular” quedó el importe de otra lista (p. ej. $180 de mayoreo-) mientras
- * `precioVenta` sigue siendo el de mostrador ($250 con IVA).
+ * Mayor precio sin IVA entre todas las listas con importe explícito.
+ * En listas Olivares/Crystal el **Regular** es siempre el más caro; si `regular` en BD quedó viejo
+ * pero otra lista ya trae el precio nuevo, el POS debe mostrar el tope del escalón (p. ej. 1050 con IVA).
+ */
+function maxExplicitListaSinIvaLadderTop(product: Product): number {
+  let m = 0;
+  for (const id of CLIENT_PRICE_LIST_ORDER) {
+    const ex = normalizeListaPrecioValue(product.preciosPorListaCliente?.[id]);
+    if (ex !== undefined && ex > 0) {
+      const s = explicitListaToSinIva(product, ex);
+      if (s > m) m = s;
+    }
+  }
+  return m;
+}
+
+/**
+ * Precio unitario sin IVA de la lista **Regular**.
+ * Preferencia: el **más caro** entre los importes fijos de todas las listas (escalón tope = Regular de negocio),
+ * frente a `precioVenta` del documento, para tolerar catálogos desalineados tras importaciones parciales.
  */
 function getRegularUnitSinIva(product: Product): number {
-  const explicit = normalizeListaPrecioValue(product.preciosPorListaCliente?.regular);
-  let exSin =
-    explicit !== undefined && explicit > 0 ? explicitListaToSinIva(product, explicit) : 0;
-  const pvBase = Number(product.precioVenta) || 0;
   const pctReg = getListaPrecioClientePct('regular');
+  const pvBase = Number(product.precioVenta) || 0;
   const fromPv = pvBase * (1 - pctReg / 100);
-  const listaFloor = maxExplicitListaSinIvaRegularFloor(product);
-
-  /** Regular explícito menor que técnico/mayoreo± (sin IVA) suele ser dato viejo o mal cargado. */
-  const REG_INCOHERENCE_EPS = 0.02;
-  if (exSin > 0 && listaFloor > exSin + REG_INCOHERENCE_EPS) {
-    exSin = 0;
-  }
+  const ladderTop = maxExplicitListaSinIvaLadderTop(product);
 
   let core = 0;
-  if (exSin > 0 && fromPv > 0.005) {
-    core = Math.max(exSin, fromPv, listaFloor);
-  } else if (exSin > 0) {
-    core = Math.max(exSin, listaFloor);
+  if (ladderTop > 0 && fromPv > 0.005) {
+    core = Math.max(ladderTop, fromPv);
+  } else if (ladderTop > 0) {
+    core = ladderTop;
   } else if (fromPv > 0.005) {
-    core = Math.max(fromPv, listaFloor);
-  } else if (listaFloor > 0) {
-    core = listaFloor;
+    core = fromPv;
   }
 
   if (core > 0) {
@@ -87,20 +92,6 @@ function firstSinIvaFromAnyLista(product: Product): number {
   const map = product.preciosPorListaCliente;
   if (!map) return 0;
   return inferPrecioVentaSinIvaFromListas(map, effectiveListaPreciosIncluyenIva(product), impuestoPct(product));
-}
-
-/** Mayor precio sin IVA entre listas que deben ser ≤ Regular (excluye cañanea). */
-function maxExplicitListaSinIvaRegularFloor(product: Product): number {
-  const ids = ['tecnico', 'mayoreo_mas', 'mayoreo_menos'] as const;
-  let m = 0;
-  for (const id of ids) {
-    const ex = normalizeListaPrecioValue(product.preciosPorListaCliente?.[id]);
-    if (ex !== undefined && ex > 0) {
-      const s = explicitListaToSinIva(product, ex);
-      if (s > m) m = s;
-    }
-  }
-  return m;
 }
 
 /**
