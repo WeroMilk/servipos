@@ -26,19 +26,26 @@ export const useAuthStore = create<AuthStore>((set) => ({
   login: async (usernameOrEmail: string, password: string): Promise<boolean> => {
     try {
       const { normalizeServipartzEmail } = await import('@/lib/servipartzAuth');
+      const { looksLikePosPin, syncAuthPasswordFromPosPin } = await import('@/lib/verifyPosPinLogin');
       const email = normalizeServipartzEmail(usernameOrEmail);
       if (!email) return false;
       const supabase = getSupabase();
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) {
-        const expectedAuthFailure =
-          /invalid login|invalid credentials|email not confirmed|user not found/i.test(error.message);
-        if (import.meta.env.DEV && !expectedAuthFailure) {
-          console.error('Supabase Auth:', error.message);
-        }
-        return false;
+      const signIn = () => supabase.auth.signInWithPassword({ email, password });
+
+      let { error } = await signIn();
+      if (!error) return true;
+
+      const expectedAuthFailure =
+        /invalid login|invalid credentials|email not confirmed|user not found/i.test(error.message);
+      if (import.meta.env.DEV && !expectedAuthFailure) {
+        console.error('Supabase Auth:', error.message);
       }
-      return true;
+
+      if (expectedAuthFailure && looksLikePosPin(password) && (await syncAuthPasswordFromPosPin(email, password))) {
+        ({ error } = await signIn());
+        if (!error) return true;
+      }
+      return false;
     } catch (err) {
       if (import.meta.env.DEV) {
         console.error('Login:', err);

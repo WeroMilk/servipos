@@ -244,7 +244,6 @@ export function LoginForm() {
                     onValueChange={(v) => {
                       setSelectedEmail(v);
                       setPin('');
-                      window.setTimeout(() => pinInputRef.current?.focus(), 0);
                     }}
                     disabled={directoryLoading || directory.length === 0}
                   >
@@ -261,6 +260,12 @@ export function LoginForm() {
                       position="popper"
                       hideScrollButtons
                       className="z-[100] border-slate-200 bg-white text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+                      onCloseAutoFocus={(e) => {
+                        e.preventDefault();
+                        requestAnimationFrame(() => {
+                          pinInputRef.current?.focus();
+                        });
+                      }}
                     >
                       {directory.map((u) => (
                         <SelectItem
