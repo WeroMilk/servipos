@@ -37,6 +37,11 @@ export interface User {
   username: string;
   /** Solo usuarios locales (Dexie). Con Supabase Auth no se usa. */
   password?: string;
+  /**
+   * Clave numérica POS (tabla `profiles.pos_pin`). Coincide con la contraseña de Supabase Auth
+   * cuando se crea o actualiza el usuario desde Configuración.
+   */
+  posPin?: string;
   name: string;
   email: string;
   role: UserRole;

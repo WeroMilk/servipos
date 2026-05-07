@@ -59,6 +59,49 @@ async function fetchAllProductRowsForSucursalOnce(sucursalId: string): Promise<{
   return { rows: all, error: null };
 }
 
+const PRODUCT_COPY_UPSERT_BATCH = 200;
+
+/**
+ * Copia todos los registros de `products` de una sucursal a otra (mismo id de producto, precios y existencias).
+ * No copia movimientos de inventario ni otros documentos.
+ */
+export async function copyProductCatalogBetweenSucursales(
+  destSucursalId: string,
+  sourceSucursalId: string
+): Promise<{ copied: number }> {
+  if (destSucursalId === sourceSucursalId) {
+    throw new Error('El origen y el destino de la copia no pueden ser la misma sucursal.');
+  }
+  const { rows, error } = await fetchAllProductRowsForSucursal(sourceSucursalId);
+  if (error) throw error;
+  if (rows.length === 0) {
+    return { copied: 0 };
+  }
+
+  const supabase = getSupabase();
+  const nowIso = new Date().toISOString();
+  const payload = rows.map((r) => {
+    const doc = structuredClone(r.doc) as Record<string, unknown>;
+    doc.updatedAt = nowIso;
+    return {
+      sucursal_id: destSucursalId,
+      id: r.id,
+      doc,
+      updated_at: nowIso,
+    };
+  });
+
+  for (let i = 0; i < payload.length; i += PRODUCT_COPY_UPSERT_BATCH) {
+    const chunk = payload.slice(i, i + PRODUCT_COPY_UPSERT_BATCH);
+    const { error: upErr } = await supabase.from('products').upsert(chunk, {
+      onConflict: 'sucursal_id,id',
+    });
+    if (upErr) throw new Error(upErr.message);
+  }
+
+  return { copied: rows.length };
+}
+
 async function fetchAllProductRowsForSucursal(sucursalId: string): Promise<{
   rows: { id: string; doc: Record<string, unknown> }[];
   error: Error | null;

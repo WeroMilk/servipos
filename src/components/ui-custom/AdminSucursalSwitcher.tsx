@@ -18,10 +18,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { copyProductCatalogBetweenSucursales } from '@/lib/firestore/productsFirestore';
 import {
   createSucursalMeta,
   subscribeSucursalesCatalog,
 } from '@/lib/firestore/sucursalesMetaFirestore';
+import {
+  SucursalCreateInventoryFields,
+  type InventarioInicialMode,
+} from '@/components/ui-custom/SucursalCreateInventoryFields';
 import type { Sucursal } from '@/types';
 import { cn } from '@/lib/utils';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
@@ -44,6 +49,8 @@ export function AdminSucursalSwitcher() {
   const [sucursales, setSucursales] = useState<Sucursal[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ docId: '', nombre: '', codigo: '' });
+  const [inventoryMode, setInventoryMode] = useState<InventarioInicialMode>('empty');
+  const [copySourceId, setCopySourceId] = useState('');
   const [saving, setSaving] = useState(false);
 
   const canSwitch = Boolean(user?.isActive && user.role === 'admin');
@@ -52,6 +59,11 @@ export function AdminSucursalSwitcher() {
     if (!canSwitch) return;
     return subscribeSucursalesCatalog(setSucursales);
   }, [canSwitch]);
+
+  const sucursalesActivasParaCopia = useMemo(
+    () => sucursales.filter((s) => s.activo),
+    [sucursales]
+  );
 
   const options = useMemo(() => {
     const active = sucursales.filter((s) => s.activo);
@@ -102,6 +114,8 @@ export function AdminSucursalSwitcher() {
 
   const openCreateDialog = useCallback(() => {
     setForm({ docId: '', nombre: '', codigo: '' });
+    setInventoryMode('empty');
+    setCopySourceId('');
     setDialogOpen(true);
   }, []);
 
@@ -110,6 +124,13 @@ export function AdminSucursalSwitcher() {
       addToast({ type: 'error', message: 'El nombre de la tienda es obligatorio' });
       return;
     }
+    if (inventoryMode === 'copy') {
+      const src = copySourceId || sucursalesActivasParaCopia[0]?.id;
+      if (!src) {
+        addToast({ type: 'error', message: 'Seleccione la sucursal de la que copiar el inventario' });
+        return;
+      }
+    }
     setSaving(true);
     try {
       const id = await createSucursalMeta({
@@ -117,7 +138,29 @@ export function AdminSucursalSwitcher() {
         codigo: form.codigo.trim() || undefined,
         id: form.docId.trim() || undefined,
       });
-      addToast({ type: 'success', message: 'Tienda creada' });
+      if (inventoryMode === 'copy') {
+        const src = copySourceId || sucursalesActivasParaCopia[0]!.id;
+        try {
+          const { copied } = await copyProductCatalogBetweenSucursales(id, src);
+          addToast({
+            type: 'success',
+            message:
+              copied > 0
+                ? `Tienda creada; se copiaron ${copied} producto(s) desde el catálogo de origen.`
+                : 'Tienda creada; la sucursal origen no tenía productos que copiar.',
+          });
+        } catch (copyErr) {
+          addToast({
+            type: 'error',
+            message:
+              copyErr instanceof Error
+                ? `Tienda creada, pero falló la copia del inventario: ${copyErr.message}`
+                : 'Tienda creada, pero falló la copia del inventario.',
+          });
+        }
+      } else {
+        addToast({ type: 'success', message: 'Tienda creada' });
+      }
       setActiveSucursalId(id);
       setDialogOpen(false);
     } catch (e) {
@@ -233,6 +276,13 @@ export function AdminSucursalSwitcher() {
                 autoComplete="off"
               />
             </div>
+            <SucursalCreateInventoryFields
+              sucursalesOrigen={sucursalesActivasParaCopia}
+              mode={inventoryMode}
+              onModeChange={setInventoryMode}
+              copySourceId={copySourceId}
+              onCopySourceIdChange={setCopySourceId}
+            />
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button
@@ -250,7 +300,7 @@ export function AdminSucursalSwitcher() {
               onClick={() => void handleCreateSucursal()}
               disabled={saving}
             >
-              {saving ? 'Guardando…' : 'Crear tienda'}
+              {saving ? 'Procesando…' : 'Crear tienda'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -97,11 +97,12 @@ export function mapProfileRowToUser(row: {
   sucursal_id: string | null;
   use_custom_permissions: boolean | null;
   custom_permissions: unknown;
+  pos_pin?: string | null;
   created_at: string;
   updated_at: string;
 }): User {
   const email = typeof row.email === 'string' && row.email.length > 0 ? row.email : '';
-  return mapFirestoreUserProfile(
+  const base = mapFirestoreUserProfile(
     row.id,
     {
       email,
@@ -117,6 +118,8 @@ export function mapProfileRowToUser(row: {
     },
     email
   );
+  const pin = typeof row.pos_pin === 'string' && /^\d+$/.test(row.pos_pin) ? row.pos_pin : undefined;
+  return pin !== undefined ? { ...base, posPin: pin } : base;
 }
 
 export function userFromAuthOnly(uid: string, email: string | null): User {

@@ -39,6 +39,11 @@ import {
   subscribeSucursalesCatalog,
   updateSucursalMeta,
 } from '@/lib/firestore/sucursalesMetaFirestore';
+import { copyProductCatalogBetweenSucursales } from '@/lib/firestore/productsFirestore';
+import {
+  SucursalCreateInventoryFields,
+  type InventarioInicialMode,
+} from '@/components/ui-custom/SucursalCreateInventoryFields';
 import { useAppStore, useSucursalContextStore } from '@/stores';
 import { cn } from '@/lib/utils';
 
@@ -64,6 +69,8 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
   const [reactivateTarget, setReactivateTarget] = useState<Sucursal | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Sucursal | null>(null);
   const [saving, setSaving] = useState(false);
+  const [inventoryMode, setInventoryMode] = useState<InventarioInicialMode>('empty');
+  const [copySourceId, setCopySourceId] = useState('');
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
@@ -75,10 +82,14 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
     [list, showInactive]
   );
 
+  const sucursalesActivasParaCopia = useMemo(() => list.filter((s) => s.activo), [list]);
+
   const openCreate = () => {
     setMode('create');
     setEditing(null);
     setForm(emptyForm);
+    setInventoryMode('empty');
+    setCopySourceId('');
     setDialogOpen(true);
   };
 
@@ -94,15 +105,44 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
       addToast({ type: 'error', message: 'El nombre es obligatorio' });
       return;
     }
+    if (mode === 'create' && inventoryMode === 'copy') {
+      const src = copySourceId || sucursalesActivasParaCopia[0]?.id;
+      if (!src) {
+        addToast({ type: 'error', message: 'Seleccione la sucursal de la que copiar el inventario' });
+        return;
+      }
+    }
     setSaving(true);
     try {
       if (mode === 'create') {
-        await createSucursalMeta({
+        const newId = await createSucursalMeta({
           nombre: form.nombre,
           codigo: form.codigo.trim() || undefined,
           id: form.docId.trim() || undefined,
         });
-        addToast({ type: 'success', message: 'Sucursal creada' });
+        if (inventoryMode === 'copy') {
+          const src = copySourceId || sucursalesActivasParaCopia[0]!.id;
+          try {
+            const { copied } = await copyProductCatalogBetweenSucursales(newId, src);
+            addToast({
+              type: 'success',
+              message:
+                copied > 0
+                  ? `Sucursal creada; se copiaron ${copied} producto(s) desde el catálogo de origen.`
+                  : 'Sucursal creada; la sucursal origen no tenía productos que copiar.',
+            });
+          } catch (copyErr) {
+            addToast({
+              type: 'error',
+              message:
+                copyErr instanceof Error
+                  ? `Sucursal creada, pero falló la copia del inventario: ${copyErr.message}`
+                  : 'Sucursal creada, pero falló la copia del inventario.',
+            });
+          }
+        } else {
+          addToast({ type: 'success', message: 'Sucursal creada' });
+        }
       } else if (editing) {
         await updateSucursalMeta(editing.id, {
           nombre: form.nombre,
@@ -361,6 +401,17 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
                 className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               />
             </div>
+            {mode === 'create' ? (
+              <SucursalCreateInventoryFields
+                sucursalesOrigen={sucursalesActivasParaCopia}
+                mode={inventoryMode}
+                onModeChange={setInventoryMode}
+                copySourceId={copySourceId}
+                onCopySourceIdChange={setCopySourceId}
+                labelClassName="text-slate-900 dark:text-slate-100"
+                hintClassName="text-slate-600 dark:text-slate-500"
+              />
+            ) : null}
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button
@@ -377,7 +428,7 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
               onClick={() => void handleSave()}
               className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
             >
-              {saving ? 'Guardando…' : 'Guardar'}
+              {saving ? 'Procesando…' : 'Guardar'}
             </Button>
           </DialogFooter>
         </DialogContent>

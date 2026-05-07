@@ -43,6 +43,7 @@ import {
   subscribeFirestoreDirectoryUsers,
   updateFirestoreDirectoryUser,
 } from '@/lib/firestore/usersDirectoryFirestore';
+import { adminSetPosPin } from '@/lib/adminSetPosPin';
 import { subscribeSucursales } from '@/lib/firestore/sucursalesMetaFirestore';
 import { useAuthStore, useAppStore } from '@/stores';
 import { normalizeServipartzEmail } from '@/lib/servipartzAuth';
@@ -58,7 +59,7 @@ type FormMode = 'create' | 'edit';
 type UmForm = {
   loginEmail: string;
   lockedEmail?: string;
-  password: string;
+  posPin: string;
   username: string;
   name: string;
   role: User['role'];
@@ -66,10 +67,12 @@ type UmForm = {
   isActive: boolean;
 };
 
+const POS_PIN_RE = /^\d{4,12}$/;
+
 const emptyForm = (): UmForm => ({
   loginEmail: '',
   lockedEmail: undefined,
-  password: '',
+  posPin: '',
   username: '',
   name: '',
   role: 'cashier',
@@ -153,8 +156,22 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
         addToast({ type: 'error', message: 'Indique usuario o correo para el acceso' });
         return;
       }
-      if (!form.password) {
-        addToast({ type: 'error', message: 'Defina una contraseña' });
+      if (!POS_PIN_RE.test(form.posPin.trim())) {
+        addToast({
+          type: 'error',
+          message: 'El PIN debe tener entre 4 y 12 dígitos numéricos',
+        });
+        return;
+      }
+    }
+
+    if (mode === 'edit' && editingId) {
+      const newPin = form.posPin.trim();
+      if (newPin && !POS_PIN_RE.test(newPin)) {
+        addToast({
+          type: 'error',
+          message: 'El PIN debe tener entre 4 y 12 dígitos numéricos',
+        });
         return;
       }
     }
@@ -165,7 +182,7 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
         const email = normalizeServipartzEmail(form.loginEmail);
         await createAuthUserAndProfile({
           email: email!,
-          password: form.password,
+          password: form.posPin.trim(),
           name: form.name,
           username: form.username.trim() || undefined,
           role: form.role,
@@ -180,6 +197,10 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
           isActive: form.isActive,
           sucursalId: form.sucursalId.trim() || null,
         });
+        const newPin = form.posPin.trim();
+        if (newPin) {
+          await adminSetPosPin(editingId, newPin);
+        }
         addToast({ type: 'success', message: 'Usuario actualizado' });
       }
       setDialogOpen(false);
@@ -446,14 +467,39 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
             </div>
             {mode === 'create' && (
               <div className="space-y-2">
-                <Label htmlFor="um-password">Contraseña inicial</Label>
+                <Label htmlFor="um-pos-pin">Clave numérica (PIN)</Label>
                 <Input
-                  id="um-password"
-                  type="password"
-                  value={form.password}
-                  onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+                  id="um-pos-pin"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  value={form.posPin}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, posPin: e.target.value.replace(/\D/g, '').slice(0, 12) }))
+                  }
                   className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                  autoComplete="new-password"
+                  placeholder="4–12 dígitos (ej. 1234)"
+                />
+                <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-500">
+                  Es la clave que aparecerá en el teclado numérico del inicio de sesión y la contraseña de
+                  acceso en Supabase.
+                </p>
+              </div>
+            )}
+            {mode === 'edit' && (
+              <div className="space-y-2">
+                <Label htmlFor="um-pos-pin-edit">Nueva clave numérica (opcional)</Label>
+                <Input
+                  id="um-pos-pin-edit"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  value={form.posPin}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, posPin: e.target.value.replace(/\D/g, '').slice(0, 12) }))
+                  }
+                  className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                  placeholder="Dejar vacío para no cambiar el PIN"
                 />
               </div>
             )}

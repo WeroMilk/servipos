@@ -2,6 +2,32 @@ import type { Permission, User, UserRole } from '@/types';
 import { mapProfileRowToUser } from '@/lib/mapFirestoreUser';
 import { getSupabase } from '@/lib/supabaseClient';
 
+export type LoginDirectoryUser = {
+  id: string;
+  name: string;
+  email: string;
+};
+
+/** Directorio de login (activos); invocable sin sesión vía `rpc_list_login_directory`. */
+export async function fetchLoginDirectoryUsers(): Promise<LoginDirectoryUser[]> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase.rpc('rpc_list_login_directory');
+  if (error) {
+    if (import.meta.env.DEV) {
+      console.warn('rpc_list_login_directory:', error.message);
+    }
+    return [];
+  }
+  const rows = (data ?? []) as { id: string; name: string; email: string }[];
+  return rows
+    .filter((r) => typeof r.email === 'string' && r.email.length > 0)
+    .map((r) => ({
+      id: r.id,
+      name: (r.name ?? '').trim() || r.email,
+      email: r.email.trim().toLowerCase(),
+    }));
+}
+
 /** Lista usuarios con perfil en `public.profiles`. */
 export function subscribeFirestoreDirectoryUsers(onList: (list: User[]) => void): () => void {
   const supabase = getSupabase();
