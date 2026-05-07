@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Delete, Lock, Moon, Sun, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -19,7 +20,7 @@ import { LoadingIndicator } from './LoadingIndicator';
 
 const MAX_PIN_LEN = 12;
 
-function PinKeypad({
+function PinKeypadGrid({
   value,
   onChange,
   disabled,
@@ -68,34 +69,18 @@ function PinKeypad({
   ];
 
   return (
-    <div className="space-y-3">
-      <div
-        className={cn(
-          'rounded-xl border-2 border-slate-600 bg-slate-950 px-3 py-3 text-center shadow-inner',
-          'ring-1 ring-black/20 dark:border-slate-500'
-        )}
-        aria-live="polite"
-      >
-        <div className="min-h-[2.25rem] font-mono text-2xl font-medium tracking-[0.35em] text-emerald-400 sm:min-h-[2.5rem] sm:text-3xl">
-          {value.length > 0 ? '•'.repeat(value.length) : <span className="text-emerald-800/50">—</span>}
-        </div>
-        <div className="mt-1 text-[10px] uppercase tracking-wider text-emerald-700/70 dark:text-emerald-600/80">
-          clave
-        </div>
-      </div>
-      <div className="grid grid-cols-3 gap-2">
-        {keys.map((k, i) => (
-          <button
-            key={i}
-            type="button"
-            disabled={disabled}
-            onClick={k.onClick}
-            className={cn(cellClass, k.className, disabled && 'pointer-events-none opacity-45')}
-          >
-            {i === keys.length - 1 ? <Delete className="h-5 w-5 sm:h-6 sm:w-6" strokeWidth={1.75} /> : k.label}
-          </button>
-        ))}
-      </div>
+    <div className="grid grid-cols-3 gap-2 pt-1">
+      {keys.map((k, i) => (
+        <button
+          key={i}
+          type="button"
+          disabled={disabled}
+          onClick={k.onClick}
+          className={cn(cellClass, k.className, disabled && 'pointer-events-none opacity-45')}
+        >
+          {i === keys.length - 1 ? <Delete className="h-5 w-5 sm:h-6 sm:w-6" strokeWidth={1.75} /> : k.label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -291,11 +276,27 @@ export function LoginForm() {
             </div>
 
             <div className="space-y-2">
-              <Label className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
-                <Lock className="h-4 w-4 text-slate-500" />
+              <Label htmlFor="login-pin" className="text-slate-700 dark:text-slate-300">
                 Contraseña
               </Label>
-              <PinKeypad value={pin} onChange={setPin} disabled={formBusy} />
+              <div className="relative">
+                <Lock className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" />
+                <Input
+                  id="login-pin"
+                  type="password"
+                  inputMode="numeric"
+                  autoComplete="current-password"
+                  enterKeyHint="done"
+                  value={pin}
+                  onChange={(e) =>
+                    setPin(e.target.value.replace(/\D/g, '').slice(0, MAX_PIN_LEN))
+                  }
+                  placeholder="Teclado o botones (solo números)"
+                  disabled={formBusy}
+                  className="h-10 border-slate-300 bg-slate-50/80 pl-10 font-mono tracking-widest text-slate-900 placeholder:text-slate-500 focus:border-cyan-500/50 focus-visible:ring-cyan-500/20 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-100 dark:placeholder:text-slate-600"
+                />
+              </div>
+              <PinKeypadGrid value={pin} onChange={setPin} disabled={formBusy} />
             </div>
 
             <Button
