@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Delete, Lock, Moon, Sun, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -58,7 +58,7 @@ function PinKeypadGrid({
     {
       label: 'C',
       onClick: clear,
-      className: 'text-sm font-bold text-amber-700 dark:text-amber-400',
+      className: 'text-sm font-bold text-blue-600 dark:text-blue-400',
     },
     { label: '0', onClick: () => append('0') },
     {
@@ -97,6 +97,7 @@ export function LoginForm() {
   const [selectedEmail, setSelectedEmail] = useState('');
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
+  const pinInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -243,6 +244,7 @@ export function LoginForm() {
                     onValueChange={(v) => {
                       setSelectedEmail(v);
                       setPin('');
+                      window.setTimeout(() => pinInputRef.current?.focus(), 0);
                     }}
                     disabled={directoryLoading || directory.length === 0}
                   >
@@ -282,6 +284,7 @@ export function LoginForm() {
               <div className="relative">
                 <Lock className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" />
                 <Input
+                  ref={pinInputRef}
                   id="login-pin"
                   type="password"
                   inputMode="numeric"
@@ -291,7 +294,14 @@ export function LoginForm() {
                   onChange={(e) =>
                     setPin(e.target.value.replace(/\D/g, '').slice(0, MAX_PIN_LEN))
                   }
-                  placeholder="Teclado o botones (solo números)"
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter') return;
+                    const form = e.currentTarget.form;
+                    if (!form || formBusy || directory.length === 0) return;
+                    e.preventDefault();
+                    form.requestSubmit();
+                  }}
+                  placeholder="Contraseña"
                   disabled={formBusy}
                   className="h-10 border-slate-300 bg-slate-50/80 pl-10 font-mono tracking-widest text-slate-900 placeholder:text-slate-500 focus:border-cyan-500/50 focus-visible:ring-cyan-500/20 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-100 dark:placeholder:text-slate-600"
                 />
