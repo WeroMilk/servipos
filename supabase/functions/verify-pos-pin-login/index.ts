@@ -14,21 +14,48 @@ function parseAllowedOrigins(): string[] {
     .filter((v) => v.length > 0);
 }
 
-function isOriginAllowed(origin: string | null, allowed: string[]): boolean {
-  if (allowed.length === 0) return false;
+/**
+ * Orígenes típicos de desarrollo y Vercel (*.vercel.app). Si usa dominio propio
+ * (ej. https://pos.su-dominio.com), añádalo a `ADMIN_CREATE_USER_ALLOWED_ORIGINS` en Supabase.
+ */
+function isTrustedDefaultOrigin(origin: string | null): boolean {
   if (!origin) return false;
-  return allowed.includes(origin);
+  try {
+    const u = new URL(origin);
+    if (u.protocol === 'http:' && (u.hostname === 'localhost' || u.hostname === '127.0.0.1')) {
+      return true;
+    }
+    if (u.protocol === 'https:' && u.hostname.endsWith('.vercel.app')) {
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
 }
 
-function corsHeadersForOrigin(origin: string | null, allowed: string[]): Record<string, string> {
-  const allowOrigin = isOriginAllowed(origin, allowed) ? origin! : allowed[0] ?? 'null';
+/**
+ * Origen permitido si coincide con la lista configurada en Supabase o si es un origen
+ * habitual de esta app (Vercel preview/prod *.vercel.app, localhost).
+ */
+function resolveAllowOrigin(origin: string | null, configured: string[]): string | null {
+  if (!origin) return null;
+  if (configured.includes(origin)) return origin;
+  if (isTrustedDefaultOrigin(origin)) return origin;
+  return null;
+}
+
+function corsHeaders(allowOrigin: string | null): Record<string, string> {
+  if (!allowOrigin) {
+    return { ...baseCorsHeaders };
+  }
   return {
     ...baseCorsHeaders,
     'Access-Control-Allow-Origin': allowOrigin,
   };
 }
 
-function json(body: unknown, status = 200, headers?: Record<string, string>) {
+function json(body: unknown, status = 200, headers: Record<string, string>) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...headers, 'Content-Type': 'application/json' },
@@ -48,38 +75,43 @@ const PIN_RE = /^\d{4,12}$/;
 
 Deno.serve(async (req) => {
   const origin = req.headers.get('Origin');
-  const allowedOrigins = parseAllowedOrigins();
-  const corsHeaders = corsHeadersForOrigin(origin, allowedOrigins);
-  if (!isOriginAllowed(origin, allowedOrigins)) {
-    return json({ error: 'Origin not allowed' }, 403, corsHeaders);
-  }
+  const configured = parseAllowedOrigins();
+  const allowOrigin = resolveAllowOrigin(origin, configured);
+  const ch = corsHeaders(allowOrigin);
 
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    if (allowOrigin == null) {
+      return new Response('Forbidden', { status: 403 });
+    }
+    return new Response(null, { status: 204, headers: ch });
+  }
+
+  if (allowOrigin == null) {
+    return json({ error: 'Origin not allowed' }, 403, ch);
   }
 
   if (req.method !== 'POST') {
-    return json({ error: 'Method not allowed' }, 405, corsHeaders);
+    return json({ error: 'Method not allowed' }, 405, ch);
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   if (!supabaseUrl || !serviceKey) {
-    return json({ error: 'Missing Supabase env' }, 500, corsHeaders);
+    return json({ error: 'Missing Supabase env' }, 500, ch);
   }
 
   let body: { email?: string; pin?: string };
   try {
     body = await req.json();
   } catch {
-    return json({ error: 'JSON inválido' }, 400, corsHeaders);
+    return json({ error: 'JSON inválido' }, 400, ch);
   }
 
   const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
   const pin = typeof body.pin === 'string' ? body.pin.trim() : '';
 
   if (!email.includes('@') || !PIN_RE.test(pin)) {
-    return json({ error: 'Solicitud inválida' }, 400, corsHeaders);
+    return json({ error: 'Solicitud inválida' }, 400, ch);
   }
 
   const admin = createClient(supabaseUrl, serviceKey, {
@@ -93,24 +125,24 @@ Deno.serve(async (req) => {
     .limit(2);
 
   if (selErr || !rows?.length) {
-    return json({ error: 'No autorizado' }, 401, corsHeaders);
+    return json({ error: 'No autorizado' }, 401, ch);
   }
   if (rows.length > 1) {
-    return json({ error: 'Correo duplicado' }, 409, corsHeaders);
+    return json({ error: 'Correo duplicado' }, 409, ch);
   }
 
   const row = rows[0]!;
   if (!row.is_active || typeof row.pos_pin !== 'string' || row.pos_pin.length === 0) {
-    return json({ error: 'No autorizado' }, 401, corsHeaders);
+    return json({ error: 'No autorizado' }, 401, ch);
   }
   if (!safeEqualStr(row.pos_pin, pin)) {
-    return json({ error: 'No autorizado' }, 401, corsHeaders);
+    return json({ error: 'No autorizado' }, 401, ch);
   }
 
   const { error: authErr } = await admin.auth.admin.updateUserById(row.id, { password: pin });
   if (authErr) {
-    return json({ error: authErr.message }, 500, corsHeaders);
+    return json({ error: authErr.message }, 500, ch);
   }
 
-  return json({ ok: true }, 200, corsHeaders);
+  return json({ ok: true }, 200, ch);
 });
