@@ -322,21 +322,17 @@ export function firstSinIvaFromListaMap(
 }
 
 /**
- * Base sin IVA inferida desde listas: prioriza **regular** si existe; si no, el **mayor** importe entre listas
- * (evita usar mayoreo-/cañanea como “precio de catálogo” solo por ir antes en el orden).
+ * Base sin IVA inferida desde listas: el **mayor** unitario sin IVA entre todas las listas canónicas.
+ * En Olivares/Crystal el Regular es el escalón más caro; si `regular` quedó desactualizado pero otra lista
+ * trae el precio nuevo (p. ej. merge parcial o columnas cruzadas), no se debe cobrar por debajo del tope.
  */
 export function inferPrecioVentaSinIvaFromListas(
   map: NonNullable<Product['preciosPorListaCliente']>,
   listaImportesConIva: boolean,
   impuestoPct: number
 ): number {
-  const explicitReg = normalizeListaPrecioValue(map.regular);
-  if (explicitReg !== undefined && explicitReg > 0) {
-    return roundMoney2(listaExplicitToSinIva(explicitReg, listaImportesConIva, impuestoPct));
-  }
   let best = 0;
   for (const id of CLIENT_PRICE_LIST_ORDER) {
-    if (id === 'regular') continue;
     const ex = normalizeListaPrecioValue(map[id]);
     if (ex !== undefined && ex > 0) {
       const s = listaExplicitToSinIva(ex, listaImportesConIva, impuestoPct);
@@ -368,14 +364,7 @@ export function resolvePrecioVentaSinIvaForDoc(args: {
     map ? inferPrecioVentaSinIvaFromListas(map, listaImportesConIva, args.impuesto) : 0;
 
   if (pv0 > 0) {
-    const regEx = map ? normalizeListaPrecioValue(map.regular) : undefined;
-    if (regEx !== undefined && regEx > 0) {
-      const regSin = listaExplicitToSinIva(regEx, listaImportesConIva, args.impuesto);
-      if (regSin > pv0 + 0.02) {
-        return roundMoney2(regSin);
-      }
-    } else if (map && fromListas > pv0 + 0.02) {
-      /** Sin `regular` explícita: subir PV si solo reflejaba una lista barata y hay otras listas mayores. */
+    if (map && fromListas > pv0 + 0.02) {
       return roundMoney2(fromListas);
     }
     return roundMoney2(pv0);
