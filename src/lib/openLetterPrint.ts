@@ -16,7 +16,7 @@ function attachLetterPrintHandlers(win: Window, onAfterPrint?: () => void): void
       /* noop */
     }
   };
-  let closeFallback = window.setTimeout(safeClose, 45_000);
+  const closeFallback = window.setTimeout(safeClose, 45_000);
   win.addEventListener(
     'afterprint',
     () => {

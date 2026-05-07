@@ -119,8 +119,8 @@ function formatFieldChange(key: keyof Product, prev: unknown, next: unknown): st
     return `${label}: ${Math.round(Number(prev) || 0)} → ${Math.round(Number(next) || 0)}`;
   }
   if (key === 'activo') {
-    const ps = Boolean(prev) ? 'Sí' : 'No';
-    const ns = Boolean(next) ? 'Sí' : 'No';
+    const ps = prev ? 'Sí' : 'No';
+    const ns = next ? 'Sí' : 'No';
     return `${label}: ${ps} → ${ns}`;
   }
   if (key === 'preciosPorListaCliente') {

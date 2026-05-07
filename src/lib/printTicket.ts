@@ -374,7 +374,7 @@ function openAndPrintHtml(html: string, windowFeatures: string, printDelayMs: nu
     };
 
     /** Tras cerrar el diálogo de impresión, cierra la ventana del ticket (navegadores sin `afterprint`: respaldo). */
-    let closeFallback = window.setTimeout(safeClosePrintWindow, 45_000);
+    const closeFallback = window.setTimeout(safeClosePrintWindow, 45_000);
     w.addEventListener(
       'afterprint',
       () => {

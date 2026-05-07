@@ -1144,7 +1144,6 @@ export function Inventario() {
     consumedEditFromMissions.current = id;
     openEditDialog(p);
     // openEditDialog es estable en intención; dependencias explícitas evitarían bucles con setState interno.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- abrir diálogo una vez por state.editProductId
   }, [location.state, products, loading, navigate, addToast]);
 
   const openPreciosDialog = useCallback(
