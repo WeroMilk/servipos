@@ -1231,6 +1231,15 @@ export function Inventario() {
       }, 0),
     [products]
   );
+  /** Suma del precio al público lista Regular por artículo (1 u.), sin ponderar por existencias — útil cuando muchos SKUs están en cero físico. */
+  const valorListaRegularSigmaUnidad = useMemo(
+    () =>
+      products.reduce((sum, p) => {
+        if (productEsServicio(p)) return sum;
+        return sum + getProductPrecioPublicoRegular(p);
+      }, 0),
+    [products]
+  );
   const isInventoryLoadingUi = loading || inventoryBootstrapping;
 
   useEffect(() => {
@@ -1337,7 +1346,8 @@ export function Inventario() {
   const modeHint: Record<InventoryMode, string> = {
     productos: '',
     stock: 'Stock en cero, por debajo del mínimo, o por debajo del 15% del mínimo configurado.',
-    valor: 'Lista ordenada por precio de venta (mayor primero). Use los encabezados para cambiar criterio o sentido.',
+    valor:
+      'La tarjeta muestra la suma del precio Lista Regular (1 u. por artículo) y, debajo, el valor en existencias (precio × stock). La lista se ordena por precio (mayor primero).',
     codigos: 'Nombre y SKU. Edita el SKU y guarda al salir del campo.',
   };
 
@@ -1505,19 +1515,26 @@ export function Inventario() {
               : 'border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 hover:border-slate-300 dark:border-slate-700/60'
           )}
         >
-          <CardContent className="flex items-center gap-2 p-2 sm:gap-3 sm:p-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 sm:h-10 sm:w-10">
+          <CardContent className="flex items-start gap-2 p-2 sm:gap-3 sm:p-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 sm:mt-0.5 sm:h-10 sm:w-10">
               <TrendingUp className="h-4 w-4 text-emerald-400 sm:h-5 sm:w-5" />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 space-y-0.5">
               <p className="truncate text-base font-bold tabular-nums text-slate-900 dark:text-slate-100 sm:text-lg">
                 {isInventoryLoadingUi ? (
                   <span className="inline-flex h-5 w-5 animate-spin rounded-full border-2 border-emerald-500/30 border-t-emerald-500 align-middle sm:h-6 sm:w-6" />
                 ) : (
-                  formatMoney(valorInventarioTotal)
+                  formatMoney(valorListaRegularSigmaUnidad)
                 )}
               </p>
               <p className="text-[10px] text-slate-600 dark:text-slate-500 sm:text-xs">Valor</p>
+              <p
+                className="truncate text-[10px] tabular-nums text-slate-500 dark:text-slate-400 sm:text-[11px]"
+                title="Suma de (precio Regular con IVA × existencia) por artículo físico."
+              >
+                En existencias:{' '}
+                {isInventoryLoadingUi ? '—' : formatMoney(valorInventarioTotal)}
+              </p>
             </div>
           </CardContent>
         </button>
