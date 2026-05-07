@@ -52,9 +52,13 @@ export function useProducts() {
         `Sin permiso para leer el inventario de esta sucursal. ${SUPABASE_PERMISSION_HINT}`
       );
     } else {
-      setError(err instanceof Error ? err.message : 'Error al sincronizar inventario con la nube');
+      const raw =
+        err instanceof Error ? err.message : 'Error al sincronizar inventario con la nube';
+      const networkHint =
+        /failed\s+to\s+fetch|networkerr|timed?\s+out|offline|cors/i.test(raw) ?
+          ' Comprueba la conexión, que el proyecto en Supabase no esté pausado y las variables VITE_SUPABASE_URL / ANON.' : '';
+      setError(raw + networkHint);
     }
-    setProducts([]);
     setLoading(false);
   }, []);
 

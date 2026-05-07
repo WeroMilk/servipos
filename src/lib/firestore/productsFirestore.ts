@@ -13,7 +13,27 @@ import { getSupabase } from '@/lib/supabaseClient';
 /** PostgREST devuelve como máximo 1000 filas por defecto; hay que paginar. */
 const PRODUCTS_FETCH_PAGE = 1000;
 
-async function fetchAllProductRowsForSucursal(sucursalId: string): Promise<{
+const CATALOG_FETCH_MAX_ATTEMPTS = 4;
+
+function isTransientCatalogNetworkError(message: string): boolean {
+  const m = message.toLowerCase().trim();
+  if (m.includes('failed to fetch')) return true;
+  if (m.includes('networkerror')) return true;
+  if (m.includes('network request failed')) return true;
+  if (m.includes('load failed')) return true;
+  if (m.includes('fetch aborted') || m.includes('aborted fetch')) return true;
+  if (m.includes('timeout') || m.includes('timed out')) return true;
+  if (m.includes('econnreset') || m.includes('econnrefused') || m.includes('enotfound')) return true;
+  if (m.includes('bad gateway') || m.includes('service unavailable')) return true;
+  if (/^5\d{2}\b/.test(m)) return true;
+  return false;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchAllProductRowsForSucursalOnce(sucursalId: string): Promise<{
   rows: { id: string; doc: Record<string, unknown> }[];
   error: Error | null;
 }> {
@@ -37,6 +57,32 @@ async function fetchAllProductRowsForSucursal(sucursalId: string): Promise<{
     from += PRODUCTS_FETCH_PAGE;
   }
   return { rows: all, error: null };
+}
+
+async function fetchAllProductRowsForSucursal(sucursalId: string): Promise<{
+  rows: { id: string; doc: Record<string, unknown> }[];
+  error: Error | null;
+}> {
+  let lastErr: Error | null = null;
+  for (let attempt = 0; attempt < CATALOG_FETCH_MAX_ATTEMPTS; attempt++) {
+    if (attempt > 0) {
+      const backoff = Math.round(350 * Math.pow(2.5, attempt - 1));
+      await delay(backoff);
+    }
+    const { rows, error } = await fetchAllProductRowsForSucursalOnce(sucursalId);
+    if (!error) {
+      return { rows, error: null };
+    }
+    lastErr = error;
+    if (!isTransientCatalogNetworkError(error.message)) {
+      break;
+    }
+    console.warn(
+      `[products] Fallo red al cargar catálogo (intento ${attempt + 1}/${CATALOG_FETCH_MAX_ATTEMPTS}):`,
+      error.message
+    );
+  }
+  return { rows: [], error: lastErr };
 }
 
 function firestoreTimestampToDate(value: unknown): Date {
@@ -161,8 +207,15 @@ export function subscribeProductCatalog(
   const load = async () => {
     const { rows, error } = await fetchAllProductRowsForSucursal(sucursalId);
     if (error) {
-      lastProducts = [];
-      catalogListeners.forEach((l) => l([]));
+      if (lastProducts.length > 0) {
+        catalogListeners.forEach((l) => {
+          try {
+            l([...lastProducts]);
+          } catch (e) {
+            console.error('subscribeProductCatalog listener:', e);
+          }
+        });
+      }
       catalogErrorListeners.forEach((fn) => {
         try {
           fn(error);
