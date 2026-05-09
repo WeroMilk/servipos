@@ -1,8 +1,8 @@
 -- PIN de acceso POS (clave numérica en UI) y directorio de login para sesión anónima.
 -- Nota: la contraseña real sigue siendo la de Supabase Auth; al cambiar el PIN desde
 -- Configuración → Usuarios se invoca la Edge Function admin-set-pos-pin para mantener ambas alineadas.
--- Tras aplicar esta migración, sincronice las contraseñas de Auth con el valor de pos_pin
--- (p. ej. 1234 para zavala/gabriel si es lo que definió aquí) o vuelva a guardar el PIN desde la app.
+-- Por defecto los perfiles activos usan PIN 2801; la primera entrada con ese PIN puede alinear Auth
+-- vía la Edge Function verify-pos-pin-login si la contraseña de Auth era otra.
 
 alter table public.profiles
   add column if not exists pos_pin text not null default '';
@@ -10,13 +10,11 @@ alter table public.profiles
 comment on column public.profiles.pos_pin is 'Clave numérica mostrada en el login PIN; debe coincidir con auth.users.encrypted_password vía flujo admin.';
 
 update public.profiles p
-set pos_pin = '1234',
+set pos_pin = '2801',
     updated_at = now()
-where p.is_active = true
-  and (
-    lower(trim(p.username)) in ('zavala', 'gabriel')
-    or lower(trim(split_part(p.email, '@', 1))) in ('zavala', 'gabriel')
-  );
+where p.is_active = true;
+
+alter table public.profiles alter column pos_pin set default '2801';
 
 create or replace function public.rpc_list_login_directory()
 returns table (
