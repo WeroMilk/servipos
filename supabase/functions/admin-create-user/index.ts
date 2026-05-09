@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
+import { authPasswordFromPosPin } from '../_shared/authPasswordFromPosPin.ts';
 
 const baseCorsHeaders: Record<string, string> = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -41,6 +42,8 @@ function normalizeRole(r: string): string {
   if (s === 'gerente') return 'gerente';
   return 'cashier';
 }
+
+const POS_PIN_RE = /^\d{4,12}$/;
 
 function isAdminRole(role: string | null | undefined): boolean {
   if (!role) return false;
@@ -129,6 +132,11 @@ Deno.serve(async (req) => {
     return json({ error: 'Faltan email, password o name' }, 400, corsHeaders);
   }
 
+  const passwordTrim = password.trim();
+  const authPassword = POS_PIN_RE.test(passwordTrim)
+    ? authPasswordFromPosPin(passwordTrim)
+    : passwordTrim;
+
   const admin = createClient(supabaseUrl, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
@@ -158,7 +166,7 @@ Deno.serve(async (req) => {
 
   const { data: created, error: createErr } = await admin.auth.admin.createUser({
     email,
-    password,
+    password: authPassword,
     email_confirm: true,
   });
 
@@ -178,7 +186,7 @@ Deno.serve(async (req) => {
       role,
       is_active: true,
       sucursal_id: sucursalId,
-      pos_pin: password,
+      pos_pin: passwordTrim,
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'id' }

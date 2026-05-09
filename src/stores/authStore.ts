@@ -42,7 +42,11 @@ export const useAuthStore = create<AuthStore>((set) => ({
       }
 
       if (expectedAuthFailure && looksLikePosPin(password) && (await syncAuthPasswordFromPosPin(email, password))) {
-        ({ error } = await signIn());
+        const { authPasswordFromPosPin } = await import('@/lib/authPasswordFromPosPin');
+        ({ error } = await supabase.auth.signInWithPassword({
+          email,
+          password: authPasswordFromPosPin(password),
+        }));
         if (!error) return true;
       }
       return false;

@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
+import { authPasswordFromPosPin } from '../_shared/authPasswordFromPosPin.ts';
 
 const baseCorsHeaders: Record<string, string> = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -111,7 +112,9 @@ Deno.serve(async (req) => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  const { error: authErr } = await admin.auth.admin.updateUserById(userId, { password: posPin });
+  const { error: authErr } = await admin.auth.admin.updateUserById(userId, {
+    password: authPasswordFromPosPin(posPin),
+  });
   if (authErr) {
     return json({ error: authErr.message }, 400, corsHeaders);
   }
