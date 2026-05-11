@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   Barcode,
   TrendingUp,
+  Layers,
   MoreHorizontal,
   Truck,
   Clock,
@@ -1230,6 +1231,15 @@ export function Inventario() {
       }, 0),
     [products]
   );
+
+  const totalUnidadesStock = useMemo(
+    () =>
+      products.reduce((sum, p) => {
+        if (productEsServicio(p)) return sum;
+        return sum + p.existencia;
+      }, 0),
+    [products]
+  );
   const isInventoryLoadingUi = loading || inventoryBootstrapping;
 
   useEffect(() => {
@@ -1441,7 +1451,32 @@ export function Inventario() {
 
   return (
     <>
-    <PageShell title="Inventario" subtitle="Productos y stock" className="min-w-0 max-w-none">
+    <PageShell
+      title="Inventario"
+      subtitle="Productos y stock"
+      className="min-w-0 max-w-none"
+      actionsClassName="sm:justify-end"
+      actions={
+        <div
+          className="flex items-center gap-2 rounded-xl border border-slate-200/80 bg-slate-50/90 px-2.5 py-1.5 dark:border-slate-800/50 dark:bg-slate-900/50 sm:gap-3 sm:px-3 sm:py-2"
+          title="Suma de existencias de todos los productos físicos (excluye servicios)."
+        >
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-500/20 sm:h-9 sm:w-9">
+            <Layers className="h-4 w-4 text-sky-400 sm:h-5 sm:w-5" />
+          </div>
+          <div className="min-w-0 text-right">
+            <p className="text-base font-bold tabular-nums text-slate-900 dark:text-slate-100 sm:text-lg">
+              {isInventoryLoadingUi ? (
+                <span className="inline-flex h-5 w-5 animate-spin rounded-full border-2 border-sky-500/30 border-t-sky-500 align-middle sm:h-6 sm:w-6" />
+              ) : (
+                new Intl.NumberFormat('es-MX', { maximumFractionDigits: 2 }).format(totalUnidadesStock)
+              )}
+            </p>
+            <p className="text-[10px] text-slate-600 dark:text-slate-500 sm:text-xs">Unidades en stock</p>
+          </div>
+        </div>
+      }
+    >
       <div className="grid w-full min-w-0 shrink-0 grid-cols-1 gap-2 min-[420px]:grid-cols-2 lg:grid-cols-4 lg:gap-3">
         <button
           type="button"

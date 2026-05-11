@@ -423,33 +423,37 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
     }
   `;
 
-  /** Brother QL suele no imprimir o recortar los primeros mm arriba/izquierda: hueco en página + etiqueta más chica. */
+  /**
+   * Brother QL suele no imprimir o recortar los primeros mm arriba/izquierda.
+   * El hueco debe ir en @page margin (se repite en cada hoja). Si usamos padding en body,
+   * Chromium suele aplicarlo solo al primer fragmento impreso y las etiquetas 2..N suben.
+   */
   const dk1201PageInsetCss =
     preset === 'dk1201'
       ? `
-  body.labels-dk1201 {
-    padding: 3.25mm 0.55mm 0.4mm 3.25mm;
-    box-sizing: border-box;
-  }
+  /* Mismo rectángulo útil que antes: 3.25+0.55 en X, 3.25+0.4 en Y → etiqueta calc(W-3.8) × calc(H-3.65). */
   body.labels-dk1201 .label.label-dk1201 {
     width: calc(${f.pageW} - 3.8mm);
     min-width: 0;
     max-width: calc(${f.pageW} - 3.8mm);
     height: calc(${f.pageH} - 3.65mm);
+    margin: 0 auto;
   }
   @media print {
-    body.labels-dk1201 {
-      padding: 3.25mm 0.55mm 0.4mm 3.25mm !important;
-      box-sizing: border-box !important;
-    }
     body.labels-dk1201 .label.label-dk1201 {
       width: calc(${f.pageW} - 3.8mm) !important;
       min-width: 0 !important;
       max-width: calc(${f.pageW} - 3.8mm) !important;
       height: calc(${f.pageH} - 3.65mm) !important;
+      margin: 0 auto !important;
     }
   }`
       : '';
+
+  const pageAtRule =
+    preset === 'dk1201'
+      ? `@page { size: ${f.pageW} ${f.pageH}; margin: 3.25mm 0.55mm 0.4mm 3.25mm; }`
+      : `@page { size: ${f.pageW} ${f.pageH}; margin: 0; }`;
 
   const printHint =
     preset === 'dk1201'
@@ -464,7 +468,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
 <meta charset="utf-8"/>
 <title>Etiquetas de producto</title>
 <style>
-  @page { size: ${f.pageW} ${f.pageH}; margin: 0; }
+  ${pageAtRule}
   * { box-sizing: border-box; }
   html {
     margin: 0;
@@ -510,6 +514,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
     background: #fff;
     color: #000;
     page-break-after: always;
+    break-after: page;
     page-break-inside: avoid;
     break-inside: avoid;
     display: flex;
@@ -537,6 +542,10 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
   }
   ${cssStrip}
   ${dk1201PageInsetCss}
+  .label:last-of-type {
+    page-break-after: auto;
+    break-after: auto;
+  }
 </style></head><body${preset === 'dk1201' ? ' class="labels-dk1201"' : ''}>${printHint}${sections.join('')}</body></html>`;
 
   w.document.open();
