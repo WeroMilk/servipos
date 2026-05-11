@@ -13,7 +13,7 @@ import { expandServipartzEmailAliases } from '../_shared/servipartzEmailCandidat
  * | PROFILE_INACTIVE_OR_NO_PIN | 401 | is_active false o pos_pin vacío. |
  * | BAD_PIN | 401 | PIN no coincide con pos_pin. |
  * | AUTH_USER_NOT_RESOLVED | 500 | No se pudo obtener id de Auth para actualizar contraseña. |
- * | AUTH_UPDATE_FAILED | 500 | updateUserById rechazado por GoTrue. |
+ * | AUTH_UPDATE_FAILED | 500 | Sin éxito ni por SDK ni por REST admin (`PUT`/`PATCH` users). |
  * | MISSING_SUPABASE_ENV | 500 | Faltan SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY en el runtime. |
  * | INTERNAL | 500 | Excepción no controlada. |
  */
@@ -81,6 +81,37 @@ function json(body: unknown, status = 200, headers: Record<string, string>) {
     status,
     headers: { ...headers, 'Content-Type': 'application/json' },
   });
+}
+
+/**
+ * GoTrue Admin API directa; útil cuando `admin.auth.admin.updateUserById` falla en Edge/Deno.
+ * @see https://supabase.com/docs/reference/api/auth-admin-update-user-by-id
+ */
+async function authAdminSetPasswordRest(
+  supabaseUrl: string,
+  serviceKey: string,
+  userId: string,
+  password: string
+): Promise<{ ok: true } | { ok: false; detail: string }> {
+  const base = supabaseUrl.replace(/\/$/, '');
+  const url = `${base}/auth/v1/admin/users/${encodeURIComponent(userId)}`;
+  const headers = {
+    Authorization: `Bearer ${serviceKey}`,
+    apikey: serviceKey,
+    'Content-Type': 'application/json',
+  };
+  let lastDetail = '';
+  for (const method of ['PUT', 'PATCH'] as const) {
+    const res = await fetch(url, {
+      method,
+      headers,
+      body: JSON.stringify({ password }),
+    });
+    if (res.ok) return { ok: true };
+    const txt = await res.text();
+    lastDetail = `${method} ${res.status}: ${txt.slice(0, 400)}`;
+  }
+  return { ok: false, detail: lastDetail };
 }
 
 function safeEqualStr(a: string, b: string): boolean {
@@ -365,8 +396,19 @@ Deno.serve(async (req) => {
         }
         return json({ ok: true, code: 'SYNC_OK' }, 200, ch);
       }
-      lastDirectUpdateMessage = directErr.message;
-      console.warn('[verify-pos-pin-login] updateUserById(profile.id) falló, se intenta resolución:', directErr.message);
+      const restDirect = await authAdminSetPasswordRest(supabaseUrl, serviceKey, profileAuthId, newPassword);
+      if (restDirect.ok) {
+        console.warn('[verify-pos-pin-login] updateUserById falló; REST admin OK:', directErr.message);
+        if (profileEmail.includes('@') && profileEmail !== email) {
+          const { error: emailErr } = await admin.auth.admin.updateUserById(profileAuthId, { email: profileEmail });
+          if (emailErr) {
+            console.warn('[verify-pos-pin-login] no se pudo alinear email en Auth:', emailErr.message);
+          }
+        }
+        return json({ ok: true, code: 'SYNC_OK' }, 200, ch);
+      }
+      lastDirectUpdateMessage = `${directErr.message} | REST: ${restDirect.detail}`;
+      console.warn('[verify-pos-pin-login] updateUserById(profile.id) falló, se intenta resolución:', lastDirectUpdateMessage);
     }
 
     const resolvedId = await resolveAuthUserIdForPinSync(admin, {
@@ -393,8 +435,17 @@ Deno.serve(async (req) => {
       password: newPassword,
     });
     if (authErr) {
-      console.error('[verify-pos-pin-login] updateUserById:', authErr.message);
-      return json(errPayload('AUTH_UPDATE_FAILED', authErr.message), 500, ch);
+      const restSecond = await authAdminSetPasswordRest(supabaseUrl, serviceKey, authUserId, newPassword);
+      if (restSecond.ok) {
+        console.warn('[verify-pos-pin-login] segundo updateUserById falló; REST admin OK:', authErr.message);
+      } else {
+        console.error('[verify-pos-pin-login] updateUserById:', authErr.message, '| REST:', restSecond.detail);
+        return json(
+          errPayload('AUTH_UPDATE_FAILED', `${authErr.message} | ${restSecond.detail}`),
+          500,
+          ch
+        );
+      }
     }
 
     if (profileEmail.includes('@') && profileEmail !== email) {
