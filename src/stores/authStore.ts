@@ -55,7 +55,10 @@ export const useAuthStore = create<AuthStore>((set) => ({
         console.error('Supabase Auth:', lastMessage);
       }
 
-      if (!anyExpectedAuthFailure || !looksLikePosPin(password)) return false;
+      // PIN de 4–12 dígitos: el primer `signInWithPassword` suele recibir 400 porque GoTrue
+      // exige contraseña más larga que el PIN visible; el mensaje no siempre coincide con
+      // "invalid credentials", así que no exigimos `anyExpectedAuthFailure` aquí.
+      if (!looksLikePosPin(password)) return false;
 
       let synced = false;
       for (const email of candidates) {
