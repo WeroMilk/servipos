@@ -300,11 +300,11 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       min-width: 0;
       display: flex;
       flex-direction: column;
-      justify-content: center;
+      justify-content: flex-start;
       align-items: flex-start;
       gap: 0.15mm;
     }
-    /** Centrado vertical del bloque nombre+precio+código (misma lógica corto/largo y 1 o N hojas). */
+    /** Anclaje superior fijo (sin centrar en altura): 1 ó N páginas y textos cortos/largos quedan alineados igual. */
     .label-dk1201 .col-main {
       flex: 1 1 0%;
       flex-grow: 1;
@@ -313,20 +313,11 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       min-height: 0;
       display: flex;
       flex-direction: column;
-      justify-content: center;
+      justify-content: flex-start;
       align-items: stretch;
       padding-top: 0.15mm;
       padding-bottom: 0.15mm;
       gap: 0;
-    }
-    /** Lote: baja un poco el bloque (driver / vista previa multipágina). Una sola: sube un poco. */
-    body.labels-print-batch.labels-dk1201 .label-dk1201 .col-main {
-      padding-top: 0.42mm;
-      padding-bottom: 0.08mm;
-    }
-    body.labels-print-one.labels-dk1201 .label-dk1201 .col-main {
-      padding-top: 0.06mm;
-      padding-bottom: 0.38mm;
     }
     .label-dk1201 .stack {
       display: flex;
@@ -334,9 +325,8 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       align-items: stretch;
       justify-content: flex-start;
       width: 100%;
-      flex: 0 1 auto;
+      flex: 1 1 0%;
       min-height: 0;
-      max-height: 100%;
       overflow: hidden;
       gap: 0.26mm;
     }
@@ -391,8 +381,8 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       flex-shrink: 0;
     }
     /**
-     * flex: 1 + min-height: 0: el bloque toma el espacio libre bajo el texto y el % max-height
-     * del PNG encaja el código completo sin recortar abajo (height:auto + max-height:none lo rompía).
+     * flex 1 debajo del texto: el hueco está en esa celda para que PNG max-height % escale igual
+     * sin mover el nombre/precio (anclaje superior en `.stack`).
      */
     .label-dk1201 .bc {
       flex: 1 1 auto;
@@ -547,11 +537,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
   }
   ${cssStrip}
   ${dk1201PageInsetCss}
-</style></head><body${
-    preset === 'dk1201'
-      ? ` class="labels-dk1201 ${products.length === 1 ? 'labels-print-one' : 'labels-print-batch'}"`
-      : ''
-  }>${printHint}${sections.join('')}</body></html>`;
+</style></head><body${preset === 'dk1201' ? ' class="labels-dk1201"' : ''}>${printHint}${sections.join('')}</body></html>`;
 
   w.document.open();
   w.document.write(html);
