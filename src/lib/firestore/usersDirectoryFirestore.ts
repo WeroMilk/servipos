@@ -1,6 +1,6 @@
 import type { Permission, User, UserRole } from '@/types';
 import { mapProfileRowToUser } from '@/lib/mapFirestoreUser';
-import { getSupabase, getSupabaseSessionless } from '@/lib/supabaseClient';
+import { getSupabase } from '@/lib/supabaseClient';
 
 export type LoginDirectoryUser = {
   id: string;
@@ -8,24 +8,49 @@ export type LoginDirectoryUser = {
   email: string;
 };
 
-/** Directorio de login (activos); invocable sin sesión vía `rpc_list_login_directory`. */
+/** Directorio de login (activos); `fetch` con anon key para evitar segundo GoTrueClient y JWT de sesión en el RPC. */
 export async function fetchLoginDirectoryUsers(): Promise<LoginDirectoryUser[]> {
-  const supabase = getSupabaseSessionless();
-  const { data, error } = await supabase.rpc('rpc_list_login_directory');
-  if (error) {
+  const base = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+  if (!base || !anonKey) {
     if (import.meta.env.DEV) {
-      console.warn('rpc_list_login_directory:', error.message);
+      console.warn('fetchLoginDirectoryUsers: faltan VITE_SUPABASE_URL o VITE_SUPABASE_ANON_KEY');
     }
     return [];
   }
-  const rows = (data ?? []) as { id: string; name: string; email: string }[];
-  return rows
-    .filter((r) => typeof r.email === 'string' && r.email.length > 0)
-    .map((r) => ({
-      id: r.id,
-      name: (r.name ?? '').trim() || r.email,
-      email: r.email.trim().toLowerCase(),
-    }));
+  const url = `${base.replace(/\/$/, '')}/rest/v1/rpc/rpc_list_login_directory`;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        apikey: anonKey,
+        Authorization: `Bearer ${anonKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: '{}',
+    });
+    if (!res.ok) {
+      if (import.meta.env.DEV) {
+        const detail = await res.text().catch(() => '');
+        console.warn('rpc_list_login_directory:', res.status, detail.slice(0, 300));
+      }
+      return [];
+    }
+    const parsed = (await res.json()) as unknown;
+    const rows = (Array.isArray(parsed) ? parsed : []) as { id: string; name: string | null; email: string | null }[];
+    return rows
+      .filter((r) => typeof r.email === 'string' && r.email.length > 0)
+      .map((r) => ({
+        id: r.id,
+        name: (r.name ?? '').trim() || (r.email as string),
+        email: (r.email as string).trim().toLowerCase(),
+      }));
+  } catch (e) {
+    if (import.meta.env.DEV) {
+      console.warn('fetchLoginDirectoryUsers:', e);
+    }
+    return [];
+  }
 }
 
 /** Lista usuarios con perfil en `public.profiles`. */
