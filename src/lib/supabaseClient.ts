@@ -12,6 +12,8 @@ function requireEnv(name: keyof ImportMetaEnv): string {
 }
 
 let client: SupabaseClient | null = null;
+/** Cliente sin sesión persistida: REST usa siempre el JWT anónimo (evita 401 si hay token de usuario corrupto/expirado en localStorage). */
+let sessionlessClient: SupabaseClient | null = null;
 
 export function getSupabase(): SupabaseClient {
   if (!client) {
@@ -25,4 +27,18 @@ export function getSupabase(): SupabaseClient {
     });
   }
   return client;
+}
+
+/** Para RPC/tablas públicas antes de iniciar sesión; no comparte storage con `getSupabase()`. */
+export function getSupabaseSessionless(): SupabaseClient {
+  if (!sessionlessClient) {
+    sessionlessClient = createClient(requireEnv('VITE_SUPABASE_URL'), requireEnv('VITE_SUPABASE_ANON_KEY'), {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+      },
+    });
+  }
+  return sessionlessClient;
 }

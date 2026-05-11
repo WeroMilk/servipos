@@ -1,6 +1,6 @@
 import type { Permission, User, UserRole } from '@/types';
 import { mapProfileRowToUser } from '@/lib/mapFirestoreUser';
-import { getSupabase } from '@/lib/supabaseClient';
+import { getSupabase, getSupabaseSessionless } from '@/lib/supabaseClient';
 
 export type LoginDirectoryUser = {
   id: string;
@@ -10,7 +10,7 @@ export type LoginDirectoryUser = {
 
 /** Directorio de login (activos); invocable sin sesión vía `rpc_list_login_directory`. */
 export async function fetchLoginDirectoryUsers(): Promise<LoginDirectoryUser[]> {
-  const supabase = getSupabase();
+  const supabase = getSupabaseSessionless();
   const { data, error } = await supabase.rpc('rpc_list_login_directory');
   if (error) {
     if (import.meta.env.DEV) {
