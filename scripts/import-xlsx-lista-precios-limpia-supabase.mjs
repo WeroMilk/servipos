@@ -3,17 +3,18 @@
  * Actualiza precios en public.products desde LISTA_PRECIOS_LIMPIA.xlsx (u otro .xlsx con la misma estructura).
  *
  * Columnas esperadas (primera hoja o nombre coincidente): Codigo, Articulo, Regular, Tecnico,
- * Mayoreo Menor, Mayoreo Mayor, Cananea → coincide con ClientPriceListId (precios sin IVA, como CSV Olivares).
+ * Mayoreo Menor, Mayoreo Mayor, Cananea → precios **con IVA incluido** (ticket y POS muestran ese monto).
+ * Se guarda `preciosListaIncluyenIva: true` y `precioVenta` como base **sin IVA** derivada de Regular
+ * (coherente con `productListPricing.ts`).
  *
  * Requiere: SUPABASE_URL (o VITE_SUPABASE_URL) y SUPABASE_SERVICE_ROLE_KEY (.env.local).
  *
  * Uso:
  *   npm run import:xlsx-lista-precios-limpia -- --file="C:/Users/alfon/Downloads/LISTA_PRECIOS_LIMPIA.xlsx" --sucursal=olivares
  *
- * Opciones: --dry-run, --batch=150, --sheet="Lista Limpia" (nombre exacto de pestaña)
+ * Opciones: --dry-run, --batch=150, --sheet="Lista Limpia", --lista-sin-iva (si el Excel fuera sin IVA como CSV Olivares)
  */
 
-import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
@@ -67,9 +68,12 @@ function parseArgs() {
     sheet: '',
     dryRun: false,
     batch: 150,
+    /** Si false: mismo criterio que CSV Olivares (importes sin IVA, `preciosListaIncluyenIva: false`). */
+    listaPreciosConIva: true,
   };
   for (const a of process.argv.slice(2)) {
     if (a === '--dry-run' || a === '--dryrun') out.dryRun = true;
+    else if (a === '--lista-sin-iva') out.listaPreciosConIva = false;
     else if (a.startsWith('--file=')) out.file = a.slice('--file='.length).trim();
     else if (a.startsWith('--sucursal=')) out.sucursal = a.slice('--sucursal='.length).trim();
     else if (a.startsWith('--sheet=')) out.sheet = a.slice('--sheet='.length).trim();
@@ -78,14 +82,6 @@ function parseArgs() {
   return out;
 }
 
-function productIdForSku(sucursalId, sku) {
-  return createHash('sha256')
-    .update(`${sucursalId}:${String(sku).trim().toUpperCase()}`)
-    .digest('hex')
-    .slice(0, 32);
-}
-
-function normSku(s) {
   return String(s ?? '')
     .trim()
     .toLocaleUpperCase('es-MX');
@@ -143,6 +139,21 @@ function parsePrecioCell(v) {
   if (!t) return null;
   const n = Number(t);
   return Number.isFinite(n) ? n : null;
+}
+
+function roundMoney2(n) {
+  return Math.round((Number(n) || 0) * 100) / 100;
+}
+
+function impuestoPctFromDoc(doc) {
+  const n = Number(doc?.impuesto);
+  return Number.isFinite(n) && n >= 0 ? n : 16;
+}
+
+/** precioVenta en BD es siempre base sin IVA; Regular del Excel aquí viene con IVA. */
+function regularConIvaToPrecioVentaSinIva(regularConIva, impPct) {
+  const factor = 1 + impPct / 100;
+  return roundMoney2(regularConIva / factor);
 }
 
 /**
@@ -220,6 +231,11 @@ async function main() {
 
   const { sheetName, rows } = readListaRows(filePath, args.sheet || '');
   console.error(`Archivo: ${basename(filePath)} · Hoja: ${sheetName} · Filas datos: ${rows.length}`);
+  console.error(
+    args.listaPreciosConIva
+      ? 'Modo: precios en Excel **con IVA** (preciosListaIncluyenIva=true, precioVenta sin IVA).'
+      : 'Modo: precios en Excel **sin IVA** (--lista-sin-iva).'
+  );
 
   /** SKU norm → última fila */
   const bySku = new Map();
@@ -278,7 +294,14 @@ async function main() {
 
       const mergedLista = { ...prevLista, ...listaPatch };
       base.preciosPorListaCliente = mergedLista;
-      if (pv !== null) base.precioVenta = pv;
+      const impPct = impuestoPctFromDoc(base);
+      if (args.listaPreciosConIva) {
+        base.preciosListaIncluyenIva = true;
+        if (pv !== null) base.precioVenta = regularConIvaToPrecioVentaSinIva(pv, impPct);
+      } else {
+        base.preciosListaIncluyenIva = false;
+        if (pv !== null) base.precioVenta = pv;
+      }
       base.updatedAt = nowIso;
 
       toUpsert.push({
@@ -296,10 +319,15 @@ async function main() {
   }
 
   // dry-run
+  const impEj = 16;
   for (const [sku, row] of [...bySku.entries()].slice(0, 5)) {
     const listaPatch = listaUpdatesFromRow(row);
     const pv = parsePrecioCell(row.Regular ?? row.regular);
-    console.error(`  SKU ${sku} | pv=${pv} | listas=${JSON.stringify(listaPatch)}`);
+    const pvStored =
+      args.listaPreciosConIva && pv !== null ? regularConIvaToPrecioVentaSinIva(pv, impEj) : pv;
+    console.error(
+      `  SKU ${sku} | Regular(Excel)=${pv} → precioVenta BD=${pvStored} | listas(con IVA en Excel)=${JSON.stringify(listaPatch)}`
+    );
   }
   console.error(`Dry-run: ${bySku.size} SKU en Excel (sin escritura). Use sin --dry-run y credenciales para aplicar.`);
 }
