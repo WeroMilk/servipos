@@ -75,7 +75,7 @@ export interface AuthState {
   isAuthenticated: boolean;
   /** true después del primer evento de sesión Supabase (evita flash al /login). */
   authReady: boolean;
-  login: (username: string, password: string) => Promise<boolean>;
+  login: (username: string, password: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => Promise<void>;
   hasPermission: (permission: Permission) => boolean;
   /** Vuelve a leer el perfil en `public.profiles` y actualiza la sesión (p. ej. tras cambiar permisos). */

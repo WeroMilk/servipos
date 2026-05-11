@@ -146,11 +146,53 @@ async function adminAuthUserIdByEmail(
   return null;
 }
 
+/** Último recurso: paginar `/auth/v1/admin/users` (útil si el filtro `email.eq` falla con `@`). */
+async function adminAuthUserIdByEmailPaged(
+  supabaseUrl: string,
+  serviceKey: string,
+  em: string
+): Promise<string | null> {
+  const want = em.trim().toLowerCase();
+  const base = supabaseUrl.replace(/\/$/, '');
+  for (let page = 1; page <= 20; page++) {
+    const url = `${base}/auth/v1/admin/users?page=${page}&per_page=200`;
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${serviceKey}`,
+        apikey: serviceKey,
+      },
+    });
+    if (!res.ok) {
+      console.warn('[verify-pos-pin-login] admin users paged:', page, res.status);
+      return null;
+    }
+    let raw: Record<string, unknown>;
+    try {
+      raw = (await res.json()) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+    const arr =
+      (raw.users as { id: string; email?: string }[] | undefined) ??
+      ((raw.data as { users?: { id: string; email?: string }[] } | undefined)?.users) ??
+      [];
+    const match = arr.find((u) => String(u.email ?? '').trim().toLowerCase() === want);
+    const id = match?.id;
+    if (id) {
+      const s = String(id).trim().toLowerCase();
+      if (UUID_LC_RE.test(s)) return s;
+    }
+    if (arr.length < 200) return null;
+  }
+  return null;
+}
+
 /**
  * Resuelve el UUID en Auth para actualizar la contraseña.
  * 1) `profiles.id` → `getUserById` cuando existe en Auth.
  * 2) RPC SQL `rpc_resolve_auth_user_id_by_email` (service_role) por cada correo + alias de dominio.
  * 3) Fallback REST admin users filter.
+ * 4) Paginación admin users (si el filtro con `@` no devuelve filas).
  */
 async function resolveAuthUserIdForPinSync(
   admin: ReturnType<typeof createClient>,
@@ -187,9 +229,11 @@ async function resolveAuthUserIdForPinSync(
     if (fromRpc) return fromRpc;
     const fromRest = await adminAuthUserIdByEmail(opts.supabaseUrl, opts.serviceKey, em);
     if (fromRest) return fromRest;
+    const fromPaged = await adminAuthUserIdByEmailPaged(opts.supabaseUrl, opts.serviceKey, em);
+    if (fromPaged) return fromPaged;
   }
 
-  return pid;
+  return null;
 }
 
 Deno.serve(async (req) => {

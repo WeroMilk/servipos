@@ -158,9 +158,9 @@ export function LoginForm() {
     setLoading(true);
 
     try {
-      const success = await login(selectedEmail.trim(), pin);
+      const result = await login(selectedEmail.trim(), pin);
 
-      if (success) {
+      if (result.success) {
         addToast({
           type: 'success',
           message: 'Bienvenido al sistema',
@@ -169,7 +169,7 @@ export function LoginForm() {
       } else {
         addToast({
           type: 'error',
-          message: 'Usuario o clave incorrectos',
+          message: result.message?.trim() || 'Usuario o clave incorrectos',
         });
       }
     } catch {

@@ -23,7 +23,8 @@
     "normalize:precios-centavo01-supabase": "node scripts/normalize-product-prices-one-cent-supabase.mjs",
     "etl:olivares-csv-py": "python scripts/python/olivares_xlsx_rtf_to_csv.py",
     "supabase:db:push": "supabase db push",
-    "deploy-list-login-directory": "npx supabase functions deploy list-login-directory"
+    "deploy-list-login-directory": "npx supabase functions deploy list-login-directory",
+    "deploy-verify-pos-pin-login": "npx supabase functions deploy verify-pos-pin-login"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",

@@ -23,12 +23,12 @@ export const useAuthStore = create<AuthStore>((set) => ({
   isAuthenticated: false,
   authReady: false,
 
-  login: async (usernameOrEmail: string, password: string): Promise<boolean> => {
+  login: async (usernameOrEmail: string, password: string) => {
     try {
       const { buildLoginEmailCandidates } = await import('@/lib/servipartzAuth');
       const { looksLikePosPin, syncAuthPasswordFromPosPin } = await import('@/lib/verifyPosPinLogin');
       const candidates = buildLoginEmailCandidates(usernameOrEmail);
-      if (candidates.length === 0) return false;
+      if (candidates.length === 0) return { success: false };
 
       const supabase = getSupabase();
       const signInWith = (email: string, pwd: string) =>
@@ -38,7 +38,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
       let lastMessage = '';
       for (const email of candidates) {
         const { error } = await signInWith(email, password);
-        if (!error) return true;
+        if (!error) return { success: true };
         if (error.message) {
           lastMessage = error.message;
           if (
@@ -58,29 +58,48 @@ export const useAuthStore = create<AuthStore>((set) => ({
       // PIN de 4–12 dígitos: el primer `signInWithPassword` suele recibir 400 porque GoTrue
       // exige contraseña más larga que el PIN visible; el mensaje no siempre coincide con
       // "invalid credentials", así que no exigimos `anyExpectedAuthFailure` aquí.
-      if (!looksLikePosPin(password)) return false;
+      if (!looksLikePosPin(password)) return { success: false };
 
       let synced = false;
+      let pinSyncHint: string | undefined;
       for (const email of candidates) {
-        if (await syncAuthPasswordFromPosPin(email, password)) {
+        const r = await syncAuthPasswordFromPosPin(email, password);
+        if (r.ok) {
           synced = true;
           break;
         }
+        if (r.status >= 500) {
+          pinSyncHint =
+            r.error ??
+            'No se pudo sincronizar el PIN (error del servidor). Revise logs de verify-pos-pin-login en Supabase y vuelva a desplegar la función.';
+        } else if (pinSyncHint === undefined && r.status === 403) {
+          pinSyncHint =
+            'Origen no permitido para verify-pos-pin-login. Añada la URL de la app a ADMIN_CREATE_USER_ALLOWED_ORIGINS.';
+        } else if (pinSyncHint === undefined && r.status === 0) {
+          pinSyncHint = 'No se pudo contactar verify-pos-pin-login (red o bloqueo).';
+        } else if (pinSyncHint === undefined && r.error && r.status !== 401) {
+          pinSyncHint = r.error;
+        }
       }
-      if (!synced) return false;
+      if (!synced) {
+        return {
+          success: false,
+          message: pinSyncHint,
+        };
+      }
 
       const { authPasswordFromPosPin } = await import('@/lib/authPasswordFromPosPin');
       const derived = authPasswordFromPosPin(password);
       for (const email of candidates) {
         const { error } = await signInWith(email, derived);
-        if (!error) return true;
+        if (!error) return { success: true };
       }
-      return false;
+      return { success: false };
     } catch (err) {
       if (import.meta.env.DEV) {
         console.error('Login:', err);
       }
-      return false;
+      return { success: false };
     }
   },
 
