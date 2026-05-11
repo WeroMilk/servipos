@@ -906,12 +906,13 @@ export function buildLetterDocumentHtml(
     options?.avisoPrueba != null && options.avisoPrueba !== ''
       ? `<div class="aviso-prueba">${escapeHtml(options.avisoPrueba)}</div>`
       : '';
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${escapeHtml(title)}</title>
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/><title>${escapeHtml(title)}</title>
 <style>
   /* Mismo criterio de márgenes / ancho útil que la representación impresa CFDI (factura). */
-  @page { size: letter; margin: 9mm 11mm; }
+  @page { size: letter; margin: 7mm 11mm 9mm 11mm; }
   * { box-sizing: border-box; }
-  body {
+  html { height: 100%; }
+  body.letter-doc {
     font-family: system-ui, sans-serif;
     font-size: 11pt;
     color: #111;
@@ -919,8 +920,50 @@ export function buildLetterDocumentHtml(
     margin: 0 auto;
     max-width: 7.5in;
     padding: 0;
+    min-height: 1056px;
+    display: flex;
+    flex-direction: column;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+  .letter-doc-main {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .doc-brand-head {
+    flex-shrink: 0;
+    text-align: center;
+    margin: -4px 0 10px;
+    padding: 0 0 10px;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .doc-brand-head img {
+    display: inline-block;
+    max-width: min(70px, 22vw);
+    height: auto;
+    object-fit: contain;
+    vertical-align: top;
+  }
+  .doc-brand-head .doc-brand-title {
+    margin-top: 6px;
+    font-size: 15pt;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+  .doc-brand-foot {
+    flex-shrink: 0;
+    margin-top: auto;
+    padding-top: 12px;
+    border-top: 1px solid #e2e8f0;
+    font-size: 9pt;
+    line-height: 1.45;
+    color: #334155;
+    text-align: center;
+  }
+  @media print {
+    body.letter-doc {
+      min-height: 10.25in;
+    }
   }
   h1 { font-size: 16pt; margin: 0 0 12px; }
   h2 { font-size: 12pt; margin: 16px 0 8px; color: #333; }
@@ -940,11 +983,13 @@ export function buildLetterDocumentHtml(
     text-align: center;
   }
   .muted { font-size: 9.5pt; color: #555; margin-top: 14px; line-height: 1.45; }
-</style></head><body>
+</style></head><body class="letter-doc">
 ${head}
+<div class="letter-doc-main">
 <h1>${escapeHtml(title)}</h1>
 ${aviso}
 ${innerHtml}
+</div>
 ${foot}
 </body></html>`;
 }

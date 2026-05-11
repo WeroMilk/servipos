@@ -856,6 +856,23 @@ export function Configuracion() {
               </CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-4 p-3 sm:p-4">
+              <div className="rounded-xl border border-slate-200/90 bg-white/90 p-3 shadow-sm dark:border-slate-700/50 dark:bg-slate-950/35 sm:p-4">
+                <Label
+                  htmlFor="empresa-nombre"
+                  className="text-sm font-medium text-slate-800 dark:text-slate-200 sm:text-xs"
+                >
+                  Nombre de la empresa
+                </Label>
+                <Input
+                  id="empresa-nombre"
+                  value={fiscalForm.nombreComercial}
+                  onChange={(e) =>
+                    setFiscalForm({ ...fiscalForm, nombreComercial: e.target.value })
+                  }
+                  placeholder="Nombre público o comercial"
+                  className={cn(fieldClass, 'mt-2')}
+                />
+              </div>
               <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
                 <div className="space-y-1">
                   <Label htmlFor="empresa-telefono" className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">

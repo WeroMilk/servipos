@@ -392,10 +392,10 @@ export function Facturas() {
       actions={
         <Button
           onClick={() => setShowAddDialog(true)}
-          className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
-          size="sm"
+          size="lg"
+          className="h-11 bg-gradient-to-r from-cyan-500 to-blue-600 px-6 text-base font-semibold text-white shadow-sm sm:h-12 sm:px-8 sm:text-lg"
         >
-          <Plus className="mr-2 h-4 w-4" />
+          <Plus className="mr-2 h-5 w-5 shrink-0 sm:h-6 sm:w-6" />
           Nueva
         </Button>
       }

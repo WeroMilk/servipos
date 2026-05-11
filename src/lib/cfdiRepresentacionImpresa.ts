@@ -93,7 +93,10 @@ function unidadCortaSat(clave: string | undefined): string {
 const FACTURA_PRINT_STYLES = `
 @page { size: letter; margin: 9mm 11mm; }
 * { box-sizing: border-box; }
-body {
+html.cfdi-letter-root {
+  height: 100%;
+}
+body.cfdi-letter-doc {
   font-family: Arial, Helvetica, 'Liberation Sans', sans-serif;
   font-size: 7.5pt;
   color: #000;
@@ -101,8 +104,15 @@ body {
   margin: 0 auto;
   max-width: 7.5in;
   padding: 0;
+  min-height: 1056px;
+  display: flex;
+  flex-direction: column;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
+}
+.cfdi-letter-main {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 .aviso-prueba {
   margin: 0 0 8px;
@@ -193,12 +203,24 @@ table.clasica tbody tr.filler td { height: 1.1em; padding-top: 4px; padding-bott
 .sellos .lbl:first-child { margin-top: 0; }
 .sellos .muestra-tag { font-weight: 600; color: #666; }
 .sellos .mono { font-family: Consolas, 'Courier New', monospace; line-height: 1.42; }
-body .doc-brand-foot { margin-top: 10px !important; padding-top: 6px !important; font-size: 5.75pt !important; line-height: 1.38 !important; }
+body.cfdi-letter-doc .doc-brand-foot {
+  margin-top: auto !important;
+  flex-shrink: 0 !important;
+  padding-top: 6px !important;
+  border-top: 1px solid #ccc !important;
+  font-size: 5.75pt !important;
+  line-height: 1.38 !important;
+  color: #333 !important;
+  text-align: center !important;
+}
 @media print {
   html, body {
     font-family: Arial, Helvetica, sans-serif !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+  }
+  body.cfdi-letter-doc {
+    min-height: 10.25in !important;
   }
   .sellos .mono {
     font-family: "Courier New", Courier, monospace !important;
@@ -396,12 +418,14 @@ ${selloSatBlock}
   const foot = buildLetterFooterHtml(inv.sucursalId ?? null);
   const title = `Factura ${inv.serie}-${inv.folio}`;
 
-  return `<!DOCTYPE html><html lang="es-MX"><head>
+  return `<!DOCTYPE html><html lang="es-MX" class="cfdi-letter-root"><head>
 <meta charset="utf-8"/>
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
 <title>${escHtml(title)}</title>
-<style>${FACTURA_PRINT_STYLES}</style></head><body>
+<style>${FACTURA_PRINT_STYLES}</style></head><body class="cfdi-letter-doc">
+<div class="cfdi-letter-main">
 ${inner}
+</div>
 ${foot}
 </body></html>`;
 }
@@ -560,6 +584,15 @@ table.mini th { background: #eef2f7; }
 .nomina-qr-row .qr-zona img { display: block; }
 .nomina-qr-row .qr-caption { font-size: 5.75pt; margin-top: 5px; max-width: 104px; line-height: 1.3; text-align: center; }
 .muted { font-size: 6.5pt; color: #444; margin-top: 6px; line-height: 1.3; }
+.doc-brand-foot {
+  margin-top: 10px;
+  padding-top: 6px;
+  border-top: 1px solid #ccc;
+  font-size: 6pt;
+  line-height: 1.38;
+  color: #334155;
+  text-align: center;
+}
 @media print {
   .grid-2, .tables-2, .tot { break-inside: avoid; page-break-inside: avoid; }
 }

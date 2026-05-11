@@ -258,6 +258,20 @@ function precioConIvaToUnitBaseSinIva(precioConIva: number, impuestoPct: number)
   return precioConIva / (1 + imp / 100);
 }
 
+/** Valor a persistir en `preciosPorListaCliente` según bandera del producto/sucursal. */
+function listaPrecioDialogInputToStoredValue(
+  inputValue: number,
+  inputEsConIva: boolean,
+  almacenConIva: boolean,
+  impuestoPct: number
+): number {
+  if (inputEsConIva === almacenConIva) return roundMoney2(inputValue);
+  if (inputEsConIva && !almacenConIva) {
+    return roundMoney2(precioConIvaToUnitBaseSinIva(inputValue, impuestoPct));
+  }
+  return roundMoney2(unitBaseSinIvaToPrecioConIva(inputValue, impuestoPct));
+}
+
 function emptyListaPrecioStrMap(): Record<ClientPriceListId, string> {
   const o = {} as Record<ClientPriceListId, string>;
   for (const id of CLIENT_PRICE_LIST_ORDER) o[id] = '';
@@ -761,6 +775,8 @@ export function POS() {
   const [listasPrecioStr, setListasPrecioStr] = useState<Record<ClientPriceListId, string>>(() =>
     emptyListaPrecioStrMap()
   );
+  /** Base en la que el usuario ve/edita los importes del modal (convierte al guardar si difiere del catálogo). */
+  const [listasPrecioCatalogEditConIva, setListasPrecioCatalogEditConIva] = useState(true);
   const [listasPrecioCatalogSaving, setListasPrecioCatalogSaving] = useState(false);
   const [mobileScannerOpen, setMobileScannerOpen] = useState(false);
   const [mobileScannerBusy, setMobileScannerBusy] = useState(false);
@@ -1013,7 +1029,32 @@ export function POS() {
       next[id] = v > 0 ? v.toFixed(2) : '';
     }
     setListasPrecioStr(next);
+    setListasPrecioCatalogEditConIva(incluye);
     setListasPrecioCatalogDialogOpen(true);
+  };
+
+  const toggleListasPrecioCatalogEditConIva = () => {
+    const pid = unitPriceEditProductId;
+    const it = pid ? items.find((i) => i.product.id === pid) : undefined;
+    if (!it || listasPrecioCatalogSaving) return;
+    const imp = Number(it.product.impuesto) || 16;
+    setListasPrecioCatalogEditConIva((prev) => {
+      setListasPrecioStr((strs) => {
+        const out = { ...strs };
+        for (const id of CLIENT_PRICE_LIST_ORDER) {
+          const raw = (strs[id] ?? '').trim();
+          if (raw === '') continue;
+          const n = parsePrecioNumberFromFirestore(raw);
+          if (!Number.isFinite(n) || n < 0) continue;
+          const converted = prev
+            ? precioConIvaToUnitBaseSinIva(n, imp)
+            : unitBaseSinIvaToPrecioConIva(n, imp);
+          out[id] = roundMoney2(converted).toFixed(2);
+        }
+        return out;
+      });
+      return !prev;
+    });
   };
 
   const saveListasPrecioCatalogFromPos = async () => {
@@ -1023,6 +1064,8 @@ export function POS() {
     const p = it.product;
     setListasPrecioCatalogSaving(true);
     try {
+      const imp = Number(p.impuesto) || 16;
+      const almacenListaConIva = effectiveListaPreciosIncluyenIva(p);
       const mergedMap: Partial<Record<ClientPriceListId, number>> = { ...(p.preciosPorListaCliente ?? {}) };
       for (const id of CLIENT_PRICE_LIST_ORDER) {
         const raw = (listasPrecioStr[id] ?? '').trim();
@@ -1038,14 +1081,18 @@ export function POS() {
           });
           return;
         }
-        mergedMap[id] = roundMoney2(n);
+        mergedMap[id] = listaPrecioDialogInputToStoredValue(
+          n,
+          listasPrecioCatalogEditConIva,
+          almacenListaConIva,
+          imp
+        );
       }
       const cleaned =
         Object.keys(mergedMap).length > 0
           ? (mergedMap as NonNullable<Product['preciosPorListaCliente']>)
           : undefined;
       const listasParaPersist = cleaned ?? ({} as NonNullable<Product['preciosPorListaCliente']>);
-      const imp = Number(p.impuesto) || 16;
       const newPv = resolvePrecioVentaSinIvaForDoc({
         rawPv: p.precioVenta,
         preciosPorListaCliente: cleaned,
@@ -4631,11 +4678,37 @@ export function POS() {
             Capture un importe por lista; deje vacío para quitar precio fijo y usar el % de configuración sobre el
             precio de venta.{' '}
             <span className="font-medium text-slate-700 dark:text-slate-300">
-              {unitPriceDialogLine?.product &&
-              effectiveListaPreciosIncluyenIva(unitPriceDialogLine.product)
-                ? 'Los importes son con IVA incluido (como en sucursal / producto).'
-                : 'Los importes son sin IVA.'}
+              {listasPrecioCatalogEditConIva
+                ? `Los campos muestran precios con IVA (${unitPriceDialogLine?.product?.impuesto ?? 16}%).`
+                : 'Los campos muestran precios sin IVA.'}{' '}
+              {unitPriceDialogLine?.product ? (
+                <>
+                  En catálogo se guardan{' '}
+                  {effectiveListaPreciosIncluyenIva(unitPriceDialogLine.product)
+                    ? 'con IVA incluido'
+                    : 'sin IVA'}
+                  ; al confirmar se convierten si hace falta.
+                </>
+              ) : null}
             </span>
+          </p>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="w-full border-slate-300 bg-white text-slate-900 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+            disabled={
+              listasPrecioCatalogSaving || unitPriceDialogLine?.product == null
+            }
+            onClick={toggleListasPrecioCatalogEditConIva}
+          >
+            {listasPrecioCatalogEditConIva
+              ? 'Cambiar a captura sin IVA'
+              : 'Cambiar a captura con IVA'}
+          </Button>
+          <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-400">
+            Al cambiar de modo se recalculan los importes ya escritos usando el IVA del artículo (
+            {unitPriceDialogLine?.product?.impuesto ?? 16}%).
           </p>
           <div className="mb-4 space-y-3 rounded-lg border border-cyan-500/25 bg-cyan-500/10 p-3 dark:border-cyan-500/30 dark:bg-cyan-500/10">
             <p className="text-xs font-semibold uppercase tracking-wide text-cyan-800 dark:text-cyan-200">
