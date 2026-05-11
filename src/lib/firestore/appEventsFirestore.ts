@@ -99,7 +99,6 @@ export function subscribeAppEvents(max: number, onList: (list: AppEventLogRecord
       .order('created_at', { ascending: false })
       .limit(lim);
     if (error) {
-      console.error('appEvents:', error);
       onList([]);
       return;
     }

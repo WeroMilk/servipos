@@ -619,7 +619,7 @@ export function Dashboard() {
 
   const kpiDrillHint = useMemo(() => {
     if (!kpiDrillDownDayStart) return null;
-    return `${format(kpiDrillDownDayStart, "EEEE d MMM yyyy", { locale: es })} · Toque fuera del gráfico o Esc`;
+    return format(kpiDrillDownDayStart, 'EEEE d MMM yyyy', { locale: es });
   }, [kpiDrillDownDayStart]);
 
   return (

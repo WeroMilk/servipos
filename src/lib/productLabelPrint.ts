@@ -382,7 +382,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
     }
     /**
      * flex 1 debajo del texto: el hueco está en esa celda para que PNG max-height % escale igual
-     * sin mover el nombre/precio (anclaje superior en `.stack`).
+     * sin mover el nombre/precio (anclaje superior en la celda .stack).
      */
     .label-dk1201 .bc {
       flex: 1 1 auto;

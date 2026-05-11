@@ -245,13 +245,18 @@ export function LoginForm() {
 
           <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="login-username" className="text-slate-700 dark:text-slate-300">
+              <Label
+                id="login-username-label"
+                htmlFor="login-username"
+                className="text-slate-700 dark:text-slate-300"
+              >
                 Usuario
               </Label>
               <div className="flex min-w-0 rounded-md border border-slate-300 bg-slate-50/80 focus-within:border-cyan-500/50 focus-within:ring-1 focus-within:ring-cyan-500/20 dark:border-slate-700 dark:bg-slate-900/50">
                 <div className="relative min-w-0 flex-1">
                   <User className="pointer-events-none absolute left-3 top-1/2 z-[1] h-5 w-5 -translate-y-1/2 text-slate-500" />
                   <Select
+                    name="login-email"
                     value={selectedEmail}
                     onValueChange={(v) => {
                       setSelectedEmail(v);
@@ -261,7 +266,7 @@ export function LoginForm() {
                   >
                     <SelectTrigger
                       id="login-username"
-                      aria-label="Seleccionar usuario"
+                      aria-labelledby="login-username-label"
                       className="h-10 w-full min-w-0 border-0 bg-transparent pl-10 pr-8 text-left text-base text-slate-900 shadow-none focus:ring-0 focus-visible:ring-0 data-[size=default]:h-10 dark:text-slate-100 md:h-10 md:text-sm"
                     >
                       <SelectValue
@@ -295,7 +300,7 @@ export function LoginForm() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="login-pin" className="text-slate-700 dark:text-slate-300">
+              <Label id="login-pin-label" htmlFor="login-pin" className="text-slate-700 dark:text-slate-300">
                 Contraseña
               </Label>
               <div className="relative">
@@ -303,6 +308,8 @@ export function LoginForm() {
                 <Input
                   ref={pinInputRef}
                   id="login-pin"
+                  name="login-pin"
+                  aria-labelledby="login-pin-label"
                   type={compactLogin ? 'text' : 'password'}
                   inputMode="numeric"
                   pattern={compactLogin ? '[0-9]*' : undefined}
