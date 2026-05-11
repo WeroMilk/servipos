@@ -20,6 +20,9 @@ import { LoadingIndicator } from './LoadingIndicator';
 
 const MAX_PIN_LEN = 12;
 
+/** Tailwind `sm` (640px): coincide con `hidden sm:*` del teclado en pantalla. */
+const COMPACT_LOGIN_MEDIA = '(max-width: 639px)';
+
 function PinKeypadGrid({
   value,
   onChange,
@@ -98,6 +101,15 @@ export function LoginForm() {
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
   const pinInputRef = useRef<HTMLInputElement>(null);
+  const [compactLogin, setCompactLogin] = useState(false);
+
+  useEffect(() => {
+    const mql = window.matchMedia(COMPACT_LOGIN_MEDIA);
+    const sync = () => setCompactLogin(mql.matches);
+    sync();
+    mql.addEventListener('change', sync);
+    return () => mql.removeEventListener('change', sync);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -291,10 +303,13 @@ export function LoginForm() {
                 <Input
                   ref={pinInputRef}
                   id="login-pin"
-                  type="password"
+                  type={compactLogin ? 'text' : 'password'}
                   inputMode="numeric"
-                  autoComplete="current-password"
+                  pattern={compactLogin ? '[0-9]*' : undefined}
+                  autoComplete={compactLogin ? 'off' : 'current-password'}
                   enterKeyHint="done"
+                  autoCorrect="off"
+                  spellCheck={false}
                   value={pin}
                   onChange={(e) =>
                     setPin(e.target.value.replace(/\D/g, '').slice(0, MAX_PIN_LEN))
@@ -308,10 +323,15 @@ export function LoginForm() {
                   }}
                   placeholder="Contraseña"
                   disabled={formBusy}
-                  className="h-10 border-slate-300 bg-slate-50/80 pl-10 font-mono tracking-widest text-slate-900 placeholder:text-slate-500 focus:border-cyan-500/50 focus-visible:ring-cyan-500/20 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-100 dark:placeholder:text-slate-600"
+                  className={cn(
+                    'h-10 border-slate-300 bg-slate-50/80 pl-10 font-mono tracking-widest text-slate-900 placeholder:text-slate-500 focus:border-cyan-500/50 focus-visible:ring-cyan-500/20 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-100 dark:placeholder:text-slate-600',
+                    compactLogin && '[-webkit-text-security:disc]'
+                  )}
                 />
               </div>
-              <PinKeypadGrid value={pin} onChange={setPin} disabled={formBusy} />
+              <div className="hidden sm:block">
+                <PinKeypadGrid value={pin} onChange={setPin} disabled={formBusy} />
+              </div>
             </div>
 
             <Button

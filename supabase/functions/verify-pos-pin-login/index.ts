@@ -74,6 +74,14 @@ function safeEqualStr(a: string, b: string): boolean {
 
 const PIN_RE = /^\d{4,12}$/;
 
+/** GoTrue `validateUUID` solo acepta hex minúsculas; PostgREST a veces devuelve UUID en mayúsculas y eso lanzaba antes del fetch → 500. */
+const UUID_LC_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+function authUserIdFromProfileId(id: unknown): string | null {
+  const s = String(id).trim().toLowerCase();
+  return UUID_LC_RE.test(s) ? s : null;
+}
+
 Deno.serve(async (req) => {
   const origin = req.headers.get('Origin');
   const configured = parseAllowedOrigins();
@@ -115,37 +123,48 @@ Deno.serve(async (req) => {
     return json({ error: 'Solicitud inválida' }, 400, ch);
   }
 
-  const admin = createClient(supabaseUrl, serviceKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+  try {
+    const admin = createClient(supabaseUrl, serviceKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
 
-  const { data: rows, error: selErr } = await admin
-    .from('profiles')
-    .select('id, pos_pin, is_active')
-    .ilike('email', email)
-    .limit(2);
+    const { data: rows, error: selErr } = await admin
+      .from('profiles')
+      .select('id, pos_pin, is_active')
+      .ilike('email', email)
+      .limit(2);
 
-  if (selErr || !rows?.length) {
-    return json({ error: 'No autorizado' }, 401, ch);
-  }
-  if (rows.length > 1) {
-    return json({ error: 'Correo duplicado' }, 409, ch);
-  }
+    if (selErr || !rows?.length) {
+      return json({ error: 'No autorizado' }, 401, ch);
+    }
+    if (rows.length > 1) {
+      return json({ error: 'Correo duplicado' }, 409, ch);
+    }
 
-  const row = rows[0]!;
-  if (!row.is_active || typeof row.pos_pin !== 'string' || row.pos_pin.length === 0) {
-    return json({ error: 'No autorizado' }, 401, ch);
-  }
-  if (!safeEqualStr(row.pos_pin, pin)) {
-    return json({ error: 'No autorizado' }, 401, ch);
-  }
+    const row = rows[0]!;
+    if (!row.is_active || typeof row.pos_pin !== 'string' || row.pos_pin.length === 0) {
+      return json({ error: 'No autorizado' }, 401, ch);
+    }
+    if (!safeEqualStr(row.pos_pin, pin)) {
+      return json({ error: 'No autorizado' }, 401, ch);
+    }
 
-  const { error: authErr } = await admin.auth.admin.updateUserById(row.id, {
-    password: authPasswordFromPosPin(pin),
-  });
-  if (authErr) {
-    return json({ error: authErr.message }, 500, ch);
-  }
+    const authUserId = authUserIdFromProfileId(row.id);
+    if (!authUserId) {
+      console.error('[verify-pos-pin-login] id de perfil no es UUID válido:', row.id);
+      return json({ error: 'Perfil inconsistente' }, 500, ch);
+    }
 
-  return json({ ok: true }, 200, ch);
+    const { error: authErr } = await admin.auth.admin.updateUserById(authUserId, {
+      password: authPasswordFromPosPin(pin),
+    });
+    if (authErr) {
+      return json({ error: authErr.message }, 500, ch);
+    }
+
+    return json({ ok: true }, 200, ch);
+  } catch (e) {
+    console.error('[verify-pos-pin-login]', e);
+    return json({ error: 'Error interno' }, 500, ch);
+  }
 });

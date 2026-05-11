@@ -44,6 +44,13 @@ function isAdminRole(role: string | null | undefined): boolean {
 
 const PIN_RE = /^\d{4,12}$/;
 
+const UUID_LC_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+function normalizeAuthUserId(id: string): string | null {
+  const s = id.trim().toLowerCase();
+  return UUID_LC_RE.test(s) ? s : null;
+}
+
 Deno.serve(async (req) => {
   const origin = req.headers.get('Origin');
   const allowedOrigins = parseAllowedOrigins();
@@ -101,11 +108,12 @@ Deno.serve(async (req) => {
     return json({ error: 'JSON inválido' }, 400, corsHeaders);
   }
 
-  const userId = typeof body.userId === 'string' ? body.userId.trim() : '';
+  const rawUserId = typeof body.userId === 'string' ? body.userId.trim() : '';
+  const userId = normalizeAuthUserId(rawUserId);
   const posPin = typeof body.posPin === 'string' ? body.posPin.trim() : '';
 
   if (!userId || !PIN_RE.test(posPin)) {
-    return json({ error: 'PIN inválido (4 a 12 dígitos)' }, 400, corsHeaders);
+    return json({ error: 'PIN inválido (4 a 12 dígitos) o usuario inválido' }, 400, corsHeaders);
   }
 
   const admin = createClient(supabaseUrl, serviceKey, {
