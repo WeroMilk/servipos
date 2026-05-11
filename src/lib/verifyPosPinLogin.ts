@@ -27,8 +27,13 @@ export async function syncAuthPasswordFromPosPin(email: string, pin: string): Pr
         pin: pin.trim(),
       }),
     });
-    const data = (await res.json()) as { ok?: boolean; error?: string };
-    return res.ok && data.ok === true;
+    let parsed: { ok?: boolean; error?: string } = {};
+    try {
+      parsed = (await res.json()) as { ok?: boolean; error?: string };
+    } catch {
+      /* cuerpo no JSON (p. ej. proxy HTML) */
+    }
+    return res.ok && parsed.ok === true;
   } catch {
     return false;
   }

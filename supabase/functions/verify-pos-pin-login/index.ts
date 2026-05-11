@@ -83,6 +83,27 @@ function authUserIdFromProfileId(id: unknown): string | null {
   return UUID_LC_RE.test(s) ? s : null;
 }
 
+function uuidFromUnknown(data: unknown): string | null {
+  if (data == null) return null;
+  const s = String(data).trim().toLowerCase();
+  return UUID_LC_RE.test(s) ? s : null;
+}
+
+/** Resolución por SQL (service_role); no depende del filtro REST con `@`. */
+async function authUserIdByEmailRpc(
+  admin: ReturnType<typeof createClient>,
+  em: string
+): Promise<string | null> {
+  const { data, error } = await admin.rpc('rpc_resolve_auth_user_id_by_email', {
+    p_email: em.trim().toLowerCase(),
+  });
+  if (error) {
+    console.warn('[verify-pos-pin-login] rpc_resolve_auth_user_id_by_email:', error.message);
+    return null;
+  }
+  return uuidFromUnknown(data);
+}
+
 /** Id de auth.users vía Admin API (filter estilo PostgREST; el @ del correo suele exigir comillas). */
 async function adminAuthUserIdByEmail(
   supabaseUrl: string,
@@ -127,8 +148,9 @@ async function adminAuthUserIdByEmail(
 
 /**
  * Resuelve el UUID en Auth para actualizar la contraseña.
- * 1) `profiles.id` suele coincidir con `auth.users.id` → `getUserById` evita filtros rotos por `@`.
- * 2) Si no, busca por correo con alias servipartz.com ↔ serviparts.com y filtro entrecomillado.
+ * 1) `profiles.id` → `getUserById` cuando existe en Auth.
+ * 2) RPC SQL `rpc_resolve_auth_user_id_by_email` (service_role) por cada correo + alias de dominio.
+ * 3) Fallback REST admin users filter.
  */
 async function resolveAuthUserIdForPinSync(
   admin: ReturnType<typeof createClient>,
@@ -142,9 +164,13 @@ async function resolveAuthUserIdForPinSync(
 ): Promise<string | null> {
   const pid = authUserIdFromProfileId(opts.profileId);
   if (pid) {
-    const { data, error } = await admin.auth.admin.getUserById(pid);
-    if (!error && data?.user) {
-      return pid;
+    try {
+      const { data, error } = await admin.auth.admin.getUserById(pid);
+      if (!error && data?.user) {
+        return pid;
+      }
+    } catch (e) {
+      console.warn('[verify-pos-pin-login] getUserById:', e);
     }
   }
 
@@ -157,8 +183,10 @@ async function resolveAuthUserIdForPinSync(
     }
   }
   for (const em of emails) {
-    const id = await adminAuthUserIdByEmail(opts.supabaseUrl, opts.serviceKey, em);
-    if (id) return id;
+    const fromRpc = await authUserIdByEmailRpc(admin, em);
+    if (fromRpc) return fromRpc;
+    const fromRest = await adminAuthUserIdByEmail(opts.supabaseUrl, opts.serviceKey, em);
+    if (fromRest) return fromRest;
   }
 
   return pid;
