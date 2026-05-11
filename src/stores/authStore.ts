@@ -23,11 +23,15 @@ export const useAuthStore = create<AuthStore>((set) => ({
   isAuthenticated: false,
   authReady: false,
 
-  login: async (usernameOrEmail: string, password: string) => {
+  login: async (usernameOrEmail: string, password: string, opts?: { pinSyncExactEmailOnly?: boolean }) => {
     try {
       const { buildLoginEmailCandidates } = await import('@/lib/servipartzAuth');
       const { looksLikePosPin, syncAuthPasswordFromPosPin } = await import('@/lib/verifyPosPinLogin');
       const candidates = buildLoginEmailCandidates(usernameOrEmail);
+      const pinSyncEmails =
+        opts?.pinSyncExactEmailOnly === true
+          ? buildLoginEmailCandidates(usernameOrEmail, { includeDomainAliases: false })
+          : candidates;
       if (candidates.length === 0) return { success: false };
 
       const supabase = getSupabase();
@@ -62,7 +66,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
 
       let synced = false;
       let pinSyncHint: string | undefined;
-      for (const email of candidates) {
+      for (const email of pinSyncEmails) {
         const r = await syncAuthPasswordFromPosPin(email, password);
         if (r.ok) {
           synced = true;

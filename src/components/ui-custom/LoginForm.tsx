@@ -158,7 +158,7 @@ export function LoginForm() {
     setLoading(true);
 
     try {
-      const result = await login(selectedEmail.trim(), pin);
+      const result = await login(selectedEmail.trim(), pin, { pinSyncExactEmailOnly: true });
 
       if (result.success) {
         addToast({

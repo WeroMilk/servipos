@@ -1,5 +1,6 @@
 -- Checklist: login con PIN (verify-pos-pin-login)
 -- Ejecute en Supabase → SQL Editor. Cambie el filtro si el usuario no es Gabriel.
+-- El directorio de login usa el email exacto de profiles para verify-pos-pin (sin alias de dominio).
 
 -- 1) Perfil + enlace a auth.users (mismo id = modelo estándar)
 select

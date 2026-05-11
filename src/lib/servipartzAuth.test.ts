@@ -29,4 +29,10 @@ describe('servipartzAuth', () => {
     ]);
     expect(buildLoginEmailCandidates('zavala')).toEqual(['zavala@servipartz.com', 'zavala@serviparts.com']);
   });
+
+  it('buildLoginEmailCandidates can omit domain aliases', () => {
+    expect(buildLoginEmailCandidates('zavala@servipartz.com', { includeDomainAliases: false })).toEqual([
+      'zavala@servipartz.com',
+    ]);
+  });
 });

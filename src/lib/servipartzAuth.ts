@@ -25,15 +25,25 @@ const DOMAIN_ALIAS_PAIR: Record<string, string> = {
   'serviparts.com': 'servipartz.com',
 };
 
+export type LoginEmailCandidatesOpts = {
+  /**
+   * Si es `false`, solo el correo normalizado (sin alias servipartz ↔ serviparts).
+   * Útil para `verify-pos-pin-login`: debe coincidir con `profiles.email` del directorio.
+   */
+  includeDomainAliases?: boolean;
+};
+
 /**
  * Correos a probar en login (`signInWithPassword` + flujo PIN), en orden.
- * Incluye par servipartz.com ↔ serviparts.com para el mismo usuario local.
+ * Incluye par servipartz.com ↔ serviparts.com para el mismo usuario local (salvo `includeDomainAliases: false`).
  */
-export function buildLoginEmailCandidates(raw: string): string[] {
+export function buildLoginEmailCandidates(raw: string, opts?: LoginEmailCandidatesOpts): string[] {
+  const includeAlias = opts?.includeDomainAliases !== false;
   const primary = normalizeServipartzEmail(raw);
   if (!primary) return [];
   const at = primary.lastIndexOf('@');
   if (at === -1) return [primary];
+  if (!includeAlias) return [primary];
   const local = primary.slice(0, at);
   const domain = primary.slice(at + 1);
   const alt = DOMAIN_ALIAS_PAIR[domain];
