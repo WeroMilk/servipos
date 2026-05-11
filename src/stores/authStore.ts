@@ -34,20 +34,28 @@ export const useAuthStore = create<AuthStore>((set) => ({
       const signInWith = (email: string, pwd: string) =>
         supabase.auth.signInWithPassword({ email, password: pwd });
 
+      let anyExpectedAuthFailure = false;
       let lastMessage = '';
       for (const email of candidates) {
         const { error } = await signInWith(email, password);
         if (!error) return true;
-        if (error.message) lastMessage = error.message;
+        if (error.message) {
+          lastMessage = error.message;
+          if (
+            /invalid login|invalid credentials|email not confirmed|user not found|invalid email|wrong password|invalid password|email address not confirmed|could not find|incorrect password/i.test(
+              error.message
+            )
+          ) {
+            anyExpectedAuthFailure = true;
+          }
+        }
       }
 
-      const expectedAuthFailure =
-        /invalid login|invalid credentials|email not confirmed|user not found/i.test(lastMessage);
-      if (import.meta.env.DEV && !expectedAuthFailure && lastMessage) {
+      if (import.meta.env.DEV && !anyExpectedAuthFailure && lastMessage) {
         console.error('Supabase Auth:', lastMessage);
       }
 
-      if (!expectedAuthFailure || !looksLikePosPin(password)) return false;
+      if (!anyExpectedAuthFailure || !looksLikePosPin(password)) return false;
 
       let synced = false;
       for (const email of candidates) {

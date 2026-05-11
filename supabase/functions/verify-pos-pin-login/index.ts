@@ -134,7 +134,11 @@ Deno.serve(async (req) => {
       .ilike('email', email)
       .limit(2);
 
-    if (selErr || !rows?.length) {
+    if (selErr) {
+      console.error('[verify-pos-pin-login] profiles:', selErr.message);
+      return json({ error: 'Error al verificar usuario' }, 500, ch);
+    }
+    if (!rows?.length) {
       return json({ error: 'No autorizado' }, 401, ch);
     }
     if (rows.length > 1) {
@@ -142,10 +146,11 @@ Deno.serve(async (req) => {
     }
 
     const row = rows[0]!;
-    if (!row.is_active || typeof row.pos_pin !== 'string' || row.pos_pin.length === 0) {
+    const storedPin = row.pos_pin != null ? String(row.pos_pin).trim() : '';
+    if (!row.is_active || storedPin.length === 0) {
       return json({ error: 'No autorizado' }, 401, ch);
     }
-    if (!safeEqualStr(row.pos_pin, pin)) {
+    if (!safeEqualStr(storedPin, pin)) {
       return json({ error: 'No autorizado' }, 401, ch);
     }
 
