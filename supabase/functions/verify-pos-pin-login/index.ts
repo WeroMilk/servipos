@@ -7,7 +7,7 @@ import { expandServipartzEmailAliases } from '../_shared/servipartzEmailCandidat
  * | code | HTTP | Significado |
  * | ORIGIN_NOT_ALLOWED | 403 | Añadir origen a ADMIN_CREATE_USER_ALLOWED_ORIGINS (o localhost / *.vercel.app). |
  * | INVALID_JSON / INVALID_BODY | 400 | Cuerpo o email/PIN inválido. |
- * | PROFILE_QUERY_FAILED | 500 | Error Supabase al leer profiles (RLS/políticas/red). |
+ * | PROFILE_QUERY_FAILED | 500 | Error al leer profiles (RPC security definer o REST). |
  * | NO_PROFILE_FOR_EMAIL | 401 | No hay fila profiles para ese email. |
  * | DUPLICATE_EMAIL | 409 | Más de un perfil con el mismo email. |
  * | PROFILE_INACTIVE_OR_NO_PIN | 401 | is_active false o pos_pin vacío. |
@@ -336,30 +336,45 @@ Deno.serve(async (req) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    let { data: rows, error: selErr } = await admin
-      .from('profiles')
-      .select('id, pos_pin, is_active, email')
-      .eq('email', email)
-      .limit(2);
+    type ProfileRow = {
+      id: string;
+      pos_pin: string | null;
+      is_active: boolean;
+      email: string | null;
+    };
+
+    let rows: ProfileRow[] = [];
+    let selErr: { message: string } | null = null;
+
+    const rpcRes = await admin.rpc('rpc_verify_pos_pin_profile_row', { p_email: email });
+    if (!rpcRes.error && Array.isArray(rpcRes.data) && rpcRes.data.length > 0) {
+      rows = rpcRes.data as ProfileRow[];
+    } else {
+      if (rpcRes.error) {
+        console.warn('[verify-pos-pin-login] rpc_verify_pos_pin_profile_row:', rpcRes.error.message);
+      }
+      let q = await admin
+        .from('profiles')
+        .select('id, pos_pin, is_active, email')
+        .eq('email', email)
+        .limit(2);
+      rows = (q.data ?? []) as ProfileRow[];
+      selErr = q.error;
+
+      if (!rows.length && !selErr) {
+        const second = await admin
+          .from('profiles')
+          .select('id, pos_pin, is_active, email')
+          .ilike('email', email)
+          .limit(2);
+        rows = (second.data ?? []) as ProfileRow[];
+        selErr = second.error;
+      }
+    }
 
     if (selErr) {
       console.error('[verify-pos-pin-login] profiles:', selErr.message);
-      return json(errPayload('PROFILE_QUERY_FAILED', 'Error al verificar usuario'), 500, ch);
-    }
-
-    if (!rows?.length) {
-      const second = await admin
-        .from('profiles')
-        .select('id, pos_pin, is_active, email')
-        .ilike('email', email)
-        .limit(2);
-      rows = second.data ?? [];
-      selErr = second.error;
-    }
-
-    if (selErr) {
-      console.error('[verify-pos-pin-login] profiles ilike:', selErr.message);
-      return json(errPayload('PROFILE_QUERY_FAILED', 'Error al verificar usuario'), 500, ch);
+      return json(errPayload('PROFILE_QUERY_FAILED', selErr.message.slice(0, 500)), 500, ch);
     }
     if (!rows?.length) {
       return json(errPayload('NO_PROFILE_FOR_EMAIL', 'No autorizado'), 401, ch);

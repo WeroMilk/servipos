@@ -1,6 +1,7 @@
 -- Checklist: login con PIN (verify-pos-pin-login)
 -- Ejecute en Supabase → SQL Editor. Cambie el filtro si el usuario no es Gabriel.
 -- El directorio de login usa el email exacto de profiles para verify-pos-pin (sin alias de dominio).
+-- Aplique migraciones (`npx supabase db push`): incluye RPC `rpc_verify_pos_pin_profile_row` para la Edge.
 
 -- 1) Perfil + enlace a auth.users (mismo id = modelo estándar)
 select
