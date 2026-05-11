@@ -67,21 +67,38 @@ grant execute on function public.can_access_sucursal(uuid, text) to authenticate
 
 -- ---------------------------------------------------------------------------
 -- Mover implementación SECURITY DEFINER a `private`
+-- (Idempotente: remoto puede tener ya la función en `private` → 42723 u omitida en public → 42883)
 -- ---------------------------------------------------------------------------
-alter function public.rpc_adjust_stock(text, text, numeric, text, text, text, text, jsonb) set schema private;
-alter function public.rpc_allocate_invoice_folio(text) set schema private;
-alter function public.rpc_cancel_sale(text, text, text, text) set schema private;
-alter function public.rpc_close_caja_session(text, text, numeric, text, text, text, numeric, int, numeric) set schema private;
-alter function public.rpc_confirm_incoming_transfer(text, text, text, text, jsonb) set schema private;
-alter function public.rpc_create_sale(text, text, jsonb) set schema private;
-alter function public.rpc_increment_folio_actual_only(text) set schema private;
-alter function public.rpc_open_caja_session(text, numeric, text, text) set schema private;
-alter function public.rpc_registrar_aporte_caja(text, text, numeric, text, text, text) set schema private;
-alter function public.rpc_registrar_retiro_caja(text, text, numeric, text, text, text) set schema private;
-alter function public.rpc_reserve_prueba_factura_folio(text) set schema private;
-alter function public.rpc_reserve_prueba_nomina_folio(text) set schema private;
-alter function public.rpc_update_pending_open_sale(text, text, jsonb) set schema private;
-alter function public.rpc_partial_return_sale(text, text, text, jsonb) set schema private;
+do $move_rpc_impl$
+declare
+  stmt text;
+  alters text[] := array[
+    'alter function public.rpc_adjust_stock(text, text, numeric, text, text, text, text, jsonb) set schema private',
+    'alter function public.rpc_allocate_invoice_folio(text) set schema private',
+    'alter function public.rpc_cancel_sale(text, text, text, text) set schema private',
+    'alter function public.rpc_close_caja_session(text, text, numeric, text, text, text, numeric, int, numeric) set schema private',
+    'alter function public.rpc_confirm_incoming_transfer(text, text, text, text, jsonb) set schema private',
+    'alter function public.rpc_create_sale(text, text, jsonb) set schema private',
+    'alter function public.rpc_increment_folio_actual_only(text) set schema private',
+    'alter function public.rpc_open_caja_session(text, numeric, text, text) set schema private',
+    'alter function public.rpc_registrar_aporte_caja(text, text, numeric, text, text, text) set schema private',
+    'alter function public.rpc_registrar_retiro_caja(text, text, numeric, text, text, text) set schema private',
+    'alter function public.rpc_reserve_prueba_factura_folio(text) set schema private',
+    'alter function public.rpc_reserve_prueba_nomina_folio(text) set schema private',
+    'alter function public.rpc_update_pending_open_sale(text, text, jsonb) set schema private',
+    'alter function public.rpc_partial_return_sale(text, text, text, jsonb) set schema private'
+  ];
+begin
+  foreach stmt in array alters
+  loop
+    begin
+      execute stmt;
+    exception
+      when sqlstate '42723' then null; -- duplicate_function (ya en private)
+      when sqlstate '42883' then null; -- undefined_function (ya movida / no en public)
+    end;
+  end loop;
+end $move_rpc_impl$;
 
 revoke all on all functions in schema private from PUBLIC, anon;
 grant execute on all functions in schema private to authenticated, service_role;
