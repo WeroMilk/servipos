@@ -6,7 +6,7 @@ export function looksLikePosPin(pin: string): boolean {
 
 export type PosPinSyncResult =
   | { ok: true }
-  | { ok: false; status: number; error?: string };
+  | { ok: false; status: number; error?: string; code?: string };
 
 /**
  * Si `profiles.pos_pin` coincide con el PIN pero Auth tenía otra contraseña,
@@ -31,15 +31,16 @@ export async function syncAuthPasswordFromPosPin(email: string, pin: string): Pr
         pin: pin.trim(),
       }),
     });
-    let parsed: { ok?: boolean; error?: string } = {};
+    let parsed: { ok?: boolean; error?: string; code?: string } = {};
     try {
-      parsed = (await res.json()) as { ok?: boolean; error?: string };
+      parsed = (await res.json()) as { ok?: boolean; error?: string; code?: string };
     } catch {
       /* cuerpo no JSON (p. ej. proxy HTML) */
     }
     if (res.ok && parsed.ok === true) return { ok: true };
     const err = typeof parsed.error === 'string' ? parsed.error : undefined;
-    return { ok: false, status: res.status, error: err };
+    const code = typeof parsed.code === 'string' ? parsed.code : undefined;
+    return { ok: false, status: res.status, error: err, code };
   } catch {
     return { ok: false, status: 0 };
   }

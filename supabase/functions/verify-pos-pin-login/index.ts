@@ -2,6 +2,25 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 import { authPasswordFromPosPin } from '../_shared/authPasswordFromPosPin.ts';
 import { expandServipartzEmailAliases } from '../_shared/servipartzEmailCandidates.ts';
 
+/**
+ * Códigos de error (estables) para mapear con logs de Edge y pestaña Red del navegador.
+ * | code | HTTP | Significado |
+ * | ORIGIN_NOT_ALLOWED | 403 | Añadir origen a ADMIN_CREATE_USER_ALLOWED_ORIGINS (o localhost / *.vercel.app). |
+ * | INVALID_JSON / INVALID_BODY | 400 | Cuerpo o email/PIN inválido. |
+ * | PROFILE_QUERY_FAILED | 500 | Error Supabase al leer profiles (RLS/políticas/red). |
+ * | NO_PROFILE_FOR_EMAIL | 401 | No hay fila profiles para ese email. |
+ * | DUPLICATE_EMAIL | 409 | Más de un perfil con el mismo email. |
+ * | PROFILE_INACTIVE_OR_NO_PIN | 401 | is_active false o pos_pin vacío. |
+ * | BAD_PIN | 401 | PIN no coincide con pos_pin. |
+ * | AUTH_USER_NOT_RESOLVED | 500 | No se pudo obtener id de Auth para actualizar contraseña. |
+ * | AUTH_UPDATE_FAILED | 500 | updateUserById rechazado por GoTrue. |
+ * | MISSING_SUPABASE_ENV | 500 | Faltan SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY en el runtime. |
+ * | INTERNAL | 500 | Excepción no controlada. |
+ */
+function errPayload(code: string, message: string): { code: string; error: string } {
+  return { code, error: message };
+}
+
 const baseCorsHeaders: Record<string, string> = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -254,31 +273,31 @@ Deno.serve(async (req) => {
   }
 
   if (allowOrigin == null) {
-    return json({ error: 'Origin not allowed' }, 403, ch);
+    return json(errPayload('ORIGIN_NOT_ALLOWED', 'Origin not allowed'), 403, ch);
   }
 
   if (req.method !== 'POST') {
-    return json({ error: 'Method not allowed' }, 405, ch);
+    return json(errPayload('METHOD_NOT_ALLOWED', 'Method not allowed'), 405, ch);
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   if (!supabaseUrl || !serviceKey) {
-    return json({ error: 'Missing Supabase env' }, 500, ch);
+    return json(errPayload('MISSING_SUPABASE_ENV', 'Missing Supabase env'), 500, ch);
   }
 
   let body: { email?: string; pin?: string };
   try {
     body = await req.json();
   } catch {
-    return json({ error: 'JSON inválido' }, 400, ch);
+    return json(errPayload('INVALID_JSON', 'JSON inválido'), 400, ch);
   }
 
   const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
   const pin = typeof body.pin === 'string' ? body.pin.trim() : '';
 
   if (!email.includes('@') || !PIN_RE.test(pin)) {
-    return json({ error: 'Solicitud inválida' }, 400, ch);
+    return json(errPayload('INVALID_BODY', 'Solicitud inválida'), 400, ch);
   }
 
   try {
@@ -294,7 +313,7 @@ Deno.serve(async (req) => {
 
     if (selErr) {
       console.error('[verify-pos-pin-login] profiles:', selErr.message);
-      return json({ error: 'Error al verificar usuario' }, 500, ch);
+      return json(errPayload('PROFILE_QUERY_FAILED', 'Error al verificar usuario'), 500, ch);
     }
 
     if (!rows?.length) {
@@ -309,22 +328,22 @@ Deno.serve(async (req) => {
 
     if (selErr) {
       console.error('[verify-pos-pin-login] profiles ilike:', selErr.message);
-      return json({ error: 'Error al verificar usuario' }, 500, ch);
+      return json(errPayload('PROFILE_QUERY_FAILED', 'Error al verificar usuario'), 500, ch);
     }
     if (!rows?.length) {
-      return json({ error: 'No autorizado' }, 401, ch);
+      return json(errPayload('NO_PROFILE_FOR_EMAIL', 'No autorizado'), 401, ch);
     }
     if (rows.length > 1) {
-      return json({ error: 'Correo duplicado' }, 409, ch);
+      return json(errPayload('DUPLICATE_EMAIL', 'Correo duplicado'), 409, ch);
     }
 
     const row = rows[0]!;
     const storedPin = row.pos_pin != null ? String(row.pos_pin).trim() : '';
     if (!row.is_active || storedPin.length === 0) {
-      return json({ error: 'No autorizado' }, 401, ch);
+      return json(errPayload('PROFILE_INACTIVE_OR_NO_PIN', 'No autorizado'), 401, ch);
     }
     if (!safeEqualStr(storedPin, pin)) {
-      return json({ error: 'No autorizado' }, 401, ch);
+      return json(errPayload('BAD_PIN', 'No autorizado'), 401, ch);
     }
 
     const profileEmail = typeof row.email === 'string' ? row.email.trim().toLowerCase() : '';
@@ -344,7 +363,7 @@ Deno.serve(async (req) => {
             console.warn('[verify-pos-pin-login] no se pudo alinear email en Auth:', emailErr.message);
           }
         }
-        return json({ ok: true }, 200, ch);
+        return json({ ok: true, code: 'SYNC_OK' }, 200, ch);
       }
       lastDirectUpdateMessage = directErr.message;
       console.warn('[verify-pos-pin-login] updateUserById(profile.id) falló, se intenta resolución:', directErr.message);
@@ -360,10 +379,14 @@ Deno.serve(async (req) => {
     const authUserId = resolvedId ?? profileAuthId;
     if (!authUserId) {
       console.error('[verify-pos-pin-login] no se pudo resolver usuario Auth para perfil:', row.id);
-      return json({ error: 'Usuario Auth no encontrado para este perfil' }, 500, ch);
+      return json(errPayload('AUTH_USER_NOT_RESOLVED', 'Usuario Auth no encontrado para este perfil'), 500, ch);
     }
     if (resolvedId == null && profileAuthId != null && authUserId === profileAuthId && lastDirectUpdateMessage) {
-      return json({ error: lastDirectUpdateMessage }, 500, ch);
+      return json(
+        { code: 'AUTH_UPDATE_FAILED', error: lastDirectUpdateMessage },
+        500,
+        ch
+      );
     }
 
     let { error: authErr } = await admin.auth.admin.updateUserById(authUserId, {
@@ -371,7 +394,7 @@ Deno.serve(async (req) => {
     });
     if (authErr) {
       console.error('[verify-pos-pin-login] updateUserById:', authErr.message);
-      return json({ error: authErr.message }, 500, ch);
+      return json(errPayload('AUTH_UPDATE_FAILED', authErr.message), 500, ch);
     }
 
     if (profileEmail.includes('@') && profileEmail !== email) {
@@ -381,9 +404,9 @@ Deno.serve(async (req) => {
       }
     }
 
-    return json({ ok: true }, 200, ch);
+    return json({ ok: true, code: 'SYNC_OK' }, 200, ch);
   } catch (e) {
     console.error('[verify-pos-pin-login]', e);
-    return json({ error: 'Error interno' }, 500, ch);
+    return json(errPayload('INTERNAL', 'Error interno'), 500, ch);
   }
 });

@@ -68,17 +68,25 @@ export const useAuthStore = create<AuthStore>((set) => ({
           synced = true;
           break;
         }
+        const fmt = (msg: string | undefined, code?: string) =>
+          code ? `[${code}] ${msg ?? ''}`.trim() : (msg ?? '');
         if (r.status >= 500) {
-          pinSyncHint =
+          pinSyncHint = fmt(
             r.error ??
-            'No se pudo sincronizar el PIN (error del servidor). Revise logs de verify-pos-pin-login en Supabase y vuelva a desplegar la función.';
+              'No se pudo sincronizar el PIN (error del servidor). Revise logs de verify-pos-pin-login en Supabase y vuelva a desplegar la función.',
+            r.code
+          );
         } else if (pinSyncHint === undefined && r.status === 403) {
-          pinSyncHint =
-            'Origen no permitido para verify-pos-pin-login. Añada la URL de la app a ADMIN_CREATE_USER_ALLOWED_ORIGINS.';
+          pinSyncHint = fmt(
+            'Origen no permitido para verify-pos-pin-login. Añada la URL de la app a ADMIN_CREATE_USER_ALLOWED_ORIGINS.',
+            r.code
+          );
         } else if (pinSyncHint === undefined && r.status === 0) {
-          pinSyncHint = 'No se pudo contactar verify-pos-pin-login (red o bloqueo).';
+          pinSyncHint = fmt('No se pudo contactar verify-pos-pin-login (red o bloqueo).', r.code);
         } else if (pinSyncHint === undefined && r.error && r.status !== 401) {
-          pinSyncHint = r.error;
+          pinSyncHint = fmt(r.error, r.code);
+        } else if (pinSyncHint === undefined && r.status === 401 && r.code) {
+          pinSyncHint = fmt(r.error ?? 'No autorizado', r.code);
         }
       }
       if (!synced) {
