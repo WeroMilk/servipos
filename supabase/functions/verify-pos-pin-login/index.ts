@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 import { authPasswordFromPosPin } from '../_shared/authPasswordFromPosPin.ts';
+import { expandServipartzEmailAliases } from '../_shared/servipartzEmailCandidates.ts';
 
 const baseCorsHeaders: Record<string, string> = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -82,57 +83,85 @@ function authUserIdFromProfileId(id: unknown): string | null {
   return UUID_LC_RE.test(s) ? s : null;
 }
 
-/** Id de auth.users vía Admin API (filter estilo PostgREST). */
+/** Id de auth.users vía Admin API (filter estilo PostgREST; el @ del correo suele exigir comillas). */
 async function adminAuthUserIdByEmail(
   supabaseUrl: string,
   serviceKey: string,
   em: string
 ): Promise<string | null> {
   const base = supabaseUrl.replace(/\/$/, '');
-  const filter = `email.eq.${em}`;
-  const url = `${base}/auth/v1/admin/users?per_page=200&filter=${encodeURIComponent(filter)}`;
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${serviceKey}`,
-      apikey: serviceKey,
-    },
-  });
-  if (!res.ok) {
-    const errTxt = await res.text();
-    console.error('[verify-pos-pin-login] admin users:', res.status, errTxt);
-    return null;
-  }
-  const raw = (await res.json()) as Record<string, unknown>;
-  const arr =
-    (raw.users as { id: string; email?: string }[] | undefined) ??
-    ((raw.data as { users?: { id: string; email?: string }[] } | undefined)?.users) ??
-    [];
   const want = em.trim().toLowerCase();
-  const match = arr.find((u) => String(u.email ?? '').trim().toLowerCase() === want);
-  const id = match?.id;
-  if (!id) return null;
-  const s = String(id).trim().toLowerCase();
-  return UUID_LC_RE.test(s) ? s : null;
+  const filters = [`email.eq."${want}"`, `email.eq.${want}`];
+  for (const filter of filters) {
+    const url = `${base}/auth/v1/admin/users?per_page=200&filter=${encodeURIComponent(filter)}`;
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${serviceKey}`,
+        apikey: serviceKey,
+      },
+    });
+    if (!res.ok) {
+      const errTxt = await res.text();
+      console.error('[verify-pos-pin-login] admin users:', filter.slice(0, 24), res.status, errTxt);
+      continue;
+    }
+    let raw: Record<string, unknown>;
+    try {
+      raw = (await res.json()) as Record<string, unknown>;
+    } catch {
+      console.error('[verify-pos-pin-login] admin users: respuesta no JSON');
+      continue;
+    }
+    const arr =
+      (raw.users as { id: string; email?: string }[] | undefined) ??
+      ((raw.data as { users?: { id: string; email?: string }[] } | undefined)?.users) ??
+      [];
+    const match = arr.find((u) => String(u.email ?? '').trim().toLowerCase() === want);
+    const id = match?.id;
+    if (!id) continue;
+    const s = String(id).trim().toLowerCase();
+    if (UUID_LC_RE.test(s)) return s;
+  }
+  return null;
 }
 
 /**
- * Resuelve el UUID en Auth con el que hay que actualizar la contraseña.
- * Prioriza búsqueda por email en Auth (fuente de verdad para signIn); el id en profiles a veces
- * queda desalineado tras migraciones o recreación de usuarios.
+ * Resuelve el UUID en Auth para actualizar la contraseña.
+ * 1) `profiles.id` suele coincidir con `auth.users.id` → `getUserById` evita filtros rotos por `@`.
+ * 2) Si no, busca por correo con alias servipartz.com ↔ serviparts.com y filtro entrecomillado.
  */
-async function resolveAuthUserIdForPinSync(opts: {
-  supabaseUrl: string;
-  serviceKey: string;
-  profileId: unknown;
-  profileEmail: string;
-  requestEmail: string;
-}): Promise<string | null> {
-  const emails = [...new Set([opts.profileEmail, opts.requestEmail].filter((e) => e.includes('@')))];
+async function resolveAuthUserIdForPinSync(
+  admin: ReturnType<typeof createClient>,
+  opts: {
+    supabaseUrl: string;
+    serviceKey: string;
+    profileId: unknown;
+    profileEmail: string;
+    requestEmail: string;
+  }
+): Promise<string | null> {
+  const pid = authUserIdFromProfileId(opts.profileId);
+  if (pid) {
+    const { data, error } = await admin.auth.admin.getUserById(pid);
+    if (!error && data?.user) {
+      return pid;
+    }
+  }
+
+  const emails = new Set<string>();
+  for (const base of [opts.profileEmail, opts.requestEmail]) {
+    if (base.includes('@')) {
+      for (const em of expandServipartzEmailAliases(base)) {
+        emails.add(em);
+      }
+    }
+  }
   for (const em of emails) {
     const id = await adminAuthUserIdByEmail(opts.supabaseUrl, opts.serviceKey, em);
     if (id) return id;
   }
-  return authUserIdFromProfileId(opts.profileId);
+
+  return pid;
 }
 
 Deno.serve(async (req) => {
@@ -224,7 +253,7 @@ Deno.serve(async (req) => {
 
     const profileEmail = typeof row.email === 'string' ? row.email.trim().toLowerCase() : '';
 
-    const authUserId = await resolveAuthUserIdForPinSync({
+    const authUserId = await resolveAuthUserIdForPinSync(admin, {
       supabaseUrl,
       serviceKey,
       profileId: row.id,
