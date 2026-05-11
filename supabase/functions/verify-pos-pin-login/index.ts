@@ -130,7 +130,7 @@ Deno.serve(async (req) => {
 
     const { data: rows, error: selErr } = await admin
       .from('profiles')
-      .select('id, pos_pin, is_active')
+      .select('id, pos_pin, is_active, email')
       .ilike('email', email)
       .limit(2);
 
@@ -155,9 +155,27 @@ Deno.serve(async (req) => {
       return json({ error: 'Perfil inconsistente' }, 500, ch);
     }
 
-    const { error: authErr } = await admin.auth.admin.updateUserById(authUserId, {
-      password: authPasswordFromPosPin(pin),
-    });
+    const profileEmail = typeof row.email === 'string' ? row.email.trim().toLowerCase() : '';
+
+    const newPassword = authPasswordFromPosPin(pin);
+    const { data: userData, error: getUserErr } = await admin.auth.admin.getUserById(authUserId);
+    if (getUserErr) {
+      console.error('[verify-pos-pin-login] getUserById:', getUserErr.message);
+      return json({ error: getUserErr.message }, 500, ch);
+    }
+
+    const curEmail = userData.user?.email?.trim().toLowerCase() ?? '';
+    const alignEmail = profileEmail.includes('@') && curEmail !== profileEmail;
+
+    let patch: { password: string; email?: string } = alignEmail
+      ? { password: newPassword, email: profileEmail }
+      : { password: newPassword };
+
+    let { error: authErr } = await admin.auth.admin.updateUserById(authUserId, patch);
+    if (authErr && patch.email) {
+      console.warn('[verify-pos-pin-login] alinear email falló, solo contraseña:', authErr.message);
+      ({ error: authErr } = await admin.auth.admin.updateUserById(authUserId, { password: newPassword }));
+    }
     if (authErr) {
       return json({ error: authErr.message }, 500, ch);
     }

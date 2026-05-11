@@ -25,28 +25,43 @@ export const useAuthStore = create<AuthStore>((set) => ({
 
   login: async (usernameOrEmail: string, password: string): Promise<boolean> => {
     try {
-      const { normalizeServipartzEmail } = await import('@/lib/servipartzAuth');
+      const { buildLoginEmailCandidates } = await import('@/lib/servipartzAuth');
       const { looksLikePosPin, syncAuthPasswordFromPosPin } = await import('@/lib/verifyPosPinLogin');
-      const email = normalizeServipartzEmail(usernameOrEmail);
-      if (!email) return false;
+      const candidates = buildLoginEmailCandidates(usernameOrEmail);
+      if (candidates.length === 0) return false;
+
       const supabase = getSupabase();
-      const signIn = () => supabase.auth.signInWithPassword({ email, password });
+      const signInWith = (email: string, pwd: string) =>
+        supabase.auth.signInWithPassword({ email, password: pwd });
 
-      let { error } = await signIn();
-      if (!error) return true;
-
-      const expectedAuthFailure =
-        /invalid login|invalid credentials|email not confirmed|user not found/i.test(error.message);
-      if (import.meta.env.DEV && !expectedAuthFailure) {
-        console.error('Supabase Auth:', error.message);
+      let lastMessage = '';
+      for (const email of candidates) {
+        const { error } = await signInWith(email, password);
+        if (!error) return true;
+        if (error.message) lastMessage = error.message;
       }
 
-      if (expectedAuthFailure && looksLikePosPin(password) && (await syncAuthPasswordFromPosPin(email, password))) {
-        const { authPasswordFromPosPin } = await import('@/lib/authPasswordFromPosPin');
-        ({ error } = await supabase.auth.signInWithPassword({
-          email,
-          password: authPasswordFromPosPin(password),
-        }));
+      const expectedAuthFailure =
+        /invalid login|invalid credentials|email not confirmed|user not found/i.test(lastMessage);
+      if (import.meta.env.DEV && !expectedAuthFailure && lastMessage) {
+        console.error('Supabase Auth:', lastMessage);
+      }
+
+      if (!expectedAuthFailure || !looksLikePosPin(password)) return false;
+
+      let synced = false;
+      for (const email of candidates) {
+        if (await syncAuthPasswordFromPosPin(email, password)) {
+          synced = true;
+          break;
+        }
+      }
+      if (!synced) return false;
+
+      const { authPasswordFromPosPin } = await import('@/lib/authPasswordFromPosPin');
+      const derived = authPasswordFromPosPin(password);
+      for (const email of candidates) {
+        const { error } = await signInWith(email, derived);
         if (!error) return true;
       }
       return false;

@@ -18,3 +18,26 @@ export function normalizeServipartzEmail(input: string): string {
   const domain = getServipartzEmailDomain();
   return `${trimmed}@${domain}`;
 }
+
+/** Dominios equivalentes en producción (evita login roto si Auth y `profiles` difieren en una letra). */
+const DOMAIN_ALIAS_PAIR: Record<string, string> = {
+  'servipartz.com': 'serviparts.com',
+  'serviparts.com': 'servipartz.com',
+};
+
+/**
+ * Correos a probar en login (`signInWithPassword` + flujo PIN), en orden.
+ * Incluye par servipartz.com ↔ serviparts.com para el mismo usuario local.
+ */
+export function buildLoginEmailCandidates(raw: string): string[] {
+  const primary = normalizeServipartzEmail(raw);
+  if (!primary) return [];
+  const at = primary.lastIndexOf('@');
+  if (at === -1) return [primary];
+  const local = primary.slice(0, at);
+  const domain = primary.slice(at + 1);
+  const alt = DOMAIN_ALIAS_PAIR[domain];
+  const set = new Set<string>([primary]);
+  if (alt) set.add(`${local}@${alt}`);
+  return Array.from(set);
+}

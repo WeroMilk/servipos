@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { getServipartzEmailDomain, normalizeServipartzEmail } from '@/lib/servipartzAuth';
+import {
+  getServipartzEmailDomain,
+  normalizeServipartzEmail,
+  buildLoginEmailCandidates,
+} from '@/lib/servipartzAuth';
 
 describe('servipartzAuth', () => {
   it('uses default domain when env is missing', () => {
@@ -12,5 +16,17 @@ describe('servipartzAuth', () => {
 
   it('keeps full emails normalized and lowercased', () => {
     expect(normalizeServipartzEmail(' USER@Example.COM ')).toBe('user@example.com');
+  });
+
+  it('buildLoginEmailCandidates pairs servipartz and serviparts', () => {
+    expect(buildLoginEmailCandidates('zavala@servipartz.com')).toEqual([
+      'zavala@servipartz.com',
+      'zavala@serviparts.com',
+    ]);
+    expect(buildLoginEmailCandidates('gabriel@serviparts.com')).toEqual([
+      'gabriel@serviparts.com',
+      'gabriel@servipartz.com',
+    ]);
+    expect(buildLoginEmailCandidates('zavala')).toEqual(['zavala@servipartz.com', 'zavala@serviparts.com']);
   });
 });
