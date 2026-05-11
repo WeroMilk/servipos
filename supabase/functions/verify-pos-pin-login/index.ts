@@ -82,6 +82,59 @@ function authUserIdFromProfileId(id: unknown): string | null {
   return UUID_LC_RE.test(s) ? s : null;
 }
 
+/** Id de auth.users vía Admin API (filter estilo PostgREST). */
+async function adminAuthUserIdByEmail(
+  supabaseUrl: string,
+  serviceKey: string,
+  em: string
+): Promise<string | null> {
+  const base = supabaseUrl.replace(/\/$/, '');
+  const filter = `email.eq.${em}`;
+  const url = `${base}/auth/v1/admin/users?per_page=200&filter=${encodeURIComponent(filter)}`;
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${serviceKey}`,
+      apikey: serviceKey,
+    },
+  });
+  if (!res.ok) {
+    const errTxt = await res.text();
+    console.error('[verify-pos-pin-login] admin users:', res.status, errTxt);
+    return null;
+  }
+  const raw = (await res.json()) as Record<string, unknown>;
+  const arr =
+    (raw.users as { id: string; email?: string }[] | undefined) ??
+    ((raw.data as { users?: { id: string; email?: string }[] } | undefined)?.users) ??
+    [];
+  const want = em.trim().toLowerCase();
+  const match = arr.find((u) => String(u.email ?? '').trim().toLowerCase() === want);
+  const id = match?.id;
+  if (!id) return null;
+  const s = String(id).trim().toLowerCase();
+  return UUID_LC_RE.test(s) ? s : null;
+}
+
+/**
+ * Resuelve el UUID en Auth con el que hay que actualizar la contraseña.
+ * Prioriza búsqueda por email en Auth (fuente de verdad para signIn); el id en profiles a veces
+ * queda desalineado tras migraciones o recreación de usuarios.
+ */
+async function resolveAuthUserIdForPinSync(opts: {
+  supabaseUrl: string;
+  serviceKey: string;
+  profileId: unknown;
+  profileEmail: string;
+  requestEmail: string;
+}): Promise<string | null> {
+  const emails = [...new Set([opts.profileEmail, opts.requestEmail].filter((e) => e.includes('@')))];
+  for (const em of emails) {
+    const id = await adminAuthUserIdByEmail(opts.supabaseUrl, opts.serviceKey, em);
+    if (id) return id;
+  }
+  return authUserIdFromProfileId(opts.profileId);
+}
+
 Deno.serve(async (req) => {
   const origin = req.headers.get('Origin');
   const configured = parseAllowedOrigins();
@@ -169,16 +222,22 @@ Deno.serve(async (req) => {
       return json({ error: 'No autorizado' }, 401, ch);
     }
 
-    const authUserId = authUserIdFromProfileId(row.id);
+    const profileEmail = typeof row.email === 'string' ? row.email.trim().toLowerCase() : '';
+
+    const authUserId = await resolveAuthUserIdForPinSync({
+      supabaseUrl,
+      serviceKey,
+      profileId: row.id,
+      profileEmail,
+      requestEmail: email,
+    });
     if (!authUserId) {
-      console.error('[verify-pos-pin-login] id de perfil no es UUID válido:', row.id);
-      return json({ error: 'Perfil inconsistente' }, 500, ch);
+      console.error('[verify-pos-pin-login] no se pudo resolver usuario Auth para perfil:', row.id);
+      return json({ error: 'Usuario Auth no encontrado para este perfil' }, 500, ch);
     }
 
     const newPassword = authPasswordFromPosPin(pin);
 
-    // Solo actualizar contraseña (no depender de getUserById: si Auth y perfil han divergido,
-    // getUserById devolvía error y todo el login fallaba con 500).
     let { error: authErr } = await admin.auth.admin.updateUserById(authUserId, {
       password: newPassword,
     });
@@ -187,8 +246,7 @@ Deno.serve(async (req) => {
       return json({ error: authErr.message }, 500, ch);
     }
 
-    // Alinear email en Auth con profiles (opcional; no debe romper el login si Auth rechaza el cambio).
-    const profileEmail = typeof row.email === 'string' ? row.email.trim().toLowerCase() : '';
+    // Opcional: alinear email en Auth al del perfil (no bloquea si falla).
     if (profileEmail.includes('@') && profileEmail !== email) {
       const { error: emailErr } = await admin.auth.admin.updateUserById(authUserId, { email: profileEmail });
       if (emailErr) {
