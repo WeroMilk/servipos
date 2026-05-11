@@ -8,16 +8,19 @@ export type LoginDirectoryUser = {
   email: string;
 };
 
-/** Directorio de login (activos); `fetch` con anon key para evitar segundo GoTrueClient y JWT de sesión en el RPC. */
-export async function fetchLoginDirectoryUsers(): Promise<LoginDirectoryUser[]> {
-  const base = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
-  if (!base || !anonKey) {
-    if (import.meta.env.DEV) {
-      console.warn('fetchLoginDirectoryUsers: faltan VITE_SUPABASE_URL o VITE_SUPABASE_ANON_KEY');
-    }
-    return [];
-  }
+function mapLoginDirectoryRows(
+  rows: { id: string; name: string | null; email: string | null }[]
+): LoginDirectoryUser[] {
+  return rows
+    .filter((r) => typeof r.email === 'string' && r.email.length > 0)
+    .map((r) => ({
+      id: r.id,
+      name: (r.name ?? '').trim() || (r.email as string),
+      email: (r.email as string).trim().toLowerCase(),
+    }));
+}
+
+async function fetchLoginDirectoryViaRest(base: string, anonKey: string): Promise<LoginDirectoryUser[]> {
   const url = `${base.replace(/\/$/, '')}/rest/v1/rpc/rpc_list_login_directory`;
   try {
     const res = await fetch(url, {
@@ -32,25 +35,76 @@ export async function fetchLoginDirectoryUsers(): Promise<LoginDirectoryUser[]> 
     if (!res.ok) {
       if (import.meta.env.DEV) {
         const detail = await res.text().catch(() => '');
-        console.warn('rpc_list_login_directory:', res.status, detail.slice(0, 300));
+        console.warn('rpc_list_login_directory (REST):', res.status, detail.slice(0, 300));
       }
       return [];
     }
     const parsed = (await res.json()) as unknown;
     const rows = (Array.isArray(parsed) ? parsed : []) as { id: string; name: string | null; email: string | null }[];
-    return rows
-      .filter((r) => typeof r.email === 'string' && r.email.length > 0)
-      .map((r) => ({
-        id: r.id,
-        name: (r.name ?? '').trim() || (r.email as string),
-        email: (r.email as string).trim().toLowerCase(),
-      }));
+    return mapLoginDirectoryRows(rows);
   } catch (e) {
     if (import.meta.env.DEV) {
-      console.warn('fetchLoginDirectoryUsers:', e);
+      console.warn('fetchLoginDirectoryViaRest:', e);
     }
     return [];
   }
+}
+
+/**
+ * Directorio de login: primero Edge Function `list-login-directory` (service_role, sin JWT PostgREST).
+ * Si no está desplegada (404) o falla, intenta REST con anon (p. ej. local sin functions).
+ */
+export async function fetchLoginDirectoryUsers(): Promise<LoginDirectoryUser[]> {
+  const base = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim();
+  const anonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim();
+  if (!base || !anonKey) {
+    if (import.meta.env.DEV) {
+      console.warn('fetchLoginDirectoryUsers: faltan VITE_SUPABASE_URL o VITE_SUPABASE_ANON_KEY');
+    }
+    return [];
+  }
+  const root = base.replace(/\/$/, '');
+  const edgeUrl = `${root}/functions/v1/list-login-directory`;
+  const anonHeaders = {
+    apikey: anonKey,
+    Authorization: `Bearer ${anonKey}`,
+    'Content-Type': 'application/json',
+  } as const;
+
+  try {
+    const edgeRes = await fetch(edgeUrl, {
+      method: 'POST',
+      headers: { ...anonHeaders },
+      body: '{}',
+    });
+    if (edgeRes.ok) {
+      const parsed = (await edgeRes.json()) as { users?: unknown };
+      const raw = parsed.users;
+      if (Array.isArray(raw)) {
+        const rows = raw as { id: string; name: string | null; email: string | null }[];
+        return mapLoginDirectoryRows(rows);
+      }
+      return fetchLoginDirectoryViaRest(base, anonKey);
+    }
+    if (import.meta.env.DEV && edgeRes.status === 403) {
+      console.warn(
+        'list-login-directory (Edge): 403 Origin. Añada su URL a ADMIN_CREATE_USER_ALLOWED_ORIGINS en Supabase (véase docs/VERCEL.md).'
+      );
+    } else if (import.meta.env.DEV) {
+      const t = await edgeRes.text().catch(() => '');
+      console.warn('list-login-directory (Edge):', edgeRes.status, t.slice(0, 200));
+    }
+    if (edgeRes.status === 404 || edgeRes.status >= 500) {
+      return fetchLoginDirectoryViaRest(base, anonKey);
+    }
+  } catch (e) {
+    if (import.meta.env.DEV) {
+      console.warn('list-login-directory (Edge) red/error → REST:', e);
+    }
+    return fetchLoginDirectoryViaRest(base, anonKey);
+  }
+
+  return fetchLoginDirectoryViaRest(base, anonKey);
 }
 
 /** Lista usuarios con perfil en `public.profiles`. */

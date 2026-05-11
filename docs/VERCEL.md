@@ -39,7 +39,7 @@ Los nombres deben coincidir **exactamente** (prefijo `VITE_` incluido). Vite sol
 
 ## 4. Hardening de Edge Function (Supabase)
 
-La función `admin-create-user` ahora valida origen por allowlist. Configure en Supabase:
+Las funciones `admin-create-user`, `verify-pos-pin-login` y **`list-login-directory`** validan origen con la misma allowlist. Configure en Supabase:
 
 - **Project Settings -> Edge Functions -> Secrets**
 - `ADMIN_CREATE_USER_ALLOWED_ORIGINS` con lista CSV de orígenes permitidos.
@@ -50,10 +50,21 @@ Ejemplo:
 
 Si no define esta variable, la función rechazará requests por seguridad.
 
+### Directorio de usuarios en el login (`list-login-directory`)
+
+Si PostgREST devuelve **401** al RPC `rpc_list_login_directory` (clave anon o gateway), la app usa la Edge Function **`list-login-directory`**, que consulta con `service_role` en el servidor.
+
+Despliegue al menos una vez (desde la raíz del repo, con CLI de Supabase autenticado):
+
+`supabase functions deploy list-login-directory`
+
+Sin este deploy, el front intentará la función, recibirá **404** y hará fallback al RPC por REST (que seguirá fallando si el 401 era del proyecto).
+
 ## 5. Checklist de release (obligatorio)
 
 1. `npm run verify:supabase`
 2. Verificar en Vercel todas las `VITE_*` requeridas
 3. Confirmar `Site URL` y `Redirect URLs` en Supabase Auth
 4. Confirmar secret `ADMIN_CREATE_USER_ALLOWED_ORIGINS` en Supabase Edge Functions
-5. Redeploy en Vercel y prueba smoke de login + alta de usuario admin + flujo POS básico
+5. `supabase functions deploy list-login-directory` (listado de usuarios en pantalla de login)
+6. Redeploy en Vercel y prueba smoke de login + alta de usuario admin + flujo POS básico
