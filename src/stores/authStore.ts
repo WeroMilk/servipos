@@ -109,6 +109,29 @@ export const useAuthStore = create<AuthStore>((set) => ({
   },
 }));
 
+let authStorageRecoveryOnce = false;
+let supabaseAuthRefCount = 0;
+let supabaseAuthTeardown: (() => void) | null = null;
+
+function scheduleCorruptSessionCleanupOnce(): void {
+  if (authStorageRecoveryOnce) return;
+  authStorageRecoveryOnce = true;
+  const supabase = getSupabase();
+  void supabase.auth
+    .getSession()
+    .then(({ error }) => {
+      if (!error) return;
+      const m = error.message.toLowerCase();
+      // Sesión en localStorage inválida tras cambio de contraseña u otros; evita rechazos sin capturar en GoTrue.
+      if (/(refresh|jwt|invalid|session|expired|malformed)/i.test(m)) {
+        void supabase.auth.signOut({ scope: 'local' });
+      }
+    })
+    .catch(() => {
+      void supabase.auth.signOut({ scope: 'local' });
+    });
+}
+
 /**
  * Aplica sesión → store. Debe ejecutarse FUERA del callback de `onAuthStateChange`
  * (p. ej. vía setTimeout) para no bloquear el lock de Auth al llamar a `supabase.from(...)`.
@@ -151,14 +174,35 @@ async function applyAuthSession(session: Session | null): Promise<void> {
 /** Suscripción global: sesión Supabase + perfil en `profiles`. */
 export function subscribeSupabaseAuth(): () => void {
   const supabase = getSupabase();
-  const { data } = supabase.auth.onAuthStateChange((event, session) => {
-    setTimeout(() => {
-      // Solo renovación de JWT: no llamar a PostgREST dentro del flujo de auth.
-      if (event === 'TOKEN_REFRESHED') return;
-      void applyAuthSession(session);
-    }, 0);
-  });
+  scheduleCorruptSessionCleanupOnce();
+
+  supabaseAuthRefCount += 1;
+  if (!supabaseAuthTeardown) {
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      setTimeout(() => {
+        if (event === 'TOKEN_REFRESHED') return;
+        void applyAuthSession(session).catch((err) => {
+          console.error('applyAuthSession:', err);
+          useSucursalContextStore.getState().setActiveSucursalId(null);
+          useAuthStore.setState({
+            user: null,
+            isAuthenticated: false,
+            authReady: true,
+          });
+        });
+      }, 0);
+    });
+    supabaseAuthTeardown = () => {
+      data.subscription.unsubscribe();
+      supabaseAuthTeardown = null;
+    };
+  }
+
   return () => {
-    data.subscription.unsubscribe();
+    supabaseAuthRefCount -= 1;
+    if (supabaseAuthRefCount <= 0) {
+      supabaseAuthRefCount = 0;
+      supabaseAuthTeardown?.();
+    }
   };
 }
