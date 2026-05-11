@@ -229,8 +229,12 @@ async function resolveAuthUserIdForPinSync(
     if (fromRpc) return fromRpc;
     const fromRest = await adminAuthUserIdByEmail(opts.supabaseUrl, opts.serviceKey, em);
     if (fromRest) return fromRest;
-    const fromPaged = await adminAuthUserIdByEmailPaged(opts.supabaseUrl, opts.serviceKey, em);
-    if (fromPaged) return fromPaged;
+    try {
+      const fromPaged = await adminAuthUserIdByEmailPaged(opts.supabaseUrl, opts.serviceKey, em);
+      if (fromPaged) return fromPaged;
+    } catch (e) {
+      console.warn('[verify-pos-pin-login] adminAuthUserIdByEmailPaged:', e);
+    }
   }
 
   return null;
@@ -324,20 +328,43 @@ Deno.serve(async (req) => {
     }
 
     const profileEmail = typeof row.email === 'string' ? row.email.trim().toLowerCase() : '';
+    const newPassword = authPasswordFromPosPin(pin);
+    const profileAuthId = authUserIdFromProfileId(row.id);
+    let lastDirectUpdateMessage: string | null = null;
 
-    const authUserId = await resolveAuthUserIdForPinSync(admin, {
+    /** Caso habitual Supabase: `profiles.id` = `auth.users.id`. Evita depender de RPC/filtros admin. */
+    if (profileAuthId) {
+      const { error: directErr } = await admin.auth.admin.updateUserById(profileAuthId, {
+        password: newPassword,
+      });
+      if (!directErr) {
+        if (profileEmail.includes('@') && profileEmail !== email) {
+          const { error: emailErr } = await admin.auth.admin.updateUserById(profileAuthId, { email: profileEmail });
+          if (emailErr) {
+            console.warn('[verify-pos-pin-login] no se pudo alinear email en Auth:', emailErr.message);
+          }
+        }
+        return json({ ok: true }, 200, ch);
+      }
+      lastDirectUpdateMessage = directErr.message;
+      console.warn('[verify-pos-pin-login] updateUserById(profile.id) falló, se intenta resolución:', directErr.message);
+    }
+
+    const resolvedId = await resolveAuthUserIdForPinSync(admin, {
       supabaseUrl,
       serviceKey,
       profileId: row.id,
       profileEmail,
       requestEmail: email,
     });
+    const authUserId = resolvedId ?? profileAuthId;
     if (!authUserId) {
       console.error('[verify-pos-pin-login] no se pudo resolver usuario Auth para perfil:', row.id);
       return json({ error: 'Usuario Auth no encontrado para este perfil' }, 500, ch);
     }
-
-    const newPassword = authPasswordFromPosPin(pin);
+    if (resolvedId == null && profileAuthId != null && authUserId === profileAuthId && lastDirectUpdateMessage) {
+      return json({ error: lastDirectUpdateMessage }, 500, ch);
+    }
 
     let { error: authErr } = await admin.auth.admin.updateUserById(authUserId, {
       password: newPassword,
@@ -347,7 +374,6 @@ Deno.serve(async (req) => {
       return json({ error: authErr.message }, 500, ch);
     }
 
-    // Opcional: alinear email en Auth al del perfil (no bloquea si falla).
     if (profileEmail.includes('@') && profileEmail !== email) {
       const { error: emailErr } = await admin.auth.admin.updateUserById(authUserId, { email: profileEmail });
       if (emailErr) {
