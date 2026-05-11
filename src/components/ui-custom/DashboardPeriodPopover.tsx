@@ -27,6 +27,10 @@ type Props = {
   trigger: React.ReactNode;
 };
 
+/** Misma superficie táctil/visual para prev/next — evita fondo sólo en un lado (focus/hover del DOM). */
+const calendarNavBtnClass =
+  'inline-flex size-9 shrink-0 items-center justify-center rounded-full border-0 shadow-none outline-none bg-slate-600/45 text-slate-100 transition-colors hover:bg-slate-500/60 hover:text-white focus-visible:z-30 focus-visible:ring-2 focus-visible:ring-[#8ab4f8]/45 focus-visible:ring-offset-2 focus-visible:ring-offset-[#2d2d2d] disabled:pointer-events-none disabled:opacity-35 aria-disabled:pointer-events-none aria-disabled:opacity-35';
+
 function dayInSelectedSpan(day: Date, range: DateRange | undefined): boolean {
   if (!range?.from || !range?.to) return false;
   const a = startOfDay(range.from);
@@ -179,15 +183,22 @@ export function DashboardPeriodPopover({
             className="w-full rounded-none border-0 bg-transparent p-2 text-slate-100 [--cell-size:2.35rem]"
             classNames={{
               root: 'w-full',
-              caption_label: 'text-sm font-medium text-slate-100',
+              month: 'flex w-full flex-col gap-3',
+              // Nav absoluto: reservamos espacio estable y botones equidistantes del centro.
+              month_caption:
+                'relative z-0 flex h-10 w-full items-center justify-center px-11 text-center',
+              caption_label:
+                'text-center text-sm font-semibold capitalize text-slate-100',
+              nav: cn(
+                'pointer-events-none absolute inset-x-0 top-0 z-20 flex h-10 items-center justify-between px-2',
+                '[&>button]:pointer-events-auto [&>button]:relative'
+              ),
               weekday: 'text-slate-500',
               outside: 'text-slate-600 opacity-50',
               today: 'text-[#8ab4f8]',
               disabled: 'opacity-30',
-              button_previous:
-                'size-9 shrink-0 rounded-full border-0 bg-transparent text-slate-300 hover:bg-slate-600/60 hover:text-white',
-              button_next:
-                'size-9 shrink-0 rounded-full border-0 bg-transparent text-slate-300 hover:bg-slate-600/60 hover:text-white',
+              button_previous: calendarNavBtnClass,
+              button_next: calendarNavBtnClass,
             }}
             formatters={{
               formatCaption: (date) => format(date, 'MMMM yyyy', { locale: es }),
