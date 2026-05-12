@@ -131,6 +131,7 @@ function catalogProductSyncSignature(p: Product): string {
   const ex = typeof p.existencia === 'number' ? p.existencia : Number(p.existencia) || 0;
   const em =
     typeof p.existenciaMinima === 'number' ? p.existenciaMinima : Number(p.existenciaMinima) || 0;
+  const desc = typeof p.descripcion === 'string' ? p.descripcion : '';
   return [
     Math.round(pv * 1e6) / 1e6,
     Number(p.impuesto) || 0,
@@ -138,6 +139,8 @@ function catalogProductSyncSignature(p: Product): string {
     stableStringifyPreciosListas(p.preciosPorListaCliente),
     ex,
     em,
+    desc.length,
+    desc.slice(0, 600),
   ].join('\u001f');
 }
 

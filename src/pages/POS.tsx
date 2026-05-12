@@ -764,6 +764,8 @@ export function POS() {
   );
   /** Producto cuyo popup de descripción está abierto (carrito). */
   const [productDescriptionDialog, setProductDescriptionDialog] = useState<Product | null>(null);
+  const [productDescriptionEditText, setProductDescriptionEditText] = useState('');
+  const [productDescriptionSaving, setProductDescriptionSaving] = useState(false);
   const [ventaResetConfirmOpen, setVentaResetConfirmOpen] = useState(false);
   const [ventaResetBusy, setVentaResetBusy] = useState(false);
   const [unitPriceDialogOpen, setUnitPriceDialogOpen] = useState(false);
@@ -1133,6 +1135,61 @@ export function POS() {
       });
     } finally {
       setListasPrecioCatalogSaving(false);
+    }
+  };
+
+  useEffect(() => {
+    if (productDescriptionDialog) {
+      setProductDescriptionEditText(
+        typeof productDescriptionDialog.descripcion === 'string' ? productDescriptionDialog.descripcion : ''
+      );
+    } else {
+      setProductDescriptionEditText('');
+    }
+  }, [productDescriptionDialog]);
+
+  const saveProductDescriptionFromPos = async () => {
+    if (!canEditCatalogListasDesdePos) {
+      addToast({
+        type: 'warning',
+        message: 'No tiene permiso para guardar en el catálogo. Se requiere el permiso inventario:editar.',
+      });
+      return;
+    }
+    const p = productDescriptionDialog;
+    if (!p) return;
+    setProductDescriptionSaving(true);
+    try {
+      const trimmed = productDescriptionEditText.trim();
+      const docValue = trimmed.length > 0 ? trimmed : null;
+      const sid = effectiveSucursalId?.trim();
+      if (sid) {
+        await updateProductFirestore(sid, p.id, { descripcion: docValue } as Partial<Product>);
+      } else {
+        await updateProduct(p.id, {
+          descripcion: docValue ?? undefined,
+        });
+      }
+      const nextProduct: Product = {
+        ...p,
+        descripcion: docValue ?? undefined,
+        updatedAt: new Date(),
+      };
+      useCartStore.getState().reconcileCartProductsFromCatalog([nextProduct]);
+      addToast({
+        type: 'success',
+        message: 'Descripción guardada en el catálogo.',
+        logToAppEvents: true,
+      });
+      setProductDescriptionDialog(null);
+    } catch (e: unknown) {
+      addToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'No se pudo guardar la descripción.',
+        logToAppEvents: true,
+      });
+    } finally {
+      setProductDescriptionSaving(false);
     }
   };
 
@@ -4767,7 +4824,10 @@ export function POS() {
       <Dialog
         open={productDescriptionDialog != null}
         onOpenChange={(open) => {
-          if (!open) setProductDescriptionDialog(null);
+          if (!open) {
+            setProductDescriptionDialog(null);
+            setProductDescriptionSaving(false);
+          }
         }}
       >
         <DialogContent className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:max-w-md">
@@ -4775,19 +4835,45 @@ export function POS() {
             <DialogTitle className="pr-6 text-left text-base font-semibold leading-snug text-slate-900 dark:text-slate-100">
               {productDescriptionDialog?.nombre ?? 'Producto'}
             </DialogTitle>
-            <DialogDescription className="sr-only">
-              Descripción del producto según el catálogo.
+            <DialogDescription className="text-left text-xs text-slate-600 dark:text-slate-400">
+              {canEditCatalogListasDesdePos
+                ? 'Edite la descripción del artículo y guarde; se actualiza el catálogo de esta sucursal.'
+                : 'Solo lectura. Se requiere permiso de edición de inventario para guardar cambios en el catálogo.'}
             </DialogDescription>
           </DialogHeader>
-          <div className="max-h-[min(50vh,20rem)] overflow-y-auto whitespace-pre-wrap rounded-md border border-slate-200/80 bg-white/90 px-3 py-2.5 text-sm leading-relaxed text-slate-700 dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-200">
-            {productDescriptionDialog?.descripcion?.trim()
-              ? productDescriptionDialog.descripcion.trim()
-              : 'Sin descripción registrada para este producto.'}
+          <div className="space-y-2">
+            <Label htmlFor="pos-product-descripcion" className="text-slate-700 dark:text-slate-300">
+              Descripción
+            </Label>
+            <textarea
+              id="pos-product-descripcion"
+              value={productDescriptionEditText}
+              onChange={(e) => setProductDescriptionEditText(e.target.value)}
+              readOnly={!canEditCatalogListasDesdePos}
+              rows={8}
+              placeholder="Sin descripción. Escriba detalles del artículo para el equipo y el ticket."
+              className={cn(
+                'w-full resize-y rounded-md border px-3 py-2 text-sm leading-relaxed outline-none',
+                'border-slate-200/80 bg-white/90 text-slate-800 dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-200',
+                'min-h-[10rem] max-h-[min(50vh,22rem)]',
+                'focus-visible:border-sky-500 focus-visible:ring-2 focus-visible:ring-sky-500/25',
+                !canEditCatalogListasDesdePos && 'cursor-not-allowed opacity-80'
+              )}
+            />
           </div>
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:justify-end">
             <Button type="button" variant="secondary" onClick={() => setProductDescriptionDialog(null)}>
               Cerrar
             </Button>
+            {canEditCatalogListasDesdePos ? (
+              <Button
+                type="button"
+                disabled={productDescriptionSaving}
+                onClick={() => void saveProductDescriptionFromPos()}
+              >
+                {productDescriptionSaving ? 'Guardando…' : 'Guardar'}
+              </Button>
+            ) : null}
           </DialogFooter>
         </DialogContent>
       </Dialog>
