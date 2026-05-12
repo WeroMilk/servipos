@@ -1240,6 +1240,8 @@ export function Inventario() {
       }, 0),
     [products]
   );
+  /** Suma cruda puede tener decimales (p. ej. productos MTR/CMT por metro); en la tarjeta se muestra entero. */
+  const totalUnidadesStockDisplay = Math.round(totalUnidadesStock);
   const isInventoryLoadingUi = loading || inventoryBootstrapping;
 
   useEffect(() => {
@@ -1459,7 +1461,11 @@ export function Inventario() {
       actions={
         <div
           className="flex items-center gap-2 rounded-xl border border-slate-200/80 bg-slate-50/90 px-2.5 py-1.5 dark:border-slate-800/50 dark:bg-slate-900/50 sm:gap-3 sm:px-3 sm:py-2"
-          title="Suma de existencias de todos los productos físicos (excluye servicios)."
+          title={
+            totalUnidadesStock % 1 === 0
+              ? 'Suma de existencias de todos los productos físicos (excluye servicios).'
+              : 'Suma de existencias (físicos, sin servicios). Puede incluir decimales por artículos vendidos por metro o centímetro (MTR/CMT); el número mostrado está redondeado al entero más cercano.'
+          }
         >
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-500/20 sm:h-9 sm:w-9">
             <Layers className="h-4 w-4 text-sky-400 sm:h-5 sm:w-5" />
@@ -1469,7 +1475,9 @@ export function Inventario() {
               {isInventoryLoadingUi ? (
                 <span className="inline-flex h-5 w-5 animate-spin rounded-full border-2 border-sky-500/30 border-t-sky-500 align-middle sm:h-6 sm:w-6" />
               ) : (
-                new Intl.NumberFormat('es-MX', { maximumFractionDigits: 2 }).format(totalUnidadesStock)
+                new Intl.NumberFormat('es-MX', { maximumFractionDigits: 0 }).format(
+                  totalUnidadesStockDisplay
+                )
               )}
             </p>
             <p className="text-[10px] text-slate-600 dark:text-slate-500 sm:text-xs">Unidades en stock</p>
