@@ -242,13 +242,6 @@ export function EtiquetasProductos() {
       return;
     }
     const flat = expandForPrint(queue);
-    if (flat.length > 500) {
-      addToast({
-        type: 'warning',
-        message: 'Demasiadas etiquetas en un solo lote. Reduzca cantidades o imprima en varias veces.',
-      });
-      return;
-    }
     const ok = printProductLabels(flat, PRINT_LABEL_FORMAT);
     if (!ok) {
       addToast({
