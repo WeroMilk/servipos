@@ -247,6 +247,18 @@ function cartLineTotalConIva(item: CartItem, listaId: ClientPriceListId): number
   return cartLineUnitSinIva(item, listaId) * item.quantity * (1 + imp / 100);
 }
 
+function filterClientesRegistrados(clients: Client[], search: string): Client[] {
+  const q = search.trim().toLowerCase();
+  return clients.filter((c) => {
+    if (c.isMostrador || c.id === 'mostrador') return false;
+    if (!q) return true;
+    return (
+      c.nombre.toLowerCase().includes(q) ||
+      (c.rfc?.toLowerCase().includes(q) ?? false)
+    );
+  });
+}
+
 /** Precio unitario base (catálogo/override, antes de desc. línea) mostrado al usuario con IVA. */
 function unitBaseSinIvaToPrecioConIva(baseSinIva: number, impuestoPct: number): number {
   const imp = Number(impuestoPct) || 0;
@@ -748,6 +760,12 @@ export function POS() {
   const [checkoutPhase, setCheckoutPhase] = useState<CheckoutPhase>('payment');
   const [ticketSnapshot, setTicketSnapshot] = useState<PosTicketSnapshot | null>(null);
   const [showClientDialog, setShowClientDialog] = useState(false);
+  const [ventaClienteSearch, setVentaClienteSearch] = useState('');
+
+  useEffect(() => {
+    if (showClientDialog) setVentaClienteSearch('');
+  }, [showClientDialog]);
+
   const [montoRecibidoInput, setMontoRecibidoInput] = useState('');
   /** En parcialidades (PPD), medio del próximo abono (mezcla efectivo + tarjetas sin cambiar el selector lateral). */
   const [ppdAbonoFormaPago, setPpdAbonoFormaPago] = useState('01');
@@ -809,17 +827,15 @@ export function POS() {
   } = useProductSearch({ maxResults: 80 });
   const { clients, refresh: refreshClients } = useClients();
 
-  const clientesFiltradosParaCxc = useMemo(() => {
-    const q = pasarCxcClienteSearch.trim().toLowerCase();
-    return clients.filter((c) => {
-      if (c.isMostrador || c.id === 'mostrador') return false;
-      if (!q) return true;
-      return (
-        c.nombre.toLowerCase().includes(q) ||
-        (c.rfc?.toLowerCase().includes(q) ?? false)
-      );
-    });
-  }, [clients, pasarCxcClienteSearch]);
+  const clientesFiltradosParaCxc = useMemo(
+    () => filterClientesRegistrados(clients, pasarCxcClienteSearch),
+    [clients, pasarCxcClienteSearch]
+  );
+
+  const clientesFiltradosVenta = useMemo(
+    () => filterClientesRegistrados(clients, ventaClienteSearch),
+    [clients, ventaClienteSearch]
+  );
 
   useEffect(() => {
     const q = searchQuery.trim();
@@ -4430,7 +4446,15 @@ export function POS() {
           <DialogHeader>
             <DialogTitle>Cliente de la venta</DialogTitle>
           </DialogHeader>
-          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain py-2">
+          <div className="shrink-0 px-1 pb-2">
+            <Input
+              placeholder="Buscar nombre o RFC…"
+              value={ventaClienteSearch}
+              onChange={(e) => setVentaClienteSearch(e.target.value)}
+              className="border-slate-300 bg-slate-200 dark:border-slate-700 dark:bg-slate-800"
+            />
+          </div>
+          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-1 pb-2">
             <button
               type="button"
               onClick={() => {
@@ -4443,9 +4467,12 @@ export function POS() {
               <p className="font-medium text-slate-900 dark:text-slate-100">Mostrador</p>
               <p className="text-xs text-slate-600 dark:text-slate-500">Sin cliente registrado</p>
             </button>
-            {clients
-              .filter((c) => !c.isMostrador)
-              .map((c) => (
+            {clientesFiltradosVenta.length === 0 ? (
+              <p className="py-4 text-center text-sm text-slate-600 dark:text-slate-400">
+                Ningún cliente coincide. Registre clientes en Clientes o ajuste la búsqueda.
+              </p>
+            ) : (
+              clientesFiltradosVenta.map((c) => (
                 <button
                   key={c.id}
                   type="button"
@@ -4459,7 +4486,8 @@ export function POS() {
                   <p className="font-medium text-slate-800 dark:text-slate-200">{c.nombre}</p>
                   {c.rfc ? <p className="text-xs text-slate-600 dark:text-slate-500">RFC: {c.rfc}</p> : null}
                 </button>
-              ))}
+              ))
+            )}
           </div>
         </DialogContent>
       </Dialog>
