@@ -252,6 +252,88 @@ function precioConIvaToSinIva(conIva: number, impuestoPct: number): number {
 
 type InventarioPrecioIvaMode = 'sin' | 'con';
 
+/** Permite seguir escribiendo decimales (ej. "12." o "12,5") sin que el input pierda el separador. */
+function isIncompleteMoneyInput(raw: string): boolean {
+  const t = raw.trim();
+  return t.length > 0 && /[.,]$/.test(t);
+}
+
+function filterMoneyTypingInput(raw: string): string {
+  let s = raw.replace(/[^\d.,]/g, '');
+  const sepIdx = Math.max(s.lastIndexOf(','), s.lastIndexOf('.'));
+  if (sepIdx >= 0) {
+    s = s.slice(0, sepIdx + 1) + s.slice(sepIdx + 1).replace(/[.,]/g, '');
+  }
+  return s;
+}
+
+type InventarioStoredMoneyInputProps = Omit<
+  ComponentProps<typeof InventarioCurrencyInput>,
+  'value' | 'onChange'
+> & {
+  storedSinIva: number;
+  onStoredSinIvaChange: (n: number) => void;
+  ivaMode: InventarioPrecioIvaMode;
+  impuestoPct: number;
+};
+
+function InventarioStoredMoneyInput({
+  storedSinIva,
+  onStoredSinIvaChange,
+  ivaMode,
+  impuestoPct,
+  onFocus: onFocusProp,
+  onBlur: onBlurProp,
+  ...rest
+}: InventarioStoredMoneyInputProps) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const showConIva = ivaMode === 'con';
+
+  const formatStoredForDisplay = (stored: number): string => {
+    if (stored === 0) return '';
+    const n = showConIva ? precioVentaSinIvaToConIva(stored, impuestoPct) : stored;
+    return String(n);
+  };
+
+  const parseDisplayToStored = (displayNum: number): number =>
+    showConIva ? precioConIvaToSinIva(displayNum, impuestoPct) : displayNum;
+
+  const blurredValue = formatStoredForDisplay(storedSinIva);
+  const value = draft !== null ? draft : blurredValue;
+
+  const syncStoredFromDraft = (raw: string) => {
+    if (raw.trim() === '') {
+      onStoredSinIvaChange(0);
+      return;
+    }
+    if (isIncompleteMoneyInput(raw)) return;
+    onStoredSinIvaChange(parseDisplayToStored(parseMoneyInput(raw)));
+  };
+
+  return (
+    <InventarioCurrencyInput
+      {...rest}
+      value={value}
+      onFocus={(e) => {
+        setDraft(blurredValue);
+        onFocusProp?.(e);
+      }}
+      onBlur={(e) => {
+        const raw = draft ?? blurredValue;
+        if (raw.trim() === '') onStoredSinIvaChange(0);
+        else onStoredSinIvaChange(parseDisplayToStored(parseMoneyInput(raw)));
+        setDraft(null);
+        onBlurProp?.(e);
+      }}
+      onChange={(e) => {
+        const v = filterMoneyTypingInput(e.target.value);
+        setDraft(v);
+        syncStoredFromDraft(v);
+      }}
+    />
+  );
+}
+
 /**
  * `preciosPorListaCliente` se guarda con o sin IVA según el producto/config; el toggle solo cambia cómo se captura en pantalla.
  */
@@ -501,21 +583,16 @@ export function Inventario() {
     precioCompraUnit: 0,
   });
   const [stockQtyFocus, setStockQtyFocus] = useState(false);
-  const [stockPrecioCompraFocus, setStockPrecioCompraFocus] = useState(false);
   const addCodigoBarrasRef = useRef<HTMLInputElement>(null);
   const addSessionLinesRef = useRef<AddSessionLine[]>([]);
   const [addSessionSummaryOpen, setAddSessionSummaryOpen] = useState(false);
   const [addSessionSummaryLines, setAddSessionSummaryLines] = useState<AddSessionLine[]>([]);
   /** Al enfocar, ocultar 0 para escribir sin borrar; al salir vacío queda 0 en estado. */
   const [addNumFocus, setAddNumFocus] = useState({
-    precioVenta: false,
-    precioCompra: false,
     existencia: false,
     existenciaMinima: false,
   });
   const [editNumFocus, setEditNumFocus] = useState({
-    precioVenta: false,
-    precioCompra: false,
     existenciaMinima: false,
   });
   const [inventoryMode, setInventoryMode] = useState<InventoryMode>('productos');
@@ -747,8 +824,6 @@ export function Inventario() {
   useEffect(() => {
     if (showAddDialog) {
       setAddNumFocus({
-        precioVenta: false,
-        precioCompra: false,
         existencia: false,
         existenciaMinima: false,
       });
@@ -771,7 +846,7 @@ export function Inventario() {
 
   useEffect(() => {
     if (showEditDialog) {
-      setEditNumFocus({ precioVenta: false, precioCompra: false, existenciaMinima: false });
+      setEditNumFocus({ existenciaMinima: false });
     }
   }, [showEditDialog]);
 
@@ -851,8 +926,6 @@ export function Inventario() {
         setPreciosListaStr(emptyPreciosListaStr());
         setListasPrecioMainDraft({});
         setAddNumFocus({
-          precioVenta: false,
-          precioCompra: false,
           existencia: false,
           existenciaMinima: false,
         });
@@ -988,7 +1061,6 @@ export function Inventario() {
         precioCompraUnit: formData.precioCompra > 0 ? formData.precioCompra : 0,
       });
       setStockQtyFocus(false);
-      setStockPrecioCompraFocus(false);
       const tipoLbl = tipoMovimientoLabel(stockAdjustment.tipo as InventoryMovement['tipo']);
       reportAppEvent({
         kind: 'success',
@@ -1118,7 +1190,6 @@ export function Inventario() {
       precioCompraUnit: product.precioCompra && product.precioCompra > 0 ? product.precioCompra : 0,
     });
     setStockQtyFocus(false);
-    setStockPrecioCompraFocus(false);
     setEditPreciosSectionOpen(false);
     setEditPrecioIvaMode('sin');
     setEditPreciosListaIvaMode('sin');
@@ -2526,32 +2597,13 @@ export function Inventario() {
               <Label className="text-sm lg:text-xs">
                 {addPrecioIvaMode === 'con' ? 'Precio de venta (con IVA) *' : 'Precio de venta (sin IVA) *'}
               </Label>
-              <InventarioCurrencyInput
+              <InventarioStoredMoneyInput
                 min={0}
                 step="any"
-                value={
-                  addNumFocus.precioVenta && formData.precioVenta === 0
-                    ? ''
-                    : addPrecioIvaMode === 'con'
-                      ? formData.precioVenta === 0
-                        ? ''
-                        : precioVentaSinIvaToConIva(formData.precioVenta, formData.impuesto)
-                      : formData.precioVenta
-                }
-                onFocus={() => setAddNumFocus((f) => ({ ...f, precioVenta: true }))}
-                onBlur={() => setAddNumFocus((f) => ({ ...f, precioVenta: false }))}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  const imp = formData.impuesto;
-                  if (v === '') setFormData((d) => ({ ...d, precioVenta: 0 }));
-                  else {
-                    const parsed = parseMoneyInput(v);
-                    setFormData((d) => ({
-                      ...d,
-                      precioVenta: addPrecioIvaMode === 'con' ? precioConIvaToSinIva(parsed, imp) : parsed,
-                    }));
-                  }
-                }}
+                storedSinIva={formData.precioVenta}
+                onStoredSinIvaChange={(n) => setFormData((d) => ({ ...d, precioVenta: n }))}
+                ivaMode={addPrecioIvaMode}
+                impuestoPct={formData.impuesto}
                 className="h-10 border-slate-300 bg-slate-200 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9"
               />
               <p className="text-[10px] leading-snug text-slate-500 dark:text-slate-400 lg:line-clamp-2">
@@ -2590,32 +2642,13 @@ export function Inventario() {
               <Label className="text-sm lg:text-xs">
                 {addPrecioIvaMode === 'con' ? 'Precio de compra (con IVA)' : 'Precio de compra (sin IVA)'}
               </Label>
-              <InventarioCurrencyInput
+              <InventarioStoredMoneyInput
                 min={0}
                 step="any"
-                value={
-                  addNumFocus.precioCompra && formData.precioCompra === 0
-                    ? ''
-                    : addPrecioIvaMode === 'con'
-                      ? formData.precioCompra === 0
-                        ? ''
-                        : precioVentaSinIvaToConIva(formData.precioCompra, formData.impuesto)
-                      : formData.precioCompra
-                }
-                onFocus={() => setAddNumFocus((f) => ({ ...f, precioCompra: true }))}
-                onBlur={() => setAddNumFocus((f) => ({ ...f, precioCompra: false }))}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  const imp = formData.impuesto;
-                  if (v === '') setFormData((d) => ({ ...d, precioCompra: 0 }));
-                  else {
-                    const parsed = parseMoneyInput(v);
-                    setFormData((d) => ({
-                      ...d,
-                      precioCompra: addPrecioIvaMode === 'con' ? precioConIvaToSinIva(parsed, imp) : parsed,
-                    }));
-                  }
-                }}
+                storedSinIva={formData.precioCompra}
+                onStoredSinIvaChange={(n) => setFormData((d) => ({ ...d, precioCompra: n }))}
+                ivaMode={addPrecioIvaMode}
+                impuestoPct={formData.impuesto}
                 className="h-10 border-slate-300 bg-slate-200 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9"
               />
               <p className="text-[10px] text-slate-500 dark:text-slate-400 lg:leading-tight">
@@ -2989,32 +3022,13 @@ export function Inventario() {
               <Label>
                 {editPrecioIvaMode === 'con' ? 'Precio de venta (con IVA) *' : 'Precio de venta (sin IVA) *'}
               </Label>
-              <InventarioCurrencyInput
+              <InventarioStoredMoneyInput
                 min={0}
                 step="any"
-                value={
-                  editNumFocus.precioVenta && formData.precioVenta === 0
-                    ? ''
-                    : editPrecioIvaMode === 'con'
-                      ? formData.precioVenta === 0
-                        ? ''
-                        : precioVentaSinIvaToConIva(formData.precioVenta, formData.impuesto)
-                      : formData.precioVenta
-                }
-                onFocus={() => setEditNumFocus((f) => ({ ...f, precioVenta: true }))}
-                onBlur={() => setEditNumFocus((f) => ({ ...f, precioVenta: false }))}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  const imp = formData.impuesto;
-                  if (v === '') setFormData((d) => ({ ...d, precioVenta: 0 }));
-                  else {
-                    const parsed = parseMoneyInput(v);
-                    setFormData((d) => ({
-                      ...d,
-                      precioVenta: editPrecioIvaMode === 'con' ? precioConIvaToSinIva(parsed, imp) : parsed,
-                    }));
-                  }
-                }}
+                storedSinIva={formData.precioVenta}
+                onStoredSinIvaChange={(n) => setFormData((d) => ({ ...d, precioVenta: n }))}
+                ivaMode={editPrecioIvaMode}
+                impuestoPct={formData.impuesto}
                 className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
               <p className="text-[10px] leading-snug text-slate-500 dark:text-slate-400">
@@ -3053,32 +3067,13 @@ export function Inventario() {
               <Label>
                 {editPrecioIvaMode === 'con' ? 'Precio de compra (con IVA)' : 'Precio de compra (sin IVA)'}
               </Label>
-              <InventarioCurrencyInput
+              <InventarioStoredMoneyInput
                 min={0}
                 step="any"
-                value={
-                  editNumFocus.precioCompra && formData.precioCompra === 0
-                    ? ''
-                    : editPrecioIvaMode === 'con'
-                      ? formData.precioCompra === 0
-                        ? ''
-                        : precioVentaSinIvaToConIva(formData.precioCompra, formData.impuesto)
-                      : formData.precioCompra
-                }
-                onFocus={() => setEditNumFocus((f) => ({ ...f, precioCompra: true }))}
-                onBlur={() => setEditNumFocus((f) => ({ ...f, precioCompra: false }))}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  const imp = formData.impuesto;
-                  if (v === '') setFormData((d) => ({ ...d, precioCompra: 0 }));
-                  else {
-                    const parsed = parseMoneyInput(v);
-                    setFormData((d) => ({
-                      ...d,
-                      precioCompra: editPrecioIvaMode === 'con' ? precioConIvaToSinIva(parsed, imp) : parsed,
-                    }));
-                  }
-                }}
+                storedSinIva={formData.precioCompra}
+                onStoredSinIvaChange={(n) => setFormData((d) => ({ ...d, precioCompra: n }))}
+                ivaMode={editPrecioIvaMode}
+                impuestoPct={formData.impuesto}
                 className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               />
               <p className="text-[10px] text-slate-500 dark:text-slate-400">
@@ -3402,36 +3397,15 @@ export function Inventario() {
                       ? 'Precio unitario de compra (con IVA)'
                       : 'Precio unitario de compra (sin IVA)'}
                   </Label>
-                  <InventarioCurrencyInput
+                  <InventarioStoredMoneyInput
                     min={0}
                     step="any"
-                    value={
-                      stockPrecioCompraFocus && stockAdjustment.precioCompraUnit === 0
-                        ? ''
-                        : stockAdjustment.precioCompraUnit === 0
-                          ? ''
-                          : editPrecioIvaMode === 'con'
-                            ? precioVentaSinIvaToConIva(
-                                stockAdjustment.precioCompraUnit,
-                                formData.impuesto
-                              )
-                            : stockAdjustment.precioCompraUnit
+                    storedSinIva={stockAdjustment.precioCompraUnit}
+                    onStoredSinIvaChange={(n) =>
+                      setStockAdjustment((st) => ({ ...st, precioCompraUnit: n }))
                     }
-                    onFocus={() => setStockPrecioCompraFocus(true)}
-                    onBlur={() => setStockPrecioCompraFocus(false)}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      const imp = formData.impuesto;
-                      if (v === '') setStockAdjustment((st) => ({ ...st, precioCompraUnit: 0 }));
-                      else {
-                        const parsed = parseMoneyInput(v);
-                        setStockAdjustment((st) => ({
-                          ...st,
-                          precioCompraUnit:
-                            editPrecioIvaMode === 'con' ? precioConIvaToSinIva(parsed, imp) : parsed,
-                        }));
-                      }
-                    }}
+                    ivaMode={editPrecioIvaMode}
+                    impuestoPct={formData.impuesto}
                     className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                   />
                   <p className="text-[11px] text-slate-500 dark:text-slate-500">
