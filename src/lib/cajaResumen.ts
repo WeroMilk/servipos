@@ -1,5 +1,6 @@
-import type { FormaPago, Sale } from '@/types';
+import type { CajaSesion, FormaPago, Sale } from '@/types';
 import { FORMAS_PAGO } from '@/types';
+import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
 
 const FORMAS_SIN_COBRO_CIERRE = new Set<FormaPago>(['TTS', 'DEV', 'COT', 'PPC']);
 
@@ -173,4 +174,46 @@ export function resumenGruposMedioPagoCierre(ventas: Sale[]): {
     if (!yaEnResumen.has(k)) otros += Number(v) || 0;
   }
   return { efectivoCobros, tarjetas, otros };
+}
+
+export type SesionCierreMetrics = {
+  tickets: number;
+  totalVentasBruto: number;
+  efectivoCobros: number;
+  tarjetas: number;
+  otros: number;
+  saldoPendiente: number;
+  ventasPendientes: number;
+  ventasCanceladas: number;
+  cambioEntregado: number;
+  efectivoNetoVentas: number;
+  lineasMedio: { clave: string; label: string; monto: number }[];
+};
+
+/** Totales de ventas y medios de pago para un turno de caja (histórico o arqueo). */
+export function computeSesionCierreMetrics(
+  sesion: Pick<CajaSesion, 'fondoInicial' | 'aportesEfectivoTotal' | 'retirosEfectivoTotal'>,
+  ventas: Sale[]
+): SesionCierreMetrics {
+  const completadas = filterVentasCompletadasSesion(ventas);
+  const { tickets, total } = resumenBrutoSesion(ventas);
+  const grupos = resumenGruposMedioPagoCierre(ventas);
+  const { efectivoCobrado, cambioEntregado } = computeCajaEfectivoEsperado(sesion.fondoInicial, completadas);
+  let saldoPendiente = 0;
+  for (const s of completadas) {
+    saldoPendiente += computeSaleClienteAdeudo(s);
+  }
+  return {
+    tickets,
+    totalVentasBruto: total,
+    efectivoCobros: grupos.efectivoCobros,
+    tarjetas: grupos.tarjetas,
+    otros: grupos.otros,
+    saldoPendiente: Math.round(saldoPendiente * 100) / 100,
+    ventasPendientes: ventas.filter((s) => s.estado === 'pendiente').length,
+    ventasCanceladas: ventas.filter((s) => s.estado === 'cancelada').length,
+    cambioEntregado,
+    efectivoNetoVentas: Math.round((efectivoCobrado - cambioEntregado) * 100) / 100,
+    lineasMedio: lineasMediosPagoSesion(ventas),
+  };
 }

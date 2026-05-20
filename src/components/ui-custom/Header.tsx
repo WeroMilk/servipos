@@ -45,6 +45,7 @@ import { useCajaPosHeaderStore } from '@/stores/cajaPosHeaderStore';
 import { useVentasAbiertasPosHeaderStore } from '@/stores/ventasAbiertasPosHeaderStore';
 import { useInventarioHeaderStore } from '@/stores/inventarioHeaderStore';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
+import { CajaCierreReportesHeaderButton } from '@/components/caja/CajaCierreReportesDialog';
 
 export function Header() {
   const navigate = useNavigate();
@@ -298,6 +299,8 @@ export function Header() {
       normalizedName === 'gabriel' ||
       emailLocalPart === 'gabriel');
 
+  const showCierreReportesButton = hasPermission('ventas:ver');
+
   const mobileNavItems = MAIN_NAV_ITEMS.filter((item) => {
     if (item.to === '/checador' && !SHOW_CHECADOR_NAV) return false;
     if (item.to === '/mision-inventario') {
@@ -400,6 +403,13 @@ export function Header() {
 
           <div className="flex min-w-0 flex-1 items-center justify-end gap-1 sm:gap-2 md:gap-3">
             <AdminSucursalSwitcher />
+
+            {showCierreReportesButton ? (
+              <CajaCierreReportesHeaderButton
+                sucursalId={effectiveSucursalId ?? null}
+                className="h-10 w-10 rounded-xl"
+              />
+            ) : null}
 
             <Button
               type="button"
@@ -506,6 +516,15 @@ export function Header() {
             <div className="min-w-0">
               <AdminSucursalSwitcher />
             </div>
+
+            {showCierreReportesButton ? (
+              <div className="flex items-center gap-2 rounded-xl border border-slate-200/80 bg-slate-50/90 px-3 py-2 dark:border-slate-800/60 dark:bg-slate-900/50">
+                <span className="flex-1 text-xs font-medium text-slate-700 dark:text-slate-300">
+                  Cierres de caja
+                </span>
+                <CajaCierreReportesHeaderButton sucursalId={effectiveSucursalId ?? null} />
+              </div>
+            ) : null}
 
             <div>
               <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">

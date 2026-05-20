@@ -259,6 +259,27 @@ function filterClientesRegistrados(clients: Client[], search: string): Client[] 
   });
 }
 
+/** SKU y existencia en la línea del carrito (servicios sin stock). */
+function CartLineSkuStockText({ product }: { product: Product }) {
+  const skuLabel = `SKU ${product.sku}`;
+  if (productEsServicio(product)) return <>{skuLabel}</>;
+  const qty = Number(product.existencia);
+  const existencia = Number.isFinite(qty) ? qty : 0;
+  if (existencia <= 0) {
+    return (
+      <>
+        {skuLabel} - Unidades:{' '}
+        <span className="font-semibold text-red-600 dark:text-red-400">AGOTADO</span>
+      </>
+    );
+  }
+  return (
+    <>
+      {skuLabel} - Unidades: {existencia}
+    </>
+  );
+}
+
 /** Precio unitario base (catálogo/override, antes de desc. línea) mostrado al usuario con IVA. */
 function unitBaseSinIvaToPrecioConIva(baseSinIva: number, impuestoPct: number): number {
   const imp = Number(impuestoPct) || 0;
@@ -3163,7 +3184,9 @@ export function POS() {
                               <Eye className="h-4 w-4" strokeWidth={2.25} />
                             </button>
                           </div>
-                          <p className="text-xs text-slate-600 dark:text-slate-500">SKU {item.product.sku}</p>
+                          <p className="text-xs text-slate-600 dark:text-slate-500">
+                            <CartLineSkuStockText product={item.product} />
+                          </p>
                           <p className="text-xs text-cyan-400/90 sm:text-sm">
                             {formatMoney(
                               cartLineUnitSinIva(item, precioClienteListaId) *

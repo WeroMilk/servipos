@@ -230,6 +230,26 @@ export async function closeCajaSessionFirestore(
   if (error) throw new Error(error.message);
 }
 
+/** Historial de turnos (abiertos y cerrados) para reportes del Panel. */
+export async function listCajaSesionesFirestore(
+  sucursalId: string,
+  options?: { limit?: number }
+): Promise<CajaSesion[]> {
+  const limit = Math.min(Math.max(options?.limit ?? 80, 1), 200);
+  const { data, error } = await getSupabase()
+    .from('caja_sesiones')
+    .select('id, doc')
+    .eq('sucursal_id', sucursalId)
+    .order('updated_at', { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  if (!data?.length) return [];
+  const rows = data.map((row) =>
+    mapCajaSesionDoc(sucursalId, row.id, row.doc as Record<string, unknown>)
+  );
+  return rows.sort((a, b) => b.openedAt.getTime() - a.openedAt.getTime());
+}
+
 export async function getCajaSesionFirestore(
   sucursalId: string,
   sesionId: string
