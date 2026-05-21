@@ -22,6 +22,10 @@ import {
 } from '@/lib/cajaResumen';
 import { printThermalCajaCierre } from '@/lib/printTicket';
 
+/** Por encima del menú móvil (Sheet z-[181]) y del Dialog por defecto (z-[121]). */
+const CAJA_CIERRE_DIALOG_OVERLAY_Z = '!z-[240] bg-black/60';
+const CAJA_CIERRE_DIALOG_CONTENT_Z = '!z-[241]';
+
 export function CajaCierreReportesIcon({ className }: { className?: string }) {
   return (
     <span
@@ -415,7 +419,14 @@ export function CajaCierreReportesDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex !max-w-[min(calc(100vw-2rem),96rem)] max-h-[min(82dvh,calc(100dvh-2rem))] w-[min(calc(100vw-2rem),96rem)] flex-col gap-0 overflow-hidden border-slate-200 bg-slate-100 p-0 dark:border-slate-800 dark:bg-slate-900 md:!max-w-[min(calc(100vw-3rem),96rem)] md:w-[min(calc(100vw-3rem),96rem)]">
+      <DialogContent
+        useDialogDescription
+        overlayClassName={CAJA_CIERRE_DIALOG_OVERLAY_Z}
+        className={cn(
+          CAJA_CIERRE_DIALOG_CONTENT_Z,
+          'flex !max-w-[min(calc(100vw-2rem),96rem)] max-h-[min(82dvh,calc(100dvh-2rem))] w-[min(calc(100vw-2rem),96rem)] flex-col gap-0 overflow-hidden border-slate-200 bg-slate-100 p-0 dark:border-slate-800 dark:bg-slate-900 md:!max-w-[min(calc(100vw-3rem),96rem)] md:w-[min(calc(100vw-3rem),96rem)]'
+        )}
+      >
         <DialogHeader className="shrink-0 border-b border-slate-200/80 px-4 py-2 dark:border-slate-800/60 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:py-2.5">
           <div className="min-w-0">
             <DialogTitle className="flex items-center gap-2 text-slate-900 dark:text-slate-100">
@@ -545,6 +556,8 @@ type CajaCierreReportesHeaderButtonProps = {
   sucursalId: string | null;
   sucursalLabel?: string;
   className?: string;
+  /** p. ej. cerrar el menú hamburguesa al abrir el popup en móvil */
+  onDialogOpenChange?: (open: boolean) => void;
 };
 
 /** Botón del header (Panel): icono $ + reloj, abre historial de cierres. */
@@ -552,8 +565,14 @@ export function CajaCierreReportesHeaderButton({
   sucursalId,
   sucursalLabel,
   className,
+  onDialogOpenChange,
 }: CajaCierreReportesHeaderButtonProps) {
   const [open, setOpen] = useState(false);
+
+  const handleDialogOpenChange = (next: boolean) => {
+    setOpen(next);
+    onDialogOpenChange?.(next);
+  };
 
   return (
     <>
@@ -567,13 +586,13 @@ export function CajaCierreReportesHeaderButton({
         )}
         aria-label="Reportes de cierre de caja"
         title="Reportes de cierre de caja"
-        onClick={() => setOpen(true)}
+        onClick={() => handleDialogOpenChange(true)}
       >
         <CajaCierreReportesIcon />
       </Button>
       <CajaCierreReportesDialog
         open={open}
-        onOpenChange={setOpen}
+        onOpenChange={handleDialogOpenChange}
         sucursalId={sucursalId}
         sucursalLabel={sucursalLabel}
       />

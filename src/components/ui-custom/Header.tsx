@@ -522,7 +522,12 @@ export function Header() {
                 <span className="flex-1 text-xs font-medium text-slate-700 dark:text-slate-300">
                   Cierres de caja
                 </span>
-                <CajaCierreReportesHeaderButton sucursalId={effectiveSucursalId ?? null} />
+                <CajaCierreReportesHeaderButton
+                  sucursalId={effectiveSucursalId ?? null}
+                  onDialogOpenChange={(next) => {
+                    if (next) setMobileMenuOpen(false);
+                  }}
+                />
               </div>
             ) : null}
 
