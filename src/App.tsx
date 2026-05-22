@@ -10,7 +10,8 @@ import {
   CuentasPorCobrar,
   Configuracion,
   Checador,
-  MisionInventario,
+  Mision  Inventario,
+  RecepcionPedidos,
   EtiquetasProductos,
 } from '@/pages';
 
@@ -104,6 +105,7 @@ function App() {
           <Route index element={<Dashboard />} />
           <Route path="pos" element={<POS />} />
           <Route path="inventario" element={<Inventario />} />
+          <Route path="inventario/recepcion-pedidos" element={<RecepcionPedidos />} />
           <Route path="etiquetas-productos" element={<EtiquetasProductos />} />
           <Route path="mision-inventario" element={<MisionInventario />} />
           <Route path="cotizaciones" element={<Cotizaciones />} />

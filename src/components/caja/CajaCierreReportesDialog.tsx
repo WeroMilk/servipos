@@ -286,12 +286,17 @@ function SesionDetallePanel({
                 {[...(sesion.aportesEfectivo ?? [])]
                   .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
                   .map((r) => (
-                    <li key={r.id}>
-                      <span className="font-semibold tabular-nums">+{formatMoney(r.monto)}</span>
-                      <span className="text-sky-900/80 dark:text-sky-200/80">
-                        {' '}
-                        · {formatInAppTimezone(r.createdAt, { timeStyle: 'short' })} · {r.usuarioNombre}
-                      </span>
+                    <li key={r.id} className="border-b border-sky-800/10 pb-1 last:border-0 dark:border-sky-400/10">
+                      <div>
+                        <span className="font-semibold tabular-nums">+{formatMoney(r.monto)}</span>
+                        <span className="text-sky-900/80 dark:text-sky-200/80">
+                          {' '}
+                          · {formatInAppTimezone(r.createdAt, { timeStyle: 'short' })} · {r.usuarioNombre}
+                        </span>
+                      </div>
+                      {r.notas?.trim() ? (
+                        <p className="mt-0.5 font-medium text-sky-950 dark:text-sky-50">{r.notas.trim()}</p>
+                      ) : null}
                     </li>
                   ))}
               </ul>
@@ -304,12 +309,17 @@ function SesionDetallePanel({
                 {[...(sesion.retirosEfectivo ?? [])]
                   .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
                   .map((r) => (
-                    <li key={r.id}>
-                      <span className="font-semibold tabular-nums">−{formatMoney(r.monto)}</span>
-                      <span>
-                        {' '}
-                        · {formatInAppTimezone(r.createdAt, { timeStyle: 'short' })} · {r.usuarioNombre}
-                      </span>
+                    <li key={r.id} className="border-b border-amber-800/10 pb-1 last:border-0 dark:border-amber-400/10">
+                      <div>
+                        <span className="font-semibold tabular-nums">−{formatMoney(r.monto)}</span>
+                        <span>
+                          {' '}
+                          · {formatInAppTimezone(r.createdAt, { timeStyle: 'short' })} · {r.usuarioNombre}
+                        </span>
+                      </div>
+                      {r.notas?.trim() ? (
+                        <p className="mt-0.5 font-medium text-amber-950 dark:text-amber-50">{r.notas.trim()}</p>
+                      ) : null}
                     </li>
                   ))}
               </ul>

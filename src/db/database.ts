@@ -15,6 +15,7 @@ import type {
   Permission,
 } from '@/types';
 import { productEsServicio } from '@/lib/productServicio';
+import { derivePurchaseOrderEstado, mapLegacyPurchaseOrderEstado } from '@/lib/purchaseOrderLogic';
 import { updateStockUnified } from '@/data/stockBridge';
 import {
   createSaleFirestore,
@@ -1372,6 +1373,73 @@ export async function revertQuotationToPending(quotationId: string): Promise<voi
   };
   Reflect.deleteProperty(next as unknown as Record<string, unknown>, 'ventaId');
   await db.quotations.put(next);
+}
+
+// ============================================
+// PEDIDOS / RECEPCIÓN DE PROVEEDOR
+// ============================================
+
+function mapLocalPurchaseOrder(row: PurchaseOrder): PurchaseOrder {
+  const productos = (row.productos ?? []).map((it) => {
+    const legacy = it as PurchaseOrderItem & { cantidadSolicitada?: number };
+    const facturada = legacy.cantidadFacturada ?? legacy.cantidadSolicitada ?? 0;
+    return {
+      lineId: legacy.lineId || crypto.randomUUID(),
+      productId: legacy.productId,
+      nombre: legacy.nombre,
+      sku: legacy.sku,
+      cantidadFacturada: Math.max(0, Number(facturada) || 0),
+      cantidadRecibida: Math.max(0, Number(legacy.cantidadRecibida) || 0),
+      precioUnitarioCompra: legacy.precioUnitarioCompra,
+      actualizarPrecioCompra: legacy.actualizarPrecioCompra !== false,
+    };
+  });
+  const estadoRaw = mapLegacyPurchaseOrderEstado(row.estado);
+  const estado =
+    estadoRaw === 'cancelada' ? 'cancelada' : derivePurchaseOrderEstado(productos);
+  return { ...row, productos, estado, folio: row.folio || row.id.slice(0, 8) };
+}
+
+export async function getPurchaseOrders(sucursalId?: string): Promise<PurchaseOrder[]> {
+  const all = await db.purchaseOrders.toArray();
+  const rows = sucursalId ? all.filter((p) => p.sucursalId === sucursalId) : all;
+  return rows
+    .map(mapLocalPurchaseOrder)
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+}
+
+export async function generatePurchaseOrderFolio(_sucursalId?: string): Promise<string> {
+  const now = new Date();
+  const prefix = `PED-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+  const all = await db.purchaseOrders.toArray();
+  const count = all.filter((q) => (q.folio || '').startsWith(prefix)).length;
+  return `${prefix}-${String(count + 1).padStart(4, '0')}`;
+}
+
+export async function createPurchaseOrder(
+  order: Omit<PurchaseOrder, 'id' | 'folio' | 'createdAt' | 'updatedAt' | 'syncStatus'> & {
+    folio?: string;
+  }
+): Promise<string> {
+  const folio = order.folio?.trim() || (await generatePurchaseOrderFolio(order.sucursalId));
+  const id = crypto.randomUUID();
+  await db.purchaseOrders.put({
+    ...order,
+    id,
+    folio,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    syncStatus: 'pending',
+  } as PurchaseOrder);
+  return id;
+}
+
+export async function updatePurchaseOrder(id: string, updates: Partial<PurchaseOrder>): Promise<void> {
+  await db.purchaseOrders.update(id, { ...updates, updatedAt: new Date(), syncStatus: 'pending' });
+}
+
+export async function deletePurchaseOrder(id: string): Promise<void> {
+  await db.purchaseOrders.delete(id);
 }
 
 // ============================================

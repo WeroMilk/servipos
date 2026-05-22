@@ -4,7 +4,8 @@ import { getThermalTicketSucursalFooterLines } from '@/lib/ticketSucursalFooter'
 import {
   buildLetterFooterHtml,
   buildLetterHeaderHtml,
-  getBrandLogoAbsoluteUrl,
+  buildThermalBrandBlockHtml,
+  resolveBrandLogoDataUrlForPrint,
 } from '@/lib/documentPrintBranding';
 import { getClientById } from '@/db/database';
 import {
@@ -198,6 +199,30 @@ const THERMAL_CIERRE_TURNO_STYLES = `
     line-height: 1.35;
     color: #111;
   }
+  body.ticket-cierre-turno .ticket-brand-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    margin: 0 0 8px;
+  }
+  body.ticket-cierre-turno .ticket-brand-block .logo-ticket {
+    display: block !important;
+    max-width: 28mm;
+    width: 28mm;
+    height: auto;
+    object-fit: contain;
+    margin: 0 auto;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  body.ticket-cierre-turno .ticket-brand-block h1 {
+    font-size: 17px !important;
+    text-align: center;
+    margin: 6px 0 0 !important;
+    line-height: 1.2;
+    width: 100%;
+  }
   body.ticket-cierre-turno h1 {
     font-size: 17px;
     text-align: center;
@@ -291,24 +316,56 @@ function injectPrintCloseScript(html: string): string {
   return `${html}${script}`;
 }
 
+/** Espera a que carguen imágenes (logo) antes de `print()`; evita tickets sin logo. */
+function injectPrintWhenReadyScript(html: string): string {
+  const script = `<script>
+(function(){
+  var MIN_MS=120,MAX_MS=12000,t0=Date.now(),done=false;
+  function doPrint(){
+    if(done)return;
+    done=true;
+    try{window.focus();window.print();}catch(e){}
+  }
+  function afterMin(cb){
+    var w=Math.max(0,MIN_MS-(Date.now()-t0));
+    setTimeout(cb,w);
+  }
+  function whenImagesReady(cb){
+    var imgs=[].slice.call(document.images||[]);
+    if(!imgs.length){cb();return;}
+    var left=imgs.length;
+    function onDone(){if(--left<=0)cb();}
+    imgs.forEach(function(img){
+      if(img.complete)onDone();
+      else{
+        img.addEventListener("load",onDone,{once:true});
+        img.addEventListener("error",onDone,{once:true});
+      }
+    });
+    setTimeout(cb,MAX_MS);
+  }
+  function start(){
+    afterMin(function(){whenImagesReady(doPrint);});
+  }
+  if(document.readyState==="complete")start();
+  else window.addEventListener("load",start,{once:true});
+})();
+</script>`;
+  if (/<\/body\s*>/i.test(html)) return html.replace(/<\/body\s*>/i, (m) => `${script}${m}`);
+  return `${html}${script}`;
+}
+
 /**
  * Abre HTML para imprimir con `about:blank` + `document.write` (no `blob:` URL).
  * Así el pie del diálogo de impresión no muestra una URL `blob:https://…` larga.
  * Sin `noopener` en window.open: en Chrome móvil a veces devuelve `null` pero abre pestaña;
  * si el popup está bloqueado, se usa iframe `about:blank` + write + print().
  */
-function openAndPrintHtml(html: string, windowFeatures: string, printDelayMs: number): void {
-  const htmlWithClose = injectPrintCloseScript(html);
+function openAndPrintHtml(html: string, windowFeatures: string): void {
+  const htmlWithClose = injectPrintCloseScript(injectPrintWhenReadyScript(html));
 
   const runPrint = (target: Window) => {
     target.focus();
-    setTimeout(() => {
-      try {
-        target.print();
-      } catch {
-        /* noop */
-      }
-    }, printDelayMs);
   };
 
   const printFromHiddenIframe = () => {
@@ -405,9 +462,33 @@ function openAndPrintHtml(html: string, windowFeatures: string, printDelayMs: nu
   printFromHiddenIframe();
 }
 
+type ThermalPrintShell = {
+  heading: string;
+  pageTitle?: string;
+  bodyClass?: string;
+  styles: string;
+  bodyInnerHtml: string;
+};
+
+async function openThermalPrintDocument(shell: ThermalPrintShell): Promise<void> {
+  const logoSrc = await resolveBrandLogoDataUrlForPrint();
+  const brand = buildThermalBrandBlockHtml(shell.heading, logoSrc);
+  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/><meta name="viewport" content="width=302"/><title>${escapeHtml(shell.pageTitle ?? shell.heading)}</title>
+<style>${shell.styles}</style></head><body${shell.bodyClass ? ` class="${shell.bodyClass}"` : ''}>
+  ${brand}
+  ${shell.bodyInnerHtml}
+</body></html>`;
+  openAndPrintHtml(html, THERMAL_80MM_WINDOW_FEATURES);
+}
+
 /** Ticket 80mm para impresora térmica (contenido en ventana dedicada). */
 export function printThermalTicket(payload: TicketPayload): void {
+  void printThermalTicketImpl(payload);
+}
+
+async function printThermalTicketImpl(payload: TicketPayload): Promise<void> {
   const negocio = payload.negocio || 'SERVIPARTZ';
+  const logoSrc = await resolveBrandLogoDataUrlForPrint();
   const rows = payload.lineas
     .map(
       (l) => `
@@ -429,10 +510,7 @@ ${THERMAL_TICKET_VENTA_STYLES}
   .ticket-notas { margin-top: 12px; font-size: 20px; line-height: 1.45; text-align: center; white-space: pre-line; }
   .ticket-gracias { margin-top: 16px; text-align: center; font-size: 22px; font-weight: 600; line-height: 1.4; }
 </style></head><body class="ticket-venta">
-  <div class="ticket-brand-block">
-    <img class="logo-ticket" src="${escapeHtml(getBrandLogoAbsoluteUrl())}" alt="" width="96" height="96" />
-    <h1>${escapeHtml(negocio)}</h1>
-  </div>
+  ${buildThermalBrandBlockHtml(negocio, logoSrc)}
   <div class="meta">
     ${payload.folio ? `<div>Folio: ${escapeHtml(payload.folio)}</div>` : ''}
     <div>${escapeHtml(payload.fecha)}</div>
@@ -489,7 +567,7 @@ ${THERMAL_TICKET_VENTA_STYLES}
   <p class="ticket-gracias">${escapeHtml(payload.pieMensaje ?? '¡Gracias por su compra!')}</p>
 </body></html>`;
 
-  openAndPrintHtml(html, 'width=360,height=720', 250);
+  openAndPrintHtml(html, 'width=360,height=720');
 }
 
 const COTIZACION_ESTADO_TICKET: Record<string, string> = {
@@ -560,14 +638,14 @@ export function printThermalLowStockReport(input: {
         .map((ln) => `<div>${escapeHtml(ln)}</div>`)
         .join('')}</div>`
     : '';
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Stock bajo</title>
-<style>${THERMAL_BASE_STYLES}</style></head><body>
-  <h1>STOCK BAJO</h1>
-  <div class="meta">${escapeHtml(input.fechaLabel)}<br/>${input.items.length} artículo(s)</div>
+  void openThermalPrintDocument({
+    heading: 'STOCK BAJO',
+    pageTitle: 'Stock bajo',
+    styles: THERMAL_BASE_STYLES,
+    bodyInnerHtml: `<div class="meta">${escapeHtml(input.fechaLabel)}<br/>${input.items.length} artículo(s)</div>
   <table>${rows || '<tr><td>Sin artículos bajo mínimo.</td></tr>'}</table>
-  ${pie}
-</body></html>`;
-  openAndPrintHtml(html, 'width=360,height=720', 250);
+  ${pie}`,
+  });
 }
 
 /** Confirmación de misión de inventario completada (80 mm). */
@@ -587,17 +665,17 @@ export function printThermalMissionComplete(input: {
         .join('')}</div>`
     : '';
   const cajero = input.cajeroNombre?.trim() ? escapeHtml(input.cajeroNombre.trim()) : '—';
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Misión completada</title>
-<style>${THERMAL_BASE_STYLES}</style></head><body>
-  <h1>MISIÓN COMPLETADA</h1>
-  <div class="meta">${escapeHtml(input.fechaLabel)}<br/>Cajero: ${cajero}</div>
+  void openThermalPrintDocument({
+    heading: 'MISIÓN COMPLETADA',
+    pageTitle: 'Misión completada',
+    styles: THERMAL_BASE_STYLES,
+    bodyInnerHtml: `<div class="meta">${escapeHtml(input.fechaLabel)}<br/>Cajero: ${cajero}</div>
   <p style="font-size:22px;font-weight:600;margin:12px 0;line-height:1.35;">
     Revisados en esta misión: <strong>${input.articulosRevisados}</strong> / ${input.totalEnMision}
   </p>
   <p style="font-size:19px;line-height:1.45;">Comprobante de que terminó la tarea de conteo o verificación asignada.</p>
-  ${pie}
-</body></html>`;
-  openAndPrintHtml(html, 'width=360,height=720', 250);
+  ${pie}`,
+  });
 }
 
 /** Movimientos de inventario del día (usuario cajero) al cerrar misión o bajo demanda (80 mm). */
@@ -629,14 +707,14 @@ export function printThermalMissionInventoryReport(input: {
         .join('')}</div>`
     : '';
   const cajero = input.cajeroNombre?.trim() ? escapeHtml(input.cajeroNombre.trim()) : '—';
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Movimientos inventario</title>
-<style>${THERMAL_BASE_STYLES}</style></head><body>
-  <h1>INVENTARIO · DÍA</h1>
-  <div class="meta">${escapeHtml(input.fechaLabel)}<br/>Cajero: ${cajero}<br/>${input.movimientos.length} movimiento(s)</div>
+  void openThermalPrintDocument({
+    heading: 'INVENTARIO · DÍA',
+    pageTitle: 'Movimientos inventario',
+    styles: THERMAL_BASE_STYLES,
+    bodyInnerHtml: `<div class="meta">${escapeHtml(input.fechaLabel)}<br/>Cajero: ${cajero}<br/>${input.movimientos.length} movimiento(s)</div>
   ${rows}
-  ${pie}
-</body></html>`;
-  openAndPrintHtml(html, 'width=360,height=720', 250);
+  ${pie}`,
+  });
 }
 
 /** Comprobante de abono a cuenta por cobrar (80 mm). */
@@ -669,10 +747,11 @@ export function printThermalClientAbonoReceipt(input: ThermalClientAbonoReceiptI
   const notaPie = copia ?
     'Conserve este comprobante como respaldo de su pago.'
   : 'Comprobante de archivo interno. Entregue copia al cliente si corresponde.';
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Comprobante de abono</title>
-<style>${THERMAL_BASE_STYLES}</style></head><body>
-  <h1>COMPROBANTE DE ABONO</h1>
-  <div style="text-align:center;font-size:20px;font-weight:700;margin:-6px 0 8px;">(${escapeHtml(rolTitulo)})</div>
+  void openThermalPrintDocument({
+    heading: 'COMPROBANTE DE ABONO',
+    pageTitle: 'Comprobante de abono',
+    styles: THERMAL_BASE_STYLES,
+    bodyInnerHtml: `<div style="text-align:center;font-size:20px;font-weight:700;margin:-6px 0 8px;">(${escapeHtml(rolTitulo)})</div>
   <div class="meta">
     ${escapeHtml(input.fechaLabel)}<br/>
     Cliente: ${cliente}<br/>
@@ -686,9 +765,8 @@ export function printThermalClientAbonoReceipt(input: ThermalClientAbonoReceiptI
   <p style="margin-top:12px;font-size:19px;line-height:1.4;text-align:center;">
     ${escapeHtml(notaPie)}
   </p>
-  ${pie}
-</body></html>`;
-  openAndPrintHtml(html, 'width=360,height=720', 250);
+  ${pie}`,
+  });
 }
 
 /** Resumen de ventas para cierre de turno / día — formato ticket térmico 80 mm. */
@@ -739,10 +817,12 @@ export function printThermalDailySalesReport(input: {
         .map((ln) => `<div>${escapeHtml(ln)}</div>`)
         .join('')}</div>`
     : '';
-  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/><meta name="viewport" content="width=302"/><title>Reporte ventas</title>
-<style>${THERMAL_CIERRE_TURNO_STYLES}</style></head><body class="ticket-cierre-turno">
-  <h1>REPORTE VENTAS</h1>
-  <div class="meta">${escapeHtml(input.fechaLabel)}<br/>${list.length} ticket(s)</div>
+  void openThermalPrintDocument({
+    heading: 'REPORTE VENTAS',
+    pageTitle: 'Reporte ventas',
+    bodyClass: 'ticket-cierre-turno',
+    styles: THERMAL_CIERRE_TURNO_STYLES,
+    bodyInnerHtml: `<div class="meta">${escapeHtml(input.fechaLabel)}<br/>${list.length} ticket(s)</div>
   <table>${rows || '<tr><td>Sin ventas.</td></tr>'}</table>
   <div class="tot" style="border-top:none;padding-top:8px;font-size:20px;">
     <div><strong>Resumen medios</strong> <span style="font-size:14px;">(cobros en ventas completadas)</span></div>
@@ -758,9 +838,26 @@ export function printThermalDailySalesReport(input: {
     <div style="font-size:26px;font-weight:700;${adeudoStyle}">${formatMoney(adeudoRedondeado)}</div>
     <span style="font-size:14px;">Lo que quedó por cobrar en ventas completadas del día (parciales / crédito). Si es $0.00, no hubo adeudos.</span>
   </div>
-  ${pie}
-</body></html>`;
-  openAndPrintHtml(html, THERMAL_80MM_WINDOW_FEATURES, 250);
+  ${pie}`,
+  });
+}
+
+/** Línea de aporte/retiro en ticket 80 mm: monto y hora en una línea; concepto (notas) aparte para que no se corte. */
+function thermalCajaMovimientoLineHtml(
+  kind: 'aporte' | 'retiro',
+  r: CajaAporteEfectivo | CajaRetiroEfectivo
+): string {
+  const sign = kind === 'aporte' ? '+' : '−';
+  const hora = formatInAppTimezone(r.createdAt, { timeStyle: 'short' });
+  const concepto = r.notas?.trim();
+  const line1 = `<div style="font-size:18px;margin:4px 0 1px;line-height:1.3;">
+    <span style="font-weight:700;">${sign}${escapeHtml(formatMoney(r.monto))}</span>
+    <span> · ${escapeHtml(hora)} · ${escapeHtml(r.usuarioNombre)}</span>
+  </div>`;
+  const line2 = concepto
+    ? `<div style="font-size:17px;margin:0 0 7px 0;line-height:1.35;font-weight:700;">${escapeHtml(concepto)}</div>`
+    : `<div style="margin-bottom:5px;"></div>`;
+  return line1 + line2;
 }
 
 /** Comprobante de cierre de turno (sesión) o arqueo previo — ticket térmico 80 mm. */
@@ -826,13 +923,7 @@ export function printThermalCajaCierre(input: {
     const sorted = [...list].sort(
       (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     );
-    const rows = sorted
-      .map((r) => {
-        const meta = `${formatInAppTimezone(r.createdAt, { dateStyle: 'short', timeStyle: 'short' })} · ${r.usuarioNombre}`;
-        const notas = r.notas?.trim() ? ` — ${r.notas.trim()}` : '';
-        return `<div style="font-size:18px;margin:3px 0;line-height:1.25;">${escapeHtml(meta)} · +${formatMoney(r.monto)}${escapeHtml(notas)}</div>`;
-      })
-      .join('');
+    const rows = sorted.map((r) => thermalCajaMovimientoLineHtml('aporte', r)).join('');
     return `<div style="font-size:19px;font-weight:600;margin:8px 0 2px;">Detalle aportes</div>${rows}`;
   })();
   const retiros =
@@ -845,20 +936,16 @@ export function printThermalCajaCierre(input: {
     const sorted = [...list].sort(
       (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     );
-    const rows = sorted
-      .map((r) => {
-        const meta = `${formatInAppTimezone(r.createdAt, { dateStyle: 'short', timeStyle: 'short' })} · ${r.usuarioNombre}`;
-        const notas = r.notas?.trim() ? ` — ${r.notas.trim()}` : '';
-        return `<div style="font-size:18px;margin:3px 0;line-height:1.25;">${escapeHtml(meta)} · −${formatMoney(r.monto)}${escapeHtml(notas)}</div>`;
-      })
-      .join('');
+    const rows = sorted.map((r) => thermalCajaMovimientoLineHtml('retiro', r)).join('');
     return `<div style="font-size:19px;font-weight:600;margin:8px 0 2px;">Detalle retiros</div>${rows}`;
   })();
 
-  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/><meta name="viewport" content="width=302"/><title>${escapeHtml(titulo)}</title>
-<style>${THERMAL_CIERRE_TURNO_STYLES}</style></head><body class="ticket-cierre-turno">
-  <h1>${escapeHtml(titulo)}</h1>
-  <div class="meta">
+  void openThermalPrintDocument({
+    heading: titulo,
+    pageTitle: titulo,
+    bodyClass: 'ticket-cierre-turno',
+    styles: THERMAL_CIERRE_TURNO_STYLES,
+    bodyInnerHtml: `<div class="meta">
     ${escapeHtml(input.fechaLabel)}<br/>
     Apertura: ${escapeHtml(input.aperturaLabel)} · ${escapeHtml(input.abiertaPor)}<br/>
     ${metaCierre}
@@ -885,9 +972,8 @@ export function printThermalCajaCierre(input: {
     <div style="font-size:26px;"><strong>${formatMoney(input.efectivoEsperado)}</strong></div>
     ${bloqueConteo}
   </div>
-  ${pie}
-</body></html>`;
-  openAndPrintHtml(html, THERMAL_80MM_WINDOW_FEATURES, 250);
+  ${pie}`,
+  });
 }
 
 /** Texto estándar para documentos que no son válidos ante el SAT. */

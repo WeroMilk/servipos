@@ -271,7 +271,7 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
                     </span>
                   </div>
                   {r.notas?.trim() ? (
-                    <span className="text-sky-900/75 dark:text-sky-300/80">{r.notas.trim()}</span>
+                    <span className="font-semibold text-sky-950 dark:text-sky-50">{r.notas.trim()}</span>
                   ) : null}
                 </li>
               ))}
@@ -304,7 +304,7 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
                     </span>
                   </div>
                   {r.notas?.trim() ? (
-                    <span className="text-black/80 dark:text-amber-200/90">{r.notas.trim()}</span>
+                    <span className="font-semibold text-black dark:text-amber-50">{r.notas.trim()}</span>
                   ) : null}
                 </li>
               ))}

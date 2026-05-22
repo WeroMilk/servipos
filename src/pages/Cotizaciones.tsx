@@ -17,6 +17,7 @@ import {
   ArrowUp,
   ArrowUpDown,
   Download,
+  PackagePlus,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -60,6 +61,7 @@ import { useQuotations, useProducts, useClients, useEffectiveSucursalId } from '
 import { useAppStore, useAuthStore } from '@/stores';
 import type { Quotation, Product } from '@/types';
 import { cn, formatMoney } from '@/lib/utils';
+import { parsePrecioNumberFromFirestore } from '@/lib/precioListaNorm';
 import { PageShell } from '@/components/ui-custom/PageShell';
 import { SendEmailDialog } from '@/components/ui-custom/SendEmailDialog';
 import { printLetterDocument, printThermalQuotation } from '@/lib/printTicket';
@@ -283,6 +285,57 @@ function printQuotationLetter(q: Quotation, fallbackSucursalId?: string | null):
   });
 }
 
+const QUOTE_CUSTOM_PRODUCT_ID_PREFIX = 'quote-custom-';
+
+type QuotationDraftLine = {
+  lineId: string;
+  product: Product;
+  quantity: number;
+  discount: number;
+  /** Precio unitario sin IVA (puede diferir del catálogo). */
+  unitPriceSinIva: number;
+  isCustom: boolean;
+};
+
+function roundMoney2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+function precioSinIvaToConIva(sinIva: number, impuestoPct: number): number {
+  const imp = Number.isFinite(impuestoPct) ? impuestoPct : 16;
+  return roundMoney2(sinIva * (1 + imp / 100));
+}
+
+function precioConIvaToSinIva(conIva: number, impuestoPct: number): number {
+  const imp = Number.isFinite(impuestoPct) ? impuestoPct : 16;
+  if (imp <= 0) return roundMoney2(conIva);
+  return roundMoney2(conIva / (1 + imp / 100));
+}
+
+function draftLineSubtotal(line: QuotationDraftLine): number {
+  const raw = line.unitPriceSinIva * line.quantity;
+  return roundMoney2(raw * (1 - line.discount / 100));
+}
+
+function buildCustomQuotationProduct(nombre: string, precioSinIva: number): Product {
+  const id = `${QUOTE_CUSTOM_PRODUCT_ID_PREFIX}${crypto.randomUUID()}`;
+  const epoch = new Date(0);
+  return {
+    id,
+    sku: 'MANUAL',
+    nombre: nombre.trim(),
+    precioVenta: precioSinIva,
+    impuesto: 16,
+    existencia: 0,
+    existenciaMinima: 0,
+    unidadMedida: 'H87',
+    activo: false,
+    createdAt: epoch,
+    updatedAt: epoch,
+    syncStatus: 'pending',
+  };
+}
+
 export function Cotizaciones() {
   const navigate = useNavigate();
   const { quotations, loading, addQuotation, convertToSale, revertToPending, removeQuotation } =
@@ -310,9 +363,11 @@ export function Cotizaciones() {
   const [emailSubject, setEmailSubject] = useState('');
   const [emailBody, setEmailBody] = useState('');
 
-  const [quotationItems, setQuotationItems] = useState<
-    { product: Product; quantity: number; discount: number }[]
-  >([]);
+  const [quotationItems, setQuotationItems] = useState<QuotationDraftLine[]>([]);
+  const [showCustomForm, setShowCustomForm] = useState(false);
+  const [customNombre, setCustomNombre] = useState('');
+  const [customPrecioInput, setCustomPrecioInput] = useState('');
+  const [priceDraft, setPriceDraft] = useState<Record<string, string>>({});
   const [selectedClient, setSelectedClient] = useState<string>('');
   const [vigenciaDias, setVigenciaDias] = useState(7);
   const [vigenciaFocus, setVigenciaFocus] = useState(false);
@@ -379,43 +434,129 @@ export function Cotizaciones() {
   };
 
   const handleAddItem = (product: Product) => {
-    const existing = quotationItems.find((item) => item.product.id === product.id);
+    const existing = quotationItems.find(
+      (item) => !item.isCustom && item.product.id === product.id
+    );
     if (existing) {
       setQuotationItems((items) =>
         items.map((item) =>
-          item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+          item.lineId === existing.lineId ? { ...item, quantity: item.quantity + 1 } : item
         )
       );
     } else {
-      setQuotationItems([...quotationItems, { product, quantity: 1, discount: 0 }]);
+      setQuotationItems([
+        ...quotationItems,
+        {
+          lineId: product.id,
+          product,
+          quantity: 1,
+          discount: 0,
+          unitPriceSinIva: product.precioVenta,
+          isCustom: false,
+        },
+      ]);
     }
   };
 
-  const handleRemoveItem = (productId: string) => {
-    setQuotationItems((items) => items.filter((item) => item.product.id !== productId));
+  const handleAddCustomItem = () => {
+    const nombre = customNombre.trim();
+    if (!nombre) {
+      addToast({ type: 'warning', message: 'Escriba el nombre del artículo manual.' });
+      return;
+    }
+    const conIva = parsePrecioNumberFromFirestore(customPrecioInput);
+    if (!Number.isFinite(conIva) || conIva < 0) {
+      addToast({ type: 'warning', message: 'Ingrese un precio válido (con IVA).' });
+      return;
+    }
+    const impuesto = 16;
+    const sinIva = precioConIvaToSinIva(conIva, impuesto);
+    const product = buildCustomQuotationProduct(nombre, sinIva);
+    const lineId = product.id;
+    setQuotationItems([
+      ...quotationItems,
+      {
+        lineId,
+        product,
+        quantity: 1,
+        discount: 0,
+        unitPriceSinIva: sinIva,
+        isCustom: true,
+      },
+    ]);
+    setCustomNombre('');
+    setCustomPrecioInput('');
+    setShowCustomForm(false);
+    addToast({
+      type: 'success',
+      message: 'Artículo manual agregado (solo en esta cotización, no en inventario).',
+    });
   };
 
-  const handleUpdateQuantity = (productId: string, quantity: number) => {
+  const handleRemoveItem = (lineId: string) => {
+    setQuotationItems((items) => items.filter((item) => item.lineId !== lineId));
+    setPriceDraft((d) => {
+      const next = { ...d };
+      delete next[lineId];
+      return next;
+    });
+  };
+
+  const handleUpdateQuantity = (lineId: string, quantity: number) => {
     if (quantity <= 0) {
-      handleRemoveItem(productId);
+      handleRemoveItem(lineId);
       return;
     }
     setQuotationItems((items) =>
-      items.map((item) => (item.product.id === productId ? { ...item, quantity } : item))
+      items.map((item) => (item.lineId === lineId ? { ...item, quantity } : item))
+    );
+  };
+
+  const commitLinePriceDraft = (lineId: string) => {
+    const raw = priceDraft[lineId];
+    setPriceDraft((d) => {
+      const next = { ...d };
+      delete next[lineId];
+      return next;
+    });
+    if (raw === undefined) return;
+    const conIva = parsePrecioNumberFromFirestore(raw);
+    if (!Number.isFinite(conIva) || conIva < 0) {
+      addToast({ type: 'warning', message: 'Precio no válido; se mantiene el anterior.' });
+      return;
+    }
+    setQuotationItems((items) =>
+      items.map((item) => {
+        if (item.lineId !== lineId) return item;
+        const sinIva = precioConIvaToSinIva(conIva, item.product.impuesto);
+        return { ...item, unitPriceSinIva: sinIva };
+      })
+    );
+  };
+
+  const handleUpdateCustomNombre = (lineId: string, nombre: string) => {
+    setQuotationItems((items) =>
+      items.map((item) =>
+        item.lineId === lineId && item.isCustom
+          ? { ...item, product: { ...item.product, nombre } }
+          : item
+      )
     );
   };
 
   const calculateTotals = () => {
-    const subtotal = quotationItems.reduce((sum, item) => {
-      const itemSubtotal = item.product.precioVenta * item.quantity;
-      const itemDiscount = itemSubtotal * (item.discount / 100);
-      return sum + (itemSubtotal - itemDiscount);
+    const subtotal = quotationItems.reduce((sum, item) => sum + draftLineSubtotal(item), 0);
+    const impuestos = quotationItems.reduce((sum, item) => {
+      const sub = draftLineSubtotal(item);
+      const imp = Number.isFinite(item.product.impuesto) ? item.product.impuesto : 16;
+      return sum + sub * (imp / 100);
     }, 0);
-
-    const impuestos = subtotal * 0.16;
     const total = subtotal + impuestos;
-
-    return { subtotal, impuestos, total };
+    return {
+      subtotal: roundMoney2(subtotal),
+      impuestos: roundMoney2(impuestos),
+      total: roundMoney2(total),
+    };
   };
 
   const handleSaveQuotation = async () => {
@@ -433,21 +574,23 @@ export function Cotizaciones() {
       const created = await addQuotation({
         clienteId,
         ...(clienteRow ? { cliente: clienteRow } : {}),
-        productos: quotationItems.map((item) => ({
-          id: crypto.randomUUID(),
-          productId: item.product.id,
-          producto: item.product,
-          cantidad: item.quantity,
-          precioUnitario: item.product.precioVenta,
-          descuento: item.discount,
-          impuesto: item.product.impuesto,
-          subtotal: item.product.precioVenta * item.quantity * (1 - item.discount / 100),
-          total:
-            item.product.precioVenta *
-            item.quantity *
-            (1 - item.discount / 100) *
-            (1 + item.product.impuesto / 100),
-        })),
+        productos: quotationItems.map((item) => {
+          const pu = item.unitPriceSinIva;
+          const sub = draftLineSubtotal(item);
+          const imp = Number.isFinite(item.product.impuesto) ? item.product.impuesto : 16;
+          const productoSnapshot = { ...item.product, precioVenta: pu };
+          return {
+            id: crypto.randomUUID(),
+            productId: item.product.id,
+            producto: productoSnapshot,
+            cantidad: item.quantity,
+            precioUnitario: pu,
+            descuento: item.discount,
+            impuesto: imp,
+            subtotal: sub,
+            total: roundMoney2(sub * (1 + imp / 100)),
+          };
+        }),
         subtotal,
         descuento: 0,
         impuestos,
@@ -519,6 +662,10 @@ export function Cotizaciones() {
     setVigenciaDias(7);
     setNotas('');
     setProductSearchQuery('');
+    setShowCustomForm(false);
+    setCustomNombre('');
+    setCustomPrecioInput('');
+    setPriceDraft({});
   };
 
   const filteredQuotations = useMemo(() => {
@@ -944,9 +1091,52 @@ export function Cotizaciones() {
                       <p className="truncate text-sm text-slate-800 dark:text-slate-200">{product.nombre}</p>
                       <p className="text-xs text-slate-600 dark:text-slate-500">{product.sku}</p>
                     </div>
-                    <p className="shrink-0 text-sm text-cyan-400">{formatMoney(product.precioVenta)}</p>
+                    <p className="shrink-0 text-sm text-cyan-400">
+                      {formatMoney(precioSinIvaToConIva(product.precioVenta, product.impuesto))}
+                    </p>
                   </button>
                 ))}
+              </div>
+
+              <div className="space-y-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full border-dashed border-slate-400 text-slate-700 dark:border-slate-600 dark:text-slate-300"
+                  onClick={() => setShowCustomForm((v) => !v)}
+                >
+                  <PackagePlus className="mr-2 h-4 w-4" />
+                  {showCustomForm ? 'Ocultar artículo manual' : 'Artículo manual (no inventario)'}
+                </Button>
+                {showCustomForm ? (
+                  <div className="space-y-2 rounded-lg border border-dashed border-cyan-500/40 bg-cyan-500/5 p-3">
+                    <p className="text-xs text-slate-600 dark:text-slate-400">
+                      Solo para esta cotización e impresión. No se guarda en el catálogo.
+                    </p>
+                    <Input
+                      placeholder="Nombre del artículo"
+                      value={customNombre}
+                      onChange={(e) => setCustomNombre(e.target.value)}
+                      className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                    />
+                    <Input
+                      placeholder="Precio con IVA"
+                      inputMode="decimal"
+                      value={customPrecioInput}
+                      onChange={(e) => setCustomPrecioInput(e.target.value)}
+                      className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="w-full bg-cyan-600 text-white hover:bg-cyan-700"
+                      onClick={handleAddCustomItem}
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Agregar artículo manual
+                    </Button>
+                  </div>
+                ) : null}
               </div>
 
               <div className="space-y-2">
@@ -955,33 +1145,86 @@ export function Cotizaciones() {
                   {quotationItems.length === 0 ? (
                     <p className="p-4 text-center text-sm text-slate-600 dark:text-slate-500">No hay productos</p>
                   ) : (
-                    quotationItems.map((item) => (
-                      <div key={item.product.id} className="flex flex-wrap items-center gap-2 p-3">
-                        <div className="min-w-0 flex-1 basis-[8rem]">
-                          <p className="text-sm text-slate-800 dark:text-slate-200">{item.product.nombre}</p>
+                    quotationItems.map((item) => {
+                      const imp = Number.isFinite(item.product.impuesto) ? item.product.impuesto : 16;
+                      const precioConIvaDisplay = precioSinIvaToConIva(item.unitPriceSinIva, imp);
+                      const precioInputValue =
+                        priceDraft[item.lineId] ?? precioConIvaDisplay.toFixed(2);
+                      const lineTotalConIva = roundMoney2(
+                        draftLineSubtotal(item) * (1 + imp / 100)
+                      );
+                      return (
+                        <div key={item.lineId} className="flex flex-wrap items-center gap-2 p-3">
+                          <div className="min-w-0 flex-1 basis-[8rem]">
+                            {item.isCustom ? (
+                              <Input
+                                value={item.product.nombre}
+                                onChange={(e) =>
+                                  handleUpdateCustomNombre(item.lineId, e.target.value)
+                                }
+                                className="h-8 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100"
+                                aria-label="Nombre artículo manual"
+                              />
+                            ) : (
+                              <p className="text-sm text-slate-800 dark:text-slate-200">
+                                {item.product.nombre}
+                              </p>
+                            )}
+                            {item.isCustom ? (
+                              <p className="mt-0.5 text-xs text-cyan-600/90 dark:text-cyan-400/80">
+                                Manual · no inventario
+                              </p>
+                            ) : null}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateQuantity(item.lineId, item.quantity - 1)}
+                              className="flex h-8 w-8 items-center justify-center rounded bg-slate-200 dark:bg-slate-800"
+                              aria-label="Quitar una unidad"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                            <span className="w-8 text-center tabular-nums">{item.quantity}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateQuantity(item.lineId, item.quantity + 1)}
+                              className="flex h-8 w-8 items-center justify-center rounded bg-slate-200 dark:bg-slate-800"
+                              aria-label="Agregar una unidad"
+                            >
+                              <Plus className="h-3 w-3" />
+                            </button>
+                          </div>
+                          <div className="flex w-full flex-col items-end gap-0.5 sm:w-auto sm:min-w-[7.5rem]">
+                            <label className="text-[10px] uppercase tracking-wide text-slate-500">
+                              Precio c/IVA
+                            </label>
+                            <Input
+                              type="text"
+                              inputMode="decimal"
+                              value={precioInputValue}
+                              onFocus={() =>
+                                setPriceDraft((d) => ({
+                                  ...d,
+                                  [item.lineId]: precioConIvaDisplay.toFixed(2),
+                                }))
+                              }
+                              onChange={(e) =>
+                                setPriceDraft((d) => ({
+                                  ...d,
+                                  [item.lineId]: e.target.value,
+                                }))
+                              }
+                              onBlur={() => commitLinePriceDraft(item.lineId)}
+                              className="h-8 w-full max-w-[7.5rem] border-cyan-500/40 bg-slate-200 text-right tabular-nums text-cyan-700 dark:bg-slate-800 dark:text-cyan-300"
+                            />
+                            <p className="text-xs tabular-nums text-cyan-400">
+                              Línea: {formatMoney(lineTotalConIva)}
+                            </p>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateQuantity(item.product.id, item.quantity - 1)}
-                            className="flex h-8 w-8 items-center justify-center rounded bg-slate-200 dark:bg-slate-800"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                          <span className="w-8 text-center">{item.quantity}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateQuantity(item.product.id, item.quantity + 1)}
-                            className="flex h-8 w-8 items-center justify-center rounded bg-slate-200 dark:bg-slate-800"
-                          >
-                            <Plus className="h-3 w-3" />
-                          </button>
-                        </div>
-                        <p className="w-full text-right text-sm text-cyan-400 sm:w-auto sm:flex-1">
-                          {formatMoney(item.product.precioVenta * item.quantity)}
-                        </p>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>
@@ -1043,7 +1286,7 @@ export function Cotizaciones() {
                   <span>{formatMoney(calculateTotals().subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                  <span>IVA (16%)</span>
+                  <span>Impuestos</span>
                   <span>{formatMoney(calculateTotals().impuestos)}</span>
                 </div>
                 <div className="flex justify-between text-lg font-bold text-slate-900 dark:text-slate-100">

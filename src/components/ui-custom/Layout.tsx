@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
+import { preloadBrandLogoForPrint } from '@/lib/documentPrintBranding';
 import { Sidebar } from './Sidebar';
 import { MobileBottomNav } from './MobileBottomNav';
 import { Header } from './Header';
@@ -10,6 +12,10 @@ import { cn } from '@/lib/utils';
 export function Layout() {
   const location = useLocation();
   useDesktopWheelScrollEnhancer();
+
+  useEffect(() => {
+    void preloadBrandLogoForPrint();
+  }, []);
 
   return (
     <div className="flex h-dvh min-h-0 w-full flex-col overflow-hidden bg-gradient-to-br from-slate-100 via-slate-50 to-slate-100 text-slate-900 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 dark:text-slate-100">

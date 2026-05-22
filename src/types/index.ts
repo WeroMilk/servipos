@@ -231,20 +231,45 @@ export interface StockEntradaMeta {
   precioUnitarioCompra?: number;
 }
 
+/** Pedido / factura de proveedor: primero se registra; el stock entra al confirmar recepción. */
+export type PurchaseOrderEstado =
+  | 'esperando_mercancia'
+  | 'parcial'
+  | 'completado'
+  | 'cancelada';
+
 export interface PurchaseOrder {
   id: string;
-  proveedor?: string;
+  folio: string;
+  /** Número de factura del proveedor (opcional). */
+  numeroFactura?: string;
+  proveedor: string;
+  proveedorCodigo?: string;
   productos: PurchaseOrderItem[];
-  estado: 'pendiente' | 'enviada' | 'recibida' | 'cancelada';
+  estado: PurchaseOrderEstado;
   notas?: string;
+  sucursalId?: string;
+  usuarioId?: string;
+  usuarioNombre?: string;
   createdAt: Date;
   updatedAt: Date;
+  syncStatus: SyncStatus;
 }
 
 export interface PurchaseOrderItem {
+  lineId: string;
   productId: string;
-  cantidadSolicitada: number;
-  cantidadRecibida?: number;
+  /** Copia al crear el pedido (listados e impresión). */
+  nombre?: string;
+  sku?: string;
+  /** Cantidad según factura / pedido. */
+  cantidadFacturada: number;
+  /** Acumulado ya ingresado a inventario. */
+  cantidadRecibida: number;
+  /** Precio unitario de compra sin IVA (según factura). */
+  precioUnitarioCompra?: number;
+  /** Si al recibir se actualiza `precioCompra` del producto en catálogo. */
+  actualizarPrecioCompra?: boolean;
 }
 
 /** Entrada en historial de abonos (Cuentas por cobrar); `at` más reciente primero en el arreglo. */

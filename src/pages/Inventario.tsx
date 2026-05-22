@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
-import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
+import { useSearchParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import {
   Search,
   Edit2,
@@ -1725,6 +1725,23 @@ export function Inventario() {
           </div>
         </div>
       ) : null}
+
+      <div className="mt-3 shrink-0 rounded-xl border border-cyan-500/30 bg-cyan-500/5 p-3 sm:mt-4 sm:p-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+              Recepción de pedidos (factura antes que la mercancía)
+            </p>
+            <p className="mt-1 text-[11px] leading-snug text-slate-600 dark:text-slate-500 sm:text-xs">
+              Registre la factura del proveedor sin mover stock. Al llegar el pedido (completo o en partes), confirme la
+              recepción para sumar inventario y actualizar el precio de compra si aplica.
+            </p>
+          </div>
+          <Button type="button" size="sm" variant="secondary" className="shrink-0" asChild>
+            <Link to="/inventario/recepcion-pedidos">Abrir recepción de pedidos</Link>
+          </Button>
+        </div>
+      </div>
 
       {productsError ? (
         <div
