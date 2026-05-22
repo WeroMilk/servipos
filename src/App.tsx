@@ -10,7 +10,7 @@ import {
   CuentasPorCobrar,
   Configuracion,
   Checador,
-  Mision  Inventario,
+  MisionInventario,
   RecepcionPedidos,
   EtiquetasProductos,
 } from '@/pages';

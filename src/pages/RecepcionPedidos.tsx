@@ -31,7 +31,7 @@ import {
 } from '@/components/ui/table';
 import { usePurchaseOrders } from '@/hooks/usePurchaseOrders';
 import { useAppStore, useAuthStore, useInventoryListsStore } from '@/stores';
-import { hasPermission } from '@/lib/userPermissions';
+import { userHasPermission } from '@/lib/userPermissions';
 import {
   buildProveedorNombrePorLinea,
   lookupProveedorCodigo,
@@ -87,8 +87,8 @@ export function RecepcionPedidos() {
   >({});
   const [receiving, setReceiving] = useState(false);
 
-  const canVer = hasPermission(user, 'inventario:ver');
-  const canEdit = hasPermission(user, 'inventario:editar');
+  const canVer = userHasPermission(user, 'inventario:ver');
+  const canEdit = userHasPermission(user, 'inventario:editar');
 
   const proveedorMap = useMemo(
     () => buildProveedorNombrePorLinea(proveedoresLista),

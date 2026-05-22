@@ -5,6 +5,7 @@ import type {
   Product,
   InventoryMovement,
   PurchaseOrder,
+  PurchaseOrderItem,
   Client,
   ClientAbonoHistorialEntry,
   Sale,
