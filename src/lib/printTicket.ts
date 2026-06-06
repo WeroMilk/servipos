@@ -83,16 +83,32 @@ const THERMAL_BODY_FONT_PX = 10;
 /** Logo en rollo 80 mm: mitad del tamaño anterior (28 mm → 14 mm). */
 const THERMAL_LOGO_WIDTH_MM = 14;
 
+/** Antepone el scope solo a los selectores de cada bloque `{…}` (no a las propiedades). */
 function scopeThermalCss(css: string, scope: string): string {
-  return css
-    .trim()
-    .split('\n')
-    .map((line) => {
-      const t = line.trim();
-      return t ? `  ${scope} ${t}` : '';
-    })
-    .filter(Boolean)
-    .join('\n');
+  return css.replace(/([^{}]+)\{([^}]*)\}/g, (_match, selectors: string, rules: string) => {
+    const scoped = selectors
+      .trim()
+      .split(',')
+      .map((s) => `${scope} ${s.trim()}`)
+      .join(', ');
+    return `${scoped} {${rules}}`;
+  });
+}
+
+const THERMAL_PIE_LINE_INLINE_STYLE = `text-align:center;width:100%;font-size:${THERMAL_BODY_FONT_PX}px;line-height:1.2;margin:0;padding:0;`;
+
+function buildThermalPieSucursalHtml(sucursalId?: string | null): string {
+  const lines = getThermalTicketSucursalFooterLines(sucursalId);
+  if (!lines?.length) return '';
+  const [titulo, ...rest] = lines;
+  const body = rest
+    .map((ln) => `<div style="${THERMAL_PIE_LINE_INLINE_STYLE}">${escapeHtml(ln)}</div>`)
+    .join('');
+  const tituloStyle = `${THERMAL_PIE_LINE_INLINE_STYLE}font-weight:800;`;
+  return `<div class="pie-sucursal" style="text-align:center;width:100%;">
+    <div class="titulo-suc" style="${tituloStyle}"><strong>${escapeHtml(titulo)}</strong></div>
+    ${body}
+  </div>`;
 }
 
 /** Pie de sucursal (Olivares / contacto / horario): mismo tamaño que productos y totales. */
@@ -757,13 +773,7 @@ ${THERMAL_TICKET_VENTA_STYLES}
         })
         .join('')}</div>`
     : ''}
-  ${(() => {
-    const lines = getThermalTicketSucursalFooterLines(payload.sucursalId);
-    if (!lines?.length) return '';
-    const [titulo, ...rest] = lines;
-    const body = rest.map((ln) => `<div>${escapeHtml(ln)}</div>`).join('');
-    return `<div class="pie-sucursal"><div class="titulo-suc">${escapeHtml(titulo)}</div>${body}</div>`;
-  })()}
+  ${buildThermalPieSucursalHtml(payload.sucursalId)}
   ${payload.notas ? `<p class="ticket-notas">${escapeHtml(payload.notas)}</p>` : ''}
   ${
     payload.incluirPiePoliticasRefacciones
@@ -847,14 +857,7 @@ export function printThermalLowStockReport(input: {
       <tr><td>SKU ${escapeHtml(it.sku)}</td><td class="right">Ex. ${it.existencia} / mín ${it.existenciaMinima}</td></tr>`
     )
     .join('');
-  const lines = getThermalTicketSucursalFooterLines(input.sucursalId);
-  const pie =
-    lines?.length ?
-      `<div class="pie-sucursal"><div class="titulo-suc">${escapeHtml(lines[0]!)}</div>${lines
-        .slice(1)
-        .map((ln) => `<div>${escapeHtml(ln)}</div>`)
-        .join('')}</div>`
-    : '';
+  const pie = buildThermalPieSucursalHtml(input.sucursalId);
   void openThermalPrintDocument({
     heading: 'STOCK BAJO',
     pageTitle: 'Stock bajo',
@@ -874,14 +877,7 @@ export function printThermalMissionComplete(input: {
   articulosRevisados: number;
   totalEnMision: number;
 }): void {
-  const lines = getThermalTicketSucursalFooterLines(input.sucursalId);
-  const pie =
-    lines?.length ?
-      `<div class="pie-sucursal"><div class="titulo-suc">${escapeHtml(lines[0]!)}</div>${lines
-        .slice(1)
-        .map((ln) => `<div>${escapeHtml(ln)}</div>`)
-        .join('')}</div>`
-    : '';
+  const pie = buildThermalPieSucursalHtml(input.sucursalId);
   const cajero = input.cajeroNombre?.trim() ? escapeHtml(input.cajeroNombre.trim()) : '—';
   void openThermalPrintDocument({
     heading: 'MISIÓN COMPLETADA',
@@ -917,14 +913,7 @@ export function printThermalMissionInventoryReport(input: {
         )
         .join('')
     : '<p class="ticket-body-text">Sin movimientos de inventario este día (para este usuario).</p>';
-  const lines = getThermalTicketSucursalFooterLines(input.sucursalId);
-  const pie =
-    lines?.length ?
-      `<div class="pie-sucursal"><div class="titulo-suc">${escapeHtml(lines[0]!)}</div>${lines
-        .slice(1)
-        .map((ln) => `<div>${escapeHtml(ln)}</div>`)
-        .join('')}</div>`
-    : '';
+  const pie = buildThermalPieSucursalHtml(input.sucursalId);
   const cajero = input.cajeroNombre?.trim() ? escapeHtml(input.cajeroNombre.trim()) : '—';
   void openThermalPrintDocument({
     heading: 'INVENTARIO · DÍA',
@@ -951,14 +940,7 @@ export type ThermalClientAbonoReceiptInput = {
 };
 
 export function printThermalClientAbonoReceipt(input: ThermalClientAbonoReceiptInput): void {
-  const lines = getThermalTicketSucursalFooterLines(input.sucursalId);
-  const pie =
-    lines?.length ?
-      `<div class="pie-sucursal"><div class="titulo-suc">${escapeHtml(lines[0]!)}</div>${lines
-        .slice(1)
-        .map((ln) => `<div>${escapeHtml(ln)}</div>`)
-        .join('')}</div>`
-    : '';
+  const pie = buildThermalPieSucursalHtml(input.sucursalId);
   const cajero = input.cajeroNombre?.trim() ? escapeHtml(input.cajeroNombre.trim()) : '—';
   const cliente = input.clienteNombre.trim() ? escapeHtml(input.clienteNombre.trim()) : 'Cliente';
   const saldoNuevo = Math.max(0, Number(input.saldoNuevo) || 0);
@@ -1028,14 +1010,7 @@ export function printThermalDailySalesReport(input: {
   const adeudoRedondeado = Math.round(totalAdeudoDia * 100) / 100;
   const adeudoStyle = adeudoRedondeado > 0.004 ? 'color:#92400e;' : '';
 
-  const lines = getThermalTicketSucursalFooterLines(input.sucursalId);
-  const pie =
-    lines?.length ?
-      `<div class="pie-sucursal"><div class="titulo-suc">${escapeHtml(lines[0]!)}</div>${lines
-        .slice(1)
-        .map((ln) => `<div>${escapeHtml(ln)}</div>`)
-        .join('')}</div>`
-    : '';
+  const pie = buildThermalPieSucursalHtml(input.sucursalId);
   void openThermalPrintDocument({
     heading: 'REPORTE VENTAS',
     pageTitle: 'Reporte ventas',
@@ -1114,14 +1089,7 @@ export function printThermalCajaCierre(input: {
         `<tr><td>${escapeHtml(labelFormaPagoCaja(clave))}</td><td class="right">${formatMoney(Number(m) || 0)}</td></tr>`
     )
     .join('');
-  const lines = getThermalTicketSucursalFooterLines(input.sucursalId);
-  const pie =
-    lines?.length ?
-      `<div class="pie-sucursal"><div class="titulo-suc">${escapeHtml(lines[0]!)}</div>${lines
-        .slice(1)
-        .map((ln) => `<div>${escapeHtml(ln)}</div>`)
-        .join('')}</div>`
-    : '';
+  const pie = buildThermalPieSucursalHtml(input.sucursalId);
   const esArqueo = input.ticketKind === 'arqueo_previo';
   const titulo = esArqueo ? 'ARQUEO PREVIO' : 'CIERRE DE CAJA';
   const metaCierre = esArqueo
