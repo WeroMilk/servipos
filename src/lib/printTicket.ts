@@ -98,28 +98,34 @@ function scopeThermalCss(css: string, scope: string): string {
 /** Pie de sucursal (Olivares / contacto / horario): mismo tamaño que productos y totales. */
 const THERMAL_PIE_SUCURSAL_CSS = `
   .pie-sucursal {
+    display: block;
     margin-top: 4px;
     padding-top: 4px;
     border-top: 1px dashed #999;
-    text-align: center;
+    text-align: center !important;
     font-size: ${THERMAL_BODY_FONT_PX}px !important;
     line-height: 1.2;
     font-weight: 500;
     color: #111;
     width: 100%;
+    box-sizing: border-box;
   }
   .pie-sucursal .titulo-suc {
-    font-weight: 700;
+    display: block;
+    font-weight: 800 !important;
     font-size: ${THERMAL_BODY_FONT_PX}px !important;
     margin: 0 0 1px;
     line-height: 1.2;
-    text-align: center;
+    text-align: center !important;
+    width: 100%;
     letter-spacing: 0;
   }
   .pie-sucursal > div {
-    text-align: center;
+    display: block;
+    text-align: center !important;
     font-size: ${THERMAL_BODY_FONT_PX}px !important;
     line-height: 1.2;
+    width: 100%;
     margin: 0;
     padding: 0;
   }`;
