@@ -74,8 +74,11 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
-/** Tamaño mínimo legible en ticket térmico (líneas de horario en pie de sucursal). */
+/** Tamaño mínimo legible en ticket térmico (folio, horario, leyendas finales). */
 const THERMAL_MIN_FONT_PX = 9;
+
+/** Cuerpo del ticket: productos, totales, pagos y pie de sucursal (Olivares → horario). */
+const THERMAL_BODY_FONT_PX = 10;
 
 /** Logo en rollo 80 mm: mitad del tamaño anterior (28 mm → 14 mm). */
 const THERMAL_LOGO_WIDTH_MM = 14;
@@ -92,30 +95,31 @@ function scopeThermalCss(css: string, scope: string): string {
     .join('\n');
 }
 
-/** Pie de sucursal (Olivares / contacto / horario): compacto sin bajar de ${THERMAL_MIN_FONT_PX}px. */
+/** Pie de sucursal (Olivares / contacto / horario): mismo tamaño que productos y totales. */
 const THERMAL_PIE_SUCURSAL_CSS = `
   .pie-sucursal {
-    margin-top: 5px;
+    margin-top: 4px;
     padding-top: 4px;
     border-top: 1px dashed #999;
     text-align: center;
-    font-size: ${THERMAL_MIN_FONT_PX}px;
-    line-height: 1.12;
+    font-size: ${THERMAL_BODY_FONT_PX}px !important;
+    line-height: 1.2;
     font-weight: 500;
     color: #111;
     width: 100%;
   }
   .pie-sucursal .titulo-suc {
-    font-weight: 800;
-    font-size: ${THERMAL_MIN_FONT_PX}px;
+    font-weight: 700;
+    font-size: ${THERMAL_BODY_FONT_PX}px !important;
     margin: 0 0 1px;
-    line-height: 1.12;
+    line-height: 1.2;
     text-align: center;
-    letter-spacing: 0.01em;
+    letter-spacing: 0;
   }
   .pie-sucursal > div {
     text-align: center;
-    line-height: 1.12;
+    font-size: ${THERMAL_BODY_FONT_PX}px !important;
+    line-height: 1.2;
     margin: 0;
     padding: 0;
   }`;
@@ -161,16 +165,16 @@ const THERMAL_TICKET_VENTA_STYLES = `
   }
   body.ticket-venta table { table-layout: fixed; width: 100%; border-collapse: collapse; }
   body.ticket-venta td {
-    font-size: 10px;
+    font-size: ${THERMAL_BODY_FONT_PX}px;
     padding: 0;
     vertical-align: top;
     overflow-wrap: anywhere;
     word-break: break-word;
   }
-  body.ticket-venta td.desc { font-size: 10px; font-weight: 600; padding-top: 3px; }
+  body.ticket-venta td.desc { font-size: ${THERMAL_BODY_FONT_PX}px; font-weight: 600; padding-top: 3px; }
   body.ticket-venta td.right { white-space: normal; text-align: right; }
   body.ticket-venta .tot {
-    font-size: 10px;
+    font-size: ${THERMAL_BODY_FONT_PX}px;
     margin-top: 4px;
     padding-top: 4px;
     line-height: 1.2;
@@ -178,7 +182,7 @@ const THERMAL_TICKET_VENTA_STYLES = `
   }
   body.ticket-venta .tot strong { font-size: 13px; }
   body.ticket-venta .ticket-pagos {
-    font-size: 10px !important;
+    font-size: ${THERMAL_BODY_FONT_PX}px !important;
     line-height: 1.2;
     margin-top: 4px;
     padding-top: 4px;
@@ -385,9 +389,6 @@ const THERMAL_BASE_STYLES = `@page { size: 80mm auto; margin: 4mm; }
   td.right { text-align: right; white-space: nowrap; }
   .tot { margin-top: 12px; border-top: 1px dashed #333; padding-top: 10px; font-size: 22px; }
   .tot strong { font-size: 30px; }
-  .pie-sucursal { margin-top: 14px; padding-top: 12px; border-top: 1px dashed #999; text-align: center; font-size: 21px; line-height: 1.55; font-weight: 500; color: #111; width: 100%; }
-  .pie-sucursal .titulo-suc { font-weight: 800; font-size: 26px; margin-bottom: 8px; text-align: center; letter-spacing: 0.02em; }
-  .pie-sucursal > div { text-align: center; }
   .ticket-politicas { margin-top: 14px; padding-top: 10px; border-top: 1px dashed #666; font-size: 17px; line-height: 1.45; text-align: center; color: #111; font-weight: 600; }
   .ticket-politicas div + div { margin-top: 6px; }
   .ticket-barcode-wrap { margin-top: 14px; text-align: center; }
