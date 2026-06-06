@@ -117,7 +117,7 @@ export async function resolveBrandLogoDataUrlForPrint(): Promise<string> {
 export function buildThermalBrandBlockHtml(heading: string, logoSrc: string): string {
   const src = escapeHtml(logoSrc);
   return `<div class="ticket-brand-block">
-    <img class="logo-ticket" src="${src}" alt="SERVIPARTZ" width="96" height="96" decoding="sync" />
+    <img class="logo-ticket" src="${src}" alt="SERVIPARTZ" width="48" height="48" decoding="sync" />
     <h1>${escapeHtml(heading)}</h1>
   </div>`;
 }

@@ -74,10 +74,55 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
+/** Tamaño mínimo legible en ticket térmico (líneas de horario en pie de sucursal). */
+const THERMAL_MIN_FONT_PX = 9;
+
+/** Logo en rollo 80 mm: mitad del tamaño anterior (28 mm → 14 mm). */
+const THERMAL_LOGO_WIDTH_MM = 14;
+
+function scopeThermalCss(css: string, scope: string): string {
+  return css
+    .trim()
+    .split('\n')
+    .map((line) => {
+      const t = line.trim();
+      return t ? `  ${scope} ${t}` : '';
+    })
+    .filter(Boolean)
+    .join('\n');
+}
+
+/** Pie de sucursal (Olivares / contacto / horario): compacto sin bajar de ${THERMAL_MIN_FONT_PX}px. */
+const THERMAL_PIE_SUCURSAL_CSS = `
+  .pie-sucursal {
+    margin-top: 5px;
+    padding-top: 4px;
+    border-top: 1px dashed #999;
+    text-align: center;
+    font-size: ${THERMAL_MIN_FONT_PX}px;
+    line-height: 1.12;
+    font-weight: 500;
+    color: #111;
+    width: 100%;
+  }
+  .pie-sucursal .titulo-suc {
+    font-weight: 800;
+    font-size: ${THERMAL_MIN_FONT_PX}px;
+    margin: 0 0 1px;
+    line-height: 1.12;
+    text-align: center;
+    letter-spacing: 0.01em;
+  }
+  .pie-sucursal > div {
+    text-align: center;
+    line-height: 1.12;
+    margin: 0;
+    padding: 0;
+  }`;
+
 /**
  * Solo `printThermalTicket` (venta, cotización impresa como ticket, devolución):
- * Tipografía más compacta y proporcionada al 80 mm; columna centrada sin corrimiento (evita corte a la izquierda).
- * Márgenes de página equilibrados; pie de sucursal un poco menor que el cuerpo.
+ * Tipografía compacta al 80 mm; columna centrada sin corrimiento (evita corte a la izquierda).
  */
 const THERMAL_TICKET_VENTA_STYLES = `
   @page { size: 80mm auto; margin: 5.5mm 5.5mm 6mm 5.5mm; }
@@ -86,36 +131,60 @@ const THERMAL_TICKET_VENTA_STYLES = `
     width: 64mm;
     max-width: 100%;
     margin: 0 auto;
-    padding: 8px 4px 12px;
-    font-size: 15px;
-    line-height: 1.35;
+    padding: 5px 4px 8px;
+    font-size: 11px;
+    line-height: 1.2;
   }
   body.ticket-venta h1,
   body.ticket-venta .ticket-brand-block h1 {
-    font-size: 17px !important;
-    margin: 0 0 6px !important;
-    line-height: 1.2 !important;
+    font-size: 14px !important;
+    margin: 0 0 4px !important;
+    line-height: 1.15 !important;
   }
-  body.ticket-venta .ticket-brand-block { margin-bottom: 8px; }
+  body.ticket-venta .ticket-brand-block { margin-bottom: 4px; }
   body.ticket-venta .ticket-brand-block .logo-ticket {
     display: block !important;
-    max-width: 28mm;
-    width: 28mm;
+    max-width: ${THERMAL_LOGO_WIDTH_MM}mm;
+    width: ${THERMAL_LOGO_WIDTH_MM}mm;
     height: auto;
     object-fit: contain;
     margin: 0 auto;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  body.ticket-venta .meta { font-size: 12px; margin-bottom: 8px; padding-bottom: 6px; line-height: 1.35; }
-  body.ticket-venta table { table-layout: fixed; width: 100%; }
-  body.ticket-venta td { font-size: 13px; padding: 2px 0; overflow-wrap: anywhere; word-break: break-word; }
-  body.ticket-venta td.desc { font-size: 13px; padding-top: 6px; }
-  body.ticket-venta td.right { white-space: normal; }
-  body.ticket-venta .tot { font-size: 14px; margin-top: 8px; padding-top: 8px; line-height: 1.35; }
-  body.ticket-venta .tot strong { font-size: 19px; }
-  body.ticket-venta .ticket-pagos { font-size: 13px !important; line-height: 1.4; margin-top: 8px; padding-top: 8px; }
-  body.ticket-venta .ticket-pagos .tit { margin-bottom: 4px; }
+  body.ticket-venta .meta {
+    font-size: ${THERMAL_MIN_FONT_PX}px;
+    margin-bottom: 4px;
+    padding-bottom: 3px;
+    line-height: 1.2;
+    border-bottom: 1px dashed #333;
+  }
+  body.ticket-venta table { table-layout: fixed; width: 100%; border-collapse: collapse; }
+  body.ticket-venta td {
+    font-size: 10px;
+    padding: 0;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  body.ticket-venta td.desc { font-size: 10px; font-weight: 600; padding-top: 3px; }
+  body.ticket-venta td.right { white-space: normal; text-align: right; }
+  body.ticket-venta .tot {
+    font-size: 10px;
+    margin-top: 4px;
+    padding-top: 4px;
+    line-height: 1.2;
+    border-top: 1px dashed #333;
+  }
+  body.ticket-venta .tot strong { font-size: 13px; }
+  body.ticket-venta .ticket-pagos {
+    font-size: 10px !important;
+    line-height: 1.2;
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px dashed #333;
+  }
+  body.ticket-venta .ticket-pagos .tit { font-weight: 600; margin-bottom: 2px; }
   body.ticket-venta .meta,
   body.ticket-venta .tot,
   body.ticket-venta .ticket-pagos,
@@ -125,14 +194,160 @@ const THERMAL_TICKET_VENTA_STYLES = `
     overflow-wrap: anywhere;
     word-break: break-word;
   }
-  body.ticket-venta .pie-sucursal { font-size: 9px; line-height: 1.4; margin-top: 10px; padding-top: 8px; }
-  body.ticket-venta .pie-sucursal .titulo-suc { font-size: 11px; margin-bottom: 3px; }
-  body.ticket-venta .ticket-notas { font-size: 11px; line-height: 1.4; margin-top: 8px; }
-  body.ticket-venta .ticket-politicas { font-size: 10px; line-height: 1.4; margin-top: 8px; padding-top: 8px; }
-  body.ticket-venta .ticket-politicas div + div { margin-top: 3px; }
-  body.ticket-venta .ticket-barcode-wrap { margin-top: 10px; }
-  body.ticket-venta .ticket-barcode-wrap img { width: 220px !important; max-width: 100% !important; height: auto; }
-  body.ticket-venta .ticket-gracias { font-size: 12px; line-height: 1.35; margin-top: 10px; font-weight: 600; }
+${scopeThermalCss(THERMAL_PIE_SUCURSAL_CSS, 'body.ticket-venta')}
+  body.ticket-venta .ticket-notas {
+    font-size: ${THERMAL_MIN_FONT_PX}px;
+    line-height: 1.15;
+    margin-top: 4px;
+    text-align: center;
+    white-space: pre-line;
+  }
+  body.ticket-venta .ticket-politicas {
+    font-size: ${THERMAL_MIN_FONT_PX}px;
+    line-height: 1.15;
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px dashed #666;
+    text-align: center;
+    font-weight: 600;
+  }
+  body.ticket-venta .ticket-politicas div + div { margin-top: 1px; }
+  body.ticket-venta .ticket-barcode-wrap { margin-top: 5px; text-align: center; }
+  body.ticket-venta .ticket-barcode-wrap img {
+    width: 180px !important;
+    max-width: 100% !important;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+  }
+  body.ticket-venta .ticket-gracias {
+    font-size: ${THERMAL_MIN_FONT_PX}px;
+    line-height: 1.15;
+    margin-top: 5px;
+    font-weight: 600;
+    text-align: center;
+  }`;
+
+/**
+ * Documentos térmicos genéricos (abono, stock bajo, misiones, etc.):
+ * misma columna compacta que venta; logo con corrección óptica a la izquierda.
+ */
+const THERMAL_COMPACT_SHELL_STYLES = `
+  @page { size: 80mm auto; margin: 5.5mm 5.5mm 6mm 5.5mm; }
+  * { box-sizing: border-box; }
+  body.ticket-compact {
+    position: static;
+    width: 64mm;
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 5px 4px 8px;
+    font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+    font-size: 11px;
+    line-height: 1.2;
+    color: #111;
+  }
+  body.ticket-compact .ticket-brand-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    margin: 0 0 4px;
+    padding: 0;
+  }
+  body.ticket-compact .ticket-brand-block .logo-ticket {
+    display: block !important;
+    max-width: ${THERMAL_LOGO_WIDTH_MM}mm;
+    width: ${THERMAL_LOGO_WIDTH_MM}mm;
+    height: auto;
+    object-fit: contain;
+    margin: 0 auto;
+    transform: translateX(-1.2mm);
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  body.ticket-compact .ticket-brand-block h1 {
+    margin: 3px 0 0 !important;
+    width: 100%;
+    text-align: center !important;
+    font-size: 14px !important;
+    line-height: 1.15 !important;
+  }
+  body.ticket-compact .meta {
+    font-size: ${THERMAL_MIN_FONT_PX}px;
+    margin-bottom: 4px;
+    border-bottom: 1px dashed #333;
+    padding-bottom: 3px;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  body.ticket-compact table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  body.ticket-compact td {
+    padding: 0;
+    vertical-align: top;
+    font-size: 10px;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  body.ticket-compact td.right { text-align: right; white-space: normal; }
+  body.ticket-compact .tot {
+    margin-top: 4px;
+    border-top: 1px dashed #333;
+    padding-top: 4px;
+    font-size: 10px;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  body.ticket-compact .tot strong { font-size: 13px; }
+  body.ticket-compact p,
+  body.ticket-compact .ticket-body-text {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+${scopeThermalCss(THERMAL_PIE_SUCURSAL_CSS, 'body.ticket-compact')}
+  body.ticket-compact .ticket-rol {
+    text-align: center;
+    font-size: 10px;
+    font-weight: 700;
+    margin: -2px 0 4px;
+    line-height: 1.15;
+  }
+  body.ticket-compact .abono-saldos { border-top: none; padding-top: 4px; }
+  body.ticket-compact .abono-saldos > div { font-size: 10px; line-height: 1.2; }
+  body.ticket-compact .abono-saldo-actual {
+    margin-top: 3px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+  body.ticket-compact .abono-nota {
+    margin-top: 4px;
+    font-size: ${THERMAL_MIN_FONT_PX}px;
+    line-height: 1.15;
+    text-align: center;
+  }
+  body.ticket-compact .ticket-body-text {
+    font-size: 10px;
+    line-height: 1.2;
+    margin: 4px 0;
+  }
+  body.ticket-compact .ticket-body-text strong { font-size: 11px; }
+  body.ticket-compact .ticket-section-title {
+    font-size: 10px;
+    font-weight: 600;
+    margin: 4px 0 2px;
+    line-height: 1.2;
+  }
+  body.ticket-compact .ticket-mov-block {
+    border-top: 1px dashed #bbb;
+    padding-top: 3px;
+    margin-top: 3px;
+    font-size: ${THERMAL_MIN_FONT_PX}px;
+    line-height: 1.15;
+  }
+  body.ticket-compact .ticket-mov-block .mov-tipo { font-weight: 700; font-size: 10px; }
+  body.ticket-compact .ticket-mov-block .mov-linea { font-weight: 600; }
 `;
 
 /** CSS compartido: ticket de venta 80 mm e informes térmicos (tipografía grande para leer en papel). */
@@ -193,10 +408,10 @@ const THERMAL_CIERRE_TURNO_STYLES = `
     width: 64mm;
     max-width: 100%;
     margin: 0 auto;
-    padding: 8px 4px 12px;
+    padding: 5px 4px 8px;
     font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
-    font-size: 15px;
-    line-height: 1.35;
+    font-size: 11px;
+    line-height: 1.2;
     color: #111;
   }
   body.ticket-cierre-turno .ticket-brand-block {
@@ -204,75 +419,74 @@ const THERMAL_CIERRE_TURNO_STYLES = `
     flex-direction: column;
     align-items: center;
     width: 100%;
-    margin: 0 0 8px;
+    margin: 0 0 4px;
   }
   body.ticket-cierre-turno .ticket-brand-block .logo-ticket {
     display: block !important;
-    max-width: 28mm;
-    width: 28mm;
+    max-width: ${THERMAL_LOGO_WIDTH_MM}mm;
+    width: ${THERMAL_LOGO_WIDTH_MM}mm;
     height: auto;
     object-fit: contain;
     margin: 0 auto;
+    transform: translateX(-1.2mm);
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
   body.ticket-cierre-turno .ticket-brand-block h1 {
-    font-size: 17px !important;
+    font-size: 14px !important;
     text-align: center;
-    margin: 6px 0 0 !important;
-    line-height: 1.2;
+    margin: 3px 0 0 !important;
+    line-height: 1.15;
     width: 100%;
   }
   body.ticket-cierre-turno h1 {
-    font-size: 17px;
+    font-size: 14px;
     text-align: center;
-    margin: 0 0 8px;
-    line-height: 1.2;
+    margin: 0 0 4px;
+    line-height: 1.15;
   }
   body.ticket-cierre-turno .meta {
-    font-size: 12px;
-    margin-bottom: 8px;
+    font-size: ${THERMAL_MIN_FONT_PX}px;
+    margin-bottom: 4px;
     border-bottom: 1px dashed #333;
-    padding-bottom: 6px;
-    line-height: 1.35;
+    padding-bottom: 3px;
+    line-height: 1.2;
     overflow-wrap: anywhere;
     word-break: break-word;
   }
   body.ticket-cierre-turno table { table-layout: fixed; width: 100%; border-collapse: collapse; }
   body.ticket-cierre-turno td {
-    font-size: 13px;
-    padding: 2px 0;
+    font-size: 10px;
+    padding: 0;
     vertical-align: top;
     overflow-wrap: anywhere;
     word-break: break-word;
   }
   body.ticket-cierre-turno td.right { text-align: right; white-space: normal; }
   body.ticket-cierre-turno .tot {
-    margin-top: 8px;
+    margin-top: 4px;
     border-top: 1px dashed #333;
-    padding-top: 8px;
-    font-size: 14px;
-    line-height: 1.35;
+    padding-top: 4px;
+    font-size: 10px;
+    line-height: 1.2;
     overflow-wrap: anywhere;
     word-break: break-word;
   }
-  body.ticket-cierre-turno .tot strong { font-size: 19px; }
-  body.ticket-cierre-turno p { overflow-wrap: anywhere; word-break: break-word; }
-  body.ticket-cierre-turno .pie-sucursal {
-    margin-top: 10px;
-    padding-top: 8px;
-    border-top: 1px dashed #999;
-    text-align: center;
-    font-size: 9px;
-    line-height: 1.4;
-    width: 100%;
+  body.ticket-cierre-turno .tot strong { font-size: 13px; }
+  body.ticket-cierre-turno p {
+    font-size: 10px;
+    line-height: 1.2;
+    margin: 4px 0 2px;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
-  body.ticket-cierre-turno .pie-sucursal .titulo-suc {
-    font-size: 11px;
-    font-weight: 800;
-    margin-bottom: 3px;
+  body.ticket-cierre-turno .ticket-section-title {
+    font-size: 10px;
+    font-weight: 600;
+    margin: 4px 0 2px;
+    line-height: 1.2;
   }
-  body.ticket-cierre-turno .pie-sucursal > div { text-align: center; }
+${scopeThermalCss(THERMAL_PIE_SUCURSAL_CSS, 'body.ticket-cierre-turno')}
 `;
 
 /** ~80 mm de ancho en pantalla previa (96 DPI) para ventana de impresión térmica. */
@@ -292,10 +506,10 @@ function folioBarcodeDataUrl(folio: string): string | null {
     JsBarcode(canvas, t, {
       format: 'CODE128',
       width: 1.85,
-      height: 56,
+      height: 44,
       displayValue: true,
-      fontSize: 15,
-      margin: 6,
+      fontSize: 12,
+      margin: 4,
       background: '#ffffff',
       lineColor: '#000000',
     });
@@ -505,10 +719,6 @@ async function printThermalTicketImpl(payload: TicketPayload): Promise<void> {
   const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/><title>Ticket</title>
 <style>${THERMAL_BASE_STYLES}
 ${THERMAL_TICKET_VENTA_STYLES}
-  .ticket-pagos { margin-top: 12px; padding-top: 10px; border-top: 1px dashed #333; font-size: 19px; line-height: 1.5; }
-  .ticket-pagos .tit { font-weight: 600; margin-bottom: 6px; }
-  .ticket-notas { margin-top: 12px; font-size: 20px; line-height: 1.45; text-align: center; white-space: pre-line; }
-  .ticket-gracias { margin-top: 16px; text-align: center; font-size: 22px; font-weight: 600; line-height: 1.4; }
 </style></head><body class="ticket-venta">
   ${buildThermalBrandBlockHtml(negocio, logoSrc)}
   <div class="meta">
@@ -525,7 +735,7 @@ ${THERMAL_TICKET_VENTA_STYLES}
     ${payload.cambio != null && payload.cambio > 0 ? `<div>Cambio: ${formatMoney(payload.cambio)}</div>` : ''}
     ${
       payload.adeudoPendiente != null && payload.adeudoPendiente > 0.004
-        ? `<div style="margin-top:8px;font-weight:700;color:#92400e;">Saldo pendiente (cuenta cliente): ${formatMoney(payload.adeudoPendiente)}</div>`
+        ? `<div style="margin-top:3px;font-size:10px;font-weight:700;color:#92400e;">Saldo pendiente (cuenta cliente): ${formatMoney(payload.adeudoPendiente)}</div>`
         : ''
     }
   </div>
@@ -560,7 +770,7 @@ ${THERMAL_TICKET_VENTA_STYLES}
       ? (() => {
           const src = folioBarcodeDataUrl(payload.folio);
           if (!src) return '';
-          return `<div class="ticket-barcode-wrap"><img src="${escapeHtml(src)}" alt="" style="max-width:100%;width:280px;height:auto;" /></div>`;
+          return `<div class="ticket-barcode-wrap"><img src="${escapeHtml(src)}" alt="" /></div>`;
         })()
       : ''
   }
@@ -626,7 +836,7 @@ export function printThermalLowStockReport(input: {
 }): void {
   const rows = input.items
     .map(
-      (it) => `<tr><td colspan="2" style="font-weight:600;padding-top:6px;">${escapeHtml(it.nombre.slice(0, 42))}</td></tr>
+      (it) => `<tr><td colspan="2" style="font-weight:600;padding-top:3px;">${escapeHtml(it.nombre.slice(0, 42))}</td></tr>
       <tr><td>SKU ${escapeHtml(it.sku)}</td><td class="right">Ex. ${it.existencia} / mín ${it.existenciaMinima}</td></tr>`
     )
     .join('');
@@ -641,7 +851,8 @@ export function printThermalLowStockReport(input: {
   void openThermalPrintDocument({
     heading: 'STOCK BAJO',
     pageTitle: 'Stock bajo',
-    styles: THERMAL_BASE_STYLES,
+    bodyClass: 'ticket-compact',
+    styles: THERMAL_COMPACT_SHELL_STYLES,
     bodyInnerHtml: `<div class="meta">${escapeHtml(input.fechaLabel)}<br/>${input.items.length} artículo(s)</div>
   <table>${rows || '<tr><td>Sin artículos bajo mínimo.</td></tr>'}</table>
   ${pie}`,
@@ -668,12 +879,13 @@ export function printThermalMissionComplete(input: {
   void openThermalPrintDocument({
     heading: 'MISIÓN COMPLETADA',
     pageTitle: 'Misión completada',
-    styles: THERMAL_BASE_STYLES,
+    bodyClass: 'ticket-compact',
+    styles: THERMAL_COMPACT_SHELL_STYLES,
     bodyInnerHtml: `<div class="meta">${escapeHtml(input.fechaLabel)}<br/>Cajero: ${cajero}</div>
-  <p style="font-size:22px;font-weight:600;margin:12px 0;line-height:1.35;">
+  <p class="ticket-body-text" style="font-weight:600;">
     Revisados en esta misión: <strong>${input.articulosRevisados}</strong> / ${input.totalEnMision}
   </p>
-  <p style="font-size:19px;line-height:1.45;">Comprobante de que terminó la tarea de conteo o verificación asignada.</p>
+  <p class="ticket-body-text">Comprobante de que terminó la tarea de conteo o verificación asignada.</p>
   ${pie}`,
   });
 }
@@ -690,14 +902,14 @@ export function printThermalMissionInventoryReport(input: {
       input.movimientos
         .map(
           (it) =>
-            `<div style="border-top:1px dashed #bbb;padding-top:8px;margin-top:8px;">
-  <div style="font-weight:700;font-size:21px;">${escapeHtml(it.tipoLabel)}</div>
-  <div style="font-weight:600;">${escapeHtml(it.linea1.slice(0, 48))}</div>
-  <div style="font-size:18px;line-height:1.35;">${escapeHtml(it.linea2)}</div>
+            `<div class="ticket-mov-block">
+  <div class="mov-tipo">${escapeHtml(it.tipoLabel)}</div>
+  <div class="mov-linea">${escapeHtml(it.linea1.slice(0, 48))}</div>
+  <div>${escapeHtml(it.linea2)}</div>
 </div>`
         )
         .join('')
-    : '<p style="font-size:20px;margin:8px 0;">Sin movimientos de inventario este día (para este usuario).</p>';
+    : '<p class="ticket-body-text">Sin movimientos de inventario este día (para este usuario).</p>';
   const lines = getThermalTicketSucursalFooterLines(input.sucursalId);
   const pie =
     lines?.length ?
@@ -710,7 +922,8 @@ export function printThermalMissionInventoryReport(input: {
   void openThermalPrintDocument({
     heading: 'INVENTARIO · DÍA',
     pageTitle: 'Movimientos inventario',
-    styles: THERMAL_BASE_STYLES,
+    bodyClass: 'ticket-compact',
+    styles: THERMAL_COMPACT_SHELL_STYLES,
     bodyInnerHtml: `<div class="meta">${escapeHtml(input.fechaLabel)}<br/>Cajero: ${cajero}<br/>${input.movimientos.length} movimiento(s)</div>
   ${rows}
   ${pie}`,
@@ -750,21 +963,20 @@ export function printThermalClientAbonoReceipt(input: ThermalClientAbonoReceiptI
   void openThermalPrintDocument({
     heading: 'COMPROBANTE DE ABONO',
     pageTitle: 'Comprobante de abono',
-    styles: THERMAL_BASE_STYLES,
-    bodyInnerHtml: `<div style="text-align:center;font-size:20px;font-weight:700;margin:-6px 0 8px;">(${escapeHtml(rolTitulo)})</div>
+    bodyClass: 'ticket-compact',
+    styles: THERMAL_COMPACT_SHELL_STYLES,
+    bodyInnerHtml: `<div class="ticket-rol">(${escapeHtml(rolTitulo)})</div>
   <div class="meta">
     ${escapeHtml(input.fechaLabel)}<br/>
     Cliente: ${cliente}<br/>
     Cajero: ${cajero}
   </div>
-  <div class="tot" style="border-top:none;padding-top:8px;font-size:21px;line-height:1.5;">
+  <div class="tot abono-saldos">
     <div>Saldo anterior: ${formatMoney(Number(input.saldoAnterior) || 0)}</div>
     <div>Abono recibido: ${formatMoney(Number(input.montoAbono) || 0)}</div>
-    <div style="margin-top:6px;font-size:26px;"><strong>Saldo actual: ${formatMoney(saldoNuevo)}</strong></div>
+    <div class="abono-saldo-actual">Saldo actual: ${formatMoney(saldoNuevo)}</div>
   </div>
-  <p style="margin-top:12px;font-size:19px;line-height:1.4;text-align:center;">
-    ${escapeHtml(notaPie)}
-  </p>
+  <p class="abono-nota">${escapeHtml(notaPie)}</p>
   ${pie}`,
   });
 }
@@ -824,19 +1036,19 @@ export function printThermalDailySalesReport(input: {
     styles: THERMAL_CIERRE_TURNO_STYLES,
     bodyInnerHtml: `<div class="meta">${escapeHtml(input.fechaLabel)}<br/>${list.length} ticket(s)</div>
   <table>${rows || '<tr><td>Sin ventas.</td></tr>'}</table>
-  <div class="tot" style="border-top:none;padding-top:8px;font-size:20px;">
-    <div><strong>Resumen medios</strong> <span style="font-size:14px;">(cobros en ventas completadas)</span></div>
+  <div class="tot" style="border-top:none;padding-top:4px;">
+    <div><strong>Resumen medios</strong> <span style="font-size:${THERMAL_MIN_FONT_PX}px;">(cobros en ventas completadas)</span></div>
     <div>Efectivo: ${formatMoney(grupos.efectivoCobros)}</div>
     <div>Tarjetas: ${formatMoney(grupos.tarjetas)}</div>
     <div>Otros: ${formatMoney(grupos.otros)}</div>
   </div>
-  <p style="font-size:19px;font-weight:600;margin:10px 0 4px;">Cobros por forma de pago</p>
+  <p class="ticket-section-title">Cobros por forma de pago</p>
   <table>${formaRows || '<tr><td>Sin cobros registrados</td></tr>'}</table>
-  <div class="tot"><strong>Total día: ${formatMoney(bruto)}</strong><br/><span style="font-size:14px;">Sin canceladas ni ventas abiertas</span></div>
-  <div class="tot" style="border-top:none;padding-top:8px;">
-    <div style="font-size:20px;"><strong>Saldo pendiente por cobrar (día)</strong></div>
-    <div style="font-size:26px;font-weight:700;${adeudoStyle}">${formatMoney(adeudoRedondeado)}</div>
-    <span style="font-size:14px;">Lo que quedó por cobrar en ventas completadas del día (parciales / crédito). Si es $0.00, no hubo adeudos.</span>
+  <div class="tot"><strong>Total día: ${formatMoney(bruto)}</strong><br/><span style="font-size:${THERMAL_MIN_FONT_PX}px;">Sin canceladas ni ventas abiertas</span></div>
+  <div class="tot" style="border-top:none;padding-top:4px;">
+    <div><strong>Saldo pendiente por cobrar (día)</strong></div>
+    <div style="font-size:11px;font-weight:700;${adeudoStyle}">${formatMoney(adeudoRedondeado)}</div>
+    <span style="font-size:${THERMAL_MIN_FONT_PX}px;">Lo que quedó por cobrar en ventas completadas del día (parciales / crédito). Si es $0.00, no hubo adeudos.</span>
   </div>
   ${pie}`,
   });
@@ -850,13 +1062,13 @@ function thermalCajaMovimientoLineHtml(
   const sign = kind === 'aporte' ? '+' : '−';
   const hora = formatInAppTimezone(r.createdAt, { timeStyle: 'short' });
   const concepto = r.notas?.trim();
-  const line1 = `<div style="font-size:18px;margin:4px 0 1px;line-height:1.3;">
+  const line1 = `<div style="font-size:10px;margin:2px 0 0;line-height:1.2;">
     <span style="font-weight:700;">${sign}${escapeHtml(formatMoney(r.monto))}</span>
     <span> · ${escapeHtml(hora)} · ${escapeHtml(r.usuarioNombre)}</span>
   </div>`;
   const line2 = concepto
-    ? `<div style="font-size:17px;margin:0 0 7px 0;line-height:1.35;font-weight:700;">${escapeHtml(concepto)}</div>`
-    : `<div style="margin-bottom:5px;"></div>`;
+    ? `<div style="font-size:${THERMAL_MIN_FONT_PX}px;margin:0 0 3px;line-height:1.15;font-weight:700;">${escapeHtml(concepto)}</div>`
+    : `<div style="margin-bottom:2px;"></div>`;
   return line1 + line2;
 }
 
@@ -924,7 +1136,7 @@ export function printThermalCajaCierre(input: {
       (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     );
     const rows = sorted.map((r) => thermalCajaMovimientoLineHtml('aporte', r)).join('');
-    return `<div style="font-size:19px;font-weight:600;margin:8px 0 2px;">Detalle aportes</div>${rows}`;
+    return `<div class="ticket-section-title">Detalle aportes</div>${rows}`;
   })();
   const retiros =
     (Number(input.retirosEfectivoTotal) || 0) > 0.005
@@ -937,7 +1149,7 @@ export function printThermalCajaCierre(input: {
       (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     );
     const rows = sorted.map((r) => thermalCajaMovimientoLineHtml('retiro', r)).join('');
-    return `<div style="font-size:19px;font-weight:600;margin:8px 0 2px;">Detalle retiros</div>${rows}`;
+    return `<div class="ticket-section-title">Detalle retiros</div>${rows}`;
   })();
 
   void openThermalPrintDocument({
@@ -955,13 +1167,13 @@ export function printThermalCajaCierre(input: {
     <div>Tickets cobrados: ${input.ticketsCompletados}</div>
     <div>Venta neta (completadas): ${formatMoney(input.totalVentasBruto)}</div>
   </div>
-  <div class="tot" style="border-top:none;padding-top:8px;font-size:20px;">
+  <div class="tot" style="border-top:none;padding-top:4px;">
     <div><strong>Resumen medios</strong></div>
     <div>Efectivo: ${formatMoney(grupos.efectivoCobros)}</div>
     <div>Tarjetas: ${formatMoney(grupos.tarjetas)}</div>
     <div>Otros: ${formatMoney(grupos.otros)}</div>
   </div>
-  <p style="font-size:19px;font-weight:600;margin:10px 0 4px;">Cobros por forma de pago</p>
+  <p class="ticket-section-title">Cobros por forma de pago</p>
   <table>${formaRows || '<tr><td>Sin cobros registrados</td></tr>'}</table>
   <div class="tot">
     <div><strong>Efectivo esperado en caja</strong></div>
@@ -969,7 +1181,7 @@ export function printThermalCajaCierre(input: {
     ${aportesLista}
     ${retiros}
     ${retirosLista}
-    <div style="font-size:26px;"><strong>${formatMoney(input.efectivoEsperado)}</strong></div>
+    <div style="font-size:11px;"><strong>${formatMoney(input.efectivoEsperado)}</strong></div>
     ${bloqueConteo}
   </div>
   ${pie}`,
