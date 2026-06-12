@@ -89,6 +89,7 @@ import {
 } from '@/db/database';
 import { getSaleByIdFirestore } from '@/lib/firestore/salesFirestore';
 import { getProductCatalogSnapshot, updateProductFirestore } from '@/lib/firestore/productsFirestore';
+import { commitEmptyPosCartDraft } from '@/lib/firestore/posCartDraftFirestore';
 import { effectiveListaPreciosIncluyenIva } from '@/lib/catalogPricingFlags';
 import { parsePrecioNumberFromFirestore, resolvePrecioVentaSinIvaForDoc } from '@/lib/precioListaNorm';
 import {
@@ -112,9 +113,14 @@ import {
   getProductIvaUnitarioDesdeSinIva,
   getProductUnitConIvaForClienteList,
   getProductUnitSinIvaForClienteList,
-  deriveListaPrecioStringsFromRegularAmount,
 } from '@/lib/productListPricing';
 import { productEsServicio } from '@/lib/productServicio';
+import {
+  isPosGenericClienteNombre,
+  POS_GENERIC_CLIENT_ID,
+  POS_GENERIC_CLIENT_LABEL,
+  posClienteDisplayNombre,
+} from '@/lib/posDefaultCliente';
 import {
   abrevCantidadVentaPorUnidadSat,
   deltaCantidadBotonMasMenosSat,
@@ -271,8 +277,8 @@ function resolveCheckoutClienteNombre(
     return client.nombre.trim();
   }
   const fromSale = fallbackSaleCliente?.nombre?.trim();
-  if (fromSale && fromSale !== 'Mostrador') return fromSale;
-  return 'Mostrador';
+  if (fromSale && !isPosGenericClienteNombre(fromSale)) return fromSale;
+  return POS_GENERIC_CLIENT_LABEL;
 }
 
 function buildClienteSnapshotParaVenta(
@@ -289,13 +295,13 @@ function buildClienteSnapshotParaVenta(
       cliente: { ...client!, nombre },
     };
   }
-  if (nombre === 'Mostrador') {
-    return { clienteId: 'mostrador' };
+  if (isPosGenericClienteNombre(nombre)) {
+    return { clienteId: POS_GENERIC_CLIENT_ID };
   }
   return {
-    clienteId: 'mostrador',
+    clienteId: POS_GENERIC_CLIENT_ID,
     cliente: {
-      id: 'mostrador',
+      id: POS_GENERIC_CLIENT_ID,
       nombre,
       isMostrador: true,
       createdAt: new Date(0),
@@ -361,24 +367,12 @@ function roundMoney2(n: number): number {
   return Math.round((Number(n) || 0) * 100) / 100;
 }
 
-/** Evita recalcular listas mientras el usuario escribe decimales incompletos (ej. "12."). */
-function isIncompleteMoneyInput(raw: string): boolean {
-  const t = raw.trim();
-  return t.length > 0 && /[.,]$/.test(t);
-}
-
 function applyListaPrecioCatalogStrChange(
   prev: Record<ClientPriceListId, string>,
   listId: ClientPriceListId,
   raw: string
 ): Record<ClientPriceListId, string> {
-  const next = { ...prev, [listId]: raw };
-  if (listId !== 'regular') return next;
-  const t = raw.trim();
-  if (t === '' || isIncompleteMoneyInput(raw)) return next;
-  const n = parsePrecioNumberFromFirestore(t);
-  if (!Number.isFinite(n) || n < 0) return next;
-  return { ...next, ...deriveListaPrecioStringsFromRegularAmount(n), regular: raw };
+  return { ...prev, [listId]: raw };
 }
 
 type MobileTab = 'cart' | 'checkout';
@@ -845,6 +839,8 @@ export function POS() {
   const [showProductSearch, setShowProductSearch] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [checkoutPhase, setCheckoutPhase] = useState<CheckoutPhase>('payment');
+  const checkoutPhaseRef = useRef<CheckoutPhase>('payment');
+  checkoutPhaseRef.current = checkoutPhase;
   const [ticketSnapshot, setTicketSnapshot] = useState<PosTicketSnapshot | null>(null);
   const [showClientDialog, setShowClientDialog] = useState(false);
   const [ventaClienteSearch, setVentaClienteSearch] = useState('');
@@ -1013,15 +1009,31 @@ export function POS() {
     return () => document.removeEventListener('pointerdown', onPointerDown, true);
   }, [showProductSearch, searchQuery]);
 
+  /** Vacía carrito local y borrador en nube/localStorage (evita que el ítem “reviva” tras cobrar). */
+  const finalizePosCartAfterSale = useCallback(async () => {
+    clearCart();
+    const uid = user?.id?.trim();
+    const sid = effectiveSucursalId?.trim();
+    if (!uid || !sid) return;
+    try {
+      await commitEmptyPosCartDraft(sid, uid);
+    } catch (err) {
+      console.error('commitEmptyPosCartDraft:', err);
+    }
+  }, [clearCart, user?.id, effectiveSucursalId]);
+
   const handleCheckoutOpenChange = useCallback((open: boolean) => {
     setCheckoutOpen(open);
     if (!open) {
+      if (checkoutPhaseRef.current === 'success') {
+        void finalizePosCartAfterSale();
+      }
       setCheckoutPhase('payment');
       setTicketSnapshot(null);
       setCheckoutClienteNombre('');
       setMobileTab('cart');
     }
-  }, []);
+  }, [finalizePosCartAfterSale]);
 
   /** Reinicia carrito, cobro, búsqueda y devolución como al entrar al POS. */
   const resetPuntoVenta = useCallback(() => {
@@ -1030,7 +1042,7 @@ export function POS() {
     setSaleFromQuotationId(null);
     setQuotationLoadedFolio(null);
     setCotizacionUltimos4('');
-    clearCart();
+    void finalizePosCartAfterSale();
     setSearchQuery('');
     posSearchPrevKeyTsRef.current = 0;
     posSearchFirstKeyTsRef.current = 0;
@@ -1051,7 +1063,7 @@ export function POS() {
     setDevolucionBusy(false);
     setVentaResetConfirmOpen(false);
     searchInputRef.current?.blur();
-  }, [clearCart, handleCheckoutOpenChange]);
+  }, [finalizePosCartAfterSale, handleCheckoutOpenChange]);
 
   const confirmVentaReset = useCallback(async () => {
     const resumed = openSaleResume;
@@ -1349,7 +1361,7 @@ export function POS() {
       client && !client.isMostrador && client.id !== 'mostrador'
         ? client.nombre
         : openSaleResume?.sale?.cliente?.nombre?.trim() &&
-            openSaleResume.sale.cliente.nombre.trim() !== 'Mostrador'
+            !isPosGenericClienteNombre(openSaleResume.sale.cliente.nombre.trim())
           ? openSaleResume.sale.cliente.nombre.trim()
           : '';
     setCheckoutClienteNombre(nombreInicial);
@@ -2017,7 +2029,7 @@ export function POS() {
       };
 
       const { folio: folioVenta } = await addSale(saleData);
-      clearCart();
+      void finalizePosCartAfterSale();
       addToast({
         type: 'success',
         message: `Venta ${folioVenta} guardada como abierta (fiado). Cobre cuando pague el cliente.`,
@@ -2252,7 +2264,7 @@ export function POS() {
 
   const abandonarVentaAbiertaRetomada = () => {
     setOpenSaleResume(null);
-    clearCart();
+    void finalizePosCartAfterSale();
     addToast({ type: 'info', message: 'Se descartó el carrito. La venta sigue pendiente en la lista.' });
   };
 
@@ -2327,7 +2339,7 @@ export function POS() {
   const descartarCotizacionCargada = () => {
     setSaleFromQuotationId(null);
     setQuotationLoadedFolio(null);
-    clearCart();
+    void finalizePosCartAfterSale();
     addToast({ type: 'info', message: 'Carrito vaciado. La cotización sigue pendiente en Cotizaciones.' });
   };
 
@@ -2366,7 +2378,7 @@ export function POS() {
         const cajeroNombre =
           user?.name?.trim() || user?.username?.trim() || user?.email?.trim() || undefined;
         const devolucionTicketSnap: PosTicketSnapshot = {
-          clienteNombre: devolucionSaleResuelta.cliente?.nombre?.trim() || 'Mostrador',
+          clienteNombre: devolucionSaleResuelta.cliente?.nombre?.trim() || POS_GENERIC_CLIENT_LABEL,
           cajeroNombre,
           lineas,
           subtotal: (Number(devolucionSaleResuelta.subtotal) || 0) * ratio,
@@ -2390,7 +2402,7 @@ export function POS() {
         setDevolucionSaleResuelta(null);
         setDevolucionLineasQty({});
         setFormaPago('01');
-        clearCart();
+        void finalizePosCartAfterSale();
         setCheckoutPhase('success');
         addToast({
           type: 'success',
@@ -2613,7 +2625,7 @@ export function POS() {
           setTicketSnapshot(ticketSnapCxC);
           printPosTicketSnapshot(ticketSnapCxC);
           setOpenSaleResume(null);
-          clearCart();
+          void finalizePosCartAfterSale();
           setCheckoutPhase('success');
           addToast({
             type: 'success',
@@ -2684,7 +2696,7 @@ export function POS() {
         setTicketSnapshot(ticketSnapAbierta);
         printPosTicketSnapshot(ticketSnapAbierta);
         setOpenSaleResume(null);
-        clearCart();
+        void finalizePosCartAfterSale();
         setCheckoutPhase('success');
         addToast({
           type: 'success',
@@ -2808,7 +2820,7 @@ export function POS() {
       };
       setTicketSnapshot(ticketSnapVenta);
       printPosTicketSnapshot(ticketSnapVenta);
-      clearCart();
+      void finalizePosCartAfterSale();
       // Mismo portal de diálogo: pasar a "success" evita dos Dialog de Radix a la vez (insertBefore/removeChild).
       setCheckoutPhase('success');
 
@@ -3025,7 +3037,7 @@ export function POS() {
               {openSaleResume.sale.estado === 'completada' ? (
                 <>
                   Ticket <span className="font-mono font-semibold">{openSaleResume.sale.folio}</span> con saldo en
-                  cuenta. Registre el cobro del saldo y pulse Cobrar (cliente mostrador o registrado).
+                  cuenta. Registre el cobro del saldo y pulse Cobrar (cliente {POS_GENERIC_CLIENT_LABEL} o registrado).
                 </>
               ) : (
                 <>
@@ -3555,7 +3567,7 @@ export function POS() {
               void refreshClients();
               setShowClientDialog(true);
             }}
-            aria-label={`Cliente: ${client?.nombre || 'Mostrador'}. Cambiar cliente`}
+            aria-label={`Cliente: ${posClienteDisplayNombre(client)}. Cambiar cliente`}
           >
             <div className="flex min-w-0 items-center gap-2 sm:gap-3 lg:gap-2">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-500/20 sm:h-10 sm:w-10 lg:h-8 lg:w-8">
@@ -3566,7 +3578,7 @@ export function POS() {
                   Cliente
                 </p>
                 <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-200 sm:text-base lg:text-sm">
-                  {client?.nombre || 'Mostrador'}
+                  {posClienteDisplayNombre(client)}
                 </p>
               </div>
             </div>
@@ -3910,8 +3922,8 @@ export function POS() {
                 {esFormaPendientePago ? (
                   <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-[10px] leading-snug text-black dark:border-amber-500/25 dark:bg-amber-950/30 dark:text-amber-100 sm:text-xs">
                     <span className="font-semibold">Pendiente de pago:</span> se registrará el total como saldo del
-                    cliente (aparece en Cuentas por cobrar con el folio del ticket). Elija un cliente registrado, no
-                    Mostrador.
+                    cliente (aparece en Cuentas por cobrar con el folio del ticket). Elija un cliente registrado, no{' '}
+                    {POS_GENERIC_CLIENT_LABEL}.
                   </p>
                 ) : (
                   <div className="space-y-1 lg:space-y-0.5">
@@ -4091,7 +4103,7 @@ export function POS() {
             <p className="text-left text-xs font-normal text-slate-600 dark:text-slate-400">
               Pendiente de pago. Toque una fila para cargarla en el carrito y cobrar.{' '}
               <span className="text-slate-500 dark:text-slate-500">
-                «Pasar a cuentas por cobrar» en mostrador pedirá elegir el cliente deudor.
+                «Pasar a cuentas por cobrar» con {POS_GENERIC_CLIENT_LABEL} pedirá elegir el cliente deudor.
               </span>
             </p>
           </DialogHeader>
@@ -4590,7 +4602,7 @@ export function POS() {
               }}
               className="w-full rounded-lg border border-slate-300 dark:border-slate-700/80 bg-slate-200 dark:bg-slate-800/80 p-3 text-left transition-colors hover:bg-slate-200 dark:bg-slate-800"
             >
-              <p className="font-medium text-slate-900 dark:text-slate-100">Mostrador</p>
+              <p className="font-medium text-slate-900 dark:text-slate-100">{POS_GENERIC_CLIENT_LABEL}</p>
               <p className="text-xs text-slate-600 dark:text-slate-500">Sin cliente registrado</p>
             </button>
             {clientesFiltradosVenta.length === 0 ? (
@@ -4886,8 +4898,8 @@ export function POS() {
           </DialogHeader>
           <p className="text-xs text-slate-600 dark:text-slate-400">
             Capture un importe por lista; deje vacío para quitar precio fijo y usar el % de configuración sobre el
-            precio de venta. Al editar <span className="font-medium text-slate-700 dark:text-slate-300">Regular</span>,
-            las demás listas se recalculan solas con los % del POS.{' '}
+            precio de venta. Cada lista se edita por separado; para recalcular todas, cambie el precio de venta en
+            Inventario.{' '}
             <span className="font-medium text-slate-700 dark:text-slate-300">
               {listasPrecioCatalogEditConIva
                 ? `Los campos muestran precios con IVA (${unitPriceDialogLine?.product?.impuesto ?? 16}%).`

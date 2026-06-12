@@ -57,7 +57,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useClients, useClientSearch, useEffectiveSucursalId, useSales } from '@/hooks';
 import { useAppStore, useAuthStore } from '@/stores';
-import type { Client, Sale } from '@/types';
+import type { Client, Sale, SaleItem } from '@/types';
 import { REGIMENES_FISCALES, USOS_CFDI } from '@/types';
 import { PageShell } from '@/components/ui-custom/PageShell';
 import { ClientAddressSonoraFields } from '@/components/ui-custom/ClientAddressSonoraFields';
@@ -81,6 +81,41 @@ import {
 } from '@/lib/clientPriceLists';
 
 type ClientSortMode = 'nombre' | 'rfc' | 'email' | 'tickets';
+
+type AdeudoTicketRow = { sale: Sale; adeudo: number };
+
+const ADEUDOS_BTN_ACTIVE =
+  'border-red-600/40 bg-red-500/15 text-red-800 hover:bg-red-500/25 dark:border-red-500/40 dark:bg-red-500/15 dark:text-red-100 dark:hover:bg-red-500/25';
+const ADEUDOS_BTN_EMPTY =
+  'border-slate-300/60 bg-slate-100/90 text-slate-500 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-500';
+
+function buildAdeudosTicketsForCliente(clientId: string, sales: Sale[]): AdeudoTicketRow[] {
+  const cid = clientId.trim();
+  if (!cid || cid === 'mostrador') return [];
+  const rows: AdeudoTicketRow[] = [];
+  for (const sale of sales) {
+    if (sale.estado !== 'completada') continue;
+    const adeudo = computeSaleClienteAdeudo(sale);
+    if (adeudo <= 0.005) continue;
+    if ((sale.clienteId ?? '').trim() !== cid) continue;
+    rows.push({ sale, adeudo });
+  }
+  rows.sort((a, b) => b.sale.createdAt.getTime() - a.sale.createdAt.getTime());
+  return rows;
+}
+
+function totalAdeudoTickets(rows: readonly AdeudoTicketRow[]): number {
+  return Math.round(rows.reduce((s, x) => s + x.adeudo, 0) * 100) / 100;
+}
+
+function totalPagadoVenta(s: Sale): number {
+  return (s.pagos ?? []).reduce((sum, p) => sum + (Number(p.monto) || 0), 0);
+}
+
+function lineaDescripcionAdeudo(item: SaleItem): string {
+  const n = item.productoNombre?.trim() || item.producto?.nombre?.trim();
+  return n || 'Artículo';
+}
 
 function buildAdeudosCxCCountByCliente(sales: Sale[]): Map<string, number> {
   const map = new Map<string, number>();
@@ -166,6 +201,9 @@ export function Clientes() {
   const [clientVentasLoading, setClientVentasLoading] = useState(false);
   const ventasHistorialSyncKeyRef = useRef<string | null>(null);
 
+  const [adeudosClienteDialog, setAdeudosClienteDialog] = useState<Client | null>(null);
+  const [adeudosTicketDetalle, setAdeudosTicketDetalle] = useState<AdeudoTicketRow | null>(null);
+
   const adeudosPorCliente = useMemo(() => buildAdeudosCxCCountByCliente(sales), [sales]);
   const comprasPorCliente = useMemo(() => buildComprasCountByCliente(sales), [sales]);
 
@@ -230,6 +268,22 @@ export function Clientes() {
     setClientVentasSale(null);
     setClientVentasList([]);
   };
+
+  const openAdeudosClienteDialog = (client: Client) => {
+    if (adeudosCxCUI(client.id, adeudosPorCliente) === 0) return;
+    setAdeudosTicketDetalle(null);
+    setAdeudosClienteDialog(client);
+  };
+
+  const closeAdeudosClienteDialog = () => {
+    setAdeudosClienteDialog(null);
+    setAdeudosTicketDetalle(null);
+  };
+
+  const adeudosTicketsDialog = useMemo(() => {
+    if (!adeudosClienteDialog) return [];
+    return buildAdeudosTicketsForCliente(adeudosClienteDialog.id, sales);
+  }, [adeudosClienteDialog, sales]);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -559,14 +613,10 @@ export function Clientes() {
                       type="button"
                       className={cn(
                         'flex shrink-0 items-center gap-1 rounded-lg border px-2 py-0.5 text-[11px] font-semibold tabular-nums transition-colors',
-                        adeudosCxCUI(client.id, adeudosPorCliente) > 0
-                          ? 'border-amber-600/35 bg-amber-500/15 text-amber-900 hover:bg-amber-500/25 dark:border-amber-500/35 dark:bg-amber-500/15 dark:text-amber-100 dark:hover:bg-amber-500/25'
-                          : 'border-slate-300/60 bg-slate-100/90 text-slate-500 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-500'
+                        adeudosCxCUI(client.id, adeudosPorCliente) > 0 ? ADEUDOS_BTN_ACTIVE : ADEUDOS_BTN_EMPTY
                       )}
-                      title="Tickets con saldo en Cuentas por cobrar"
-                      onClick={() => {
-                        if (adeudosCxCUI(client.id, adeudosPorCliente) > 0) navigate('/cuentas-por-cobrar');
-                      }}
+                      title="Ver adeudos en Cuentas por cobrar"
+                      onClick={() => openAdeudosClienteDialog(client)}
                       disabled={adeudosCxCUI(client.id, adeudosPorCliente) === 0}
                     >
                       <Wallet className="h-3 w-3" aria-hidden />
@@ -673,14 +723,10 @@ export function Clientes() {
                           type="button"
                           className={cn(
                             'inline-flex items-center justify-center gap-1 rounded-md border px-2 py-0.5 text-xs font-semibold tabular-nums transition-colors',
-                            adeudosCxCUI(client.id, adeudosPorCliente) > 0
-                              ? 'border-amber-600/35 bg-amber-500/15 text-amber-900 hover:bg-amber-500/25 dark:border-amber-500/35 dark:bg-amber-500/15 dark:text-amber-100 dark:hover:bg-amber-500/25'
-                              : 'border-slate-300/60 bg-slate-100/90 text-slate-500 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-500'
+                            adeudosCxCUI(client.id, adeudosPorCliente) > 0 ? ADEUDOS_BTN_ACTIVE : ADEUDOS_BTN_EMPTY
                           )}
-                          title="Tickets con saldo en Cuentas por cobrar"
-                          onClick={() => {
-                            if (adeudosCxCUI(client.id, adeudosPorCliente) > 0) navigate('/cuentas-por-cobrar');
-                          }}
+                          title="Ver adeudos en Cuentas por cobrar"
+                          onClick={() => openAdeudosClienteDialog(client)}
                           disabled={adeudosCxCUI(client.id, adeudosPorCliente) === 0}
                         >
                           <Wallet className="h-3.5 w-3.5" aria-hidden />
@@ -1100,15 +1146,14 @@ export function Clientes() {
                     type="button"
                     className={cn(
                       'group inline-flex flex-wrap items-center gap-1.5 rounded-lg border px-2 py-1 text-left transition-colors',
-                      adeudosCxCUI(detailClient.id, adeudosPorCliente) > 0
-                        ? 'border-amber-600/35 bg-amber-500/15 text-amber-900 hover:bg-amber-500/25 dark:border-amber-500/35 dark:bg-amber-500/15 dark:text-amber-100 dark:hover:bg-amber-500/25'
-                        : 'border-slate-300/60 bg-slate-100/90 text-slate-500 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-500'
+                      adeudosCxCUI(detailClient.id, adeudosPorCliente) > 0 ? ADEUDOS_BTN_ACTIVE : ADEUDOS_BTN_EMPTY
                     )}
-                    title="Tickets con saldo en Cuentas por cobrar"
+                    title="Ver adeudos en Cuentas por cobrar"
                     onClick={() => {
                       if (adeudosCxCUI(detailClient.id, adeudosPorCliente) > 0) {
+                        const c = detailClient;
                         setDetailClient(null);
-                        navigate('/cuentas-por-cobrar');
+                        openAdeudosClienteDialog(c);
                       }
                     }}
                     disabled={adeudosCxCUI(detailClient.id, adeudosPorCliente) === 0}
@@ -1118,7 +1163,7 @@ export function Clientes() {
                       {adeudosCxCUI(detailClient.id, adeudosPorCliente)}
                     </span>
                     <span className="text-xs font-normal text-slate-600 group-hover:text-slate-500 dark:text-slate-500">
-                      adeudo{adeudosCxCUI(detailClient.id, adeudosPorCliente) === 1 ? '' : 's'} en CxC
+                      (pulse para ver adeudos)
                     </span>
                   </button>
                   {isAdmin && !detailClient.isMostrador && detailClient.id !== 'mostrador' ? (
@@ -1372,6 +1417,196 @@ export function Clientes() {
               variant="outline"
               className="w-full border-slate-300 dark:border-slate-700 sm:w-auto"
               onClick={closeClientVentasDialog}
+            >
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!adeudosClienteDialog}
+        onOpenChange={(o) => {
+          if (!o) closeAdeudosClienteDialog();
+        }}
+      >
+        <DialogContent className="flex max-h-[92dvh] w-[calc(100%-1.5rem)] max-w-none flex-col gap-0 overflow-hidden border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 p-0 text-slate-900 dark:text-slate-100 sm:w-full md:max-w-[min(92vw,32rem)] lg:max-w-[min(92vw,36rem)]">
+          <DialogHeader className="shrink-0 space-y-0 border-b border-slate-200 dark:border-slate-800/80 px-4 pb-3 pt-4 pr-14 text-left">
+            {adeudosTicketDetalle ? (
+              <div className="flex items-start gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 shrink-0 text-slate-600 dark:text-slate-400"
+                  aria-label="Volver al listado"
+                  onClick={() => setAdeudosTicketDetalle(null)}
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </Button>
+                <div className="min-w-0">
+                  <DialogTitle className="truncate">
+                    Ticket {adeudosTicketDetalle.sale.folio?.trim() || adeudosTicketDetalle.sale.id.slice(0, 8)}
+                  </DialogTitle>
+                  <p className="mt-1 text-sm font-normal text-slate-600 dark:text-slate-500">
+                    {adeudosClienteDialog?.nombre}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <DialogTitle>Adeudos del cliente</DialogTitle>
+                <p className="mt-1 text-sm font-normal text-slate-600 dark:text-slate-500">
+                  {adeudosClienteDialog?.nombre}
+                </p>
+                {adeudosTicketsDialog.length > 0 ? (
+                  <p className="mt-2 text-sm font-semibold tabular-nums text-red-700 dark:text-red-400">
+                    Saldo total: {formatMoney(totalAdeudoTickets(adeudosTicketsDialog))}
+                  </p>
+                ) : null}
+              </>
+            )}
+          </DialogHeader>
+
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3">
+            {adeudosTicketDetalle ? (
+              <div className="space-y-4 text-sm">
+                <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <div>
+                    <dt className="text-slate-600 dark:text-slate-500">Fecha</dt>
+                    <dd className="font-medium text-slate-900 dark:text-slate-100">
+                      {formatInAppTimezone(adeudosTicketDetalle.sale.createdAt, {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      })}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-600 dark:text-slate-500">Saldo pendiente</dt>
+                    <dd className="font-semibold tabular-nums text-red-700 dark:text-red-400">
+                      {formatMoney(adeudosTicketDetalle.adeudo)}
+                    </dd>
+                  </div>
+                </dl>
+                <div>
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-500">
+                    Artículos
+                  </p>
+                  <ul className="max-h-48 space-y-1.5 overflow-y-auto rounded-lg border border-slate-200/80 bg-white/60 p-2.5 text-xs dark:border-slate-700/60 dark:bg-slate-900/40">
+                    {(adeudosTicketDetalle.sale.productos ?? []).length === 0 ? (
+                      <li className="text-slate-600 dark:text-slate-500">Sin líneas registradas.</li>
+                    ) : (
+                      (adeudosTicketDetalle.sale.productos ?? []).map((item) => (
+                        <li
+                          key={item.id}
+                          className="flex justify-between gap-2 border-b border-slate-200/60 pb-1 last:border-0 last:pb-0 dark:border-slate-700/50"
+                        >
+                          <span className="min-w-0 truncate">{lineaDescripcionAdeudo(item)}</span>
+                          <span className="shrink-0 tabular-nums text-slate-700 dark:text-slate-300">
+                            ×{item.cantidad} · {formatMoney(Number(item.total) || 0)}
+                          </span>
+                        </li>
+                      ))
+                    )}
+                  </ul>
+                </div>
+                <div className="space-y-1 rounded-lg border border-slate-200/80 bg-slate-200/50 px-3 py-2.5 dark:border-slate-700/60 dark:bg-slate-800/40">
+                  <div className="flex justify-between gap-2 text-slate-700 dark:text-slate-300">
+                    <span>Subtotal</span>
+                    <span className="tabular-nums">
+                      {formatMoney(Number(adeudosTicketDetalle.sale.subtotal) || 0)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between gap-2 text-slate-700 dark:text-slate-300">
+                    <span>IVA</span>
+                    <span className="tabular-nums">
+                      {formatMoney(Number(adeudosTicketDetalle.sale.impuestos) || 0)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between gap-2 font-semibold text-cyan-600 dark:text-cyan-400">
+                    <span>Total</span>
+                    <span className="tabular-nums">
+                      {formatMoney(Number(adeudosTicketDetalle.sale.total) || 0)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between gap-2 text-slate-700 dark:text-slate-300">
+                    <span>Pagado</span>
+                    <span className="tabular-nums">{formatMoney(totalPagadoVenta(adeudosTicketDetalle.sale))}</span>
+                  </div>
+                  <div className="flex justify-between gap-2 font-semibold text-red-700 dark:text-red-400">
+                    <span>Saldo</span>
+                    <span className="tabular-nums">{formatMoney(adeudosTicketDetalle.adeudo)}</span>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white sm:w-auto"
+                  onClick={() => void printThermalTicketFromSale(adeudosTicketDetalle.sale)}
+                >
+                  <Printer className="mr-2 h-4 w-4" />
+                  Abrir ticket para imprimir
+                </Button>
+              </div>
+            ) : adeudosTicketsDialog.length === 0 ? (
+              <div className="py-10 text-center text-sm text-slate-600 dark:text-slate-500">
+                No hay tickets con saldo pendiente para este cliente.
+              </div>
+            ) : (
+              <ul className="space-y-2">
+                {adeudosTicketsDialog.map(({ sale, adeudo }) => (
+                  <li key={sale.id}>
+                    <button
+                      type="button"
+                      className="flex w-full flex-col gap-1 rounded-lg border border-red-200/80 bg-red-500/5 p-3 text-left transition-colors hover:bg-red-500/10 dark:border-red-900/50 dark:bg-red-500/10 dark:hover:bg-red-500/15"
+                      onClick={() => setAdeudosTicketDetalle({ sale, adeudo })}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="flex min-w-0 items-center gap-2 font-medium text-slate-900 dark:text-slate-100">
+                          <Wallet className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" aria-hidden />
+                          <span className="truncate font-mono">
+                            {sale.folio?.trim() || sale.id.slice(0, 8)}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-sm font-semibold tabular-nums text-red-700 dark:text-red-400">
+                          {formatMoney(adeudo)}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600 dark:text-slate-500">
+                        {formatInAppTimezone(
+                          sale.createdAt instanceof Date ? sale.createdAt : new Date(sale.createdAt),
+                          { dateStyle: 'short', timeStyle: 'short' }
+                        )}
+                        {' · '}
+                        Total {formatMoney(sale.total)} · Pagado {formatMoney(totalPagadoVenta(sale))}
+                      </p>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <DialogFooter className="shrink-0 flex-col gap-2 border-t border-slate-200 dark:border-slate-800/80 px-4 py-3 sm:flex-row sm:justify-between">
+            {!adeudosTicketDetalle && adeudosTicketsDialog.length > 0 ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full border-slate-300 dark:border-slate-700 sm:w-auto"
+                onClick={() => {
+                  closeAdeudosClienteDialog();
+                  navigate('/cuentas-por-cobrar');
+                }}
+              >
+                Ir a Cuentas por cobrar
+              </Button>
+            ) : (
+              <span className="hidden sm:block" />
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full border-slate-300 dark:border-slate-700 sm:ml-auto sm:w-auto"
+              onClick={closeAdeudosClienteDialog}
             >
               Cerrar
             </Button>

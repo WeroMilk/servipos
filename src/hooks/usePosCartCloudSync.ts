@@ -7,6 +7,7 @@ import {
   savePosCartDraft,
   subscribePosCartDraft,
 } from '@/lib/firestore/posCartDraftFirestore';
+import { getEmptyCartDraftSnapshot } from '@/stores/cartStore';
 
 const WRITE_DEBOUNCE_MS = 200;
 
@@ -15,17 +16,7 @@ function snapshotSignature(s: CartDraftSnapshot): string {
 }
 
 function emptyDraftSignature(): string {
-  return snapshotSignature({
-    items: [],
-    client: null,
-    discount: 0,
-    formaPago: '01',
-    metodoPago: 'PUE',
-    pagos: [],
-    notas: '',
-    transferenciaDestinoSucursalId: '',
-    precioClienteListaId: 'regular',
-  });
+  return snapshotSignature(getEmptyCartDraftSnapshot());
 }
 
 function snapshotFromStore(): CartDraftSnapshot {
@@ -169,6 +160,23 @@ export function usePosCartCloudSync(params: { userId?: string | null; sucursalId
       const cloud = await getPosCartDraftOnce(sucursalId, userId);
       if (cancelled) return;
 
+      let localBackupEmpty: CartDraftSnapshot | null = null;
+      try {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const parsed = JSON.parse(raw) as CartDraftSnapshot;
+          if (!parsed.items?.length) localBackupEmpty = parsed;
+        }
+      } catch {
+        /* noop */
+      }
+
+      if (localBackupEmpty && (cloud?.cart?.items?.length ?? 0) > 0) {
+        applyRemote(localBackupEmpty, Date.now());
+        void savePosCartDraft(sucursalId, userId, localBackupEmpty).catch(() => {});
+        return;
+      }
+
       const localDraft = snapshotFromStore();
       const localSig = snapshotSignature(localDraft);
       const localHasItems = localDraft.items.length > 0;
@@ -222,6 +230,13 @@ export function usePosCartCloudSync(params: { userId?: string | null; sucursalId
         return;
       }
 
+      const localEmpty = nowDraft.items.length === 0;
+      const incomingHasItems = (doc.cart.items?.length ?? 0) > 0;
+      if (localEmpty && incomingHasItems) {
+        bumpRemoteClock(lastRemoteUpdatedAtMsRef, ts);
+        return;
+      }
+
       if (ts <= lastRemoteUpdatedAtMsRef.current) return;
 
       /** Guardar en remoto suele usar `Date.now()` al inicio del upsert; si el usuario ya cambió el carrito después, no pisar. */
@@ -262,6 +277,12 @@ export function usePosCartCloudSync(params: { userId?: string | null; sucursalId
     const hasItems = currentSnapshot.items.length > 0;
     const flushNow = hadCartItemsRef.current && !hasItems;
     hadCartItemsRef.current = hasItems;
+
+    if (flushNow) {
+      lastSignatureRef.current = sig;
+      lastLocalCartMutationMsRef.current = Date.now();
+      bumpRemoteClock(lastRemoteUpdatedAtMsRef, Date.now());
+    }
 
     const persist = () => {
       void savePosCartDraft(sucursalId, userId, currentSnapshot)

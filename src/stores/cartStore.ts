@@ -102,6 +102,11 @@ const EMPTY_CART_DRAFT: CartDraftSnapshot = {
   precioClienteListaId: 'regular',
 };
 
+/** Borrador vacío del carrito POS (sync nube / localStorage). */
+export function getEmptyCartDraftSnapshot(): CartDraftSnapshot {
+  return { ...EMPTY_CART_DRAFT };
+}
+
 function coerceCartItemPrecioLista(it: CartItem): CartItem {
   const raw = it.precioListaId;
   if (

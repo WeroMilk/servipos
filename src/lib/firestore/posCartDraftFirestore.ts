@@ -1,6 +1,7 @@
 import { getSupabase } from '@/lib/supabaseClient';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import type { CartDraftSnapshot } from '@/stores/cartStore';
+import { getEmptyCartDraftSnapshot } from '@/stores/cartStore';
 
 type PosCartDraftDoc = {
   cart: CartDraftSnapshot;
@@ -60,6 +61,18 @@ export async function savePosCartDraft(
   );
   if (error) throw new Error(error.message);
   return updatedAtMs;
+}
+
+/** Tras cobrar: persiste carrito vacío en nube y localStorage para que no “reviva” el borrador. */
+export async function commitEmptyPosCartDraft(sucursalId: string, userId: string): Promise<number> {
+  const empty = getEmptyCartDraftSnapshot();
+  const wroteAt = await savePosCartDraft(sucursalId, userId, empty);
+  try {
+    localStorage.setItem(`servipos:poscart:${sucursalId}:${userId}`, JSON.stringify(empty));
+  } catch {
+    /* noop */
+  }
+  return wroteAt;
 }
 
 /** Solo Realtime: la carga inicial la hace el hook para evitar carreras con otra petición en paralelo. */

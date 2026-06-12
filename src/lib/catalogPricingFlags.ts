@@ -9,6 +9,12 @@ export function setCatalogListaPreciosIncluyenIvaFromFiscal(
   fiscalListaPreciosConIva = fiscal?.preciosListaIncluyenIva;
 }
 
+/** Valor por defecto para productos nuevos (sin `product.preciosListaIncluyenIva` definido). */
+export function defaultListaPreciosIncluyenIva(): boolean {
+  if (fiscalListaPreciosConIva === false) return false;
+  return true;
+}
+
 /**
  * Si es true, los importes en `preciosPorListaCliente` vienen con IVA incluido
  * (se convierten a sin IVA con el % `product.impuesto`).

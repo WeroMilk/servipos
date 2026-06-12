@@ -81,7 +81,7 @@ import { deleteAllInventoryMovementsFirestore } from '@/lib/firestore/inventoryM
 import { subscribeSucursales } from '@/lib/firestore/sucursalesMetaFirestore';
 import { confirmIncomingStoreTransfer } from '@/lib/firestore/storeTransfersFirestore';
 import { cn, formatMoney } from '@/lib/utils';
-import { getProductPrecioPublicoRegular } from '@/lib/productListPricing';
+import { getProductPrecioPublicoRegular, deriveListaPrecioStorageStringsFromPrecioVenta } from '@/lib/productListPricing';
 import { parsePrecioNumberFromFirestore } from '@/lib/precioListaNorm';
 import {
   SAT_CLAVES_UNIDAD,
@@ -100,7 +100,7 @@ import { formatInAppTimezone } from '@/lib/appTimezone';
 import { isMovimientoLlegadaMercancia } from '@/lib/inventoryAbasto';
 import { downloadInventarioCompleto } from '@/lib/inventoryExport';
 import { filterProductsBySearchText } from '@/lib/productSearchLocal';
-import { effectiveListaPreciosIncluyenIva } from '@/lib/catalogPricingFlags';
+import { effectiveListaPreciosIncluyenIva, defaultListaPreciosIncluyenIva } from '@/lib/catalogPricingFlags';
 import {
   buildProveedorNombrePorLinea,
   formatProveedorHistorialLineaResuelto,
@@ -685,6 +685,16 @@ export function Inventario() {
   const editListaStorageIncluyeIva = useMemo(
     () => (selectedProduct ? effectiveListaPreciosIncluyenIva(selectedProduct) : true),
     [selectedProduct]
+  );
+
+  const cascadeListasFromPrecioVenta = useCallback(
+    (precioVentaSinIva: number, impuestoPct: number, storageIncluyeIva: boolean) => {
+      setPreciosListaStr(
+        deriveListaPrecioStorageStringsFromPrecioVenta(precioVentaSinIva, storageIncluyeIva, impuestoPct)
+      );
+      setListasPrecioMainDraft({});
+    },
+    []
   );
 
   const preciosDialogListaStorageIncluyeIva = useMemo(
@@ -2663,7 +2673,10 @@ export function Inventario() {
                 min={0}
                 step="any"
                 storedSinIva={formData.precioVenta}
-                onStoredSinIvaChange={(n) => setFormData((d) => ({ ...d, precioVenta: n }))}
+                onStoredSinIvaChange={(n) => {
+                  setFormData((d) => ({ ...d, precioVenta: n }));
+                  cascadeListasFromPrecioVenta(n, formData.impuesto, defaultListaPreciosIncluyenIva());
+                }}
                 ivaMode={addPrecioIvaMode}
                 impuestoPct={formData.impuesto}
                 className="h-10 border-slate-300 bg-slate-200 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9"
@@ -3088,7 +3101,10 @@ export function Inventario() {
                 min={0}
                 step="any"
                 storedSinIva={formData.precioVenta}
-                onStoredSinIvaChange={(n) => setFormData((d) => ({ ...d, precioVenta: n }))}
+                onStoredSinIvaChange={(n) => {
+                  setFormData((d) => ({ ...d, precioVenta: n }));
+                  cascadeListasFromPrecioVenta(n, formData.impuesto, editListaStorageIncluyeIva);
+                }}
                 ivaMode={editPrecioIvaMode}
                 impuestoPct={formData.impuesto}
                 className="bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
@@ -3123,6 +3139,13 @@ export function Inventario() {
                     {formData.impuesto}%).
                   </>
                 )}
+                {formData.precioVenta > 0 ? (
+                  <>
+                    {' '}
+                    Al cambiar este precio se recalculan las listas de cliente con los % de Configuración → Precios por
+                    cliente.
+                  </>
+                ) : null}
               </p>
             </div>
             <div className="space-y-2">

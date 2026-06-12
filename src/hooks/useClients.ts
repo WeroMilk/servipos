@@ -14,6 +14,7 @@ import {
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 import { reportHookFailure } from '@/lib/appEventLog';
 import { getDefaultSucursalIdForNewData } from '@/lib/sucursales';
+import { POS_GENERIC_CLIENT_LABEL } from '@/lib/posDefaultCliente';
 import {
   subscribeClientsCatalog,
   createClientFirestore,
@@ -24,7 +25,7 @@ import {
 function mostradorPlaceholder(sucursalId: string): Client {
   return {
     id: 'mostrador',
-    nombre: 'Mostrador',
+    nombre: POS_GENERIC_CLIENT_LABEL,
     isMostrador: true,
     sucursalId,
     createdAt: new Date(0),

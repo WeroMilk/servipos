@@ -57,31 +57,22 @@ function maxExplicitListaSinIvaLadderTop(product: Product): number {
 }
 
 /**
- * Precio unitario sin IVA de la lista **Regular**.
- * Preferencia: el **más caro** entre los importes fijos de todas las listas (escalón tope = Regular de negocio),
- * frente a `precioVenta` del documento, para tolerar catálogos desalineados tras importaciones parciales.
+ * Precio unitario sin IVA de la lista **Regular** (= precio de venta del catálogo cuando está definido).
  */
 function getRegularUnitSinIva(product: Product): number {
-  const pctReg = getListaPrecioClientePct('regular');
-  const pvBase = Number(product.precioVenta) || 0;
-  const fromPv = pvBase * (1 - pctReg / 100);
-  const ladderTop = maxExplicitListaSinIvaLadderTop(product);
-
-  let core = 0;
-  if (ladderTop > 0 && fromPv > 0.005) {
-    core = Math.max(ladderTop, fromPv);
-  } else if (ladderTop > 0) {
-    core = ladderTop;
-  } else if (fromPv > 0.005) {
-    core = fromPv;
+  const pv = Number(product.precioVenta) || 0;
+  if (pv > 0.005) {
+    return snapRegularSinIvaAvoidDotZeroOneConIva(roundMoney2(pv), product);
   }
 
-  if (core > 0) {
-    return snapRegularSinIvaAvoidDotZeroOneConIva(roundMoney2(core), product);
+  const ladderTop = maxExplicitListaSinIvaLadderTop(product);
+  if (ladderTop > 0) {
+    return snapRegularSinIvaAvoidDotZeroOneConIva(roundMoney2(ladderTop), product);
   }
 
   const alt = firstSinIvaFromAnyLista(product);
   if (alt > 0) {
+    const pctReg = getListaPrecioClientePct('regular');
     return snapRegularSinIvaAvoidDotZeroOneConIva(roundMoney2(alt * (1 - pctReg / 100)), product);
   }
   return 0;
@@ -120,20 +111,25 @@ export function getProductPrecioPublicoRegular(product: Product): number {
 }
 
 /**
- * A partir del importe Regular (mismo modo que el formulario: con o sin IVA),
- * calcula el resto de listas con los % de configuración del POS.
+ * A partir del precio de venta del catálogo (sin IVA), calcula importes de lista
+ * en el formato de almacenamiento (con o sin IVA según producto/config).
  */
-export function deriveListaPrecioStringsFromRegularAmount(regularAmount: number): Record<ClientPriceListId, string> {
+export function deriveListaPrecioStorageStringsFromPrecioVenta(
+  precioVentaSinIva: number,
+  storageIncluyeIva: boolean,
+  impuestoPct: number
+): Record<ClientPriceListId, string> {
   const out = {} as Record<ClientPriceListId, string>;
   for (const id of CLIENT_PRICE_LIST_ORDER) out[id] = '';
-  if (!Number.isFinite(regularAmount) || regularAmount < 0) return out;
+  if (!Number.isFinite(precioVentaSinIva) || precioVentaSinIva <= 0) return out;
 
-  const reg = roundMoney2(regularAmount);
-  out.regular = reg.toFixed(2);
+  const imp = Number(impuestoPct) || 16;
   for (const id of CLIENT_PRICE_LIST_ORDER) {
-    if (id === 'regular') continue;
     const pct = getListaPrecioClientePct(id);
-    out[id] = roundMoney2(reg * (1 - pct / 100)).toFixed(2);
+    const sinIva = roundMoney2(precioVentaSinIva * (1 - pct / 100));
+    if (sinIva <= 0) continue;
+    const stored = storageIncluyeIva ? roundMoney2(sinIva * (1 + imp / 100)) : sinIva;
+    out[id] = String(stored);
   }
   return out;
 }

@@ -16,6 +16,7 @@ import type {
   Permission,
 } from '@/types';
 import { productEsServicio } from '@/lib/productServicio';
+import { POS_GENERIC_CLIENT_LABEL } from '@/lib/posDefaultCliente';
 import { derivePurchaseOrderEstado, mapLegacyPurchaseOrderEstado } from '@/lib/purchaseOrderLogic';
 import { updateStockUnified } from '@/data/stockBridge';
 import {
@@ -233,7 +234,7 @@ export async function initializeDemoData(): Promise<void> {
   if (mostradorCount === 0) {
     await db.clients.add({
       id: 'mostrador',
-      nombre: 'Mostrador',
+      nombre: POS_GENERIC_CLIENT_LABEL,
       isMostrador: true,
       sucursalId: getDefaultSucursalIdForNewData(),
       createdAt: new Date(),
