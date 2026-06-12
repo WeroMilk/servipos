@@ -85,7 +85,7 @@ const statusLabels: Record<string, string> = {
   convertida: 'Ya Cobrada',
 };
 
-type CotizacionStatusFiltro = 'todas' | 'cobrada' | 'pendiente' | 'expirada';
+type CotizacionStatusFiltro = 'todas' | 'cobrada' | 'pendiente';
 
 /** Columnas ordenables de la tabla (Acciones no aplica). */
 type CotizacionSortColumn = 'folio' | 'cliente' | 'fecha' | 'vigencia' | 'total' | 'estado';
@@ -102,18 +102,10 @@ function createdTs(q: Quotation): number {
   return d instanceof Date ? d.getTime() : new Date(d as string).getTime();
 }
 
-/** Incluye vencida/rechazada en sistema o vigencia pasada (pendiente/aceptada aún no marcadas). */
-function esCotizacionExpirada(q: Quotation): boolean {
-  if (q.estado === 'convertida') return false;
-  if (q.estado === 'vencida' || q.estado === 'rechazada') return true;
-  return vigenciaTs(q) < Date.now();
-}
-
 function coincideFiltroEstado(q: Quotation, filtro: CotizacionStatusFiltro): boolean {
   if (filtro === 'todas') return true;
   if (filtro === 'cobrada') return q.estado === 'convertida';
-  if (filtro === 'expirada') return esCotizacionExpirada(q);
-  return !esCotizacionExpirada(q) && q.estado !== 'convertida';
+  return q.estado !== 'convertida';
 }
 
 function nombreClienteOrden(q: Quotation): string {
@@ -779,7 +771,6 @@ export function Cotizaciones() {
                 { id: 'todas' as const, label: 'Todas' },
                 { id: 'cobrada' as const, label: 'Ya cobrada' },
                 { id: 'pendiente' as const, label: 'Pendiente' },
-                { id: 'expirada' as const, label: 'Expirada' },
               ] as const
             ).map(({ id, label }) => (
               <button

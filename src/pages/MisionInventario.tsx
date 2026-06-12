@@ -49,11 +49,7 @@ import {
 } from '@/lib/dailyInventoryMission';
 import { getUserStateDocOnce, saveUserStateDoc } from '@/lib/firestore/stateDocsFirestore';
 import { formatDateKeyMx, getMexicoDateKey } from '@/lib/quincenaMx';
-import { printThermalMissionComplete, printThermalMissionInventoryReport } from '@/lib/printTicket';
-import {
-  buildMissionDayTicketLines,
-  fetchInventoryMovementsForUserMexicoDay,
-} from '@/lib/missionDayInventoryMovements';
+import { printThermalDailyMission, printThermalMissionComplete } from '@/lib/printTicket';
 import { userCanSeeInventoryMissions, userCanSeeMissionProgressOnly } from '@/lib/userPermissions';
 import { cn } from '@/lib/utils';
 import type { Product } from '@/types';
@@ -67,7 +63,6 @@ export function MisionInventario() {
   const { effectiveSucursalId } = useEffectiveSucursalId();
 
   const [dateKey, setDateKey] = useState(() => getMexicoDateKey());
-  const [printingMission, setPrintingMission] = useState(false);
   const [query, setQuery] = useState('');
   const [done, setDone] = useState<Set<string>>(() => new Set());
   const [missionIds, setMissionIds] = useState<string[]>([]);
@@ -225,28 +220,24 @@ export function MisionInventario() {
     );
   }, [misionList, query]);
 
-  const printMissionDayMovements = useCallback(async () => {
+  const printDailyMissionTicket = useCallback(() => {
     if (!user?.id) return;
-    setPrintingMission(true);
-    try {
-      const rows = await fetchInventoryMovementsForUserMexicoDay(effectiveSucursalId, user.id, dateKey);
-      const productById = new Map(products.map((p) => [p.id, p]));
-      const lines = buildMissionDayTicketLines(rows, productById);
-      printThermalMissionInventoryReport({
-        fechaLabel: formatDateKeyMx(dateKey),
-        sucursalId: effectiveSucursalId,
-        cajeroNombre: user.name?.trim() || user.email,
-        movimientos: lines,
-      });
-    } catch (e) {
-      addToast({
-        type: 'error',
-        message: e instanceof Error ? e.message : 'No se pudo cargar movimientos para imprimir',
-      });
-    } finally {
-      setPrintingMission(false);
+    if (misionList.length === 0) {
+      addToast({ type: 'warning', message: 'No hay artículos en la misión actual.' });
+      return;
     }
-  }, [user?.id, user?.name, user?.email, dateKey, effectiveSucursalId, products, addToast]);
+    printThermalDailyMission({
+      fechaLabel: formatDateKeyMx(dateKey),
+      sucursalId: effectiveSucursalId,
+      cajeroNombre: user.name?.trim() || user.email,
+      articulos: misionList.map((p) => ({
+        nombre: p.nombre,
+        sku: p.sku,
+        existencia: Number(p.existencia) || 0,
+        codigoBarras: p.codigoBarras?.trim() || undefined,
+      })),
+    });
+  }, [user?.id, user?.name, user?.email, dateKey, effectiveSucursalId, misionList, addToast]);
 
   const startAnotherMission = useCallback(() => {
     if (!user?.id) return;
@@ -583,15 +574,11 @@ export function MisionInventario() {
             type="button"
             variant="outline"
             className="w-full border-cyan-600/40 bg-white text-slate-800 hover:bg-cyan-50 dark:border-cyan-500/30 dark:bg-slate-900/60 dark:text-slate-100 dark:hover:bg-slate-800"
-            disabled={printingMission || !user?.id}
-            onClick={() => void printMissionDayMovements()}
+            disabled={!user?.id || misionList.length === 0}
+            onClick={printDailyMissionTicket}
           >
-            {printingMission ? (
-              <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" aria-hidden />
-            ) : (
-              <Printer className="mr-2 h-4 w-4 shrink-0" aria-hidden />
-            )}
-            Imprimir movimientos del día (ticket)
+            <Printer className="mr-2 h-4 w-4 shrink-0" aria-hidden />
+            Imprimir misión diaria (ticket)
           </Button>
         </div>
           </>

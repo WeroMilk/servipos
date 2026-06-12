@@ -1,7 +1,11 @@
 // Toast Container Component
+import { createPortal } from 'react-dom';
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
 import { useAppStore } from '@/stores';
 import { cn } from '@/lib/utils';
+
+/** Por encima de diálogos (≈241), sheets (181) y popovers del POS (300). */
+const TOAST_LAYER_Z = 'z-[9999]';
 
 const iconMap = {
   success: CheckCircle,
@@ -21,10 +25,13 @@ const colorMap = {
 export function ToastContainer() {
   const { toasts, removeToast } = useAppStore();
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <div
       className={cn(
-        'fixed z-[100] flex flex-col gap-3',
+        'fixed flex flex-col gap-3',
+        TOAST_LAYER_Z,
         'max-w-[min(100vw-2rem,24rem)]',
         /* Móvil: bajo el header (h-14 / sm:h-16), esquina superior derecha */
         'max-md:bottom-auto max-md:left-auto max-md:items-end',
@@ -65,6 +72,7 @@ export function ToastContainer() {
           </div>
         );
       })}
-    </div>
+    </div>,
+    document.body
   );
 }

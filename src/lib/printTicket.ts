@@ -374,6 +374,19 @@ ${scopeThermalCss(THERMAL_PIE_SUCURSAL_CSS, 'body.ticket-compact')}
   }
   body.ticket-compact .ticket-mov-block .mov-tipo { font-weight: 700; font-size: 10px; }
   body.ticket-compact .ticket-mov-block .mov-linea { font-weight: 600; }
+  body.ticket-compact .ticket-mision-item {
+    border-top: 1px dashed #bbb;
+    padding-top: 3px;
+    margin-top: 3px;
+    font-size: ${THERMAL_MIN_FONT_PX}px;
+    line-height: 1.2;
+  }
+  body.ticket-compact .ticket-mision-item .mision-nombre { font-weight: 700; font-size: 10px; }
+  body.ticket-compact .ticket-mision-item .mision-fisico {
+    margin-top: 2px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
 `;
 
 /** CSS compartido: ticket de venta 80 mm e informes térmicos (tipografía grande para leer en papel). */
@@ -865,6 +878,41 @@ export function printThermalLowStockReport(input: {
     styles: THERMAL_COMPACT_SHELL_STYLES,
     bodyInnerHtml: `<div class="meta">${escapeHtml(input.fechaLabel)}<br/>${input.items.length} artículo(s)</div>
   <table>${rows || '<tr><td>Sin artículos bajo mínimo.</td></tr>'}</table>
+  ${pie}`,
+  });
+}
+
+/** Lista de artículos de la misión diaria para conteo manual en papel (80 mm). */
+export function printThermalDailyMission(input: {
+  fechaLabel: string;
+  sucursalId?: string;
+  cajeroNombre?: string;
+  articulos: { nombre: string; sku: string; existencia: number; codigoBarras?: string }[];
+}): void {
+  const pie = buildThermalPieSucursalHtml(input.sucursalId);
+  const cajero = input.cajeroNombre?.trim() ? escapeHtml(input.cajeroNombre.trim()) : '—';
+  const rows =
+    input.articulos.length > 0 ?
+      input.articulos
+        .map((it, idx) => {
+          const cb = it.codigoBarras?.trim() ? ` · CB ${escapeHtml(it.codigoBarras.trim())}` : '';
+          return `<div class="ticket-mision-item">
+  <div class="mision-nombre">${idx + 1}. ${escapeHtml(it.nombre.slice(0, 44))}</div>
+  <div>SKU ${escapeHtml(it.sku)}${cb}</div>
+  <div>En sistema: ${it.existencia}</div>
+  <div class="mision-fisico">Físico: ________</div>
+</div>`;
+        })
+        .join('')
+    : '<p class="ticket-body-text">Sin artículos en la misión actual.</p>';
+  void openThermalPrintDocument({
+    heading: 'MISIÓN DIARIA',
+    pageTitle: 'Misión diaria',
+    bodyClass: 'ticket-compact',
+    styles: THERMAL_COMPACT_SHELL_STYLES,
+    bodyInnerHtml: `<div class="meta">${escapeHtml(input.fechaLabel)}<br/>Cajero: ${cajero}<br/>${input.articulos.length} artículo(s)</div>
+  <p class="ticket-body-text">Conteo manual: anote la cantidad física y luego regístrela en el sistema.</p>
+  ${rows}
   ${pie}`,
   });
 }

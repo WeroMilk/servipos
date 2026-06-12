@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { Plus, PackageCheck, Search, Truck, X, Trash2 } from 'lucide-react';
 import { PageShell } from '@/components/ui-custom/PageShell';
@@ -30,6 +30,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { usePurchaseOrders } from '@/hooks/usePurchaseOrders';
+import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 import { useAppStore, useAuthStore, useInventoryListsStore } from '@/stores';
 import { userHasPermission } from '@/lib/userPermissions';
 import {
@@ -48,6 +49,7 @@ import type { Product, PurchaseOrder, PurchaseOrderEstado } from '@/types';
 import { cn, formatMoney } from '@/lib/utils';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { productEsServicio } from '@/lib/productServicio';
+import { getSucursalStateDocOnce } from '@/lib/firestore/stateDocsFirestore';
 
 const ESTADO_BADGE: Record<PurchaseOrderEstado, string> = {
   esperando_mercancia: 'bg-amber-500/15 text-amber-900 border-amber-500/35 dark:text-amber-100',
@@ -69,7 +71,9 @@ type FiltroPedido = 'activos' | 'completados' | 'todos';
 export function RecepcionPedidos() {
   const { user } = useAuthStore();
   const { addToast } = useAppStore();
+  const { effectiveSucursalId } = useEffectiveSucursalId();
   const proveedoresLista = useInventoryListsStore((s) => s.proveedores);
+  const setProveedoresInventario = useInventoryListsStore((s) => s.setProveedores);
   const { orders, loading, registerOrder, receiveOrderLines, products } = usePurchaseOrders();
 
   const [filtro, setFiltro] = useState<FiltroPedido>('activos');
@@ -97,6 +101,29 @@ export function RecepcionPedidos() {
   const proveedorOptions = useMemo(
     () => [...proveedorMap.keys()].sort((a, b) => a.localeCompare(b, 'es')),
     [proveedorMap]
+  );
+
+  useEffect(() => {
+    if (!effectiveSucursalId) return;
+    void getSucursalStateDocOnce<{ proveedores?: string[] }>(
+      effectiveSucursalId,
+      'inventory_lists'
+    ).then((doc) => {
+      if (Array.isArray(doc?.proveedores) && doc.proveedores.length > 0) {
+        setProveedoresInventario(doc.proveedores);
+      }
+    });
+  }, [effectiveSucursalId, setProveedoresInventario]);
+
+  const draftLinesTotal = useMemo(
+    () =>
+      Math.round(
+        draftLines.reduce(
+          (sum, l) => sum + l.cantidadFacturada * (Number(l.precioUnitarioCompra) || 0),
+          0
+        ) * 100
+      ) / 100,
+    [draftLines]
   );
 
   const filteredProducts = useMemo(() => {
@@ -360,18 +387,29 @@ export function RecepcionPedidos() {
                 value={proveedor.trim() ? normalizeProveedorNombreGuardado(proveedor) : '__none__'}
                 onValueChange={(v) => setProveedor(v === '__none__' ? '' : v)}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-10 border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-800">
                   <SelectValue placeholder="Proveedor" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Seleccione…</SelectItem>
+                <SelectContent
+                  position="popper"
+                  hideScrollButtons
+                  className="z-[300] max-h-[min(50dvh,18rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
+                >
+                  <SelectItem value="__none__" className="text-slate-900 dark:text-slate-100">
+                    Seleccione…
+                  </SelectItem>
                   {proveedorOptions.map((c) => (
-                    <SelectItem key={c} value={c}>
+                    <SelectItem key={c} value={c} className="text-slate-900 dark:text-slate-100">
                       {proveedorSelectItemLabel(c, proveedorMap)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {proveedorOptions.length === 0 ? (
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  No hay proveedores configurados. Agréguelos en Configuración → Categorías y proveedores.
+                </p>
+              ) : null}
             </div>
             <div className="space-y-2">
               <Label>Número de factura</Label>
@@ -470,6 +508,14 @@ export function RecepcionPedidos() {
                   </Button>
                 </div>
               ))}
+              <div className="flex items-center justify-between border-t border-slate-200/80 pt-2 dark:border-slate-700">
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                  Total factura (s/IVA)
+                </span>
+                <span className="text-base font-semibold tabular-nums text-cyan-600 dark:text-cyan-400">
+                  {formatMoney(draftLinesTotal)}
+                </span>
+              </div>
             </div>
           ) : null}
           <DialogFooter>

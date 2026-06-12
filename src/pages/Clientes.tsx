@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Plus,
   Search,
@@ -10,6 +11,7 @@ import {
   Phone,
   MoreHorizontal,
   Ticket,
+  Wallet,
   Trash2,
   BadgeCheck,
   FileQuestion,
@@ -53,7 +55,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { useClients, useClientSearch, useEffectiveSucursalId } from '@/hooks';
+import { useClients, useClientSearch, useEffectiveSucursalId, useSales } from '@/hooks';
 import { useAppStore, useAuthStore } from '@/stores';
 import type { Client, Sale } from '@/types';
 import { REGIMENES_FISCALES, USOS_CFDI } from '@/types';
@@ -62,10 +64,15 @@ import { ClientAddressSonoraFields } from '@/components/ui-custom/ClientAddressS
 import { cn, formatMoney } from '@/lib/utils';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { getSalesByClienteId } from '@/db/database';
-import { saleCuentaComoCompraCliente } from '@/lib/saleClienteHistorial';
+import {
+  buildComprasCountByCliente,
+  saleCuentaComoCompraCliente,
+  ticketsHistorialUI,
+} from '@/lib/saleClienteHistorial';
 import { printThermalTicketFromSale } from '@/lib/printTicket';
 import { saleIsInvoiced } from '@/lib/saleInvoiced';
 import { saleListaCancelacionEtiqueta } from '@/lib/saleCancelacion';
+import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
 import { ESTADO_SONORA, lookupCp } from '@/data/sonoraAddress';
 import {
   CLIENT_PRICE_LABELS,
@@ -75,22 +82,31 @@ import {
 
 type ClientSortMode = 'nombre' | 'rfc' | 'email' | 'tickets';
 
-/** Número para el ícono de ticket: `ventasHistorial` si existe (sin canceladas); si no, `ticketsComprados`. */
-function ticketsHistorialUI(c: Client): number {
-  const v = c.ventasHistorial;
-  if (v != null && Number.isFinite(v)) return Math.max(0, Math.floor(Number(v)));
-  return c.ticketsComprados ?? 0;
+function buildAdeudosCxCCountByCliente(sales: Sale[]): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const sale of sales) {
+    if (sale.estado !== 'completada') continue;
+    if (computeSaleClienteAdeudo(sale) <= 0.005) continue;
+    const clientId = (sale.clienteId ?? '').trim();
+    if (!clientId || clientId === 'mostrador') continue;
+    map.set(clientId, (map.get(clientId) ?? 0) + 1);
+  }
+  return map;
 }
 
-function sortClients(list: Client[], mode: ClientSortMode): Client[] {
+function adeudosCxCUI(clientId: string, counts: ReadonlyMap<string, number>): number {
+  return counts.get(clientId) ?? 0;
+}
+
+function sortClients(list: Client[], mode: ClientSortMode, comprasPorCliente: ReadonlyMap<string, number>): Client[] {
   const next = [...list];
   const cmp = (a: string, b: string) => a.localeCompare(b, 'es', { sensitivity: 'base' });
   if (mode === 'nombre') {
     next.sort((x, y) => cmp(x.nombre || '', y.nombre || ''));
   } else if (mode === 'tickets') {
     next.sort((x, y) => {
-      const a = ticketsHistorialUI(x);
-      const b = ticketsHistorialUI(y);
+      const a = ticketsHistorialUI(x, comprasPorCliente);
+      const b = ticketsHistorialUI(y, comprasPorCliente);
       if (b !== a) return b - a;
       return cmp(x.nombre || '', y.nombre || '');
     });
@@ -124,7 +140,9 @@ function saleEstadoEtiqueta(s: Sale): string {
 }
 
 export function Clientes() {
+  const navigate = useNavigate();
   const { clients, loading, addClient, editClient, removeClient, refresh } = useClients();
+  const { sales } = useSales(500);
   const { effectiveSucursalId } = useEffectiveSucursalId();
   const { addToast } = useAppStore();
   const user = useAuthStore((s) => s.user);
@@ -147,6 +165,9 @@ export function Clientes() {
   const [clientVentasList, setClientVentasList] = useState<Sale[]>([]);
   const [clientVentasLoading, setClientVentasLoading] = useState(false);
   const ventasHistorialSyncKeyRef = useRef<string | null>(null);
+
+  const adeudosPorCliente = useMemo(() => buildAdeudosCxCCountByCliente(sales), [sales]);
+  const comprasPorCliente = useMemo(() => buildComprasCountByCliente(sales), [sales]);
 
   useEffect(() => {
     if (!clientVentasCliente) {
@@ -370,8 +391,8 @@ export function Clientes() {
 
   const displayClients = useMemo(() => {
     const base = searchQuery ? searchResults : clients.filter((c) => !c.isMostrador);
-    return sortClients(base, sortMode);
-  }, [searchQuery, searchResults, clients, sortMode]);
+    return sortClients(base, sortMode, comprasPorCliente);
+  }, [searchQuery, searchResults, clients, sortMode, comprasPorCliente]);
 
   const countRegistrados = clients.filter((c) => !c.isMostrador).length;
   const countConRfc = clients.filter((c) => c.rfc && !c.isMostrador).length;
@@ -528,11 +549,28 @@ export function Clientes() {
                     <button
                       type="button"
                       className="flex shrink-0 items-center gap-1 rounded-lg border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-black transition-colors hover:bg-amber-500/20 dark:text-amber-100 dark:hover:text-amber-50"
-                      title="Ventas en historial (incluye pendientes, completadas y canceladas)"
+                      title="Compras registradas (sin canceladas)"
                       onClick={() => openClientVentasDialog(client)}
                     >
                       <Ticket className="h-3 w-3" aria-hidden />
-                      {ticketsHistorialUI(client)}
+                      {ticketsHistorialUI(client, comprasPorCliente)}
+                    </button>
+                    <button
+                      type="button"
+                      className={cn(
+                        'flex shrink-0 items-center gap-1 rounded-lg border px-2 py-0.5 text-[11px] font-semibold tabular-nums transition-colors',
+                        adeudosCxCUI(client.id, adeudosPorCliente) > 0
+                          ? 'border-amber-600/35 bg-amber-500/15 text-amber-900 hover:bg-amber-500/25 dark:border-amber-500/35 dark:bg-amber-500/15 dark:text-amber-100 dark:hover:bg-amber-500/25'
+                          : 'border-slate-300/60 bg-slate-100/90 text-slate-500 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-500'
+                      )}
+                      title="Tickets con saldo en Cuentas por cobrar"
+                      onClick={() => {
+                        if (adeudosCxCUI(client.id, adeudosPorCliente) > 0) navigate('/cuentas-por-cobrar');
+                      }}
+                      disabled={adeudosCxCUI(client.id, adeudosPorCliente) === 0}
+                    >
+                      <Wallet className="h-3 w-3" aria-hidden />
+                      {adeudosCxCUI(client.id, adeudosPorCliente)}
                     </button>
                     {isAdmin ? (
                       <Button
@@ -579,6 +617,12 @@ export function Clientes() {
                   >
                     Compras
                   </TableHead>
+                  <TableHead
+                    className="w-[5.5rem] text-center text-slate-600 dark:text-slate-400"
+                    title="Tickets con saldo pendiente en Cuentas por cobrar"
+                  >
+                    Adeudos
+                  </TableHead>
                   <TableHead className="text-slate-600 dark:text-slate-400">RFC</TableHead>
                   <TableHead className="text-slate-600 dark:text-slate-400">Contacto</TableHead>
                   <TableHead className="text-slate-600 dark:text-slate-400">Dirección</TableHead>
@@ -588,13 +632,13 @@ export function Clientes() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="py-8 text-center">
+                    <TableCell colSpan={7} className="py-8 text-center">
                       <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-cyan-500/30 border-t-cyan-500" />
                     </TableCell>
                   </TableRow>
                 ) : displayClients.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="py-8 text-center text-slate-600 dark:text-slate-500">
+                    <TableCell colSpan={7} className="py-8 text-center text-slate-600 dark:text-slate-500">
                       No se encontraron clientes
                     </TableCell>
                   </TableRow>
@@ -617,11 +661,30 @@ export function Clientes() {
                         <button
                           type="button"
                           className="inline-flex items-center justify-center gap-1 rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold tabular-nums text-black transition-colors hover:bg-amber-500/20 dark:text-amber-100 dark:hover:text-amber-50"
-                          title="Ventas en historial (incluye pendientes, completadas y canceladas)"
+                          title="Compras registradas (sin canceladas)"
                           onClick={() => openClientVentasDialog(client)}
                         >
                           <Ticket className="h-3.5 w-3.5" aria-hidden />
-                          {ticketsHistorialUI(client)}
+                          {ticketsHistorialUI(client, comprasPorCliente)}
+                        </button>
+                      </TableCell>
+                      <TableCell className="align-top text-center">
+                        <button
+                          type="button"
+                          className={cn(
+                            'inline-flex items-center justify-center gap-1 rounded-md border px-2 py-0.5 text-xs font-semibold tabular-nums transition-colors',
+                            adeudosCxCUI(client.id, adeudosPorCliente) > 0
+                              ? 'border-amber-600/35 bg-amber-500/15 text-amber-900 hover:bg-amber-500/25 dark:border-amber-500/35 dark:bg-amber-500/15 dark:text-amber-100 dark:hover:bg-amber-500/25'
+                              : 'border-slate-300/60 bg-slate-100/90 text-slate-500 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-500'
+                          )}
+                          title="Tickets con saldo en Cuentas por cobrar"
+                          onClick={() => {
+                            if (adeudosCxCUI(client.id, adeudosPorCliente) > 0) navigate('/cuentas-por-cobrar');
+                          }}
+                          disabled={adeudosCxCUI(client.id, adeudosPorCliente) === 0}
+                        >
+                          <Wallet className="h-3.5 w-3.5" aria-hidden />
+                          {adeudosCxCUI(client.id, adeudosPorCliente)}
                         </button>
                       </TableCell>
                       <TableCell className="align-top">
@@ -1027,10 +1090,35 @@ export function Clientes() {
                   >
                     <Ticket className="h-4 w-4 shrink-0" aria-hidden />
                     <span className="text-lg font-semibold tabular-nums">
-                      {ticketsHistorialUI(detailClient)}
+                      {ticketsHistorialUI(detailClient, comprasPorCliente)}
                     </span>
                     <span className="text-xs font-normal text-slate-600 group-hover:text-slate-500 dark:text-slate-500">
                       (pulse para ver ventas)
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className={cn(
+                      'group inline-flex flex-wrap items-center gap-1.5 rounded-lg border px-2 py-1 text-left transition-colors',
+                      adeudosCxCUI(detailClient.id, adeudosPorCliente) > 0
+                        ? 'border-amber-600/35 bg-amber-500/15 text-amber-900 hover:bg-amber-500/25 dark:border-amber-500/35 dark:bg-amber-500/15 dark:text-amber-100 dark:hover:bg-amber-500/25'
+                        : 'border-slate-300/60 bg-slate-100/90 text-slate-500 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-500'
+                    )}
+                    title="Tickets con saldo en Cuentas por cobrar"
+                    onClick={() => {
+                      if (adeudosCxCUI(detailClient.id, adeudosPorCliente) > 0) {
+                        setDetailClient(null);
+                        navigate('/cuentas-por-cobrar');
+                      }
+                    }}
+                    disabled={adeudosCxCUI(detailClient.id, adeudosPorCliente) === 0}
+                  >
+                    <Wallet className="h-4 w-4 shrink-0" aria-hidden />
+                    <span className="text-lg font-semibold tabular-nums">
+                      {adeudosCxCUI(detailClient.id, adeudosPorCliente)}
+                    </span>
+                    <span className="text-xs font-normal text-slate-600 group-hover:text-slate-500 dark:text-slate-500">
+                      adeudo{adeudosCxCUI(detailClient.id, adeudosPorCliente) === 1 ? '' : 's'} en CxC
                     </span>
                   </button>
                   {isAdmin && !detailClient.isMostrador && detailClient.id !== 'mostrador' ? (

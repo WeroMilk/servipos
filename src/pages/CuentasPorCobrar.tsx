@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Wallet, ShoppingCart, Ban, Printer, History } from 'lucide-react';
+import { Wallet, ShoppingCart, Ban, Printer, History, FileText } from 'lucide-react';
 import { PageShell } from '@/components/ui-custom/PageShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,11 +34,11 @@ import {
 import { useClients } from '@/hooks/useClients';
 import { useSales } from '@/hooks/useSales';
 import { useAppStore, useAuthStore } from '@/stores';
-import type { Client, Sale, SaleItem } from '@/types';
+import { FORMAS_PAGO, type Client, type Sale, type SaleItem } from '@/types';
 import { formatMoney } from '@/lib/utils';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
-import { printThermalClientAbonoReceipt, type ThermalClientAbonoReceiptInput } from '@/lib/printTicket';
+import { printThermalClientAbonoReceipt, printThermalTicketFromSale, type ThermalClientAbonoReceiptInput } from '@/lib/printTicket';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 import { listaAbonosCxCMostrable } from '@/lib/clientAbonoHistorialUi';
 import { parrafosAyudaCancelacionVentaAdmin } from '@/lib/cancelacionVentaAdminUi';
@@ -65,6 +65,10 @@ function totalPagadoVenta(s: Sale): number {
 function lineaDescripcion(item: SaleItem): string {
   const n = item.productoNombre?.trim() || item.producto?.nombre?.trim();
   return n || 'Artículo';
+}
+
+function labelFormaPago(clave: string): string {
+  return FORMAS_PAGO.find((f) => f.clave === clave)?.descripcion ?? clave;
 }
 
 function ultimoAbonoBadgeLabel(c: Client): string | null {
@@ -209,7 +213,7 @@ export function CuentasPorCobrar() {
 
   return (
     <PageShell title="Cuentas por cobrar">
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+      <div className="flex min-h-0 min-w-0 w-full flex-1 basis-0 flex-col gap-3 overflow-hidden">
         <div className="flex shrink-0 flex-col gap-2 rounded-xl border border-slate-200/80 bg-slate-50/90 px-3 py-2.5 dark:border-slate-800/50 dark:bg-slate-900/50 sm:px-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
@@ -235,13 +239,14 @@ export function CuentasPorCobrar() {
           </p>
         </div>
 
-        <div className="min-h-0 flex-1 space-y-4 overflow-auto">
-          <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/50">
-            <div className="border-b border-slate-200/80 px-3 py-2 dark:border-slate-800/50 sm:px-4">
+        <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-col gap-4 overflow-hidden">
+          <div className="flex max-h-[min(40dvh,300px)] min-h-0 shrink-0 flex-col overflow-hidden rounded-xl border border-slate-200/80 dark:border-slate-800/50">
+            <div className="shrink-0 border-b border-slate-200/80 px-3 py-2 dark:border-slate-800/50 sm:px-4">
               <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
                 Tickets con saldo pendiente
               </p>
             </div>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             {loading ? (
               <p className="p-6 text-center text-sm text-slate-600 dark:text-slate-400">Cargando…</p>
             ) : ticketsConSaldo.length === 0 ? (
@@ -259,22 +264,14 @@ export function CuentasPorCobrar() {
                     <TableHead className="text-slate-700 dark:text-slate-300">Cliente</TableHead>
                     <TableHead className="text-slate-700 dark:text-slate-300">Fecha</TableHead>
                     <TableHead className="text-right text-slate-700 dark:text-slate-300">Saldo</TableHead>
+                    <TableHead className="w-[1%] text-slate-700 dark:text-slate-300">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {ticketsConSaldo.map(({ sale, adeudo }) => (
                     <TableRow
                       key={sale.id}
-                      role="button"
-                      tabIndex={0}
-                      className="cursor-pointer border-slate-200 transition-colors hover:bg-slate-100/90 dark:border-slate-800 dark:hover:bg-slate-800/50"
-                      onClick={() => setTicketSeleccionado({ sale, adeudo })}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          setTicketSeleccionado({ sale, adeudo });
-                        }
-                      }}
+                      className="border-slate-200 dark:border-slate-800"
                     >
                       <TableCell className="font-mono text-sm font-medium text-slate-900 dark:text-slate-100">
                         {sale.folio?.trim() || sale.id.slice(0, 8)}
@@ -288,15 +285,28 @@ export function CuentasPorCobrar() {
                       <TableCell className="text-right text-base font-semibold tabular-nums text-amber-700 dark:text-amber-400">
                         {formatMoney(adeudo)}
                       </TableCell>
+                      <TableCell>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="whitespace-nowrap border-slate-300 dark:border-slate-600"
+                          onClick={() => setTicketSeleccionado({ sale, adeudo })}
+                        >
+                          <FileText className="mr-1.5 h-3.5 w-3.5" />
+                          Ver detalle
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             )}
+            </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/50">
-            <div className="border-b border-slate-200/80 px-3 py-2 dark:border-slate-800/50 sm:px-4">
+          <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-xl border border-slate-200/80 dark:border-slate-800/50">
+            <div className="shrink-0 border-b border-slate-200/80 px-3 py-2 dark:border-slate-800/50 sm:px-4">
               <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
                 Saldo por cliente y abonos
               </p>
@@ -304,6 +314,7 @@ export function CuentasPorCobrar() {
                 Historial de abonos con fecha e importe; también puede cobrar por ticket desde «Abrir venta» en el POS.
               </p>
             </div>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2">
             {loadingClients ? (
               <p className="p-6 text-center text-sm text-slate-600 dark:text-slate-400">Cargando…</p>
             ) : deudores.length === 0 ? (
@@ -397,6 +408,7 @@ export function CuentasPorCobrar() {
                 </TableBody>
               </Table>
             )}
+            </div>
           </div>
         </div>
       </div>
@@ -412,53 +424,131 @@ export function CuentasPorCobrar() {
       >
         <DialogContent className="max-h-[min(92dvh,calc(100dvh-2rem))] overflow-y-auto border-slate-200 bg-slate-50 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Ticket con saldo</DialogTitle>
+            <DialogTitle>
+              Ticket {ticketSeleccionado?.sale.folio?.trim() || ticketSeleccionado?.sale.id.slice(0, 8)}
+            </DialogTitle>
             <DialogDescription className="text-left text-sm text-slate-600 dark:text-slate-400">
-              {ticketSeleccionado?.sale.folio?.trim() || ticketSeleccionado?.sale.id.slice(0, 8)} ·{' '}
-              {ticketSeleccionado ? nombreClienteVenta(ticketSeleccionado.sale) : ''}
+              Detalle de la venta con saldo pendiente
             </DialogDescription>
           </DialogHeader>
           {ticketSeleccionado ? (
-            <div className="space-y-3 text-sm">
-              <div className="rounded-lg border border-slate-200/80 bg-slate-100/80 px-3 py-2 dark:border-slate-700/80 dark:bg-slate-800/50">
-                <p className="text-xs text-slate-600 dark:text-slate-400">
-                  Total venta{' '}
-                  <span className="font-semibold tabular-nums text-slate-900 dark:text-slate-100">
-                    {formatMoney(Number(ticketSeleccionado.sale.total) || 0)}
-                  </span>
-                  {' · '}
-                  Pagado{' '}
-                  <span className="tabular-nums">{formatMoney(totalPagadoVenta(ticketSeleccionado.sale))}</span>
-                  {' · '}
-                  <span className="font-semibold text-amber-700 dark:text-amber-400">
-                    Saldo {formatMoney(ticketSeleccionado.adeudo)}
-                  </span>
-                </p>
-                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-500">
-                  {formatInAppTimezone(ticketSeleccionado.sale.createdAt, {
-                    dateStyle: 'short',
-                    timeStyle: 'short',
-                  })}
-                </p>
-              </div>
+            <div className="space-y-4 text-sm">
+              <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <div>
+                  <dt className="text-slate-600 dark:text-slate-500">Cliente</dt>
+                  <dd className="font-medium text-slate-900 dark:text-slate-100">
+                    {nombreClienteVenta(ticketSeleccionado.sale)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-slate-600 dark:text-slate-500">Fecha</dt>
+                  <dd className="font-medium text-slate-900 dark:text-slate-100">
+                    {formatInAppTimezone(ticketSeleccionado.sale.createdAt, {
+                      dateStyle: 'medium',
+                      timeStyle: 'short',
+                    })}
+                  </dd>
+                </div>
+                {ticketSeleccionado.sale.usuarioNombre?.trim() ? (
+                  <div>
+                    <dt className="text-slate-600 dark:text-slate-500">Cajero</dt>
+                    <dd className="font-medium text-slate-900 dark:text-slate-100">
+                      {ticketSeleccionado.sale.usuarioNombre.trim()}
+                    </dd>
+                  </div>
+                ) : null}
+                <div>
+                  <dt className="text-slate-600 dark:text-slate-500">Saldo pendiente</dt>
+                  <dd className="font-semibold tabular-nums text-amber-700 dark:text-amber-400">
+                    {formatMoney(ticketSeleccionado.adeudo)}
+                  </dd>
+                </div>
+              </dl>
               <div>
                 <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-500">
-                  Líneas
+                  Artículos
                 </p>
-                <ul className="max-h-40 space-y-1.5 overflow-y-auto text-xs">
-                  {(ticketSeleccionado.sale.productos ?? []).map((item) => (
-                    <li
-                      key={item.id}
-                      className="flex justify-between gap-2 border-b border-slate-200/60 pb-1 dark:border-slate-700/50"
-                    >
-                      <span className="min-w-0 truncate">{lineaDescripcion(item)}</span>
-                      <span className="shrink-0 tabular-nums text-slate-700 dark:text-slate-300">
-                        ×{item.cantidad} · {formatMoney(Number(item.total) || 0)}
-                      </span>
-                    </li>
-                  ))}
+                <ul className="max-h-48 space-y-1.5 overflow-y-auto rounded-lg border border-slate-200/80 bg-white/60 p-2.5 text-xs dark:border-slate-700/60 dark:bg-slate-900/40">
+                  {(ticketSeleccionado.sale.productos ?? []).length === 0 ? (
+                    <li className="text-slate-600 dark:text-slate-500">Sin líneas registradas.</li>
+                  ) : (
+                    (ticketSeleccionado.sale.productos ?? []).map((item) => (
+                      <li
+                        key={item.id}
+                        className="flex justify-between gap-2 border-b border-slate-200/60 pb-1 last:border-0 last:pb-0 dark:border-slate-700/50"
+                      >
+                        <span className="min-w-0 truncate">{lineaDescripcion(item)}</span>
+                        <span className="shrink-0 tabular-nums text-slate-700 dark:text-slate-300">
+                          ×{item.cantidad} · {formatMoney(Number(item.total) || 0)}
+                        </span>
+                      </li>
+                    ))
+                  )}
                 </ul>
               </div>
+              <div className="space-y-1 rounded-lg border border-slate-200/80 bg-slate-200/50 px-3 py-2.5 dark:border-slate-700/60 dark:bg-slate-800/40">
+                <div className="flex justify-between gap-2 text-slate-700 dark:text-slate-300">
+                  <span>Subtotal</span>
+                  <span className="tabular-nums">
+                    {formatMoney(Number(ticketSeleccionado.sale.subtotal) || 0)}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-2 text-slate-700 dark:text-slate-300">
+                  <span>IVA</span>
+                  <span className="tabular-nums">
+                    {formatMoney(Number(ticketSeleccionado.sale.impuestos) || 0)}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-2 font-semibold text-cyan-600 dark:text-cyan-400">
+                  <span>Total</span>
+                  <span className="tabular-nums">{formatMoney(Number(ticketSeleccionado.sale.total) || 0)}</span>
+                </div>
+                <div className="flex justify-between gap-2 text-slate-700 dark:text-slate-300">
+                  <span>Pagado</span>
+                  <span className="tabular-nums">{formatMoney(totalPagadoVenta(ticketSeleccionado.sale))}</span>
+                </div>
+                <div className="flex justify-between gap-2 font-semibold text-amber-700 dark:text-amber-400">
+                  <span>Saldo</span>
+                  <span className="tabular-nums">{formatMoney(ticketSeleccionado.adeudo)}</span>
+                </div>
+              </div>
+              {(ticketSeleccionado.sale.pagos ?? []).length > 0 ? (
+                <div>
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-500">
+                    Pagos
+                  </p>
+                  <ul className="space-y-1 text-sm">
+                    {(ticketSeleccionado.sale.pagos ?? []).map((p) => (
+                      <li
+                        key={p.id}
+                        className="flex justify-between gap-2 text-slate-700 dark:text-slate-300"
+                      >
+                        <span>{labelFormaPago(p.formaPago)}</span>
+                        <span className="tabular-nums">{formatMoney(Number(p.monto) || 0)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {ticketSeleccionado.sale.notas?.trim() ? (
+                <div>
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-500">
+                    Notas
+                  </p>
+                  <p className="text-sm text-slate-700 dark:text-slate-300">
+                    {ticketSeleccionado.sale.notas.trim()}
+                  </p>
+                </div>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full border-slate-300 dark:border-slate-600 sm:w-auto"
+                onClick={() => void printThermalTicketFromSale(ticketSeleccionado.sale)}
+              >
+                <Printer className="mr-2 h-4 w-4" />
+                Reimprimir ticket
+              </Button>
             </div>
           ) : null}
           <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-end">

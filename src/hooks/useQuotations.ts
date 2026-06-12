@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Quotation } from '@/types';
 import {
   getQuotations,
@@ -20,6 +20,7 @@ import {
   subscribeQuotationsCatalog,
   updateQuotationFirestore,
 } from '@/lib/firestore/quotationsFirestore';
+import { cotizacionDebeEliminarsePorCaducidad } from '@/lib/quotationCaducidad';
 
 // ============================================
 // HOOK DE COTIZACIONES
@@ -30,33 +31,83 @@ export function useQuotations() {
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const purgingIdsRef = useRef(new Set<string>());
+
+  const purgeCaducadas = useCallback(
+    async (rows: Quotation[]) => {
+      const toDelete = rows.filter(cotizacionDebeEliminarsePorCaducidad);
+      if (toDelete.length === 0) return;
+      const sid = effectiveSucursalId;
+      let deletedLocal = false;
+      for (const q of toDelete) {
+        if (purgingIdsRef.current.has(q.id)) continue;
+        purgingIdsRef.current.add(q.id);
+        try {
+          if (sid) {
+            await deleteQuotationFirestore(sid, q.id);
+          } else {
+            await deleteQuotation(q.id);
+            deletedLocal = true;
+          }
+        } catch (err) {
+          console.error('Eliminar cotización caducada:', q.id, err);
+        } finally {
+          purgingIdsRef.current.delete(q.id);
+        }
+      }
+      if (!sid && deletedLocal) {
+        const deletedIds = new Set(toDelete.map((q) => q.id));
+        setQuotations((prev) => prev.filter((q) => !deletedIds.has(q.id)));
+      }
+    },
+    [effectiveSucursalId]
+  );
+
+  const ingestQuotations = useCallback(
+    (rows: Quotation[]) => {
+      const visible = rows.filter((q) => !cotizacionDebeEliminarsePorCaducidad(q));
+      const expired = rows.filter(cotizacionDebeEliminarsePorCaducidad);
+      setQuotations(visible);
+      setError(null);
+      setLoading(false);
+      if (expired.length > 0) void purgeCaducadas(expired);
+    },
+    [purgeCaducadas]
+  );
 
   const loadQuotations = useCallback(async () => {
     try {
       setLoading(true);
       const data = await getQuotations(effectiveSucursalId);
-      setQuotations(data);
-      setError(null);
+      ingestQuotations(data);
     } catch (err) {
       setError('Error al cargar cotizaciones');
       console.error(err);
-    } finally {
       setLoading(false);
     }
-  }, [effectiveSucursalId]);
+  }, [effectiveSucursalId, ingestQuotations]);
 
   useEffect(() => {
     if (effectiveSucursalId) {
       setLoading(true);
-      const unsub = subscribeQuotationsCatalog(effectiveSucursalId, (rows) => {
-        setQuotations(rows);
-        setError(null);
-        setLoading(false);
-      });
+      const unsub = subscribeQuotationsCatalog(effectiveSucursalId, ingestQuotations);
       return unsub;
     }
     void loadQuotations();
-  }, [loadQuotations]);
+  }, [effectiveSucursalId, loadQuotations, ingestQuotations]);
+
+  useEffect(() => {
+    const tick = () => {
+      setQuotations((prev) => {
+        const expired = prev.filter(cotizacionDebeEliminarsePorCaducidad);
+        if (expired.length === 0) return prev;
+        void purgeCaducadas(expired);
+        return prev.filter((q) => !cotizacionDebeEliminarsePorCaducidad(q));
+      });
+    };
+    const id = window.setInterval(tick, 30_000);
+    return () => window.clearInterval(id);
+  }, [purgeCaducadas]);
 
   const addQuotation = async (
     quotation: Omit<Quotation, 'id' | 'folio' | 'createdAt' | 'updatedAt' | 'syncStatus'>

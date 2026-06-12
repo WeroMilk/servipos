@@ -120,6 +120,25 @@ export function getProductPrecioPublicoRegular(product: Product): number {
 }
 
 /**
+ * A partir del importe Regular (mismo modo que el formulario: con o sin IVA),
+ * calcula el resto de listas con los % de configuración del POS.
+ */
+export function deriveListaPrecioStringsFromRegularAmount(regularAmount: number): Record<ClientPriceListId, string> {
+  const out = {} as Record<ClientPriceListId, string>;
+  for (const id of CLIENT_PRICE_LIST_ORDER) out[id] = '';
+  if (!Number.isFinite(regularAmount) || regularAmount < 0) return out;
+
+  const reg = roundMoney2(regularAmount);
+  out.regular = reg.toFixed(2);
+  for (const id of CLIENT_PRICE_LIST_ORDER) {
+    if (id === 'regular') continue;
+    const pct = getListaPrecioClientePct(id);
+    out[id] = roundMoney2(reg * (1 - pct / 100)).toFixed(2);
+  }
+  return out;
+}
+
+/**
  * Precio unitario sin IVA según lista de cliente (o % configurado si no hay precio fijo por producto).
  * Si `preciosListaIncluyenIva` aplica, los importes fijos por lista vienen con IVA y se convierten aquí.
  */

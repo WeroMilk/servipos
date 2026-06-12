@@ -523,8 +523,16 @@ export function Inventario() {
   const navigate = useNavigate();
   const location = useLocation();
   const consumedEditFromMissions = useRef<string | null>(null);
-  const { products, loading, error: productsError, addProduct, editProduct, removeProduct, adjustStock } =
-    useProducts();
+  const {
+    products,
+    loading,
+    error: productsError,
+    addProduct,
+    editProduct,
+    removeProduct,
+    removeAllServicioProducts,
+    adjustStock,
+  } = useProducts();
   const { effectiveSucursalId } = useEffectiveSucursalId();
   const { addToast } = useAppStore();
   const { user } = useAuthStore();
@@ -533,6 +541,43 @@ export function Inventario() {
   const [confirmingTransferId, setConfirmingTransferId] = useState<string | null>(null);
 
   useEffect(() => subscribeSucursales(setSucursalesCat), []);
+
+  const serviciosPurgeRef = useRef(false);
+
+  /** Purga única de productos servicio (categoría SERVICIOS / esServicio). */
+  useEffect(() => {
+    const PURGE_KEY = 'servipos:servicios-purged-v1';
+    if (loading || serviciosPurgeRef.current) return;
+    if (typeof localStorage !== 'undefined' && localStorage.getItem(PURGE_KEY)) return;
+
+    const servicios = products.filter((p) => p.activo !== false && productEsServicio(p));
+    if (servicios.length === 0) {
+      if (typeof localStorage !== 'undefined') localStorage.setItem(PURGE_KEY, '1');
+      return;
+    }
+
+    serviciosPurgeRef.current = true;
+    void (async () => {
+      try {
+        const n = await removeAllServicioProducts();
+        if (typeof localStorage !== 'undefined') localStorage.setItem(PURGE_KEY, '1');
+        if (n > 0) {
+          addToast({
+            type: 'success',
+            message: `Se eliminaron ${n} productos de servicios del catálogo.`,
+            logToAppEvents: true,
+          });
+        }
+      } catch (err) {
+        serviciosPurgeRef.current = false;
+        addToast({
+          type: 'error',
+          message: err instanceof Error ? err.message : 'No se pudieron eliminar los servicios',
+          logToAppEvents: true,
+        });
+      }
+    })();
+  }, [loading, products, removeAllServicioProducts, addToast]);
 
   const nombreSucursal = useCallback(
     (id: string) => sucursalesCat.find((s) => s.id === id)?.nombre?.trim() || id,

@@ -263,6 +263,22 @@ export function useProducts() {
     [products, sucursalId, loadProductsLocal, catalogUsuarioId, catalogUserName]
   );
 
+  /** Baja masiva de productos servicio (`esServicio` o categoría SERVICIOS). */
+  const removeAllServicioProducts = useCallback(async (): Promise<number> => {
+    const targets = products.filter((p) => p.activo !== false && productEsServicio(p));
+    if (targets.length === 0) return 0;
+    let removed = 0;
+    for (const p of targets) {
+      try {
+        await removeProduct(p.id);
+        removed += 1;
+      } catch (err) {
+        reportHookFailure('hook:useProducts', 'Baja masiva de servicios', err);
+      }
+    }
+    return removed;
+  }, [products, removeProduct]);
+
   const adjustStock = async (
     productId: string,
     cantidad: number,
@@ -301,6 +317,7 @@ export function useProducts() {
     addProduct,
     editProduct,
     removeProduct,
+    removeAllServicioProducts,
     adjustStock,
   };
 }

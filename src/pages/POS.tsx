@@ -112,6 +112,7 @@ import {
   getProductIvaUnitarioDesdeSinIva,
   getProductUnitConIvaForClienteList,
   getProductUnitSinIvaForClienteList,
+  deriveListaPrecioStringsFromRegularAmount,
 } from '@/lib/productListPricing';
 import { productEsServicio } from '@/lib/productServicio';
 import {
@@ -259,6 +260,48 @@ function filterClientesRegistrados(clients: Client[], search: string): Client[] 
   });
 }
 
+function resolveCheckoutClienteNombre(
+  checkoutClienteNombre: string,
+  client: Client | null,
+  fallbackSaleCliente?: Client | null
+): string {
+  const typed = checkoutClienteNombre.trim();
+  if (typed) return typed;
+  if (client?.nombre?.trim() && !client.isMostrador && client.id !== 'mostrador') {
+    return client.nombre.trim();
+  }
+  const fromSale = fallbackSaleCliente?.nombre?.trim();
+  if (fromSale && fromSale !== 'Mostrador') return fromSale;
+  return 'Mostrador';
+}
+
+function buildClienteSnapshotParaVenta(
+  checkoutClienteNombre: string,
+  client: Client | null,
+  fallbackSaleCliente?: Client | null
+): { clienteId: string; cliente?: Client } {
+  const nombre = resolveCheckoutClienteNombre(checkoutClienteNombre, client, fallbackSaleCliente);
+  const registrado =
+    Boolean(client?.id) && client!.id !== 'mostrador' && !client!.isMostrador;
+  if (registrado) {
+    return {
+      clienteId: client!.id,
+      cliente: { ...client!, nombre },
+    };
+  }
+  if (nombre === 'Mostrador') {
+    return { clienteId: 'mostrador' };
+  }
+  return {
+    clienteId: 'mostrador',
+    cliente: {
+      id: 'mostrador',
+      nombre,
+      isMostrador: true,
+    },
+  };
+}
+
 /** SKU y existencia en la línea del carrito (servicios sin stock). */
 function CartLineSkuStockText({ product }: { product: Product }) {
   const skuLabel = `SKU ${product.sku}`;
@@ -313,6 +356,26 @@ function emptyListaPrecioStrMap(): Record<ClientPriceListId, string> {
 
 function roundMoney2(n: number): number {
   return Math.round((Number(n) || 0) * 100) / 100;
+}
+
+/** Evita recalcular listas mientras el usuario escribe decimales incompletos (ej. "12."). */
+function isIncompleteMoneyInput(raw: string): boolean {
+  const t = raw.trim();
+  return t.length > 0 && /[.,]$/.test(t);
+}
+
+function applyListaPrecioCatalogStrChange(
+  prev: Record<ClientPriceListId, string>,
+  listId: ClientPriceListId,
+  raw: string
+): Record<ClientPriceListId, string> {
+  const next = { ...prev, [listId]: raw };
+  if (listId !== 'regular') return next;
+  const t = raw.trim();
+  if (t === '' || isIncompleteMoneyInput(raw)) return next;
+  const n = parsePrecioNumberFromFirestore(t);
+  if (!Number.isFinite(n) || n < 0) return next;
+  return { ...next, ...deriveListaPrecioStringsFromRegularAmount(n), regular: raw };
 }
 
 type MobileTab = 'cart' | 'checkout';
@@ -788,6 +851,7 @@ export function POS() {
   }, [showClientDialog]);
 
   const [montoRecibidoInput, setMontoRecibidoInput] = useState('');
+  const [checkoutClienteNombre, setCheckoutClienteNombre] = useState('');
   /** En parcialidades (PPD), medio del próximo abono (mezcla efectivo + tarjetas sin cambiar el selector lateral). */
   const [ppdAbonoFormaPago, setPpdAbonoFormaPago] = useState('01');
   /** Se incrementa al abrir el diálogo de cobro para inicializar `ppdAbonoFormaPago` sin pisar cambios al mover el selector lateral. */
@@ -951,6 +1015,7 @@ export function POS() {
     if (!open) {
       setCheckoutPhase('payment');
       setTicketSnapshot(null);
+      setCheckoutClienteNombre('');
       setMobileTab('cart');
     }
   }, []);
@@ -972,6 +1037,7 @@ export function POS() {
     setShowProductSearch(false);
     setShowClientDialog(false);
     setMontoRecibidoInput('');
+    setCheckoutClienteNombre('');
     setProcessingSale(false);
     setGlobalDiscFocus(false);
     setLineDiscountFocusProductId(null);
@@ -1023,7 +1089,7 @@ export function POS() {
     setUnitPriceEditProductId(productId);
     setUnitPriceEditStep(isAdmin ? 'price' : 'pin');
     setUnitPricePinInput('');
-    const baseSinIva = getCartLineUnitSinIvaBase(it, precioClienteListaId);
+    const baseSinIva = getProductUnitSinIvaForClienteList(it.product, 'regular');
     const conIva = unitBaseSinIvaToPrecioConIva(baseSinIva, it.product.impuesto);
     setUnitPriceInput(conIva.toFixed(2));
     setUnitPriceDialogOpen(true);
@@ -1276,6 +1342,14 @@ export function POS() {
     : (unitPriceDialogLine?.precioListaId ?? precioClienteListaId);
 
   const openCheckoutDialog = () => {
+    const nombreInicial =
+      client && !client.isMostrador && client.id !== 'mostrador'
+        ? client.nombre
+        : openSaleResume?.sale?.cliente?.nombre?.trim() &&
+            openSaleResume.sale.cliente.nombre.trim() !== 'Mostrador'
+          ? openSaleResume.sale.cliente.nombre.trim()
+          : '';
+    setCheckoutClienteNombre(nombreInicial);
     setCheckoutPhase('payment');
     setCheckoutOpen(true);
     setCheckoutPaymentKey((k) => k + 1);
@@ -2226,7 +2300,7 @@ export function POS() {
         items: cartItems,
         client: clientePos,
         globalDiscount: 0,
-        precioClienteListaId: clientePos?.listaPreciosId ?? 'regular',
+        precioClienteListaId: 'regular',
       });
       setSaleFromQuotationId(q.id);
       setQuotationLoadedFolio(q.folio);
@@ -2460,6 +2534,16 @@ export function POS() {
     try {
       const cajeroNombre =
         user?.name?.trim() || user?.username?.trim() || user?.email?.trim() || undefined;
+      const clienteVentaSnapshot = buildClienteSnapshotParaVenta(
+        checkoutClienteNombre,
+        client,
+        openSaleResume?.sale?.cliente ?? null
+      );
+      const clienteNombreVenta = resolveCheckoutClienteNombre(
+        checkoutClienteNombre,
+        client,
+        openSaleResume?.sale?.cliente ?? null
+      );
 
       if (openSaleResume?.sale) {
         let pend = openSaleResume.sale;
@@ -2492,7 +2576,7 @@ export function POS() {
             cajaSesionId: cajaSesion.activa?.id,
           });
 
-          const clienteNombre = client?.nombre || pend.cliente?.nombre?.trim() || 'Mostrador';
+          const clienteNombre = clienteNombreVenta;
           const lineas = items.map((item) => {
             const unitSinIva = cartLineUnitSinIva(item, precioClienteListaId);
             const imp = Number(item.product.impuesto) || 16;
@@ -2547,8 +2631,8 @@ export function POS() {
           cambio: cambioAbierta,
           usuarioNombreCierre: cajeroNombre,
           cajaSesionId: cajaSesion.activa?.id,
-          clienteId: client?.id ?? 'mostrador',
-          cliente: client ?? null,
+          clienteId: clienteVentaSnapshot.clienteId,
+          cliente: clienteVentaSnapshot.cliente ?? null,
         });
 
         try {
@@ -2560,7 +2644,7 @@ export function POS() {
           console.error(e);
         }
 
-        const clienteNombre = client?.nombre || pend.cliente?.nombre?.trim() || 'Mostrador';
+        const clienteNombre = clienteNombreVenta;
         const lineas = items.map((item) => {
           const unitSinIva = cartLineUnitSinIva(item, precioClienteListaId);
           const imp = Number(item.product.impuesto) || 16;
@@ -2616,9 +2700,8 @@ export function POS() {
         sucursalesCat.find((s) => s.id === transferenciaDestinoSucursalId)?.nombre ??
         transferenciaDestinoSucursalId;
       const saleData = {
-        clienteId: client?.id || 'mostrador',
-        /** Snapshot para ticket / reimpresión (solo `clienteId` dejaba el UUID en el ticket). */
-        ...(client ? { cliente: client } : {}),
+        clienteId: clienteVentaSnapshot.clienteId,
+        ...(clienteVentaSnapshot.cliente ? { cliente: clienteVentaSnapshot.cliente } : {}),
         productos: items.map((item) => {
           const unitBase = getCartLineUnitSinIvaBase(item, precioClienteListaId);
           const sub =
@@ -2683,7 +2766,7 @@ export function POS() {
         setQuotationLoadedFolio(null);
       }
 
-      const clienteNombre = client?.nombre || 'Mostrador';
+      const clienteNombre = clienteNombreVenta;
       const lineas = items.map((item) => {
         const unitSinIva = cartLineUnitSinIva(item, precioClienteListaId);
         const imp = Number(item.product.impuesto) || 16;
@@ -4209,6 +4292,23 @@ export function POS() {
                   </p>
                 ) : null}
 
+                {!checkoutDevolucionListo ? (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="checkout-cliente-nombre">Cliente</Label>
+                    <Input
+                      id="checkout-cliente-nombre"
+                      type="text"
+                      placeholder="Nombre en el ticket (opcional)"
+                      value={checkoutClienteNombre}
+                      onChange={(e) => setCheckoutClienteNombre(e.target.value)}
+                      className="h-10 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                    />
+                    <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-500 sm:text-xs">
+                      Solo para este ticket; no crea ni modifica clientes en el catálogo.
+                    </p>
+                  </div>
+                ) : null}
+
                 {checkoutDevolucionListo ? (
                   <p className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-3 text-center text-xs leading-relaxed text-black dark:text-slate-400 sm:text-sm">
                     {previewDevolucion?.kind === 'partial' ?
@@ -4501,7 +4601,6 @@ export function POS() {
                   type="button"
                   onClick={() => {
                     setClient(c);
-                    setPrecioClienteLista(c.listaPreciosId ?? 'regular');
                     setShowClientDialog(false);
                   }}
                   className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-200/80 dark:bg-slate-800/50 p-3 text-left transition-colors hover:bg-slate-200 dark:bg-slate-800"
@@ -4784,7 +4883,8 @@ export function POS() {
           </DialogHeader>
           <p className="text-xs text-slate-600 dark:text-slate-400">
             Capture un importe por lista; deje vacío para quitar precio fijo y usar el % de configuración sobre el
-            precio de venta.{' '}
+            precio de venta. Al editar <span className="font-medium text-slate-700 dark:text-slate-300">Regular</span>,
+            las demás listas se recalculan solas con los % del POS.{' '}
             <span className="font-medium text-slate-700 dark:text-slate-300">
               {listasPrecioCatalogEditConIva
                 ? `Los campos muestran precios con IVA (${unitPriceDialogLine?.product?.impuesto ?? 16}%).`
@@ -4845,10 +4945,7 @@ export function POS() {
                   inputMode="decimal"
                   value={listasPrecioStr[lid] ?? ''}
                   onChange={(e) =>
-                    setListasPrecioStr((prev) => ({
-                      ...prev,
-                      [lid]: e.target.value,
-                    }))
+                    setListasPrecioStr((prev) => applyListaPrecioCatalogStrChange(prev, lid, e.target.value))
                   }
                   placeholder="—"
                   className="border-slate-300 dark:border-slate-700 dark:bg-slate-800"
