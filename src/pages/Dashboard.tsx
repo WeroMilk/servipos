@@ -373,6 +373,12 @@ export function Dashboard() {
 
   const goInventarioStock = () => navigate('/inventario?tab=stock');
 
+  const closeTodaySalesDialog = useCallback(() => {
+    setTodaySalesOpen(false);
+    setReprintSaleDetail(null);
+    setReprintDayKey(getMexicoDateKey());
+  }, []);
+
   const openTodaySalesDialog = useCallback(() => {
     let dayKey: string;
     if (kpiDrillDownDayStart) {
@@ -382,6 +388,7 @@ export function Dashboard() {
       ventasRecientesOpenSnapshotRef.current = undefined;
       dayKey = snap !== undefined ? snap : getMexicoDateKey();
     }
+    setReprintSaleDetail(null);
     setReprintDayKey(dayKey);
     setTodaySalesOpen(true);
   }, [kpiDrillDownDayStart]);
@@ -1201,10 +1208,10 @@ export function Dashboard() {
       <Dialog
         open={todaySalesOpen}
         onOpenChange={(open) => {
-          setTodaySalesOpen(open);
-          if (!open) {
-            setReprintDayKey(getMexicoDateKey());
-            setReprintSaleDetail(null);
+          if (open) {
+            setTodaySalesOpen(true);
+          } else {
+            closeTodaySalesDialog();
           }
         }}
       >
@@ -1550,7 +1557,7 @@ export function Dashboard() {
               type="button"
               variant="outline"
               className="w-full border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 sm:w-auto"
-              onClick={() => setTodaySalesOpen(false)}
+              onClick={closeTodaySalesDialog}
             >
               Cerrar
             </Button>
