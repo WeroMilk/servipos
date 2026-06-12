@@ -298,6 +298,9 @@ function buildClienteSnapshotParaVenta(
       id: 'mostrador',
       nombre,
       isMostrador: true,
+      createdAt: new Date(0),
+      updatedAt: new Date(0),
+      syncStatus: 'synced',
     },
   };
 }

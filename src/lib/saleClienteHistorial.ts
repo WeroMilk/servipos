@@ -1,4 +1,4 @@
-import type { Sale } from '@/types';
+import type { Client, Sale } from '@/types';
 
 /** Ventas que cuentan como compra del cliente (listado y contador `ventasHistorial`). Excluye canceladas. */
 export function saleCuentaComoCompraCliente(sale: Sale): boolean {
