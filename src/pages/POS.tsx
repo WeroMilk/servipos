@@ -104,7 +104,6 @@ import {
 } from '@/lib/clientPriceLists';
 import {
   getClientPriceListCatalogFromStore,
-  normalizeClientPriceListIdWithExtras,
 } from '@/lib/clientPriceListCatalog';
 import { useClientPriceListCatalog } from '@/hooks/useClientPriceListCatalog';
 import { subscribeSucursales } from '@/lib/firestore/sucursalesMetaFirestore';

@@ -1,10 +1,7 @@
 import { formatMoney } from '@/lib/utils';
 import type { Product } from '@/types';
 import { getClientPriceListCatalogFromStore } from '@/lib/clientPriceListCatalog';
-import {
-  CLIENT_PRICE_LABELS,
-  type ClientPriceListId,
-} from '@/lib/clientPriceLists';
+import { CLIENT_PRICE_LABELS } from '@/lib/clientPriceLists';
 
 const CATALOG_KEYS: (keyof Product)[] = [
   'sku',

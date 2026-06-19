@@ -1116,7 +1116,7 @@ export function Clientes() {
               <div>
                 <p className="text-slate-600 dark:text-slate-500">Lista de precios (POS)</p>
                 <p className="text-slate-900 dark:text-slate-100">
-                  {CLIENT_PRICE_LABELS[detailClient.listaPreciosId ?? 'regular']}
+                  {priceListCatalog.labels[detailClient.listaPreciosId ?? 'regular'] ?? 'Regular'}
                 </p>
               </div>
               <div>

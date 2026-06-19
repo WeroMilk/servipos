@@ -1,5 +1,5 @@
 import type { Product } from '@/types';
-import { CLIENT_PRICE_LIST_ORDER, type ClientPriceListId } from '@/lib/clientPriceLists';
+import { type ClientPriceListId } from '@/lib/clientPriceLists';
 import { getClientPriceListCatalogFromStore } from '@/lib/clientPriceListCatalog';
 
 function roundMoney2(n: number): number {

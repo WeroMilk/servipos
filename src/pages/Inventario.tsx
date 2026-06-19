@@ -537,6 +537,7 @@ export function Inventario() {
   } = useProducts();
   const priceListCatalog = useClientPriceListCatalog();
   const { effectiveSucursalId } = useEffectiveSucursalId();
+  const setListasPrecioExtraInventario = useInventoryListsStore((s) => s.setListasPrecioExtra);
   const { addToast } = useAppStore();
   const { user } = useAuthStore();
   const { pendingIncoming } = usePendingIncomingTransfers();
@@ -783,7 +784,6 @@ export function Inventario() {
   const [addTemplateLlegadaQtyStr, setAddTemplateLlegadaQtyStr] = useState('');
   const categoriasLista = useInventoryListsStore((s) => s.categorias);
   const proveedoresLista = useInventoryListsStore((s) => s.proveedores);
-  const setListasPrecioExtraInventario = useInventoryListsStore((s) => s.setListasPrecioExtra);
 
   const categoriaSelectOptions = useMemo(() => {
     const s = new Set(categoriasLista);
