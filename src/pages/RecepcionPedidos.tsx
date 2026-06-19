@@ -76,6 +76,7 @@ export function RecepcionPedidos() {
   const { effectiveSucursalId } = useEffectiveSucursalId();
   const proveedoresLista = useInventoryListsStore((s) => s.proveedores);
   const setProveedoresInventario = useInventoryListsStore((s) => s.setProveedores);
+  const setListasPrecioExtraInventario = useInventoryListsStore((s) => s.setListasPrecioExtra);
   const { orders, loading, registerOrder, receiveOrderLines, products, editProduct } =
     usePurchaseOrders();
 
@@ -112,15 +113,21 @@ export function RecepcionPedidos() {
 
   useEffect(() => {
     if (!effectiveSucursalId) return;
-    void getSucursalStateDocOnce<{ proveedores?: string[] }>(
+    void getSucursalStateDocOnce<{
+      proveedores?: string[];
+      listasPrecioExtra?: string[];
+    }>(
       effectiveSucursalId,
       'inventory_lists'
     ).then((doc) => {
       if (Array.isArray(doc?.proveedores) && doc.proveedores.length > 0) {
         setProveedoresInventario(doc.proveedores);
       }
+      if (Array.isArray(doc?.listasPrecioExtra)) {
+        setListasPrecioExtraInventario(doc.listasPrecioExtra);
+      }
     });
-  }, [effectiveSucursalId, setProveedoresInventario]);
+  }, [effectiveSucursalId, setProveedoresInventario, setListasPrecioExtraInventario]);
 
   const detailOrderTotal = useMemo(() => {
     if (!detailOrder) return 0;

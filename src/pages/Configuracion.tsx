@@ -110,8 +110,11 @@ export function Configuracion() {
   const proveedoresInventario = useInventoryListsStore((s) => s.proveedores);
   const setCategoriasInventario = useInventoryListsStore((s) => s.setCategorias);
   const setProveedoresInventario = useInventoryListsStore((s) => s.setProveedores);
+  const listasPrecioExtraInventario = useInventoryListsStore((s) => s.listasPrecioExtra);
+  const setListasPrecioExtraInventario = useInventoryListsStore((s) => s.setListasPrecioExtra);
   const [draftCategorias, setDraftCategorias] = useState('');
   const [draftProveedores, setDraftProveedores] = useState('');
+  const [draftListasPrecioExtra, setDraftListasPrecioExtra] = useState('');
   const adminExtraTabs =
     (canManageUsers ? 2 : 0) +
     (canManageSucursales ? 1 : 0) +
@@ -205,7 +208,11 @@ export function Configuracion() {
     let cancelled = false;
     const sid = effectiveSucursalId?.trim();
     if (!sid) return;
-    void getSucursalStateDocOnce<{ categorias?: string[]; proveedores?: string[] }>(
+    void getSucursalStateDocOnce<{
+      categorias?: string[];
+      proveedores?: string[];
+      listasPrecioExtra?: string[];
+    }>(
       sid,
       SUCURSAL_DOC_INVENTORY_LISTS
     )
@@ -213,6 +220,7 @@ export function Configuracion() {
         if (cancelled || !doc) return;
         if (Array.isArray(doc.categorias)) setCategoriasInventario(doc.categorias);
         if (Array.isArray(doc.proveedores)) setProveedoresInventario(doc.proveedores);
+        if (Array.isArray(doc.listasPrecioExtra)) setListasPrecioExtraInventario(doc.listasPrecioExtra);
       })
       .catch((e) => {
         console.warn('[Configuracion] No se pudo cargar listas de inventario desde nube:', e);
@@ -220,7 +228,7 @@ export function Configuracion() {
     return () => {
       cancelled = true;
     };
-  }, [effectiveSucursalId, setCategoriasInventario, setProveedoresInventario]);
+  }, [effectiveSucursalId, setCategoriasInventario, setProveedoresInventario, setListasPrecioExtraInventario]);
 
   useEffect(() => {
     let cancelled = false;
@@ -335,17 +343,24 @@ export function Configuracion() {
     if (activeTab !== 'inventario-listas') return;
     setDraftCategorias(categoriasInventario.join('\n'));
     setDraftProveedores(proveedoresInventario.join('\n'));
-  }, [activeTab, categoriasInventario, proveedoresInventario]);
+    setDraftListasPrecioExtra(listasPrecioExtraInventario.join('\n'));
+  }, [activeTab, categoriasInventario, proveedoresInventario, listasPrecioExtraInventario]);
 
   const handleSaveInventarioListas = async () => {
     const categorias = draftCategorias.split('\n');
     const proveedores = draftProveedores.split('\n');
+    const listasPrecioExtra = draftListasPrecioExtra.split('\n');
     setCategoriasInventario(categorias);
     setProveedoresInventario(proveedores);
+    setListasPrecioExtraInventario(listasPrecioExtra);
     const sid = effectiveSucursalId?.trim();
     if (sid) {
       try {
-        await saveSucursalStateDoc(sid, SUCURSAL_DOC_INVENTORY_LISTS, { categorias, proveedores });
+        await saveSucursalStateDoc(sid, SUCURSAL_DOC_INVENTORY_LISTS, {
+          categorias,
+          proveedores,
+          listasPrecioExtra,
+        });
       } catch (e) {
         addToast({
           type: 'warning',
@@ -1697,11 +1712,17 @@ export function Configuracion() {
             <Card className="w-full min-w-0 gap-0 border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 xl:flex xl:min-h-0 xl:flex-1 xl:flex-col xl:overflow-hidden">
               <CardHeader className="shrink-0 space-y-1 px-3 py-2 sm:px-4">
                 <CardTitle className="text-base text-slate-900 dark:text-slate-100 sm:text-base">
-                  Categorías y proveedores (inventario)
+                  Categorías, proveedores y listas de precio (inventario)
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-3 p-3 pt-0 sm:p-4 sm:pt-0 xl:min-h-0 xl:flex-1 xl:overflow-hidden">
-                <div className="flex flex-col gap-4 xl:min-h-0 xl:flex-1 xl:flex-row xl:gap-4">
+                <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-400">
+                  Las listas <span className="font-medium">Regular, Técnico, Mayoreo -, Mayoreo +</span> y{' '}
+                  <span className="font-medium">Cananea</span> son fijas en el sistema. En «Listas de precio
+                  adicionales» agregue tipos extra (una etiqueta por línea); aparecerán al capturar precios en
+                  inventario y en el POS.
+                </p>
+                <div className="flex flex-col gap-4 xl:min-h-0 xl:flex-1 xl:flex-row xl:gap-4 xl:flex-wrap">
                   <div className="flex min-h-[12rem] flex-col gap-2 xl:min-h-0 xl:flex-1">
                     <Label className="shrink-0 text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
                       Categorías
@@ -1722,6 +1743,19 @@ export function Configuracion() {
                       value={draftProveedores}
                       onChange={(e) => setDraftProveedores(e.target.value)}
                       rows={4}
+                      className="min-h-0 w-full flex-1 resize-none overflow-y-auto overscroll-y-contain rounded-md border border-slate-300 bg-slate-200/80 p-3 font-mono text-base leading-normal text-slate-900 [-webkit-overflow-scrolling:touch] dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-100 sm:p-2 sm:text-sm"
+                      spellCheck={false}
+                    />
+                  </div>
+                  <div className="flex min-h-[10rem] flex-col gap-2 xl:min-h-0 xl:flex-1 xl:min-w-[14rem]">
+                    <Label className="shrink-0 text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
+                      Listas de precio adicionales
+                    </Label>
+                    <textarea
+                      value={draftListasPrecioExtra}
+                      onChange={(e) => setDraftListasPrecioExtra(e.target.value)}
+                      rows={4}
+                      placeholder={'Distribuidor\nExportación'}
                       className="min-h-0 w-full flex-1 resize-none overflow-y-auto overscroll-y-contain rounded-md border border-slate-300 bg-slate-200/80 p-3 font-mono text-base leading-normal text-slate-900 [-webkit-overflow-scrolling:touch] dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-100 sm:p-2 sm:text-sm"
                       spellCheck={false}
                     />

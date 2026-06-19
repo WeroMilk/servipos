@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import type { Product, CartItem, Client } from '@/types';
-import { CLIENT_PRICE_LIST_ORDER, normalizeClientPriceListId, type ClientPriceListId } from '@/lib/clientPriceLists';
+import { normalizeClientPriceListIdWithExtras, getClientPriceListCatalogFromStore } from '@/lib/clientPriceListCatalog';
+import type { ClientPriceListId } from '@/lib/clientPriceLists';
+import { useInventoryListsStore } from '@/stores';
 import {
   getCartLineUnitSinIvaBase,
   getProductUnitSinIvaForClienteList,
@@ -109,10 +111,7 @@ export function getEmptyCartDraftSnapshot(): CartDraftSnapshot {
 
 function coerceCartItemPrecioLista(it: CartItem): CartItem {
   const raw = it.precioListaId;
-  if (
-    typeof raw === 'string' &&
-    (CLIENT_PRICE_LIST_ORDER as readonly string[]).includes(raw)
-  ) {
+  if (typeof raw === 'string' && getClientPriceListCatalogFromStore().ids.includes(raw)) {
     return { ...it, precioListaId: raw as ClientPriceListId };
   }
   const { precioListaId: _drop, ...rest } = it;
@@ -168,7 +167,10 @@ function sanitizeCartDraft(draft: Partial<CartDraftSnapshot> | null | undefined)
     notas: typeof draft.notas === 'string' ? draft.notas : '',
     transferenciaDestinoSucursalId:
       typeof draft.transferenciaDestinoSucursalId === 'string' ? draft.transferenciaDestinoSucursalId : '',
-    precioClienteListaId: normalizeClientPriceListId(listId),
+    precioClienteListaId: normalizeClientPriceListIdWithExtras(
+      listId,
+      useInventoryListsStore.getState().listasPrecioExtra
+    ),
   };
 }
 

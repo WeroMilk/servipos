@@ -99,11 +99,14 @@ import {
 } from '@/lib/posOpenSaleResume';
 import { clientFromQuotationForPos } from '@/lib/posQuotationCart';
 import {
-  CLIENT_PRICE_LIST_ORDER,
-  CLIENT_PRICE_LABELS,
   type ClientPriceListId,
   POS_EDIT_UNIT_PRICE_PIN,
 } from '@/lib/clientPriceLists';
+import {
+  getClientPriceListCatalogFromStore,
+  normalizeClientPriceListIdWithExtras,
+} from '@/lib/clientPriceListCatalog';
+import { useClientPriceListCatalog } from '@/hooks/useClientPriceListCatalog';
 import { subscribeSucursales } from '@/lib/firestore/sucursalesMetaFirestore';
 import { cn, formatMoney } from '@/lib/utils';
 import { formatInAppTimezone } from '@/lib/appTimezone';
@@ -357,9 +360,9 @@ function listaPrecioDialogInputToStoredValue(
   return roundMoney2(unitBaseSinIvaToPrecioConIva(inputValue, impuestoPct));
 }
 
-function emptyListaPrecioStrMap(): Record<ClientPriceListId, string> {
-  const o = {} as Record<ClientPriceListId, string>;
-  for (const id of CLIENT_PRICE_LIST_ORDER) o[id] = '';
+function emptyListaPrecioStrMap(): Record<string, string> {
+  const o: Record<string, string> = {};
+  for (const id of getClientPriceListCatalogFromStore().ids) o[id] = '';
   return o;
 }
 
@@ -460,6 +463,7 @@ export function POS() {
   const location = useLocation();
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'admin';
+  const priceListCatalog = useClientPriceListCatalog();
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const { addToast } = useAppStore();
   const {
@@ -716,10 +720,9 @@ export function POS() {
   const metodoPagoSelectValue: 'PUE' | 'PPD' = metodoPago === 'PPD' ? 'PPD' : 'PUE';
 
   const precioClienteListaSelectValue = useMemo((): ClientPriceListId => {
-    const id = precioClienteListaId;
-    if ((CLIENT_PRICE_LIST_ORDER as readonly string[]).includes(id)) return id;
+    if (priceListCatalog.ids.includes(precioClienteListaId)) return precioClienteListaId;
     return 'regular';
-  }, [precioClienteListaId]);
+  }, [precioClienteListaId, priceListCatalog.ids]);
 
   const [devolucionFolioInput, setDevolucionFolioInput] = useState('');
   const [devolucionSaleResuelta, setDevolucionSaleResuelta] = useState<Sale | null>(null);
@@ -1142,7 +1145,7 @@ export function POS() {
     const p = it.product;
     const incluye = effectiveListaPreciosIncluyenIva(p);
     const next = emptyListaPrecioStrMap();
-    for (const id of CLIENT_PRICE_LIST_ORDER) {
+    for (const id of priceListCatalog.ids) {
       const v = incluye
         ? getProductUnitConIvaForClienteList(p, id)
         : getProductUnitSinIvaForClienteList(p, id);
@@ -1161,7 +1164,7 @@ export function POS() {
     setListasPrecioCatalogEditConIva((prev) => {
       setListasPrecioStr((strs) => {
         const out = { ...strs };
-        for (const id of CLIENT_PRICE_LIST_ORDER) {
+        for (const id of priceListCatalog.ids) {
           const raw = (strs[id] ?? '').trim();
           if (raw === '') continue;
           const n = parsePrecioNumberFromFirestore(raw);
@@ -1187,7 +1190,7 @@ export function POS() {
       const imp = Number(p.impuesto) || 16;
       const almacenListaConIva = effectiveListaPreciosIncluyenIva(p);
       const mergedMap: Partial<Record<ClientPriceListId, number>> = { ...(p.preciosPorListaCliente ?? {}) };
-      for (const id of CLIENT_PRICE_LIST_ORDER) {
+      for (const id of priceListCatalog.ids) {
         const raw = (listasPrecioStr[id] ?? '').trim();
         if (raw === '') {
           delete mergedMap[id];
@@ -1197,7 +1200,7 @@ export function POS() {
         if (!Number.isFinite(n) || n < 0) {
           addToast({
             type: 'warning',
-            message: `Precio inválido en «${CLIENT_PRICE_LABELS[id]}»`,
+            message: `Precio inválido en «${priceListCatalog.labels[id] ?? id}»`,
           });
           return;
         }
@@ -4011,9 +4014,9 @@ export function POS() {
                           hideScrollButtons
                           className="z-[300] max-h-[min(50dvh,18rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
                         >
-                          {CLIENT_PRICE_LIST_ORDER.map((id) => (
+                          {priceListCatalog.entries.map(({ id, label }) => (
                             <SelectItem key={id} value={id} className="text-slate-900 dark:text-slate-100">
-                              {CLIENT_PRICE_LABELS[id]}
+                              {label}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -4783,7 +4786,7 @@ export function POS() {
               <div className="space-y-2">
                 <Label className="text-slate-700 dark:text-slate-300">Lista para esta línea</Label>
                 <div className="flex flex-wrap gap-2">
-                  {CLIENT_PRICE_LIST_ORDER.map((lid) => (
+                  {priceListCatalog.entries.map(({ id: lid, label }) => (
                     <Button
                       key={lid}
                       type="button"
@@ -4801,11 +4804,11 @@ export function POS() {
                         syncUnitPriceInputFromCartLine();
                         addToast({
                           type: 'success',
-                          message: `Lista «${CLIENT_PRICE_LABELS[lid]}» aplicada a la línea`,
+                          message: `Lista «${label}» aplicada a la línea`,
                         });
                       }}
                     >
-                      {CLIENT_PRICE_LABELS[lid]}
+                      {label}
                     </Button>
                   ))}
                 </div>
@@ -4822,11 +4825,11 @@ export function POS() {
                       syncUnitPriceInputFromCartLine();
                       addToast({
                         type: 'success',
-                        message: `Línea usa la lista del ticket (${CLIENT_PRICE_LABELS[precioClienteListaId]})`,
+                        message: `Línea usa la lista del ticket (${priceListCatalog.labels[precioClienteListaId] ?? precioClienteListaId})`,
                       });
                     }}
                   >
-                    Quitar lista propia — usar solo «{CLIENT_PRICE_LABELS[precioClienteListaId]}» del ticket
+                    Quitar lista propia — usar solo «{priceListCatalog.labels[precioClienteListaId] ?? precioClienteListaId}» del ticket
                   </Button>
                 ) : null}
                 {unitPriceLineIsManual ? (
@@ -4952,9 +4955,9 @@ export function POS() {
             </p>
           </div>
           <div className="space-y-3">
-            {CLIENT_PRICE_LIST_ORDER.map((lid) => (
+            {priceListCatalog.entries.map(({ id: lid, label }) => (
               <div key={lid} className="space-y-1">
-                <Label className="text-slate-700 dark:text-slate-300">{CLIENT_PRICE_LABELS[lid]}</Label>
+                <Label className="text-slate-700 dark:text-slate-300">{label}</Label>
                 <Input
                   type="text"
                   inputMode="decimal"

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import {
   type ClientPriceListId,
-  CLIENT_PRICE_LIST_ORDER,
+  BUILTIN_CLIENT_PRICE_LIST_ORDER,
   DEFAULT_CLIENT_PRICE_DISCOUNTS,
 } from '@/lib/clientPriceLists';
 
@@ -10,7 +10,7 @@ type DiscountsMap = Record<ClientPriceListId, number>;
 
 function buildDefaultDiscounts(): DiscountsMap {
   const o = {} as DiscountsMap;
-  for (const id of CLIENT_PRICE_LIST_ORDER) {
+  for (const id of BUILTIN_CLIENT_PRICE_LIST_ORDER) {
     o[id] = DEFAULT_CLIENT_PRICE_DISCOUNTS[id];
   }
   return o;
@@ -53,5 +53,5 @@ export function getListaPrecioClientePct(listId: ClientPriceListId): number {
   if (typeof d === 'number' && !Number.isNaN(d)) {
     return Math.min(99.99, Math.max(0, Math.min(100, d)));
   }
-  return Math.min(99.99, DEFAULT_CLIENT_PRICE_DISCOUNTS[listId]);
+  return Math.min(99.99, DEFAULT_CLIENT_PRICE_DISCOUNTS[listId as keyof typeof DEFAULT_CLIENT_PRICE_DISCOUNTS] ?? 0);
 }

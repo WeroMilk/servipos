@@ -1,5 +1,6 @@
 import type { Client, ClientAbonoHistorialEntry } from '@/types';
 import { normalizeClientPriceListId } from '@/lib/clientPriceLists';
+import { createDebouncedAsyncFn } from '@/lib/debouncedAsync';
 import { getSupabase } from '@/lib/supabaseClient';
 
 function firestoreTimestampToDate(value: unknown): Date {
@@ -129,39 +130,107 @@ function clientToDocPayload(
   };
 }
 
+let lastClients: Client[] = [];
+const clientsListeners = new Set<(clients: Client[]) => void>();
+const clientsMirrorListeners = new Set<(clients: Client[]) => void | Promise<void>>();
+let clientsChannel: ReturnType<ReturnType<typeof getSupabase>['channel']> | null = null;
+let clientsSucursalId: string | null = null;
+let clientsReloadDebounced: (() => void) | null = null;
+
+export function getClientsCatalogSnapshot(): Client[] {
+  return lastClients;
+}
+
+function notifyClientsListeners(list: Client[]): void {
+  lastClients = list;
+  clientsListeners.forEach((fn) => {
+    try {
+      fn([...list]);
+    } catch (e) {
+      console.error('subscribeClientsCatalog listener:', e);
+    }
+  });
+  clientsMirrorListeners.forEach((fn) => {
+    void fn([...list]);
+  });
+}
+
 export function subscribeClientsCatalog(
   sucursalId: string,
   onData: (clients: Client[]) => void,
   onMirrorLocal?: (clients: Client[]) => void | Promise<void>
 ): () => void {
+  onData([...lastClients]);
+  clientsListeners.add(onData);
+  if (onMirrorLocal) clientsMirrorListeners.add(onMirrorLocal);
+
   const supabase = getSupabase();
+
   const load = async () => {
     const { data, error } = await supabase.from('clients').select('id, doc').eq('sucursal_id', sucursalId);
     if (error) {
       console.error('subscribeClientsCatalog:', error);
-      onData([]);
+      if (lastClients.length > 0) {
+        clientsListeners.forEach((fn) => {
+          try {
+            fn([...lastClients]);
+          } catch (e) {
+            console.error('subscribeClientsCatalog listener:', e);
+          }
+        });
+        return;
+      }
+      notifyClientsListeners([]);
       return;
     }
     const list = (data ?? []).map((r) =>
       docToClient(sucursalId, r.id, r.doc as Record<string, unknown>)
     );
     list.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
-    void onMirrorLocal?.(list);
-    onData(list);
+    notifyClientsListeners(list);
   };
-  void load();
-  const ch = supabase
-    .channel(`clients-${sucursalId}`)
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'clients', filter: `sucursal_id=eq.${sucursalId}` },
-      () => {
-        void load();
-      }
-    )
-    .subscribe();
+
+  if (clientsSucursalId !== sucursalId) {
+    if (clientsChannel) {
+      void supabase.removeChannel(clientsChannel);
+      clientsChannel = null;
+    }
+    clientsSucursalId = sucursalId;
+    clientsReloadDebounced = createDebouncedAsyncFn(load, 500);
+    lastClients = [];
+    notifyClientsListeners([]);
+    void load();
+    clientsChannel = supabase
+      .channel(`clients-${sucursalId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'clients', filter: `sucursal_id=eq.${sucursalId}` },
+        () => {
+          clientsReloadDebounced?.();
+        }
+      )
+      .subscribe();
+  } else {
+    try {
+      onData([...lastClients]);
+    } catch (e) {
+      console.error('subscribeClientsCatalog (resync existing):', e);
+    }
+  }
+
   return () => {
-    void supabase.removeChannel(ch);
+    clientsListeners.delete(onData);
+    if (onMirrorLocal) clientsMirrorListeners.delete(onMirrorLocal);
+    if (clientsListeners.size === 0) {
+      if (clientsChannel) {
+        void supabase.removeChannel(clientsChannel);
+        clientsChannel = null;
+      }
+      clientsSucursalId = null;
+      clientsReloadDebounced = null;
+      lastClients = [];
+      clientsMirrorListeners.clear();
+    }
   };
 }
 

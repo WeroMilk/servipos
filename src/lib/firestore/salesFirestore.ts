@@ -1,6 +1,7 @@
-import { CLIENT_PRICE_LIST_ORDER, normalizeClientPriceListId } from '@/lib/clientPriceLists';
+import { normalizeClientPriceListIdWithExtras, getClientPriceListCatalogFromStore } from '@/lib/clientPriceListCatalog';
 import type { Client, FormaPago, MetodoPago, Payment, Sale, SaleItem, SaleStatus } from '@/types';
 import { getMexicoDateKey, startOfDayFromDateKey } from '@/lib/quincenaMx';
+import { createDebouncedAsyncFn } from '@/lib/debouncedAsync';
 import { getSupabase } from '@/lib/supabaseClient';
 import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
 
@@ -55,8 +56,9 @@ function parseEstado(v: unknown): SaleStatus {
 
 function parsePosResumeListaPrecios(v: unknown): string | undefined {
   if (typeof v !== 'string' || !v.trim()) return undefined;
-  const s = v.trim();
-  return (CLIENT_PRICE_LIST_ORDER as readonly string[]).includes(s) ? s : undefined;
+  const normalized = normalizeClientPriceListIdWithExtras(v.trim());
+  const { ids } = getClientPriceListCatalogFromStore();
+  return ids.includes(normalized) ? normalized : undefined;
 }
 
 function saleItemProductoNombreFromRaw(raw: Record<string, unknown>): string | undefined {
@@ -102,7 +104,7 @@ function mapClientEmbedded(raw: Record<string, unknown>): Client {
     isMostrador: raw.isMostrador === true,
     listaPreciosId:
       raw.listaPreciosId != null && raw.listaPreciosId !== ''
-        ? normalizeClientPriceListId(raw.listaPreciosId)
+        ? normalizeClientPriceListIdWithExtras(raw.listaPreciosId)
         : undefined,
     createdAt: firestoreTimestampToDate(raw.createdAt),
     updatedAt: firestoreTimestampToDate(raw.updatedAt),
@@ -343,9 +345,12 @@ export async function fetchSalesByCajaSesion(sucursalId: string, sesionId: strin
   const sid = sesionId.trim();
   if (!sid) return [];
   const supabase = getSupabase();
-  const { data: rows } = await supabase.from('sales').select('id, doc').eq('sucursal_id', sucursalId);
+  const { data: rows } = await supabase
+    .from('sales')
+    .select('id, doc')
+    .eq('sucursal_id', sucursalId)
+    .eq('doc->>cajaSesionId', sid);
   const list = (rows ?? [])
-    .filter((r) => String((r.doc as { cajaSesionId?: string })?.cajaSesionId ?? '').trim() === sid)
     .map((r) => saleDataToSale(r.id, r.doc as Record<string, unknown>, sucursalId))
     .filter((s): s is Sale => s != null);
   return list;
@@ -356,11 +361,15 @@ export async function fetchSalesForMexicoDateKey(sucursalId: string, dateKey: st
   const end = new Date(start);
   end.setDate(end.getDate() + 1);
   const supabase = getSupabase();
-  const { data: rows } = await supabase.from('sales').select('id, doc').eq('sucursal_id', sucursalId);
+  const { data: rows } = await supabase
+    .from('sales')
+    .select('id, doc')
+    .eq('sucursal_id', sucursalId)
+    .gte('doc->>createdAt', start.toISOString())
+    .lt('doc->>createdAt', end.toISOString());
   const list = (rows ?? [])
     .map((r) => saleDataToSale(r.id, r.doc as Record<string, unknown>, sucursalId))
-    .filter((s): s is Sale => s != null)
-    .filter((s) => s.createdAt >= start && s.createdAt < end);
+    .filter((s): s is Sale => s != null);
   list.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   return list;
 }
@@ -374,12 +383,16 @@ export async function fetchSalesByClienteIdFirestore(
   const cid = clienteId.trim();
   if (!cid || cid === 'mostrador') return [];
   const supabase = getSupabase();
-  const { data: rows } = await supabase.from('sales').select('id, doc').eq('sucursal_id', sucursalId);
+  const { data: rows } = await supabase
+    .from('sales')
+    .select('id, doc')
+    .eq('sucursal_id', sucursalId)
+    .eq('doc->>clienteId', cid)
+    .order('doc->>createdAt', { ascending: false })
+    .limit(CLIENT_SALES_QUERY_LIMIT);
   const list = (rows ?? [])
-    .filter((r) => String((r.doc as { clienteId?: string })?.clienteId ?? '') === cid)
     .map((r) => saleDataToSale(r.id, r.doc as Record<string, unknown>, sucursalId))
-    .filter((s): s is Sale => s != null)
-    .slice(0, CLIENT_SALES_QUERY_LIMIT);
+    .filter((s): s is Sale => s != null);
   list.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   return list;
 }
@@ -578,13 +591,16 @@ export async function getSaleByFolioFirestore(sucursalId: string, folioRaw: stri
   const folio = folioRaw.trim();
   if (!folio) return null;
   const supabase = getSupabase();
-  const { data: rows } = await supabase.from('sales').select('id, doc').eq('sucursal_id', sucursalId);
-  const hits = (rows ?? []).filter((r) => String((r.doc as { folio?: string })?.folio ?? '') === folio);
-  const list = hits
-    .map((r) => saleDataToSale(r.id, r.doc as Record<string, unknown>, sucursalId))
-    .filter((s): s is Sale => s != null)
-    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-  return list[0] ?? null;
+  const { data: row } = await supabase
+    .from('sales')
+    .select('id, doc')
+    .eq('sucursal_id', sucursalId)
+    .eq('doc->>folio', folio)
+    .order('doc->>createdAt', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!row) return null;
+  return saleDataToSale(row.id, row.doc as Record<string, unknown>, sucursalId);
 }
 
 export async function patchSaleInvoiceFirestore(
@@ -622,6 +638,7 @@ let lastSalesPending: Sale[] = [];
 const salesListeners = new Set<(sales: Sale[]) => void>();
 let salesChannel: ReturnType<ReturnType<typeof getSupabase>['channel']> | null = null;
 let salesSucursalId: string | null = null;
+let salesReloadDebounced: (() => void) | null = null;
 
 function mergeSalesCatalog(): Sale[] {
   const byId = new Map<string, Sale>();
@@ -668,17 +685,17 @@ export function subscribeSalesCatalog(sucursalId: string, onSales: (sales: Sale[
     const { data: pendRows, error: e2 } = await supabase
       .from('sales')
       .select('id, doc')
-      .eq('sucursal_id', sucursalId);
+      .eq('sucursal_id', sucursalId)
+      .eq('doc->>estado', 'pendiente')
+      .order('doc->>createdAt', { ascending: false })
+      .limit(PENDING_OPEN_SALES_LIMIT);
     if (e2) {
       console.error('Supabase sales (pendientes):', e2);
       lastSalesPending = [];
     } else {
       lastSalesPending = (pendRows ?? [])
-        .filter((r) => String((r.doc as { estado?: string })?.estado ?? '') === 'pendiente')
         .map((r) => mapRow(r, sucursalId))
-        .filter((s): s is Sale => s != null)
-        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-        .slice(0, PENDING_OPEN_SALES_LIMIT);
+        .filter((s): s is Sale => s != null);
     }
     notifySalesCatalogListeners();
   };
@@ -692,6 +709,7 @@ export function subscribeSalesCatalog(sucursalId: string, onSales: (sales: Sale[
     lastSalesPending = [];
     lastSales = [];
     salesSucursalId = sucursalId;
+    salesReloadDebounced = createDebouncedAsyncFn(reload, 400);
     notifySalesCatalogListeners();
     void reload();
     salesChannel = supabase
@@ -700,12 +718,16 @@ export function subscribeSalesCatalog(sucursalId: string, onSales: (sales: Sale[
         'postgres_changes',
         { event: '*', schema: 'public', table: 'sales', filter: `sucursal_id=eq.${sucursalId}` },
         () => {
-          void reload();
+          salesReloadDebounced?.();
         }
       )
       .subscribe();
   } else {
-    void reload();
+    try {
+      onSales([...lastSales]);
+    } catch (e) {
+      console.error('subscribeSalesCatalog (resync existing):', e);
+    }
   }
 
   return () => {
@@ -716,6 +738,7 @@ export function subscribeSalesCatalog(sucursalId: string, onSales: (sales: Sale[
         salesChannel = null;
       }
       salesSucursalId = null;
+      salesReloadDebounced = null;
       lastSalesRecent = [];
       lastSalesPending = [];
       lastSales = [];

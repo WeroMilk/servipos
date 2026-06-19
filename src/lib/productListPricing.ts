@@ -1,5 +1,6 @@
 import type { Product, CartItem } from '@/types';
 import { CLIENT_PRICE_LIST_ORDER, type ClientPriceListId } from '@/lib/clientPriceLists';
+import { getClientPriceListCatalogFromStore } from '@/lib/clientPriceListCatalog';
 import { inferPrecioVentaSinIvaFromListas, normalizeListaPrecioValue } from '@/lib/precioListaNorm';
 import { getListaPrecioClientePct } from '@/stores/clientPriceListStore';
 import { effectiveListaPreciosIncluyenIva } from '@/lib/catalogPricingFlags';
@@ -46,7 +47,13 @@ function explicitListaToSinIva(product: Product, explicit: number): number {
  */
 function maxExplicitListaSinIvaLadderTop(product: Product): number {
   let m = 0;
-  for (const id of CLIENT_PRICE_LIST_ORDER) {
+  const ids = [
+    ...new Set([
+      ...getClientPriceListCatalogFromStore().ids,
+      ...Object.keys(product.preciosPorListaCliente ?? {}),
+    ]),
+  ];
+  for (const id of ids) {
     const ex = normalizeListaPrecioValue(product.preciosPorListaCliente?.[id]);
     if (ex !== undefined && ex > 0) {
       const s = explicitListaToSinIva(product, ex);
@@ -119,8 +126,11 @@ export function deriveListaPrecioStorageStringsFromPrecioVenta(
   storageIncluyeIva: boolean,
   impuestoPct: number
 ): Record<ClientPriceListId, string> {
-  const out = {} as Record<ClientPriceListId, string>;
-  for (const id of CLIENT_PRICE_LIST_ORDER) out[id] = '';
+  const catalogIds = getClientPriceListCatalogFromStore().ids;
+  const out = Object.fromEntries(catalogIds.map((id) => [id, ''])) as Record<
+    ClientPriceListId,
+    string
+  >;
   if (!Number.isFinite(precioVentaSinIva) || precioVentaSinIva <= 0) return out;
 
   const imp = Number(impuestoPct) || 16;

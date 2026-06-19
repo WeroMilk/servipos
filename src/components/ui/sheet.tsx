@@ -4,6 +4,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { XIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { shouldBlockDialogOutsideDismiss } from "@/lib/radixDismissGuard"
 
 function Sheet({
   ...props
@@ -85,13 +86,13 @@ function SheetContent({
         data-slot="sheet-content"
         className={cn(sheetVariants({ side }), className)}
         onPointerDownOutside={(e) => {
-          if (!closeOnOutsideClick) {
+          if (shouldBlockDialogOutsideDismiss(closeOnOutsideClick, e.detail.originalEvent)) {
             e.preventDefault()
           }
           onPointerDownOutside?.(e)
         }}
         onInteractOutside={(e) => {
-          if (!closeOnOutsideClick) {
+          if (shouldBlockDialogOutsideDismiss(closeOnOutsideClick, e.detail.originalEvent)) {
             e.preventDefault()
           }
           onInteractOutside?.(e)

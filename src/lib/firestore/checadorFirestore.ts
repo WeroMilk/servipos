@@ -1,5 +1,6 @@
 import type { ChecadorDiaRegistro, User } from '@/types';
 import { getMexicoDateKey, quincenaIdFromDateKey } from '@/lib/quincenaMx';
+import { createDebouncedAsyncFn } from '@/lib/debouncedAsync';
 import { getSupabase } from '@/lib/supabaseClient';
 
 const COL = 'checador_registros';
@@ -233,10 +234,11 @@ function sortChecadorRows(list: ChecadorDiaRegistro[]): ChecadorDiaRegistro[] {
 
 export async function fetchChecadorByQuincena(quincenaId: string): Promise<ChecadorDiaRegistro[]> {
   const supabase = getSupabase();
-  const { data: rows } = await supabase.from(COL).select('id, doc');
-  const list = (rows ?? [])
-    .filter((r) => String((r.doc as { quincenaId?: string })?.quincenaId ?? '') === quincenaId)
-    .map((r) => docToChecadorDia(r.id, r.doc as Record<string, unknown>));
+  const { data: rows } = await supabase
+    .from(COL)
+    .select('id, doc')
+    .eq('doc->>quincenaId', quincenaId);
+  const list = (rows ?? []).map((r) => docToChecadorDia(r.id, r.doc as Record<string, unknown>));
   return sortChecadorRows(list);
 }
 
@@ -246,22 +248,24 @@ export function subscribeChecadorByQuincena(
 ): () => void {
   const supabase = getSupabase();
   const load = async () => {
-    const { data: rows, error } = await supabase.from(COL).select('id, doc');
+    const { data: rows, error } = await supabase
+      .from(COL)
+      .select('id, doc')
+      .eq('doc->>quincenaId', quincenaId);
     if (error) {
       console.error('subscribeChecadorByQuincena:', error);
       onData([]);
       return;
     }
-    const list = (rows ?? [])
-      .filter((r) => String((r.doc as { quincenaId?: string })?.quincenaId ?? '') === quincenaId)
-      .map((r) => docToChecadorDia(r.id, r.doc as Record<string, unknown>));
+    const list = (rows ?? []).map((r) => docToChecadorDia(r.id, r.doc as Record<string, unknown>));
     onData(sortChecadorRows(list));
   };
+  const loadDebounced = createDebouncedAsyncFn(load, 400);
   void load();
   const ch = supabase
     .channel(`checador-q-${quincenaId}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: COL }, () => {
-      void load();
+      loadDebounced();
     })
     .subscribe();
   return () => {

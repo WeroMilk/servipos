@@ -1,7 +1,7 @@
 import { formatMoney } from '@/lib/utils';
 import type { Product } from '@/types';
+import { getClientPriceListCatalogFromStore } from '@/lib/clientPriceListCatalog';
 import {
-  CLIENT_PRICE_LIST_ORDER,
   CLIENT_PRICE_LABELS,
   type ClientPriceListId,
 } from '@/lib/clientPriceLists';
@@ -39,7 +39,9 @@ function normalizePreciosLista(
 ): Record<string, number> {
   if (!m || typeof m !== 'object') return {};
   const o: Record<string, number> = {};
-  for (const id of CLIENT_PRICE_LIST_ORDER) {
+  const catalogIds = getClientPriceListCatalogFromStore().ids;
+  const allIds = new Set([...catalogIds, ...Object.keys(m)]);
+  for (const id of allIds) {
     const v = m[id];
     if (typeof v === 'number' && Number.isFinite(v) && v >= 0) o[id] = v;
   }
@@ -127,13 +129,13 @@ function formatFieldChange(key: keyof Product, prev: unknown, next: unknown): st
     const lines: string[] = [`${label}:`];
     const before = normalizePreciosLista(prev as Product['preciosPorListaCliente']);
     const after = normalizePreciosLista(next as Product['preciosPorListaCliente']);
-    const ids = new Set([...Object.keys(before), ...Object.keys(after)] as ClientPriceListId[]);
-    for (const id of CLIENT_PRICE_LIST_ORDER) {
-      if (!ids.has(id)) continue;
+    const { ids, labels } = getClientPriceListCatalogFromStore();
+    const allIds = new Set([...ids, ...Object.keys(before), ...Object.keys(after)]);
+    for (const id of allIds) {
       const bv = before[id];
       const av = after[id];
       if (bv === av) continue;
-      const lab = CLIENT_PRICE_LABELS[id];
+      const lab = labels[id] ?? CLIENT_PRICE_LABELS[id as keyof typeof CLIENT_PRICE_LABELS] ?? id;
       lines.push(
         `  · ${lab}: ${bv !== undefined ? moneyStr(bv) : '—'} → ${av !== undefined ? moneyStr(av) : '—'}`
       );

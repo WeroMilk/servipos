@@ -8,6 +8,7 @@ import {
 } from '@/lib/precioListaNorm';
 import { normalizeClaveProdServ, normalizeClaveUnidadSat } from '@/lib/satCatalog';
 import { normSkuBarcode } from '@/lib/productCatalogUniqueness';
+import { createDebouncedAsyncFn } from '@/lib/debouncedAsync';
 import { getSupabase } from '@/lib/supabaseClient';
 
 /** PostgREST devuelve como máximo 1000 filas por defecto; hay que paginar. */
@@ -33,7 +34,10 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function fetchAllProductRowsForSucursalOnce(sucursalId: string): Promise<{
+async function fetchAllProductRowsForSucursalOnce(
+  sucursalId: string,
+  options?: { includeInactive?: boolean }
+): Promise<{
   rows: { id: string; doc: Record<string, unknown> }[];
   error: Error | null;
 }> {
@@ -41,12 +45,14 @@ async function fetchAllProductRowsForSucursalOnce(sucursalId: string): Promise<{
   const all: { id: string; doc: Record<string, unknown> }[] = [];
   let from = 0;
   while (true) {
-    const { data, error } = await supabase
+    let query = supabase
       .from('products')
       .select('id, doc')
-      .eq('sucursal_id', sucursalId)
-      .order('id', { ascending: true })
-      .range(from, from + PRODUCTS_FETCH_PAGE - 1);
+      .eq('sucursal_id', sucursalId);
+    if (!options?.includeInactive) {
+      query = query.or('doc->>activo.is.null,doc->>activo.neq.false');
+    }
+    const { data, error } = await query.order('id', { ascending: true }).range(from, from + PRODUCTS_FETCH_PAGE - 1);
     if (error) {
       console.error('Supabase products:', error);
       return { rows: [], error: new Error(error.message) };
@@ -72,7 +78,7 @@ export async function copyProductCatalogBetweenSucursales(
   if (destSucursalId === sourceSucursalId) {
     throw new Error('El origen y el destino de la copia no pueden ser la misma sucursal.');
   }
-  const { rows, error } = await fetchAllProductRowsForSucursal(sourceSucursalId);
+  const { rows, error } = await fetchAllProductRowsForSucursal(sourceSucursalId, { includeInactive: true });
   if (error) throw error;
   if (rows.length === 0) {
     return { copied: 0 };
@@ -102,7 +108,10 @@ export async function copyProductCatalogBetweenSucursales(
   return { copied: rows.length };
 }
 
-async function fetchAllProductRowsForSucursal(sucursalId: string): Promise<{
+async function fetchAllProductRowsForSucursal(
+  sucursalId: string,
+  options?: { includeInactive?: boolean }
+): Promise<{
   rows: { id: string; doc: Record<string, unknown> }[];
   error: Error | null;
 }> {
@@ -112,7 +121,7 @@ async function fetchAllProductRowsForSucursal(sucursalId: string): Promise<{
       const backoff = Math.round(350 * Math.pow(2.5, attempt - 1));
       await delay(backoff);
     }
-    const { rows, error } = await fetchAllProductRowsForSucursalOnce(sucursalId);
+    const { rows, error } = await fetchAllProductRowsForSucursalOnce(sucursalId, options);
     if (!error) {
       return { rows, error: null };
     }
@@ -227,6 +236,7 @@ const catalogListeners = new Set<(products: Product[]) => void>();
 const catalogErrorListeners = new Set<(err: Error) => void>();
 let catalogChannel: ReturnType<ReturnType<typeof getSupabase>['channel']> | null = null;
 let catalogSucursalId: string | null = null;
+let catalogReloadDebounced: (() => void) | null = null;
 
 export function getProductCatalogSnapshot(): Product[] {
   return lastProducts;
@@ -268,10 +278,7 @@ export function subscribeProductCatalog(
       });
       return;
     }
-    lastProducts = rows
-      .filter((r) => r.doc && (r.doc as { activo?: boolean }).activo !== false)
-      .map((r) => docToProduct(r))
-      .sort((a, b) => String(a.nombre ?? '').localeCompare(String(b.nombre ?? ''), 'es'));
+    lastProducts = rows.map((r) => docToProduct(r)).sort((a, b) => String(a.nombre ?? '').localeCompare(String(b.nombre ?? ''), 'es'));
     catalogListeners.forEach((l) => {
       try {
         l([...lastProducts]);
@@ -287,6 +294,7 @@ export function subscribeProductCatalog(
       catalogChannel = null;
     }
     catalogSucursalId = sucursalId;
+    catalogReloadDebounced = createDebouncedAsyncFn(load, 400);
     void load();
     catalogChannel = supabase
       .channel(`products-${sucursalId}`)
@@ -294,7 +302,7 @@ export function subscribeProductCatalog(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'products', filter: `sucursal_id=eq.${sucursalId}` },
         () => {
-          void load();
+          catalogReloadDebounced?.();
         }
       )
       .subscribe();
@@ -316,6 +324,7 @@ export function subscribeProductCatalog(
         catalogChannel = null;
       }
       catalogSucursalId = null;
+      catalogReloadDebounced = null;
       lastProducts = [];
       catalogErrorListeners.clear();
     }

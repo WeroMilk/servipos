@@ -64,9 +64,8 @@ import { useAppStore, useAuthStore, useInventoryListsStore } from '@/stores';
 import { setInventarioHeaderBridge, clearInventarioHeaderBridge } from '@/stores/inventarioHeaderStore';
 import type { InventoryMovement, Product, Sucursal } from '@/types';
 import { productEsServicio } from '@/lib/productServicio';
+import { useClientPriceListCatalog } from '@/hooks/useClientPriceListCatalog';
 import {
-  CLIENT_PRICE_LIST_ORDER,
-  CLIENT_PRICE_LABELS,
   type ClientPriceListId,
 } from '@/lib/clientPriceLists';
 import {
@@ -80,9 +79,11 @@ import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import { clearAllInventoryMovementsLocal, getInventoryMovementsByProductId } from '@/db/database';
 import { deleteAllInventoryMovementsFirestore } from '@/lib/firestore/inventoryMovementsFirestore';
 import { subscribeSucursales } from '@/lib/firestore/sucursalesMetaFirestore';
+import { getSucursalStateDocOnce } from '@/lib/firestore/stateDocsFirestore';
 import { confirmIncomingStoreTransfer } from '@/lib/firestore/storeTransfersFirestore';
 import { cn, formatMoney } from '@/lib/utils';
 import { getProductPrecioPublicoRegular, deriveListaPrecioStorageStringsFromPrecioVenta } from '@/lib/productListPricing';
+import { getClientPriceListCatalogFromStore } from '@/lib/clientPriceListCatalog';
 import { parsePrecioNumberFromFirestore } from '@/lib/precioListaNorm';
 import {
   SAT_CLAVES_UNIDAD,
@@ -209,17 +210,17 @@ function InventarioCurrencyInput({
   );
 }
 
-function emptyPreciosListaStr(): Record<ClientPriceListId, string> {
-  const o = {} as Record<ClientPriceListId, string>;
-  for (const id of CLIENT_PRICE_LIST_ORDER) o[id] = '';
+function emptyPreciosListaStr(): Record<string, string> {
+  const o: Record<string, string> = {};
+  for (const id of getClientPriceListCatalogFromStore().ids) o[id] = '';
   return o;
 }
 
 function parsePreciosListaForm(
-  strMap: Record<ClientPriceListId, string>
+  strMap: Record<string, string>
 ): Product['preciosPorListaCliente'] | undefined {
   const out: Partial<Record<ClientPriceListId, number>> = {};
-  for (const id of CLIENT_PRICE_LIST_ORDER) {
+  for (const id of getClientPriceListCatalogFromStore().ids) {
     const t = (strMap[id] ?? '').trim();
     if (t === '') continue;
     const n = parsePrecioNumberFromFirestore(t);
@@ -386,7 +387,7 @@ function mergeListasPrecioDraftIntoStorage(
   impuestoPct: number
 ): Record<ClientPriceListId, string> {
   const next = { ...storage };
-  for (const id of CLIENT_PRICE_LIST_ORDER) {
+  for (const id of getClientPriceListCatalogFromStore().ids) {
     const raw = draft[id];
     if (raw !== undefined) {
       next[id] = convertListaPrecioInputToStorage(
@@ -534,6 +535,7 @@ export function Inventario() {
     removeAllServicioProducts,
     adjustStock,
   } = useProducts();
+  const priceListCatalog = useClientPriceListCatalog();
   const { effectiveSucursalId } = useEffectiveSucursalId();
   const { addToast } = useAppStore();
   const { user } = useAuthStore();
@@ -542,6 +544,19 @@ export function Inventario() {
   const [confirmingTransferId, setConfirmingTransferId] = useState<string | null>(null);
 
   useEffect(() => subscribeSucursales(setSucursalesCat), []);
+
+  useEffect(() => {
+    if (!effectiveSucursalId) return;
+    void getSucursalStateDocOnce<{
+      categorias?: string[];
+      proveedores?: string[];
+      listasPrecioExtra?: string[];
+    }>(effectiveSucursalId, 'inventory_lists').then((doc) => {
+      if (Array.isArray(doc?.listasPrecioExtra)) {
+        setListasPrecioExtraInventario(doc.listasPrecioExtra);
+      }
+    });
+  }, [effectiveSucursalId, setListasPrecioExtraInventario]);
 
   const serviciosPurgeRef = useRef(false);
 
@@ -768,6 +783,7 @@ export function Inventario() {
   const [addTemplateLlegadaQtyStr, setAddTemplateLlegadaQtyStr] = useState('');
   const categoriasLista = useInventoryListsStore((s) => s.categorias);
   const proveedoresLista = useInventoryListsStore((s) => s.proveedores);
+  const setListasPrecioExtraInventario = useInventoryListsStore((s) => s.setListasPrecioExtra);
 
   const categoriaSelectOptions = useMemo(() => {
     const s = new Set(categoriasLista);
@@ -1182,14 +1198,14 @@ export function Inventario() {
         claveProdServ: p.claveProdServ ?? '',
       });
       const pl = emptyPreciosListaStr();
-      for (const id of CLIENT_PRICE_LIST_ORDER) {
+      for (const id of priceListCatalog.ids) {
         const v = p.preciosPorListaCliente?.[id];
         pl[id] = v != null && Number.isFinite(v) ? String(v) : '';
       }
       setPreciosListaStr(pl);
       setListasPrecioMainDraft({});
     },
-    [productById]
+    [productById, priceListCatalog.ids]
   );
 
   const confirmAddTemplateLlegada = useCallback(() => {
@@ -1235,7 +1251,7 @@ export function Inventario() {
       claveProdServ: product.claveProdServ ?? '',
     });
     const pl = emptyPreciosListaStr();
-    for (const id of CLIENT_PRICE_LIST_ORDER) {
+    for (const id of priceListCatalog.ids) {
       const v = product.preciosPorListaCliente?.[id];
       pl[id] = v != null && Number.isFinite(v) ? String(v) : '';
     }
@@ -1281,7 +1297,7 @@ export function Inventario() {
     (product: Product) => {
       const p = productById.get(product.id) ?? product;
       const pl = emptyPreciosListaStr();
-      for (const id of CLIENT_PRICE_LIST_ORDER) {
+      for (const id of priceListCatalog.ids) {
         const v = p.preciosPorListaCliente?.[id];
         pl[id] = v != null && Number.isFinite(v) ? String(v) : '';
       }
@@ -1291,7 +1307,7 @@ export function Inventario() {
       setPreciosDialogListaIvaMode('sin');
       setPreciosDialogOpen(true);
     },
-    [productById]
+    [productById, priceListCatalog.ids]
   );
 
   const handleSavePreciosDialog = async () => {
@@ -3368,10 +3384,10 @@ export function Inventario() {
                   .
                 </p>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {CLIENT_PRICE_LIST_ORDER.map((id) => (
+                  {priceListCatalog.entries.map(({ id, label }) => (
                     <div key={id} className="space-y-1">
                       <Label className="text-xs text-slate-600 dark:text-slate-400">
-                        {CLIENT_PRICE_LABELS[id]}
+                        {label}
                       </Label>
                       <Input
                         type="text"
@@ -3658,10 +3674,10 @@ export function Inventario() {
                 . Si importó desde Excel con columnas “Mayoreo +”, “Mayoreo -”, etc., el sistema las reconoce.
               </p>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {CLIENT_PRICE_LIST_ORDER.map((id) => (
+                {priceListCatalog.entries.map(({ id, label }) => (
                   <div key={id} className="space-y-1">
                     <Label className="text-xs text-slate-600 dark:text-slate-400">
-                      {CLIENT_PRICE_LABELS[id]}
+                      {label}
                     </Label>
                     <Input
                       type="text"

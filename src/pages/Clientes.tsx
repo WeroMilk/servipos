@@ -74,11 +74,8 @@ import { saleIsInvoiced } from '@/lib/saleInvoiced';
 import { saleListaCancelacionEtiqueta } from '@/lib/saleCancelacion';
 import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
 import { ESTADO_SONORA, lookupCp } from '@/data/sonoraAddress';
-import {
-  CLIENT_PRICE_LABELS,
-  CLIENT_PRICE_LIST_ORDER,
-  type ClientPriceListId,
-} from '@/lib/clientPriceLists';
+import { useClientPriceListCatalog } from '@/hooks/useClientPriceListCatalog';
+import { type ClientPriceListId } from '@/lib/clientPriceLists';
 
 type ClientSortMode = 'nombre' | 'rfc' | 'email' | 'tickets';
 
@@ -182,6 +179,7 @@ export function Clientes() {
   const { addToast } = useAppStore();
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === 'admin';
+  const priceListCatalog = useClientPriceListCatalog();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -894,9 +892,9 @@ export function Clientes() {
                 }
                 className="h-10 w-full rounded-md border border-slate-300 bg-slate-200 px-3 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9"
               >
-                {CLIENT_PRICE_LIST_ORDER.map((id) => (
+                {priceListCatalog.entries.map(({ id, label }) => (
                   <option key={id} value={id}>
-                    {CLIENT_PRICE_LABELS[id]}
+                    {label}
                   </option>
                 ))}
               </select>
@@ -1039,9 +1037,9 @@ export function Clientes() {
                 }
                 className="h-10 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 px-3 text-slate-900 dark:text-slate-100"
               >
-                {CLIENT_PRICE_LIST_ORDER.map((id) => (
+                {priceListCatalog.entries.map(({ id, label }) => (
                   <option key={id} value={id}>
-                    {CLIENT_PRICE_LABELS[id]}
+                    {label}
                   </option>
                 ))}
               </select>

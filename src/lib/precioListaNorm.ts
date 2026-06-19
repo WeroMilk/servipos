@@ -1,5 +1,6 @@
 import type { Product } from '@/types';
 import { CLIENT_PRICE_LIST_ORDER, type ClientPriceListId } from '@/lib/clientPriceLists';
+import { getClientPriceListCatalogFromStore } from '@/lib/clientPriceListCatalog';
 
 function roundMoney2(n: number): number {
   return Math.round((Number(n) || 0) * 100) / 100;
@@ -228,18 +229,23 @@ const LISTA_ALIAS_TO_CANONICAL: Record<string, ClientPriceListId> = {
   'mayoreo plus': 'mayoreo_mas',
   cananeas: 'cananea',
   cananea: 'cananea',
-  nuevo: 'nuevo',
 };
 
 function resolveKeyToListaId(rawKey: string): ClientPriceListId | undefined {
+  const { ids, labels } = getClientPriceListCatalogFromStore();
   const spaced = rawKey.toLowerCase().trim().replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
   const underscored = spaced.replace(/ /g, '_');
-  if ((CLIENT_PRICE_LIST_ORDER as readonly string[]).includes(underscored)) {
-    return underscored as ClientPriceListId;
+  if (ids.includes(underscored)) {
+    return underscored;
   }
   const n = normListaAliasKey(rawKey);
   const compact = n.replace(/\s/g, '');
-  return LISTA_ALIAS_TO_CANONICAL[n] ?? LISTA_ALIAS_TO_CANONICAL[compact];
+  const fromAlias = LISTA_ALIAS_TO_CANONICAL[n] ?? LISTA_ALIAS_TO_CANONICAL[compact];
+  if (fromAlias && ids.includes(fromAlias)) return fromAlias;
+  for (const [id, label] of Object.entries(labels)) {
+    if (normListaAliasKey(label) === n) return id;
+  }
+  return undefined;
 }
 
 /**
@@ -265,8 +271,9 @@ export function parsePreciosPorListaClienteRaw(raw: unknown): Product['preciosPo
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
   const o = recordWithCaseInsensitiveKeys(raw as Record<string, unknown>);
   const out: Partial<Record<ClientPriceListId, number>> = {};
+  const catalogIds = getClientPriceListCatalogFromStore().ids;
 
-  for (const id of CLIENT_PRICE_LIST_ORDER) {
+  for (const id of catalogIds) {
     let picked: unknown = o[id];
     if (picked === undefined || picked === null) {
       for (const [k, v] of Object.entries(o)) {
@@ -277,6 +284,13 @@ export function parsePreciosPorListaClienteRaw(raw: unknown): Product['preciosPo
       }
     }
     const n = normalizeListaPrecioValue(picked);
+    if (n !== undefined) out[id] = n;
+  }
+
+  for (const [k, v] of Object.entries(o)) {
+    const id = resolveKeyToListaId(k);
+    if (!id || out[id] !== undefined) continue;
+    const n = normalizeListaPrecioValue(v);
     if (n !== undefined) out[id] = n;
   }
 
@@ -313,7 +327,13 @@ export function firstSinIvaFromListaMap(
   impuestoPct: number
 ): number {
   const imp = Number(impuestoPct) || 16;
-  for (const id of CLIENT_PRICE_LIST_ORDER) {
+  const ids = [
+    ...new Set([
+      ...getClientPriceListCatalogFromStore().ids,
+      ...Object.keys(map),
+    ]),
+  ];
+  for (const id of ids) {
     const ex = normalizeListaPrecioValue(map[id]);
     if (ex !== undefined && ex > 0) {
       return listaImportesConIva ? ex / (1 + imp / 100) : ex;
@@ -333,7 +353,13 @@ export function inferPrecioVentaSinIvaFromListas(
   impuestoPct: number
 ): number {
   let best = 0;
-  for (const id of CLIENT_PRICE_LIST_ORDER) {
+  const ids = [
+    ...new Set([
+      ...getClientPriceListCatalogFromStore().ids,
+      ...Object.keys(map),
+    ]),
+  ];
+  for (const id of ids) {
     const ex = normalizeListaPrecioValue(map[id]);
     if (ex !== undefined && ex > 0) {
       const s = listaExplicitToSinIva(ex, listaImportesConIva, impuestoPct);

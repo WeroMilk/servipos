@@ -1,5 +1,6 @@
 import type { CartItem, Client, Sale, SaleItem } from '@/types';
-import { CLIENT_PRICE_LIST_ORDER, type ClientPriceListId } from '@/lib/clientPriceLists';
+import { normalizeClientPriceListIdWithExtras } from '@/lib/clientPriceListCatalog';
+import type { ClientPriceListId } from '@/lib/clientPriceLists';
 import { getCartLineUnitSinIvaBase } from '@/lib/productListPricing';
 
 /** Cantidades agregadas por `productId` (varias líneas del mismo SKU se suman). */
@@ -36,11 +37,7 @@ export function buildPendingSaleLineItemsFromCart(
 }
 
 export function parseResumeListaPreciosId(sale: Sale): ClientPriceListId {
-  const s = sale.posResumeListaPrecios;
-  if (s && (CLIENT_PRICE_LIST_ORDER as readonly string[]).includes(s)) {
-    return s as ClientPriceListId;
-  }
-  return 'regular';
+  return normalizeClientPriceListIdWithExtras(sale.posResumeListaPrecios);
 }
 
 export function clientFromSaleForPos(sale: Sale): Client | null {

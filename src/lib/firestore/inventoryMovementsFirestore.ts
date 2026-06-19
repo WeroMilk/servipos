@@ -1,4 +1,5 @@
 import type { InventoryMovement } from '@/types';
+import { createDebouncedAsyncFn } from '@/lib/debouncedAsync';
 import { getSupabase } from '@/lib/supabaseClient';
 
 const DEFAULT_LIMIT = 500;
@@ -116,14 +117,12 @@ export async function fetchInventoryMovementsByProductIdFirestore(
   const supabase = getSupabase();
   const { data: rows } = await supabase
     .from('inventory_movements')
-    .select('id, doc')
+    .select('id, doc, created_at')
     .eq('sucursal_id', sucursalId)
-    .limit(maxDocs * 2);
-  const list = (rows ?? [])
-    .filter((r) => String((r.doc as { productId?: string })?.productId ?? '') === pid)
-    .map((r) => movementDocToMovement(r.id, r.doc as Record<string, unknown>))
-    .slice(0, maxDocs);
-  list.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    .eq('doc->>productId', pid)
+    .order('created_at', { ascending: false })
+    .limit(maxDocs);
+  const list = (rows ?? []).map((r) => movementDocToMovement(r.id, r.doc as Record<string, unknown>));
   return list;
 }
 
@@ -167,6 +166,7 @@ export function subscribeInventoryMovements(
       (rows ?? []).map((r) => movementDocToMovement(r.id, r.doc as Record<string, unknown>))
     );
   };
+  const loadDebounced = createDebouncedAsyncFn(load, 400);
   void load();
   const ch = supabase
     .channel(`inv-mov-${sucursalId}`)
@@ -174,7 +174,7 @@ export function subscribeInventoryMovements(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'inventory_movements', filter: `sucursal_id=eq.${sucursalId}` },
       () => {
-        void load();
+        loadDebounced();
       }
     )
     .subscribe();

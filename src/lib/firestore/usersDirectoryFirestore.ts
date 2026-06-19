@@ -203,25 +203,49 @@ export async function createAuthUserAndProfile(input: {
   const token = sessionData.session?.access_token;
   if (!token) throw new Error('Sesión requerida para crear usuarios');
 
-  const res = await fetch(`${base.replace(/\/$/, '')}/functions/v1/admin-create-user`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      email: input.email.trim(),
-      password: input.password,
-      name: input.name.trim(),
-      username:
-        input.username?.trim() ||
-        (input.email.includes('@') ? input.email.split('@')[0]! : input.email),
-      role: input.role,
-      sucursalId: input.sucursalId && input.sucursalId.length > 0 ? input.sucursalId : null,
-    }),
-  });
-  const json = (await res.json()) as { uid?: string; error?: string };
+  const url = `${base.replace(/\/$/, '')}/functions/v1/admin-create-user`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: input.email.trim(),
+        password: input.password,
+        name: input.name.trim(),
+        username:
+          input.username?.trim() ||
+          (input.email.includes('@') ? input.email.split('@')[0]! : input.email),
+        role: input.role,
+        sucursalId: input.sucursalId && input.sucursalId.length > 0 ? input.sucursalId : null,
+      }),
+    });
+  } catch {
+    throw new Error(
+      'No se pudo contactar al servidor (admin-create-user). Revise conexión, que la Edge Function esté desplegada y que su dominio figure en ADMIN_CREATE_USER_ALLOWED_ORIGINS en Supabase.'
+    );
+  }
+
+  let json: { uid?: string; error?: string };
+  try {
+    json = (await res.json()) as { uid?: string; error?: string };
+  } catch {
+    throw new Error(
+      res.ok
+        ? 'Respuesta inválida del servidor al crear usuario'
+        : `Error del servidor (${res.status}) al crear usuario`
+    );
+  }
+
   if (!res.ok || !json.uid) {
+    if (res.status === 403 && json.error?.toLowerCase().includes('origin')) {
+      throw new Error(
+        'Origen no permitido: agregue la URL de esta app a ADMIN_CREATE_USER_ALLOWED_ORIGINS en Supabase Edge Functions.'
+      );
+    }
     throw new Error(json.error ?? 'No se pudo crear el usuario (¿desplegó la Edge Function admin-create-user?)');
   }
   return json.uid;

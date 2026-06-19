@@ -3,6 +3,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { XIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { shouldBlockDialogOutsideDismiss } from "@/lib/radixDismissGuard"
 
 function Dialog({
   ...props
@@ -78,13 +79,13 @@ function DialogContent({
           className
         )}
         onPointerDownOutside={(e) => {
-          if (!closeOnOutsideClick) {
+          if (shouldBlockDialogOutsideDismiss(closeOnOutsideClick, e.detail.originalEvent)) {
             e.preventDefault()
           }
           onPointerDownOutside?.(e)
         }}
         onInteractOutside={(e) => {
-          if (!closeOnOutsideClick) {
+          if (shouldBlockDialogOutsideDismiss(closeOnOutsideClick, e.detail.originalEvent)) {
             e.preventDefault()
           }
           onInteractOutside?.(e)

@@ -8,8 +8,11 @@ import {
 interface InventoryListsState {
   categorias: string[];
   proveedores: string[];
+  /** Etiquetas de listas de precio extra (Configuración → Inventario); una por línea. */
+  listasPrecioExtra: string[];
   setCategorias: (lines: string[]) => void;
   setProveedores: (lines: string[]) => void;
+  setListasPrecioExtra: (lines: string[]) => void;
 }
 
 function normalizeLines(lines: string[]): string[] {
@@ -31,12 +34,18 @@ export const useInventoryListsStore = create<InventoryListsState>()(
     (set) => ({
       categorias: [...DEFAULT_INVENTORY_CATEGORIAS],
       proveedores: [...DEFAULT_INVENTORY_PROVEEDORES],
+      listasPrecioExtra: [],
       setCategorias: (lines) => set({ categorias: normalizeLines(lines) }),
       setProveedores: (lines) => set({ proveedores: normalizeLines(lines) }),
+      setListasPrecioExtra: (lines) => set({ listasPrecioExtra: normalizeLines(lines) }),
     }),
     {
       name: 'servipos-inventory-lists',
-      partialize: (s) => ({ categorias: s.categorias, proveedores: s.proveedores }),
+      partialize: (s) => ({
+        categorias: s.categorias,
+        proveedores: s.proveedores,
+        listasPrecioExtra: s.listasPrecioExtra,
+      }),
     }
   )
 );

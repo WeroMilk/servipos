@@ -1,5 +1,5 @@
 import type { Product } from '@/types';
-import { CLIENT_PRICE_LIST_ORDER, CLIENT_PRICE_LABELS } from '@/lib/clientPriceLists';
+import { getClientPriceListCatalogFromStore } from '@/lib/clientPriceListCatalog';
 import { getProductPrecioPublicoRegular } from '@/lib/productListPricing';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { productEsServicio } from '@/lib/productServicio';
@@ -76,8 +76,10 @@ function downloadInventarioCsv(opts: {
     return (a.nombre || '').localeCompare(b.nombre || '', 'es');
   });
 
-  const listHeaderCols = CLIENT_PRICE_LIST_ORDER.map(
-    (id) => `Precio lista ${CLIENT_PRICE_LABELS[id]} (valor en catálogo)`
+  const { ids: catalogIds, labels: catalogLabels } = getClientPriceListCatalogFromStore();
+
+  const listHeaderCols = catalogIds.map(
+    (id) => `Precio lista ${catalogLabels[id] ?? id} (valor en catálogo)`
   );
 
   const headers = [
@@ -135,7 +137,7 @@ function downloadInventarioCsv(opts: {
       pCompra != null && Number.isFinite(pCompra) ? round2(exist * pCompra) : '';
     const baseVenta = getProductPrecioPublicoRegular(p);
     const valorVentaConIva = round2(exist * baseVenta);
-    const listCols = CLIENT_PRICE_LIST_ORDER.map((id) => {
+    const listCols = catalogIds.map((id) => {
       const v = p.preciosPorListaCliente?.[id];
       return v != null && Number.isFinite(v) ? round2(v) : '';
     });

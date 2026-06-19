@@ -25,24 +25,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  CLIENT_PRICE_LABELS,
-  type ClientPriceListId,
-} from '@/lib/clientPriceLists';
+import { useClientPriceListCatalog } from '@/hooks/useClientPriceListCatalog';
+import type { ClientPriceListId } from '@/lib/clientPriceLists';
 import { effectiveListaPreciosIncluyenIva } from '@/lib/catalogPricingFlags';
 import { parsePrecioNumberFromFirestore } from '@/lib/precioListaNorm';
 import { getProductUnitSinIvaForClienteList } from '@/lib/productListPricing';
 import { formatMoney } from '@/lib/utils';
 import type { Product, PurchaseOrder } from '@/types';
-
-/** Listas solicitadas en recepción de pedidos (sin «Nuevo»). */
-const PEDIDO_PRECIOS_LISTAS: ClientPriceListId[] = [
-  'regular',
-  'tecnico',
-  'mayoreo_menos',
-  'mayoreo_mas',
-  'cananea',
-];
 
 function roundMoney2(n: number): number {
   return Math.round((Number(n) || 0) * 100) / 100;
@@ -88,6 +77,7 @@ export function ModificarPreciosPedidoDialog({
   onSaved,
   onError,
 }: ModificarPreciosPedidoDialogProps) {
+  const priceListCatalog = useClientPriceListCatalog();
   const [selectedOrderId, setSelectedOrderId] = useState('');
   const [lineEdits, setLineEdits] = useState<Record<string, LineEdit>>({});
   const [savingLineId, setSavingLineId] = useState<string | null>(null);
@@ -192,7 +182,7 @@ export function ModificarPreciosPedidoDialog({
 
       await editProduct(productId, updates);
       onSaved?.(
-        `Precio ${CLIENT_PRICE_LABELS[edit.listaId]} guardado (${fresh.sku || fresh.nombre}) · pedido ${orderFolio}`
+        `Precio ${priceListCatalog.labels[edit.listaId] ?? edit.listaId} guardado (${fresh.sku || fresh.nombre}) · pedido ${orderFolio}`
       );
     } catch (e) {
       onError?.(e instanceof Error ? e.message : 'No se pudo guardar el precio.');
@@ -297,9 +287,9 @@ export function ModificarPreciosPedidoDialog({
                             hideScrollButtons
                             className="z-[300] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
                           >
-                            {PEDIDO_PRECIOS_LISTAS.map((id) => (
+                            {priceListCatalog.entries.map(({ id, label }) => (
                               <SelectItem key={id} value={id} className="text-slate-900 dark:text-slate-100">
-                                {CLIENT_PRICE_LABELS[id]}
+                                {label}
                               </SelectItem>
                             ))}
                           </SelectContent>
