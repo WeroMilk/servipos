@@ -62,6 +62,7 @@ const ESTADO_BADGE: Record<PurchaseOrderEstado, string> = {
 type DraftLine = {
   lineId: string;
   product: Product;
+  codigoProveedor: string;
   cantidadFacturada: number;
   precioUnitarioCompra: number;
   actualizarPrecioCompra: boolean;
@@ -193,6 +194,7 @@ export function RecepcionPedidos() {
         {
           lineId: crypto.randomUUID(),
           product,
+          codigoProveedor: '',
           cantidadFacturada: 1,
           precioUnitarioCompra:
             product.precioCompra != null && product.precioCompra > 0
@@ -229,6 +231,7 @@ export function RecepcionPedidos() {
           productId: l.product.id,
           nombre: l.product.nombre,
           sku: l.product.sku,
+          codigoProveedor: l.codigoProveedor.trim() || undefined,
           cantidadFacturada: Math.max(1, l.cantidadFacturada),
           cantidadRecibida: 0,
           precioUnitarioCompra:
@@ -507,6 +510,21 @@ export function RecepcionPedidos() {
                     <p className="text-xs text-slate-500">{l.product.sku}</p>
                   </div>
                   <div className="w-24 space-y-1">
+                    <Label className="text-xs">Cód. proveedor</Label>
+                    <Input
+                      value={l.codigoProveedor}
+                      placeholder="Manual"
+                      onChange={(e) =>
+                        setDraftLines((lines) =>
+                          lines.map((x) =>
+                            x.lineId === l.lineId ? { ...x, codigoProveedor: e.target.value } : x
+                          )
+                        )
+                      }
+                      className="h-9 font-mono text-xs"
+                    />
+                  </div>
+                  <div className="w-24 space-y-1">
                     <Label className="text-xs">Últ. precio s/IVA</Label>
                     <div
                       className="flex h-9 items-center rounded-md border border-slate-200 bg-slate-50 px-2 text-sm tabular-nums text-slate-700 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-200"
@@ -742,6 +760,7 @@ export function RecepcionPedidos() {
                     <TableRow>
                       <TableHead>Producto</TableHead>
                       <TableHead>SKU</TableHead>
+                      <TableHead>Cód. proveedor</TableHead>
                       <TableHead className="text-center">Facturado</TableHead>
                       <TableHead className="text-center">Recibido</TableHead>
                       <TableHead className="text-right">P. compra s/IVA</TableHead>
@@ -760,6 +779,9 @@ export function RecepcionPedidos() {
                           </TableCell>
                           <TableCell className="font-mono text-xs text-slate-500">
                             {it.sku?.trim() || '—'}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs text-slate-600 dark:text-slate-400">
+                            {it.codigoProveedor?.trim() || '—'}
                           </TableCell>
                           <TableCell className="text-center tabular-nums">
                             {it.cantidadFacturada}

@@ -1390,6 +1390,10 @@ function mapLocalPurchaseOrder(row: PurchaseOrder): PurchaseOrder {
       productId: legacy.productId,
       nombre: legacy.nombre,
       sku: legacy.sku,
+      codigoProveedor:
+        typeof legacy.codigoProveedor === 'string' && legacy.codigoProveedor.trim()
+          ? legacy.codigoProveedor.trim()
+          : undefined,
       cantidadFacturada: Math.max(0, Number(facturada) || 0),
       cantidadRecibida: Math.max(0, Number(legacy.cantidadRecibida) || 0),
       precioUnitarioCompra: legacy.precioUnitarioCompra,

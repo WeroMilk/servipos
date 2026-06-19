@@ -262,6 +262,8 @@ export interface PurchaseOrderItem {
   /** Copia al crear el pedido (listados e impresión). */
   nombre?: string;
   sku?: string;
+  /** Código del artículo según el proveedor (captura manual en la factura). */
+  codigoProveedor?: string;
   /** Cantidad según factura / pedido. */
   cantidadFacturada: number;
   /** Acumulado ya ingresado a inventario. */

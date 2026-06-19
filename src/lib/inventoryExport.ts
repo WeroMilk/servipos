@@ -39,7 +39,37 @@ export function downloadInventarioCompleto(opts: {
   products: Product[];
   sucursalNombre?: string;
 }): void {
-  const { products, sucursalNombre } = opts;
+  downloadInventarioCsv({
+    products: opts.products,
+    sucursalNombre: opts.sucursalNombre,
+    title: 'INVENTARIO COMPLETO — SERVIPARTZ POS',
+    filePrefix: 'Inventario',
+  });
+}
+
+/**
+ * Descarga solo artículos con stock bajo (mismo criterio que la tarjeta «Stock bajo» en Inventario).
+ */
+export function downloadInventarioStockBajo(opts: {
+  products: Product[];
+  sucursalNombre?: string;
+}): void {
+  const filtered = opts.products.filter(esStockBajo);
+  downloadInventarioCsv({
+    products: filtered,
+    sucursalNombre: opts.sucursalNombre,
+    title: 'STOCK BAJO — SERVIPARTZ POS',
+    filePrefix: 'Stock_bajo',
+  });
+}
+
+function downloadInventarioCsv(opts: {
+  products: Product[];
+  sucursalNombre?: string;
+  title: string;
+  filePrefix: string;
+}): void {
+  const { products, sucursalNombre, title, filePrefix } = opts;
   const sorted = [...products].sort((a, b) => {
     const c = (a.categoria || '').localeCompare(b.categoria || '', 'es');
     if (c !== 0) return c;
@@ -91,7 +121,7 @@ export function downloadInventarioCompleto(opts: {
   ].join(' · ');
 
   const lines: string[] = [];
-  lines.push(csvField('INVENTARIO COMPLETO — SERVIPARTZ POS'));
+  lines.push(csvField(title));
   lines.push(csvField(metaLine));
   lines.push('');
   lines.push(headers.map(csvField).join(','));
@@ -139,7 +169,7 @@ export function downloadInventarioCompleto(opts: {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   const suf = sucursalNombre?.trim() ? `_${slugArchivo(sucursalNombre.trim())}` : '';
-  const fname = `Inventario${suf}_${fechaArchivo}.csv`;
+  const fname = `${filePrefix}${suf}_${fechaArchivo}.csv`;
   a.href = url;
   a.download = fname;
   a.rel = 'noopener';

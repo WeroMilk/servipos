@@ -15,6 +15,7 @@ import {
   CircleDollarSign,
   ArrowDown,
   ArrowUp,
+  Download,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -98,7 +99,7 @@ import { reportAppEvent } from '@/lib/appEventLog';
 import { tipoMovimientoLabel } from '@/lib/inventoryMovementLabels';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { isMovimientoLlegadaMercancia } from '@/lib/inventoryAbasto';
-import { downloadInventarioCompleto } from '@/lib/inventoryExport';
+import { downloadInventarioCompleto, downloadInventarioStockBajo } from '@/lib/inventoryExport';
 import { filterProductsBySearchText } from '@/lib/productSearchLocal';
 import { effectiveListaPreciosIncluyenIva, defaultListaPreciosIncluyenIva } from '@/lib/catalogPricingFlags';
 import {
@@ -1539,6 +1540,41 @@ export function Inventario() {
     addToast,
   ]);
 
+  const handleDescargarStockBajo = useCallback(() => {
+    if (exportingInventario) return;
+    const items = products.filter(isStockBajo);
+    if (items.length === 0) {
+      addToast({ type: 'info', message: 'No hay artículos con stock bajo para exportar.' });
+      return;
+    }
+    setExportingInventario(true);
+    try {
+      downloadInventarioStockBajo({
+        products,
+        sucursalNombre: effectiveSucursalId ? nombreSucursal(effectiveSucursalId) : undefined,
+      });
+      addToast({
+        type: 'success',
+        message: `Archivo CSV descargado (${items.length} artículos). Ábralo en Excel o guárdelo como .xlsx.`,
+        logToAppEvents: true,
+      });
+    } catch (e) {
+      addToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'No se pudo generar el archivo.',
+        logToAppEvents: true,
+      });
+    } finally {
+      setExportingInventario(false);
+    }
+  }, [
+    exportingInventario,
+    products,
+    effectiveSucursalId,
+    nombreSucursal,
+    addToast,
+  ]);
+
   const handleTicketStockBajo = useCallback(() => {
     const items = products.filter(isStockBajo).map((p) => ({
       nombre: p.nombre,
@@ -1823,12 +1859,31 @@ export function Inventario() {
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <div className="shrink-0 pb-1">
-          <CardTitle className="text-sm text-slate-900 dark:text-slate-100 sm:text-base">Lista de productos</CardTitle>
-          {modeHint[inventoryMode] ? (
-            <p className="mt-0.5 text-[11px] text-slate-600 dark:text-slate-500 sm:text-xs">
-              {modeHint[inventoryMode]}
-            </p>
-          ) : null}
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0">
+              <CardTitle className="text-sm text-slate-900 dark:text-slate-100 sm:text-base">
+                Lista de productos
+              </CardTitle>
+              {modeHint[inventoryMode] ? (
+                <p className="mt-0.5 text-[11px] text-slate-600 dark:text-slate-500 sm:text-xs">
+                  {modeHint[inventoryMode]}
+                </p>
+              ) : null}
+            </div>
+            {inventoryMode === 'stock' ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0 border-amber-500/40 bg-amber-500/10 text-amber-950 hover:bg-amber-500/20 dark:text-amber-100"
+                disabled={loading || exportingInventario || stockBajoCount === 0}
+                onClick={() => void handleDescargarStockBajo()}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                {exportingInventario ? 'Generando…' : 'Descargar Excel'}
+              </Button>
+            ) : null}
+          </div>
           <div className="mt-2 flex items-center gap-2 md:hidden">
             <Select
               value={inventorySort.key}

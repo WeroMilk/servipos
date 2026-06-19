@@ -23,6 +23,10 @@ function mapPurchaseOrderItem(raw: unknown): PurchaseOrderItem | null {
     productId,
     nombre: typeof o.nombre === 'string' ? o.nombre : undefined,
     sku: typeof o.sku === 'string' ? o.sku : undefined,
+    codigoProveedor:
+      typeof o.codigoProveedor === 'string' && o.codigoProveedor.trim()
+        ? o.codigoProveedor.trim()
+        : undefined,
     cantidadFacturada: Math.max(0, Number.isFinite(facturada) ? facturada : 0),
     cantidadRecibida: Math.max(0, Number(o.cantidadRecibida) || 0),
     precioUnitarioCompra:
