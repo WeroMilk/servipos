@@ -228,6 +228,7 @@ const LISTA_ALIAS_TO_CANONICAL: Record<string, ClientPriceListId> = {
   'mayoreo plus': 'mayoreo_mas',
   cananeas: 'cananea',
   cananea: 'cananea',
+  nuevo: 'nuevo',
 };
 
 function resolveKeyToListaId(rawKey: string): ClientPriceListId | undefined {

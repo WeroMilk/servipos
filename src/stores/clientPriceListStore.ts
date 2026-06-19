@@ -36,6 +36,14 @@ export const useClientPriceListStore = create<ClientPriceListState>()(
     {
       name: 'servipos-client-price-lists',
       partialize: (s) => ({ discounts: s.discounts }),
+      merge: (persisted, current) => {
+        const p = persisted as Partial<ClientPriceListState> | undefined;
+        return {
+          ...current,
+          ...p,
+          discounts: { ...buildDefaultDiscounts(), ...(p?.discounts ?? {}) },
+        };
+      },
     }
   )
 );

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { Plus, PackageCheck, Search, Truck, X, Trash2 } from 'lucide-react';
+import { Plus, PackageCheck, Search, Truck, X, Trash2, Eye, DollarSign } from 'lucide-react';
 import { PageShell } from '@/components/ui-custom/PageShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -50,6 +50,7 @@ import { cn, formatMoney } from '@/lib/utils';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { productEsServicio } from '@/lib/productServicio';
 import { getSucursalStateDocOnce } from '@/lib/firestore/stateDocsFirestore';
+import { ModificarPreciosPedidoDialog } from '@/components/inventario/ModificarPreciosPedidoDialog';
 
 const ESTADO_BADGE: Record<PurchaseOrderEstado, string> = {
   esperando_mercancia: 'bg-amber-500/15 text-amber-900 border-amber-500/35 dark:text-amber-100',
@@ -74,7 +75,8 @@ export function RecepcionPedidos() {
   const { effectiveSucursalId } = useEffectiveSucursalId();
   const proveedoresLista = useInventoryListsStore((s) => s.proveedores);
   const setProveedoresInventario = useInventoryListsStore((s) => s.setProveedores);
-  const { orders, loading, registerOrder, receiveOrderLines, products } = usePurchaseOrders();
+  const { orders, loading, registerOrder, receiveOrderLines, products, editProduct } =
+    usePurchaseOrders();
 
   const [filtro, setFiltro] = useState<FiltroPedido>('activos');
   const [showCreate, setShowCreate] = useState(false);
@@ -90,6 +92,10 @@ export function RecepcionPedidos() {
     Record<string, { cantidadRecibir: number; actualizarPrecioCompra: boolean }>
   >({});
   const [receiving, setReceiving] = useState(false);
+
+  const [detailOrder, setDetailOrder] = useState<PurchaseOrder | null>(null);
+
+  const [modificarPreciosOpen, setModificarPreciosOpen] = useState(false);
 
   const canVer = userHasPermission(user, 'inventario:ver');
   const canEdit = userHasPermission(user, 'inventario:editar');
@@ -114,6 +120,19 @@ export function RecepcionPedidos() {
       }
     });
   }, [effectiveSucursalId, setProveedoresInventario]);
+
+  const detailOrderTotal = useMemo(() => {
+    if (!detailOrder) return 0;
+    return Math.round(
+      detailOrder.productos.reduce(
+        (sum, it) =>
+          sum +
+          Math.max(0, Number(it.cantidadRecibida) || 0) *
+            (Number(it.precioUnitarioCompra) || 0),
+        0
+      ) * 100
+    ) / 100;
+  }, [detailOrder]);
 
   const draftLinesTotal = useMemo(
     () =>
@@ -175,7 +194,10 @@ export function RecepcionPedidos() {
           lineId: crypto.randomUUID(),
           product,
           cantidadFacturada: 1,
-          precioUnitarioCompra: product.precioCompra ?? 0,
+          precioUnitarioCompra:
+            product.precioCompra != null && product.precioCompra > 0
+              ? product.precioCompra
+              : 0,
           actualizarPrecioCompra: true,
         },
       ]);
@@ -276,16 +298,22 @@ export function RecepcionPedidos() {
       subtitle="Registre la factura antes de que llegue la mercancía; confirme entrada total o parcial al recibir."
       actions={
         canEdit ? (
-          <Button
-            className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
-            onClick={() => {
-              resetCreateForm();
-              setShowCreate(true);
-            }}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Registrar factura / pedido
-          </Button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setModificarPreciosOpen(true)}>
+              <DollarSign className="mr-2 h-4 w-4" />
+              Modificar precios
+            </Button>
+            <Button
+              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+              onClick={() => {
+                resetCreateForm();
+                setShowCreate(true);
+              }}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Registrar factura / pedido
+            </Button>
+          </div>
         ) : undefined
       }
     >
@@ -336,6 +364,8 @@ export function RecepcionPedidos() {
                   const puedeRecibir =
                     canEdit &&
                     (o.estado === 'esperando_mercancia' || o.estado === 'parcial');
+                  const puedeVerDetalle =
+                    o.estado === 'completado' || o.estado === 'cancelada' || o.estado === 'parcial';
                   return (
                     <TableRow key={o.id}>
                       <TableCell className="font-mono text-sm">{o.folio}</TableCell>
@@ -355,12 +385,25 @@ export function RecepcionPedidos() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        {puedeRecibir ? (
-                          <Button type="button" size="sm" onClick={() => openReceive(o)}>
-                            <Truck className="mr-1 h-3 w-3" />
-                            Recibir
-                          </Button>
-                        ) : null}
+                        <div className="flex justify-end gap-2">
+                          {puedeVerDetalle ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setDetailOrder(o)}
+                            >
+                              <Eye className="mr-1 h-3 w-3" />
+                              Ver detalle
+                            </Button>
+                          ) : null}
+                          {puedeRecibir ? (
+                            <Button type="button" size="sm" onClick={() => openReceive(o)}>
+                              <Truck className="mr-1 h-3 w-3" />
+                              Recibir
+                            </Button>
+                          ) : null}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -462,6 +505,17 @@ export function RecepcionPedidos() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{l.product.nombre}</p>
                     <p className="text-xs text-slate-500">{l.product.sku}</p>
+                  </div>
+                  <div className="w-24 space-y-1">
+                    <Label className="text-xs">Últ. precio s/IVA</Label>
+                    <div
+                      className="flex h-9 items-center rounded-md border border-slate-200 bg-slate-50 px-2 text-sm tabular-nums text-slate-700 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-200"
+                      title="Último precio de compra registrado en catálogo"
+                    >
+                      {l.product.precioCompra != null && l.product.precioCompra > 0
+                        ? formatMoney(l.product.precioCompra)
+                        : '—'}
+                    </div>
                   </div>
                   <div className="w-20 space-y-1">
                     <Label className="text-xs">Cant. factura</Label>
@@ -652,6 +706,120 @@ export function RecepcionPedidos() {
           ) : null}
         </DialogContent>
       </Dialog>
+
+      <Dialog open={detailOrder != null} onOpenChange={(o) => !o && setDetailOrder(null)}>
+        <DialogContent className="max-h-[92dvh] overflow-y-auto border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <PackageCheck className="h-5 w-5 text-emerald-500" />
+              Detalle de recepción — {detailOrder?.folio}
+            </DialogTitle>
+          </DialogHeader>
+          {detailOrder ? (
+            <>
+              <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                <span className="font-medium text-slate-800 dark:text-slate-100">
+                  {detailOrder.proveedor}
+                </span>
+                {detailOrder.numeroFactura ? (
+                  <span>· Factura {detailOrder.numeroFactura}</span>
+                ) : null}
+                <span>
+                  · {formatInAppTimezone(detailOrder.createdAt, { dateStyle: 'short' })}
+                </span>
+                <Badge className={cn('border', ESTADO_BADGE[detailOrder.estado])}>
+                  {PURCHASE_ORDER_ESTADO_LABELS[detailOrder.estado]}
+                </Badge>
+              </div>
+              {detailOrder.notas?.trim() ? (
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  Notas: {detailOrder.notas.trim()}
+                </p>
+              ) : null}
+              <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Producto</TableHead>
+                      <TableHead>SKU</TableHead>
+                      <TableHead className="text-center">Facturado</TableHead>
+                      <TableHead className="text-center">Recibido</TableHead>
+                      <TableHead className="text-right">P. compra s/IVA</TableHead>
+                      <TableHead className="text-right">Subtotal recibido</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {detailOrder.productos.map((it) => {
+                      const rec = Math.max(0, Number(it.cantidadRecibida) || 0);
+                      const pu = Number(it.precioUnitarioCompra) || 0;
+                      const subtotal = Math.round(rec * pu * 100) / 100;
+                      return (
+                        <TableRow key={it.lineId}>
+                          <TableCell className="font-medium">
+                            {it.nombre ?? it.productId}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs text-slate-500">
+                            {it.sku?.trim() || '—'}
+                          </TableCell>
+                          <TableCell className="text-center tabular-nums">
+                            {it.cantidadFacturada}
+                          </TableCell>
+                          <TableCell className="text-center tabular-nums">
+                            <span
+                              className={cn(
+                                rec > 0
+                                  ? 'font-medium text-emerald-700 dark:text-emerald-400'
+                                  : 'text-slate-500'
+                              )}
+                            >
+                              {rec}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {pu > 0 ? formatMoney(pu) : '—'}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {subtotal > 0 ? formatMoney(subtotal) : '—'}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3 dark:border-slate-700">
+                <span className="text-sm text-slate-600 dark:text-slate-400">
+                  Total recibido:{' '}
+                  <span className="font-medium tabular-nums text-slate-800 dark:text-slate-100">
+                    {purchaseOrderTotalRecibido(detailOrder.productos)} /{' '}
+                    {purchaseOrderTotalFacturado(detailOrder.productos)} piezas
+                  </span>
+                </span>
+                {detailOrderTotal > 0 ? (
+                  <span className="text-base font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+                    {formatMoney(detailOrderTotal)} s/IVA
+                  </span>
+                ) : null}
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setDetailOrder(null)}>
+                  Cerrar
+                </Button>
+              </DialogFooter>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <ModificarPreciosPedidoDialog
+        open={modificarPreciosOpen}
+        onOpenChange={setModificarPreciosOpen}
+        orders={orders}
+        products={products}
+        editProduct={editProduct}
+        onSaved={(message) => addToast({ type: 'success', message })}
+        onError={(message) => addToast({ type: 'error', message })}
+      />
     </PageShell>
   );
 }

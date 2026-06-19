@@ -54,11 +54,16 @@ function DialogContent({
   useDialogDescription = false,
   /** Capa del overlay (p. ej. z-[200]) cuando se encadenan varios diálogos. */
   overlayClassName,
+  /** Por defecto el diálogo solo se cierra con la X o botones explícitos (Cancelar/Salir). */
+  closeOnOutsideClick = false,
+  onPointerDownOutside,
+  onInteractOutside,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
   useDialogDescription?: boolean
   overlayClassName?: string
+  closeOnOutsideClick?: boolean
 }) {
   const omitDescribedBy =
     !useDialogDescription && !("aria-describedby" in props)
@@ -72,6 +77,18 @@ function DialogContent({
           "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[48%] left-[50%] z-[121] grid w-[min(100%,calc(100vw-1rem))] max-w-[calc(100vw-1rem)] min-w-0 translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border py-6 pl-4 pr-12 shadow-lg duration-200 outline-none sm:top-[50%] sm:max-w-[calc(100%-2rem)] sm:pl-6 sm:pr-14 md:max-w-[min(92vw,56rem)] lg:max-w-[min(92vw,72rem)] max-h-[min(88dvh,calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-4.5rem))] overflow-y-auto overscroll-y-contain max-md:overflow-x-auto md:overflow-x-hidden",
           className
         )}
+        onPointerDownOutside={(e) => {
+          if (!closeOnOutsideClick) {
+            e.preventDefault()
+          }
+          onPointerDownOutside?.(e)
+        }}
+        onInteractOutside={(e) => {
+          if (!closeOnOutsideClick) {
+            e.preventDefault()
+          }
+          onInteractOutside?.(e)
+        }}
         {...props}
         {...(omitDescribedBy ? { "aria-describedby": undefined } : {})}
       >

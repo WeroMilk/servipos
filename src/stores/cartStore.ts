@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { Product, CartItem, Client } from '@/types';
-import { CLIENT_PRICE_LIST_ORDER, type ClientPriceListId } from '@/lib/clientPriceLists';
+import { CLIENT_PRICE_LIST_ORDER, normalizeClientPriceListId, type ClientPriceListId } from '@/lib/clientPriceLists';
 import {
   getCartLineUnitSinIvaBase,
   getProductUnitSinIvaForClienteList,
@@ -168,14 +168,7 @@ function sanitizeCartDraft(draft: Partial<CartDraftSnapshot> | null | undefined)
     notas: typeof draft.notas === 'string' ? draft.notas : '',
     transferenciaDestinoSucursalId:
       typeof draft.transferenciaDestinoSucursalId === 'string' ? draft.transferenciaDestinoSucursalId : '',
-    precioClienteListaId:
-      listId === 'regular' ||
-      listId === 'tecnico' ||
-      listId === 'mayoreo_menos' ||
-      listId === 'mayoreo_mas' ||
-      listId === 'cananea'
-        ? listId
-        : 'regular',
+    precioClienteListaId: normalizeClientPriceListId(listId),
   };
 }
 

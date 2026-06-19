@@ -69,10 +69,14 @@ function SheetContent({
   className,
   children,
   showCloseButton = true,
+  closeOnOutsideClick = false,
+  onPointerDownOutside,
+  onInteractOutside,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> &
   VariantProps<typeof sheetVariants> & {
     showCloseButton?: boolean
+    closeOnOutsideClick?: boolean
   }) {
   return (
     <SheetPortal>
@@ -80,6 +84,18 @@ function SheetContent({
       <DialogPrimitive.Content
         data-slot="sheet-content"
         className={cn(sheetVariants({ side }), className)}
+        onPointerDownOutside={(e) => {
+          if (!closeOnOutsideClick) {
+            e.preventDefault()
+          }
+          onPointerDownOutside?.(e)
+        }}
+        onInteractOutside={(e) => {
+          if (!closeOnOutsideClick) {
+            e.preventDefault()
+          }
+          onInteractOutside?.(e)
+        }}
         {...props}
       >
         {children}

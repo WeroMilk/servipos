@@ -689,9 +689,12 @@ export function Inventario() {
 
   const cascadeListasFromPrecioVenta = useCallback(
     (precioVentaSinIva: number, impuestoPct: number, storageIncluyeIva: boolean) => {
-      setPreciosListaStr(
-        deriveListaPrecioStorageStringsFromPrecioVenta(precioVentaSinIva, storageIncluyeIva, impuestoPct)
+      const derived = deriveListaPrecioStorageStringsFromPrecioVenta(
+        precioVentaSinIva,
+        storageIncluyeIva,
+        impuestoPct
       );
+      setPreciosListaStr((prev) => ({ ...prev, regular: derived.regular }));
       setListasPrecioMainDraft({});
     },
     []
@@ -3142,8 +3145,8 @@ export function Inventario() {
                 {formData.precioVenta > 0 ? (
                   <>
                     {' '}
-                    Al cambiar este precio se recalculan las listas de cliente con los % de Configuración → Precios por
-                    cliente.
+                    Al cambiar este precio solo se actualiza la lista <span className="font-medium">Regular</span>;
+                    las demás listas conservan su valor.
                   </>
                 ) : null}
               </p>

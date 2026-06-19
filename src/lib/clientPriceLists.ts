@@ -6,6 +6,7 @@ export const CLIENT_PRICE_LIST_ORDER = [
   'mayoreo_menos',
   'mayoreo_mas',
   'cananea',
+  'nuevo',
 ] as const;
 
 export type ClientPriceListId = (typeof CLIENT_PRICE_LIST_ORDER)[number];
@@ -23,6 +24,7 @@ export const CLIENT_PRICE_LABELS: Record<ClientPriceListId, string> = {
   mayoreo_menos: 'Mayoreo -',
   mayoreo_mas: 'Mayoreo +',
   cananea: 'Cananea',
+  nuevo: 'Nuevo',
 };
 
 export const DEFAULT_CLIENT_PRICE_DISCOUNTS: Record<ClientPriceListId, number> = {
@@ -31,6 +33,7 @@ export const DEFAULT_CLIENT_PRICE_DISCOUNTS: Record<ClientPriceListId, number> =
   mayoreo_menos: 8,
   mayoreo_mas: 12,
   cananea: 15,
+  nuevo: 10,
 };
 
 /** PIN para que cajeros editen precio unitario en carrito (admin no lo usa). */

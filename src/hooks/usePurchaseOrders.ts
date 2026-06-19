@@ -147,6 +147,7 @@ export function usePurchaseOrders() {
     cancelOrder,
     removeOrder,
     products,
+    editProduct,
   };
 }
 
