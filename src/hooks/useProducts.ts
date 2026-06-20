@@ -368,7 +368,12 @@ export function useProductSearch(options?: { maxResults?: number }) {
       }
       reconcileCartTimerRef.current = window.setTimeout(() => {
         reconcileCartTimerRef.current = null;
-        useCartStore.getState().reconcileCartProductsFromCatalog(products);
+        const cartItems = useCartStore.getState().items;
+        if (cartItems.length === 0) return;
+        const ids = new Set(cartItems.map((i) => i.product.id));
+        const relevant = products.filter((p) => ids.has(p.id));
+        if (relevant.length === 0) return;
+        useCartStore.getState().reconcileCartProductsFromCatalog(relevant);
       }, 48);
     });
     return () => {

@@ -29,12 +29,28 @@ import { useClientPriceListCatalog } from '@/hooks/useClientPriceListCatalog';
 import type { ClientPriceListId } from '@/lib/clientPriceLists';
 import { effectiveListaPreciosIncluyenIva } from '@/lib/catalogPricingFlags';
 import { parsePrecioNumberFromFirestore } from '@/lib/precioListaNorm';
-import { getProductUnitSinIvaForClienteList } from '@/lib/productListPricing';
-import { formatMoney } from '@/lib/utils';
+import {
+  getProductUnitConIvaForClienteList,
+  getProductUnitSinIvaForClienteList,
+} from '@/lib/productListPricing';
+import { cn, formatMoney } from '@/lib/utils';
 import type { Product, PurchaseOrder } from '@/types';
+
+type PrecioIvaMode = 'sin' | 'con';
 
 function roundMoney2(n: number): number {
   return Math.round((Number(n) || 0) * 100) / 100;
+}
+
+function precioSinIvaToConIva(sinIva: number, impuestoPct: number): number {
+  const imp = Number(impuestoPct) || 0;
+  return roundMoney2(sinIva * (1 + imp / 100));
+}
+
+function precioConIvaToSinIva(conIva: number, impuestoPct: number): number {
+  const imp = Number(impuestoPct) || 0;
+  if (imp <= 0) return roundMoney2(conIva);
+  return roundMoney2(conIva / (1 + imp / 100));
 }
 
 function precioSinIvaToStoredValue(
@@ -47,10 +63,81 @@ function precioSinIvaToStoredValue(
   return roundMoney2(sinIva);
 }
 
-function listaPrecioSinIvaDisplay(product: Product, listaId: ClientPriceListId): string {
+function listaPrecioDisplay(
+  product: Product,
+  listaId: ClientPriceListId,
+  modoDisplayConIva: boolean
+): string {
   const sinIva = getProductUnitSinIvaForClienteList(product, listaId);
   if (!Number.isFinite(sinIva) || sinIva <= 0) return '';
-  return roundMoney2(sinIva).toFixed(2);
+  const display = modoDisplayConIva
+    ? getProductUnitConIvaForClienteList(product, listaId)
+    : roundMoney2(sinIva);
+  return roundMoney2(display).toFixed(2);
+}
+
+function convertPrecioStrForDisplayMode(
+  precioStr: string,
+  impuestoPct: number,
+  fromConIva: boolean,
+  toConIva: boolean
+): string {
+  const t = precioStr.trim();
+  if (!t) return '';
+  const n = parsePrecioNumberFromFirestore(t);
+  if (!Number.isFinite(n) || n < 0) return precioStr;
+  const sinIva = fromConIva ? precioConIvaToSinIva(n, impuestoPct) : roundMoney2(n);
+  const conIva = fromConIva ? roundMoney2(n) : precioSinIvaToConIva(n, impuestoPct);
+  const display = toConIva ? conIva : sinIva;
+  if (!Number.isFinite(display) || display <= 0) return '';
+  return roundMoney2(display).toFixed(2);
+}
+
+function PrecioIvaModeToggle({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: PrecioIvaMode;
+  onChange: (v: PrecioIvaMode) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label="Ver y capturar precios con IVA o sin IVA"
+      className="inline-flex shrink-0 rounded-md border border-slate-300 bg-slate-200/80 p-0.5 dark:border-slate-600 dark:bg-slate-800/80"
+    >
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onChange('sin')}
+        className={cn(
+          'rounded px-2.5 py-1 text-xs font-medium transition-colors',
+          value === 'sin'
+            ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-100'
+            : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
+        )}
+        aria-pressed={value === 'sin'}
+      >
+        Sin IVA
+      </button>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onChange('con')}
+        className={cn(
+          'rounded px-2.5 py-1 text-xs font-medium transition-colors',
+          value === 'con'
+            ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-100'
+            : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
+        )}
+        aria-pressed={value === 'con'}
+      >
+        Con IVA
+      </button>
+    </div>
+  );
 }
 
 type LineEdit = {
@@ -79,6 +166,7 @@ export function ModificarPreciosPedidoDialog({
 }: ModificarPreciosPedidoDialogProps) {
   const priceListCatalog = useClientPriceListCatalog();
   const [selectedOrderId, setSelectedOrderId] = useState('');
+  const [precioIvaMode, setPrecioIvaMode] = useState<PrecioIvaMode>('sin');
   const [lineEdits, setLineEdits] = useState<Record<string, LineEdit>>({});
   const [savingLineId, setSavingLineId] = useState<string | null>(null);
 
@@ -99,6 +187,7 @@ export function ModificarPreciosPedidoDialog({
 
   const resetDialog = useCallback(() => {
     setSelectedOrderId('');
+    setPrecioIvaMode('sin');
     setLineEdits({});
     setSavingLineId(null);
   }, []);
@@ -123,18 +212,40 @@ export function ModificarPreciosPedidoDialog({
       const product = productById.get(line.productId);
       next[line.lineId] = {
         listaId: 'regular',
-        precioStr: product ? listaPrecioSinIvaDisplay(product, 'regular') : '',
+        precioStr: product ? listaPrecioDisplay(product, 'regular', precioIvaMode === 'con') : '',
       };
     }
     setLineEdits(next);
   }, [selectedOrder, productById]);
+
+  const handlePrecioIvaModeChange = (mode: PrecioIvaMode) => {
+    if (mode === precioIvaMode) return;
+    const fromConIva = precioIvaMode === 'con';
+    const toConIva = mode === 'con';
+    setPrecioIvaMode(mode);
+    if (!selectedOrder) return;
+    setLineEdits((prev) => {
+      const next = { ...prev };
+      for (const line of selectedOrder.productos) {
+        const edit = prev[line.lineId];
+        if (!edit) continue;
+        const product = productById.get(line.productId);
+        const imp = Number(product?.impuesto) || 16;
+        next[line.lineId] = {
+          ...edit,
+          precioStr: convertPrecioStrForDisplayMode(edit.precioStr, imp, fromConIva, toConIva),
+        };
+      }
+      return next;
+    });
+  };
 
   const handleListaChange = (lineId: string, product: Product | undefined, listaId: ClientPriceListId) => {
     setLineEdits((prev) => ({
       ...prev,
       [lineId]: {
         listaId,
-        precioStr: product ? listaPrecioSinIvaDisplay(product, listaId) : '',
+        precioStr: product ? listaPrecioDisplay(product, listaId, precioIvaMode === 'con') : '',
       },
     }));
   };
@@ -158,7 +269,10 @@ export function ModificarPreciosPedidoDialog({
       return;
     }
     const sinIva = parsePrecioNumberFromFirestore(raw);
-    if (!Number.isFinite(sinIva) || sinIva < 0) {
+    const imp = Number(product.impuesto) || 16;
+    const sinIvaFinal =
+      precioIvaMode === 'con' ? precioConIvaToSinIva(sinIva, imp) : roundMoney2(sinIva);
+    if (!Number.isFinite(sinIvaFinal) || sinIvaFinal < 0) {
       onError?.('Precio inválido.');
       return;
     }
@@ -166,7 +280,7 @@ export function ModificarPreciosPedidoDialog({
     setSavingLineId(lineId);
     try {
       const fresh = productById.get(productId) ?? product;
-      const stored = precioSinIvaToStoredValue(sinIva, fresh);
+      const stored = precioSinIvaToStoredValue(sinIvaFinal, fresh);
       const mergedMap: Partial<Record<ClientPriceListId, number>> = {
         ...(fresh.preciosPorListaCliente ?? {}),
         [edit.listaId]: stored,
@@ -177,7 +291,7 @@ export function ModificarPreciosPedidoDialog({
       };
 
       if (edit.listaId === 'regular') {
-        updates.precioVenta = roundMoney2(sinIva);
+        updates.precioVenta = roundMoney2(sinIvaFinal);
       }
 
       await editProduct(productId, updates);
@@ -202,9 +316,20 @@ export function ModificarPreciosPedidoDialog({
         <DialogHeader>
           <DialogTitle>Modificar precios por pedido</DialogTitle>
         </DialogHeader>
-        <p className="text-sm text-slate-600 dark:text-slate-400">
-          Elija el folio del pedido y actualice los precios de venta en el catálogo (sin IVA). El costo
-          mostrado es el de la factura del pedido.
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            Elija el folio del pedido y actualice los precios de venta en el catálogo. El costo
+            mostrado es el de la factura del pedido (sin IVA).
+          </p>
+          <PrecioIvaModeToggle
+            value={precioIvaMode}
+            onChange={handlePrecioIvaModeChange}
+            disabled={savingLineId != null}
+          />
+        </div>
+        <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-500">
+          Modo de captura: {precioIvaMode === 'con' ? 'con IVA' : 'sin IVA'}. Al guardar se
+          convierte al formato del catálogo automáticamente.
         </p>
 
         <div className="space-y-2">
@@ -243,7 +368,9 @@ export function ModificarPreciosPedidoDialog({
                   <TableHead>Descripción</TableHead>
                   <TableHead className="text-right">Costo s/IVA</TableHead>
                   <TableHead>Lista</TableHead>
-                  <TableHead className="min-w-[7rem]">Precio s/IVA</TableHead>
+                  <TableHead className="min-w-[7rem]">
+                    Precio {precioIvaMode === 'con' ? 'c/IVA' : 's/IVA'}
+                  </TableHead>
                   <TableHead className="text-right">Acción</TableHead>
                 </TableRow>
               </TableHeader>

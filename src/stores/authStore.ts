@@ -64,6 +64,15 @@ export const useAuthStore = create<AuthStore>((set) => ({
       // "invalid credentials", así que no exigimos `anyExpectedAuthFailure` aquí.
       if (!looksLikePosPin(password)) return { success: false };
 
+      const { authPasswordFromPosPin } = await import('@/lib/authPasswordFromPosPin');
+      const derived = authPasswordFromPosPin(password);
+      // Si Auth ya tiene la contraseña derivada del PIN, entrar sin `verify-pos-pin-login`.
+      // Re-sincronizar invalida refresh tokens en otros dispositivos (p. ej. caja abierta en POS).
+      for (const email of candidates) {
+        const { error } = await signInWith(email, derived);
+        if (!error) return { success: true };
+      }
+
       let synced = false;
       let pinSyncHint: string | undefined;
       for (const email of pinSyncEmails) {
@@ -100,8 +109,6 @@ export const useAuthStore = create<AuthStore>((set) => ({
         };
       }
 
-      const { authPasswordFromPosPin } = await import('@/lib/authPasswordFromPosPin');
-      const derived = authPasswordFromPosPin(password);
       for (const email of candidates) {
         const { error } = await signInWith(email, derived);
         if (!error) return { success: true };
@@ -168,8 +175,15 @@ function scheduleCorruptSessionCleanupOnce(): void {
  * (p. ej. vía setTimeout) para no bloquear el lock de Auth al llamar a `supabase.from(...)`.
  * @see https://github.com/supabase/supabase-js — evitar async/await dentro del callback.
  */
-async function applyAuthSession(session: Session | null): Promise<void> {
+async function applyAuthSession(session: Session | null, event?: string): Promise<void> {
   if (!session?.user) {
+    if (event === 'SIGNED_OUT') {
+      const { data: fresh } = await getSupabase().auth.getSession();
+      if (fresh.session?.user) {
+        await applyAuthSession(fresh.session, event);
+        return;
+      }
+    }
     const prev = useAuthStore.getState().user;
     useSucursalContextStore.getState().setActiveSucursalId(null);
     if (prev) {
@@ -186,6 +200,16 @@ async function applyAuthSession(session: Session | null): Promise<void> {
       isAuthenticated: false,
       authReady: true,
     });
+    return;
+  }
+  const current = useAuthStore.getState();
+  if (
+    current.isAuthenticated &&
+    current.user?.id === session.user.id &&
+    event !== 'USER_UPDATED' &&
+    event !== 'PASSWORD_RECOVERY'
+  ) {
+    useAuthStore.setState({ authReady: true });
     return;
   }
   try {
@@ -212,7 +236,7 @@ export function subscribeSupabaseAuth(): () => void {
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
       setTimeout(() => {
         if (event === 'TOKEN_REFRESHED') return;
-        void applyAuthSession(session).catch((err) => {
+        void applyAuthSession(session, event).catch((err) => {
           console.error('applyAuthSession:', err);
           useSucursalContextStore.getState().setActiveSucursalId(null);
           useAuthStore.setState({

@@ -1,3 +1,4 @@
+/// <reference path="../edge-runtime.d.ts" />
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 import { authPasswordFromPosPin } from '../_shared/authPasswordFromPosPin.ts';
 import { expandServipartzEmailAliases } from '../_shared/servipartzEmailCandidates.ts';
@@ -396,6 +397,29 @@ Deno.serve(async (req) => {
     const newPassword = authPasswordFromPosPin(pin);
     const profileAuthId = authUserIdFromProfileId(row.id);
     let lastDirectUpdateMessage: string | null = null;
+
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
+    if (anonKey) {
+      const signInEmails = new Set<string>([email]);
+      if (profileEmail.includes('@')) {
+        for (const em of expandServipartzEmailAliases(profileEmail)) {
+          signInEmails.add(em);
+        }
+      }
+      const probe = createClient(supabaseUrl, anonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      for (const em of signInEmails) {
+        const { error: signErr } = await probe.auth.signInWithPassword({
+          email: em,
+          password: newPassword,
+        });
+        if (!signErr) {
+          await probe.auth.signOut();
+          return json({ ok: true, code: 'ALREADY_SYNCED' }, 200, ch);
+        }
+      }
+    }
 
     /** Caso habitual Supabase: `profiles.id` = `auth.users.id`. Evita depender de RPC/filtros admin. */
     if (profileAuthId) {

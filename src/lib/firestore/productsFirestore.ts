@@ -237,6 +237,53 @@ const catalogErrorListeners = new Set<(err: Error) => void>();
 let catalogChannel: ReturnType<ReturnType<typeof getSupabase>['channel']> | null = null;
 let catalogSucursalId: string | null = null;
 let catalogReloadDebounced: (() => void) | null = null;
+let catalogInitialLoadDone = false;
+
+function notifyCatalogListeners(): void {
+  const snapshot = [...lastProducts];
+  catalogListeners.forEach((l) => {
+    try {
+      l(snapshot);
+    } catch (e) {
+      console.error('subscribeProductCatalog listener:', e);
+    }
+  });
+}
+
+function applyProductRealtimePatch(payload: {
+  eventType: string;
+  new: { id?: string; doc?: Record<string, unknown> } | null;
+  old: { id?: string } | null;
+}): boolean {
+  if (!catalogInitialLoadDone) return false;
+
+  if (payload.eventType === 'DELETE') {
+    const id = payload.old?.id;
+    if (!id) return false;
+    const before = lastProducts.length;
+    lastProducts = lastProducts.filter((p) => p.id !== id);
+    return lastProducts.length !== before;
+  }
+
+  const row = payload.new;
+  if (!row?.id || !row.doc || typeof row.doc !== 'object') return false;
+  const product = docToProduct({ id: row.id, doc: row.doc });
+  if (product.activo === false) {
+    const had = lastProducts.some((p) => p.id === row.id);
+    if (!had) return false;
+    lastProducts = lastProducts.filter((p) => p.id !== row.id);
+    return true;
+  }
+
+  const idx = lastProducts.findIndex((p) => p.id === row.id);
+  if (idx >= 0) {
+    lastProducts[idx] = product;
+  } else {
+    lastProducts.push(product);
+  }
+  lastProducts.sort((a, b) => String(a.nombre ?? '').localeCompare(String(b.nombre ?? ''), 'es'));
+  return true;
+}
 
 export function getProductCatalogSnapshot(): Product[] {
   return lastProducts;
@@ -279,13 +326,8 @@ export function subscribeProductCatalog(
       return;
     }
     lastProducts = rows.map((r) => docToProduct(r)).sort((a, b) => String(a.nombre ?? '').localeCompare(String(b.nombre ?? ''), 'es'));
-    catalogListeners.forEach((l) => {
-      try {
-        l([...lastProducts]);
-      } catch (e) {
-        console.error('subscribeProductCatalog listener:', e);
-      }
-    });
+    catalogInitialLoadDone = true;
+    notifyCatalogListeners();
   };
 
   if (catalogSucursalId !== sucursalId) {
@@ -294,14 +336,19 @@ export function subscribeProductCatalog(
       catalogChannel = null;
     }
     catalogSucursalId = sucursalId;
-    catalogReloadDebounced = createDebouncedAsyncFn(load, 400);
+    catalogInitialLoadDone = false;
+    catalogReloadDebounced = createDebouncedAsyncFn(load, 600);
     void load();
     catalogChannel = supabase
       .channel(`products-${sucursalId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'products', filter: `sucursal_id=eq.${sucursalId}` },
-        () => {
+        (payload) => {
+          if (applyProductRealtimePatch(payload)) {
+            notifyCatalogListeners();
+            return;
+          }
           catalogReloadDebounced?.();
         }
       )
@@ -325,6 +372,7 @@ export function subscribeProductCatalog(
       }
       catalogSucursalId = null;
       catalogReloadDebounced = null;
+      catalogInitialLoadDone = false;
       lastProducts = [];
       catalogErrorListeners.clear();
     }
