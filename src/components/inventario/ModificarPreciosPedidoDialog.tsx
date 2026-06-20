@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -167,6 +167,8 @@ export function ModificarPreciosPedidoDialog({
   const priceListCatalog = useClientPriceListCatalog();
   const [selectedOrderId, setSelectedOrderId] = useState('');
   const [precioIvaMode, setPrecioIvaMode] = useState<PrecioIvaMode>('sin');
+  const precioIvaModeRef = useRef<PrecioIvaMode>('sin');
+  precioIvaModeRef.current = precioIvaMode;
   const [lineEdits, setLineEdits] = useState<Record<string, LineEdit>>({});
   const [savingLineId, setSavingLineId] = useState<string | null>(null);
 
@@ -212,7 +214,9 @@ export function ModificarPreciosPedidoDialog({
       const product = productById.get(line.productId);
       next[line.lineId] = {
         listaId: 'regular',
-        precioStr: product ? listaPrecioDisplay(product, 'regular', precioIvaMode === 'con') : '',
+        precioStr: product
+          ? listaPrecioDisplay(product, 'regular', precioIvaModeRef.current === 'con')
+          : '',
       };
     }
     setLineEdits(next);

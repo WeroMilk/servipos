@@ -1,4 +1,3 @@
-/// <reference path="../edge-runtime.d.ts" />
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 import { authPasswordFromPosPin } from '../_shared/authPasswordFromPosPin.ts';
 import { expandServipartzEmailAliases } from '../_shared/servipartzEmailCandidates.ts';
@@ -354,7 +353,7 @@ Deno.serve(async (req) => {
       if (rpcRes.error) {
         console.warn('[verify-pos-pin-login] rpc_verify_pos_pin_profile_row:', rpcRes.error.message);
       }
-      let q = await admin
+      const q = await admin
         .from('profiles')
         .select('id, pos_pin, is_active, email')
         .eq('email', email)
@@ -470,7 +469,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    let { error: authErr } = await admin.auth.admin.updateUserById(authUserId, {
+    const { error: authErr } = await admin.auth.admin.updateUserById(authUserId, {
       password: newPassword,
     });
     if (authErr) {

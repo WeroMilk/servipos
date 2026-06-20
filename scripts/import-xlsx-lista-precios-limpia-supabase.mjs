@@ -82,11 +82,6 @@ function parseArgs() {
   return out;
 }
 
-  return String(s ?? '')
-    .trim()
-    .toLocaleUpperCase('es-MX');
-}
-
 async function ensureSucursal(supabase, sucursalId, nombreDisplay) {
   const { data } = await supabase.from('sucursales').select('id').eq('id', sucursalId).maybeSingle();
   if (data) return;
