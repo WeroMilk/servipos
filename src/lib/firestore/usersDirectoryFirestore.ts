@@ -107,19 +107,41 @@ export async function fetchLoginDirectoryUsers(): Promise<LoginDirectoryUser[]> 
   return fetchLoginDirectoryViaRest(base, anonKey);
 }
 
-/** Lista usuarios con perfil en `public.profiles`. */
-export function subscribeFirestoreDirectoryUsers(onList: (list: User[]) => void): () => void {
+/** Lista usuarios con perfil en `public.profiles` (admin). */
+export function subscribeFirestoreDirectoryUsers(
+  onList: (list: User[]) => void,
+  onError?: (message: string) => void
+): () => void {
   const supabase = getSupabase();
+
+  const mapRows = (rows: unknown[]) =>
+    rows
+      .map((row) => mapProfileRowToUser(row as Parameters<typeof mapProfileRowToUser>[0]))
+      .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+
   const load = async () => {
+    const { data: rpcData, error: rpcError } = await supabase.rpc('rpc_list_profiles_directory');
+    if (!rpcError && Array.isArray(rpcData)) {
+      onList(mapRows(rpcData));
+      return;
+    }
+
+    if (rpcError && import.meta.env.DEV) {
+      console.warn('rpc_list_profiles_directory:', rpcError.message, '→ fallback profiles select');
+    }
+
     const { data, error } = await supabase.from('profiles').select('*').order('name');
     if (error) {
       console.error('Users directory:', error);
+      const msg =
+        rpcError?.message && error.message
+          ? `${error.message} (RPC: ${rpcError.message})`
+          : error.message || rpcError?.message || 'No se pudo cargar el directorio de usuarios';
+      onError?.(msg);
       onList([]);
       return;
     }
-    const list = (data ?? []).map((row) => mapProfileRowToUser(row as Parameters<typeof mapProfileRowToUser>[0]));
-    list.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
-    onList(list);
+    onList(mapRows(data ?? []));
   };
   void load();
   const channel = supabase
@@ -135,9 +157,17 @@ export function subscribeFirestoreDirectoryUsers(onList: (list: User[]) => void)
 
 export async function fetchFirestoreDirectoryUsersOnce(): Promise<User[]> {
   const supabase = getSupabase();
+  const { data: rpcData, error: rpcError } = await supabase.rpc('rpc_list_profiles_directory');
+  if (!rpcError && Array.isArray(rpcData)) {
+    const list = rpcData.map((row) =>
+      mapProfileRowToUser(row as Parameters<typeof mapProfileRowToUser>[0])
+    );
+    list.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+    return list;
+  }
   const { data, error } = await supabase.from('profiles').select('*').order('name');
   if (error) {
-    console.error('Users directory:', error);
+    console.error('Users directory:', error, rpcError);
     return [];
   }
   const list = (data ?? []).map((row) => mapProfileRowToUser(row as Parameters<typeof mapProfileRowToUser>[0]));

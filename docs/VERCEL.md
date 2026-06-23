@@ -46,7 +46,7 @@ Las funciones `admin-create-user`, `verify-pos-pin-login` y **`list-login-direct
 
 Ejemplo:
 
-`https://servipos.vercel.app,https://servipos-git-main-tu-org.vercel.app`
+`https://servipos.vercel.app,https://servipos-git-main-weromilks-projects.vercel.app,*.vercel.app`
 
 Si no define esta variable, la función rechazará requests por seguridad.
 

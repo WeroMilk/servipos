@@ -90,6 +90,7 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
   const [users, setUsers] = useState<User[]>([]);
   const [sucursales, setSucursales] = useState<Sucursal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [mode, setMode] = useState<FormMode>('create');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -100,10 +101,19 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
 
   useEffect(() => {
     setLoading(true);
-    const unsubUsers = subscribeFirestoreDirectoryUsers((list) => {
-      setUsers(list);
-      setLoading(false);
-    });
+    setLoadError(null);
+    const unsubUsers = subscribeFirestoreDirectoryUsers(
+      (list) => {
+        setUsers(list);
+        setLoading(false);
+        setLoadError(null);
+      },
+      (message) => {
+        setLoadError(message);
+        setUsers([]);
+        setLoading(false);
+      }
+    );
     const unsubSuc = subscribeSucursales(setSucursales);
     return () => {
       unsubUsers();
@@ -318,8 +328,15 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
                   ) : users.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center text-slate-600 dark:text-slate-500">
-                        No hay perfiles en <code className="text-slate-600 dark:text-slate-400">users</code>. Cree uno
-                        o revise reglas de Firestore.
+                        {loadError ? (
+                          <span className="text-amber-700 dark:text-amber-300">{loadError}</span>
+                        ) : (
+                          <>
+                            No hay perfiles en{' '}
+                            <code className="text-slate-600 dark:text-slate-400">profiles</code>. Cree uno con
+                            «Nuevo usuario».
+                          </>
+                        )}
                       </TableCell>
                     </TableRow>
                   ) : (

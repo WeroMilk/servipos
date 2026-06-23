@@ -1,33 +1,10 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 import { authPasswordFromPosPin } from '../_shared/authPasswordFromPosPin.ts';
-
-const baseCorsHeaders: Record<string, string> = {
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  Vary: 'Origin',
-};
-
-function parseAllowedOrigins(): string[] {
-  const raw = Deno.env.get('ADMIN_CREATE_USER_ALLOWED_ORIGINS') ?? '';
-  return raw
-    .split(',')
-    .map((v) => v.trim())
-    .filter((v) => v.length > 0);
-}
-
-function isOriginAllowed(origin: string | null, allowed: string[]): boolean {
-  if (allowed.length === 0) return false;
-  if (!origin) return false;
-  return allowed.includes(origin);
-}
-
-function corsHeadersForOrigin(origin: string | null, allowed: string[]): Record<string, string> {
-  const allowOrigin = isOriginAllowed(origin, allowed) ? origin! : allowed[0] ?? 'null';
-  return {
-    ...baseCorsHeaders,
-    'Access-Control-Allow-Origin': allowOrigin,
-  };
-}
+import {
+  corsHeadersForOrigin,
+  parseAllowedOrigins,
+  isOriginAllowed,
+} from '../_shared/corsAllowedOrigins.ts';
 
 function json(body: unknown, status = 200, headers?: Record<string, string>) {
   return new Response(JSON.stringify(body), {
@@ -53,7 +30,7 @@ function isAdminRole(role: string | null | undefined): boolean {
 
 Deno.serve(async (req) => {
   const origin = req.headers.get('Origin');
-  const allowedOrigins = parseAllowedOrigins();
+  const allowedOrigins = parseAllowedOrigins(Deno.env.get('ADMIN_CREATE_USER_ALLOWED_ORIGINS'));
   const corsHeaders = corsHeadersForOrigin(origin, allowedOrigins);
   if (!isOriginAllowed(origin, allowedOrigins)) {
     return json({ error: 'Origin not allowed' }, 403, corsHeaders);
