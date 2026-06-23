@@ -101,7 +101,7 @@ import { tipoMovimientoLabel } from '@/lib/inventoryMovementLabels';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { isMovimientoLlegadaMercancia } from '@/lib/inventoryAbasto';
 import { downloadInventarioCompleto, downloadInventarioStockBajo } from '@/lib/inventoryExport';
-import { filterProductsBySearchText } from '@/lib/productSearchLocal';
+import { buildProductSearchIndex, searchProductIndex } from '@/lib/productSearchIndex';
 import { effectiveListaPreciosIncluyenIva, defaultListaPreciosIncluyenIva } from '@/lib/catalogPricingFlags';
 import {
   buildProveedorNombrePorLinea,
@@ -881,7 +881,7 @@ export function Inventario() {
       setDebouncedInventorySearch('');
       return;
     }
-    const t = window.setTimeout(() => setDebouncedInventorySearch(searchQuery), 220);
+    const t = window.setTimeout(() => setDebouncedInventorySearch(searchQuery), 120);
     return () => window.clearTimeout(t);
   }, [searchQuery]);
 
@@ -1416,11 +1416,13 @@ export function Inventario() {
     [products]
   );
 
+  const productSearchIndex = useMemo(() => buildProductSearchIndex(products), [products]);
+
   const pool = useMemo(() => {
     return debouncedInventorySearch.trim()
-      ? filterProductsBySearchText(products, debouncedInventorySearch)
+      ? searchProductIndex(productSearchIndex, debouncedInventorySearch)
       : products;
-  }, [products, debouncedInventorySearch]);
+  }, [products, productSearchIndex, debouncedInventorySearch]);
 
   const handleInventorySortClick = useCallback((key: InventorySortKey) => {
     setInventorySort((prev) =>

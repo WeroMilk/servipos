@@ -189,6 +189,33 @@ export async function updateFirestoreDirectoryUser(
   }
 ): Promise<void> {
   const supabase = getSupabase();
+  const rpcPatch: Record<string, unknown> = {};
+  if (patch.name !== undefined) rpcPatch.name = patch.name;
+  if (patch.username !== undefined) rpcPatch.username = patch.username;
+  if (patch.email !== undefined) rpcPatch.email = patch.email;
+  if (patch.role !== undefined) rpcPatch.role = patch.role;
+  if (patch.isActive !== undefined) rpcPatch.isActive = patch.isActive;
+  if (patch.sucursalId !== undefined) {
+    rpcPatch.sucursalId =
+      patch.sucursalId === null || patch.sucursalId === '' ? null : patch.sucursalId;
+  }
+  if (patch.useCustomPermissions !== undefined) {
+    rpcPatch.useCustomPermissions = patch.useCustomPermissions;
+  }
+  if (patch.customPermissions !== undefined) {
+    rpcPatch.customPermissions = patch.customPermissions;
+  }
+
+  const { error: rpcError } = await supabase.rpc('rpc_admin_update_profile', {
+    p_uid: uid,
+    p_patch: rpcPatch,
+  });
+  if (!rpcError) return;
+
+  if (import.meta.env.DEV) {
+    console.warn('rpc_admin_update_profile:', rpcError.message, '→ fallback profiles update');
+  }
+
   const row: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (patch.name !== undefined) row.name = patch.name;
   if (patch.username !== undefined) row.username = patch.username;

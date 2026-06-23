@@ -10,6 +10,11 @@ import { normalizeClaveProdServ, normalizeClaveUnidadSat } from '@/lib/satCatalo
 import { normSkuBarcode } from '@/lib/productCatalogUniqueness';
 import { createDebouncedAsyncFn } from '@/lib/debouncedAsync';
 import { getSupabase } from '@/lib/supabaseClient';
+import {
+  buildProductSearchIndex,
+  findProductByBarcodeInIndex,
+  type ProductSearchIndex,
+} from '@/lib/productSearchIndex';
 
 /** PostgREST devuelve como máximo 1000 filas por defecto; hay que paginar. */
 const PRODUCTS_FETCH_PAGE = 1000;
@@ -232,12 +237,17 @@ function productToDocPayload(
 }
 
 let lastProducts: Product[] = [];
+let lastSearchIndex: ProductSearchIndex = buildProductSearchIndex([]);
 const catalogListeners = new Set<(products: Product[]) => void>();
 const catalogErrorListeners = new Set<(err: Error) => void>();
 let catalogChannel: ReturnType<ReturnType<typeof getSupabase>['channel']> | null = null;
 let catalogSucursalId: string | null = null;
 let catalogReloadDebounced: (() => void) | null = null;
 let catalogInitialLoadDone = false;
+
+function rebuildSearchIndex(): void {
+  lastSearchIndex = buildProductSearchIndex(lastProducts);
+}
 
 function notifyCatalogListeners(): void {
   const snapshot = [...lastProducts];
@@ -262,7 +272,11 @@ function applyProductRealtimePatch(payload: {
     if (!id) return false;
     const before = lastProducts.length;
     lastProducts = lastProducts.filter((p) => p.id !== id);
-    return lastProducts.length !== before;
+    if (lastProducts.length !== before) {
+      rebuildSearchIndex();
+      return true;
+    }
+    return false;
   }
 
   const row = payload.new;
@@ -272,6 +286,7 @@ function applyProductRealtimePatch(payload: {
     const had = lastProducts.some((p) => p.id === row.id);
     if (!had) return false;
     lastProducts = lastProducts.filter((p) => p.id !== row.id);
+    rebuildSearchIndex();
     return true;
   }
 
@@ -281,12 +296,20 @@ function applyProductRealtimePatch(payload: {
   } else {
     lastProducts.push(product);
   }
-  lastProducts.sort((a, b) => String(a.nombre ?? '').localeCompare(String(b.nombre ?? ''), 'es'));
+  rebuildSearchIndex();
   return true;
 }
 
 export function getProductCatalogSnapshot(): Product[] {
   return lastProducts;
+}
+
+export function getProductSearchIndex(): ProductSearchIndex {
+  return lastSearchIndex;
+}
+
+export function isProductCatalogReady(): boolean {
+  return catalogInitialLoadDone;
 }
 
 export function subscribeProductCatalog(
@@ -325,8 +348,9 @@ export function subscribeProductCatalog(
       });
       return;
     }
-    lastProducts = rows.map((r) => docToProduct(r)).sort((a, b) => String(a.nombre ?? '').localeCompare(String(b.nombre ?? ''), 'es'));
+    lastProducts = rows.map((r) => docToProduct(r));
     catalogInitialLoadDone = true;
+    rebuildSearchIndex();
     notifyCatalogListeners();
   };
 
@@ -374,6 +398,7 @@ export function subscribeProductCatalog(
       catalogReloadDebounced = null;
       catalogInitialLoadDone = false;
       lastProducts = [];
+      lastSearchIndex = buildProductSearchIndex([]);
       catalogErrorListeners.clear();
     }
   };
@@ -645,6 +670,9 @@ export async function getProductByBarcodeFirestore(
   sucursalId: string,
   codigoLeido: string
 ): Promise<Product | null> {
+  if (catalogSucursalId === sucursalId && catalogInitialLoadDone) {
+    return findProductByBarcodeInIndex(lastSearchIndex, codigoLeido);
+  }
   const { rows, error } = await fetchAllProductRowsForSucursal(sucursalId);
   if (error) return null;
   const key = normSkuBarcode(codigoLeido);

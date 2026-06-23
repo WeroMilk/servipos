@@ -103,17 +103,14 @@ export function subscribeOutgoingPendingTransferIds(
   const load = async () => {
     const { data: rows, error } = await supabase
       .from('outgoing_transfers')
-      .select('id, doc')
-      .eq('sucursal_id', sucursalId);
+      .select('id')
+      .eq('sucursal_id', sucursalId)
+      .eq('doc->>estado', 'pendiente');
     if (error) {
       onIds(new Set());
       return;
     }
-    const ids = new Set(
-      (rows ?? [])
-        .filter((r) => String((r.doc as { estado?: string })?.estado ?? '') === 'pendiente')
-        .map((r) => r.id)
-    );
+    const ids = new Set((rows ?? []).map((r) => r.id));
     onIds(ids);
   };
   void load();

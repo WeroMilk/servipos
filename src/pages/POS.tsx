@@ -934,7 +934,7 @@ export function POS() {
     const t = window.setTimeout(() => {
       setDebouncedSearchQuery(qSearch);
       void searchProducts(qSearch);
-    }, 280);
+    }, 100);
     return () => window.clearTimeout(t);
   }, [searchQuery, searchProducts]);
 

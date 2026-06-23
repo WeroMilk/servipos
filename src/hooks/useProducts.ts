@@ -13,14 +13,15 @@ import { appendCatalogInventoryMovement } from '@/data/catalogAuditBridge';
 import { updateStockUnified } from '@/data/stockBridge';
 import {
   subscribeProductCatalog,
-  getProductCatalogSnapshot,
+  getProductSearchIndex,
+  isProductCatalogReady,
   createProductFirestore,
   updateProductFirestore,
   deleteProductFirestore,
 } from '@/lib/firestore/productsFirestore';
+import { searchProductIndex, findProductByBarcodeInIndex, buildProductSearchIndex } from '@/lib/productSearchIndex';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 import { coerceProductList } from '@/lib/productCoerce';
-import { normSkuBarcode } from '@/lib/productCatalogUniqueness';
 import { productEsServicio } from '@/lib/productServicio';
 import {
   auditActorSuffix,
@@ -322,35 +323,6 @@ export function useProducts() {
   };
 }
 
-function posSearchRank(p: Product, needleLower: string, needleNorm: string): number {
-  const nameL = (p.nombre ?? '').toLowerCase();
-  const skuN = normSkuBarcode(String(p.sku ?? ''));
-  const barN = normSkuBarcode(String(p.codigoBarras ?? ''));
-  const exactOk = needleNorm.length >= 2;
-  if (exactOk) {
-    if (skuN === needleNorm) return 0;
-    if (barN === needleNorm) return 1;
-  }
-  if (nameL.startsWith(needleLower)) return 2;
-  if (exactOk && skuN.startsWith(needleNorm)) return 3;
-  if (exactOk && barN.startsWith(needleNorm)) return 4;
-  if (needleNorm && skuN.includes(needleNorm)) return 5;
-  if (needleNorm && barN.includes(needleNorm)) return 6;
-  if (nameL.includes(needleLower)) return 7;
-  return 8;
-}
-
-function sortPosSearchList(list: Product[], q: string): Product[] {
-  const needleLower = q.trim().toLowerCase();
-  const needleNorm = normSkuBarcode(q);
-  return [...list].sort((a, b) => {
-    const ra = posSearchRank(a, needleLower, needleNorm);
-    const rb = posSearchRank(b, needleLower, needleNorm);
-    if (ra !== rb) return ra - rb;
-    return (a.nombre ?? '').localeCompare(b.nombre ?? '', 'es', { sensitivity: 'base' });
-  });
-}
-
 /** `maxResults` (p. ej. 80 en POS) evita listas enormes y mantiene la UI fluida; sin tope en inventario u otros usos. */
 export function useProductSearch(options?: { maxResults?: number }) {
   const maxCap = options?.maxResults;
@@ -358,7 +330,23 @@ export function useProductSearch(options?: { maxResults?: number }) {
   const [results, setResults] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const searchGenRef = useRef(0);
+  const lastSearchQueryRef = useRef('');
   const reconcileCartTimerRef = useRef<number | null>(null);
+
+  const runLocalSearch = useCallback(
+    (trimmed: string, gen: number): Product[] => {
+      if (!isProductCatalogReady()) {
+        if (gen === searchGenRef.current) setLoading(true);
+        return [];
+      }
+      const data = searchProductIndex(getProductSearchIndex(), trimmed, maxCap);
+      if (gen !== searchGenRef.current) return data;
+      setResults(data);
+      setLoading(false);
+      return data;
+    },
+    [maxCap]
+  );
 
   useEffect(() => {
     if (!sucursalId) return;
@@ -375,6 +363,12 @@ export function useProductSearch(options?: { maxResults?: number }) {
         if (relevant.length === 0) return;
         useCartStore.getState().reconcileCartProductsFromCatalog(relevant);
       }, 48);
+
+      const q = lastSearchQueryRef.current.trim();
+      if (q) {
+        const gen = searchGenRef.current;
+        runLocalSearch(q, gen);
+      }
     });
     return () => {
       unsub();
@@ -383,11 +377,12 @@ export function useProductSearch(options?: { maxResults?: number }) {
         reconcileCartTimerRef.current = null;
       }
     };
-  }, [sucursalId]);
+  }, [sucursalId, runLocalSearch]);
 
   const search = useCallback(
     async (q: string): Promise<Product[]> => {
       const trimmed = q.trim();
+      lastSearchQueryRef.current = trimmed;
       if (!trimmed) {
         searchGenRef.current += 1;
         setResults([]);
@@ -397,36 +392,16 @@ export function useProductSearch(options?: { maxResults?: number }) {
 
       const gen = ++searchGenRef.current;
       try {
-        setLoading(true);
         if (sucursalId) {
-          const lower = trimmed.toLowerCase();
-          const normQ = normSkuBarcode(trimmed);
-          const raw = coerceProductList(getProductCatalogSnapshot()).filter((p) => {
-            if (p.activo === false) return false;
-            const nameL = (p.nombre ?? '').toLowerCase();
-            const skuN = normSkuBarcode(String(p.sku ?? ''));
-            const barN = normSkuBarcode(String(p.codigoBarras ?? ''));
-            return (
-              nameL.includes(lower) ||
-              skuN.includes(normQ) ||
-              (normQ.length > 0 && barN.includes(normQ))
-            );
-          });
-          const sorted = sortPosSearchList(raw, trimmed);
-          const data =
-            maxCap != null && Number.isFinite(maxCap) && maxCap > 0
-              ? sorted.slice(0, maxCap)
-              : sorted;
-          if (gen !== searchGenRef.current) return data;
-          setResults(data);
-          return data;
+          return runLocalSearch(trimmed, gen);
         }
+        setLoading(true);
         const data = await searchProducts(trimmed);
-        const sorted = sortPosSearchList(coerceProductList(data), trimmed);
-        const list =
-          maxCap != null && Number.isFinite(maxCap) && maxCap > 0
-            ? sorted.slice(0, maxCap)
-            : sorted;
+        const list = searchProductIndex(
+          buildProductSearchIndex(coerceProductList(data)),
+          trimmed,
+          maxCap
+        );
         if (gen !== searchGenRef.current) return list;
         setResults(list);
         return list;
@@ -436,27 +411,18 @@ export function useProductSearch(options?: { maxResults?: number }) {
         if (gen === searchGenRef.current) setResults([]);
         return [];
       } finally {
-        if (gen === searchGenRef.current) setLoading(false);
+        if (!sucursalId && gen === searchGenRef.current) setLoading(false);
       }
     },
-    [sucursalId, maxCap]
+    [sucursalId, maxCap, runLocalSearch]
   );
 
   const searchByBarcode = useCallback(
     async (barcode: string) => {
       try {
         if (sucursalId) {
-          /** Catálogo ya en memoria (misma fuente que la búsqueda por texto): evita un fetch completo por cada pistola. */
-          const list = coerceProductList(getProductCatalogSnapshot());
-          const key = normSkuBarcode(barcode);
-          if (!key) return null;
-          const ok = (p: Product) => p.activo !== false;
-          const byBar = list.find(
-            (p) => ok(p) && normSkuBarcode(String(p.codigoBarras ?? '')) === key
-          );
-          if (byBar) return byBar;
-          const bySku = list.find((p) => ok(p) && normSkuBarcode(String(p.sku ?? '')) === key);
-          return bySku ?? null;
+          if (!isProductCatalogReady()) return null;
+          return findProductByBarcodeInIndex(getProductSearchIndex(), barcode);
         }
         setLoading(true);
         const product = await getProductByBarcode(barcode);
