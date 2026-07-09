@@ -12,6 +12,7 @@ import {
   FORMAS_PAGO,
   type CajaAporteEfectivo,
   type CajaRetiroEfectivo,
+  type Client,
   type Quotation,
   type Sale,
 } from '@/types';
@@ -1080,6 +1081,136 @@ export function printThermalDailySalesReport(input: {
     <div style="font-size:11px;font-weight:700;${adeudoStyle}">${formatMoney(adeudoRedondeado)}</div>
     <span style="font-size:${THERMAL_MIN_FONT_PX}px;">Lo que quedó por cobrar en ventas completadas del día (parciales / crédito). Si es $0.00, no hubo adeudos.</span>
   </div>
+  ${pie}`,
+  });
+}
+
+/** Comprobante de emisión de crédito de tienda (80 mm). */
+export type ThermalClientCreditoReceiptInput = {
+  fechaLabel: string;
+  sucursalId?: string;
+  cajeroNombre?: string;
+  clienteNombre: string;
+  montoCredito: number;
+  saldoAnterior: number;
+  saldoNuevo: number;
+  motivoLabel?: string;
+  notas?: string;
+  copiaCliente?: boolean;
+};
+
+export function printThermalClientCreditoReceipt(input: ThermalClientCreditoReceiptInput): void {
+  const pie = buildThermalPieSucursalHtml(input.sucursalId);
+  const cajero = input.cajeroNombre?.trim() ? escapeHtml(input.cajeroNombre.trim()) : '—';
+  const cliente = input.clienteNombre.trim() ? escapeHtml(input.clienteNombre.trim()) : 'Cliente';
+  const saldoNuevo = Math.max(0, Number(input.saldoNuevo) || 0);
+  const copia = Boolean(input.copiaCliente);
+  const rolTitulo = copia ? 'COPIA CLIENTE' : 'TIENDA';
+  const motivo = input.motivoLabel?.trim() ? escapeHtml(input.motivoLabel.trim()) : 'Crédito de tienda';
+  const notasExtra = input.notas?.trim() ? `<div>Notas: ${escapeHtml(input.notas.trim())}</div>` : '';
+  const notaPie = copia
+    ? 'Conserve este comprobante. Válido para compras en tienda (crédito de tienda).'
+    : 'Comprobante interno. Entregue copia al cliente.';
+  void openThermalPrintDocument({
+    heading: 'CRÉDITO DE TIENDA',
+    pageTitle: 'Crédito de tienda',
+    bodyClass: 'ticket-compact',
+    styles: THERMAL_COMPACT_SHELL_STYLES,
+    bodyInnerHtml: `<div class="ticket-rol">(${escapeHtml(rolTitulo)})</div>
+  <div class="meta">
+    ${escapeHtml(input.fechaLabel)}<br/>
+    Cliente: ${cliente}<br/>
+    Cajero: ${cajero}<br/>
+    Motivo: ${motivo}
+  </div>
+  ${notasExtra}
+  <div class="tot abono-saldos">
+    <div>Saldo anterior: ${formatMoney(Number(input.saldoAnterior) || 0)}</div>
+    <div>Crédito otorgado: ${formatMoney(Number(input.montoCredito) || 0)}</div>
+    <div class="abono-saldo-actual">Saldo disponible: ${formatMoney(saldoNuevo)}</div>
+  </div>
+  <p class="abono-nota">${escapeHtml(notaPie)}</p>
+  ${pie}`,
+  });
+}
+
+export type ThermalClientStatusReportInput = {
+  fechaLabel: string;
+  sucursalId?: string;
+  client: Pick<Client, 'nombre' | 'rfc' | 'email' | 'telefono'>;
+  stats: {
+    totalCompras: number;
+    totalGastado: number;
+    saldoPendiente: number;
+    numFacturas: number;
+    numCotizaciones: number;
+    numAdeudos: number;
+    totalAbonado: number;
+  };
+  ventasRecientes: { folio: string; total: number; fecha: string; estado: string }[];
+  facturasRecientes: { folioSerie: string; total: number; fecha: string; estado: string }[];
+  cotizacionesRecientes: { folio: string; total: number; fecha: string; estado: string }[];
+};
+
+/** Estado de cuenta del cliente — ticket térmico 80 mm. */
+export function printThermalClientStatusReport(input: ThermalClientStatusReportInput): void {
+  const c = input.client;
+  const st = input.stats;
+  const saldoStyle = st.saldoPendiente > 0.004 ? 'color:#92400e;font-weight:700;' : 'color:#166534;font-weight:700;';
+  const saldoLabel = st.saldoPendiente > 0.004 ? 'Saldo pendiente' : 'Al corriente';
+
+  const ventasRows = input.ventasRecientes
+    .slice(0, 12)
+    .map(
+      (v) =>
+        `<tr><td>${escapeHtml(v.folio)}<br/><span style="font-size:${THERMAL_MIN_FONT_PX}px;">${escapeHtml(v.fecha)} · ${escapeHtml(v.estado)}</span></td><td class="right">${formatMoney(v.total)}</td></tr>`
+    )
+    .join('');
+
+  const factRows = input.facturasRecientes
+    .slice(0, 8)
+    .map(
+      (f) =>
+        `<tr><td>${escapeHtml(f.folioSerie)}<br/><span style="font-size:${THERMAL_MIN_FONT_PX}px;">${escapeHtml(f.fecha)} · ${escapeHtml(f.estado)}</span></td><td class="right">${formatMoney(f.total)}</td></tr>`
+    )
+    .join('');
+
+  const cotRows = input.cotizacionesRecientes
+    .slice(0, 8)
+    .map(
+      (q) =>
+        `<tr><td>${escapeHtml(q.folio)}<br/><span style="font-size:${THERMAL_MIN_FONT_PX}px;">${escapeHtml(q.fecha)} · ${escapeHtml(q.estado)}</span></td><td class="right">${formatMoney(q.total)}</td></tr>`
+    )
+    .join('');
+
+  const pie = buildThermalPieSucursalHtml(input.sucursalId);
+  void openThermalPrintDocument({
+    heading: 'ESTADO DE CLIENTE',
+    pageTitle: 'Estado de cliente',
+    bodyClass: 'ticket-cierre-turno',
+    styles: THERMAL_CIERRE_TURNO_STYLES,
+    bodyInnerHtml: `<div class="meta">${escapeHtml(input.fechaLabel)}</div>
+  <div class="tot" style="border-top:none;padding-top:2px;">
+    <div><strong>${escapeHtml(c.nombre)}</strong></div>
+    ${c.rfc?.trim() ? `<div>RFC: ${escapeHtml(c.rfc.trim())}</div>` : ''}
+    ${c.telefono?.trim() ? `<div>Tel: ${escapeHtml(c.telefono.trim())}</div>` : ''}
+    ${c.email?.trim() ? `<div>${escapeHtml(c.email.trim())}</div>` : ''}
+  </div>
+  <div class="tot">
+    <div>Compras: <strong>${st.totalCompras}</strong></div>
+    <div>Total gastado: <strong>${formatMoney(st.totalGastado)}</strong></div>
+    <div>Facturas: <strong>${st.numFacturas}</strong> · Cotizaciones: <strong>${st.numCotizaciones}</strong></div>
+    <div>Tickets con adeudo: <strong>${st.numAdeudos}</strong></div>
+    ${st.totalAbonado > 0.004 ? `<div>Abonos registrados: <strong>${formatMoney(st.totalAbonado)}</strong></div>` : ''}
+    <div style="margin-top:4px;">${saldoLabel}: <span style="${saldoStyle}">${formatMoney(st.saldoPendiente)}</span></div>
+  </div>
+  <p class="ticket-section-title">Últimas compras</p>
+  <table>${ventasRows || '<tr><td>Sin compras.</td></tr>'}</table>
+  <p class="ticket-section-title">Facturas</p>
+  <table>${factRows || '<tr><td>Sin facturas.</td></tr>'}</table>
+  <p class="ticket-section-title">Cotizaciones</p>
+  <table>${cotRows || '<tr><td>Sin cotizaciones.</td></tr>'}</table>
+  <p class="abono-nota">Documento informativo sin valor fiscal. Sujeto a conciliación con Cuentas por cobrar.</p>
   ${pie}`,
   });
 }

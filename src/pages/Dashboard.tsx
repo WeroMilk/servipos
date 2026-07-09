@@ -136,12 +136,12 @@ function StatCard({
       className={cn(
         'flex h-full min-h-0 flex-col border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 backdrop-blur-sm',
         'transition-colors duration-200 hover:border-slate-300/80 dark:border-slate-700/50',
-        'max-md:min-h-0 md:min-h-[10.5rem] lg:min-h-[11rem]'
+        'max-md:min-h-0 md:min-h-[7.75rem] lg:min-h-[8.5rem] xl:min-h-[9rem]'
       )}
     >
-      <CardContent className="flex flex-1 flex-col p-2.5 sm:p-4 md:p-3">
+      <CardContent className="flex flex-1 flex-col p-2.5 sm:p-3 md:p-3 lg:p-4">
         <div className="flex items-start justify-between gap-1.5 sm:gap-2">
-          <h3 className="line-clamp-2 max-w-[calc(100%-2.5rem)] text-left text-[11px] font-medium leading-tight text-slate-600 dark:text-slate-400 max-md:min-h-0 sm:text-xs md:min-h-[2.5rem] md:text-sm">
+          <h3 className="line-clamp-2 max-w-[calc(100%-2.5rem)] text-left text-[11px] font-medium leading-tight text-slate-600 dark:text-slate-400 sm:text-xs md:text-sm">
             {title}
           </h3>
           <div
@@ -261,7 +261,10 @@ export function Dashboard() {
     return { mode: 'week', weekStart, weekEndExclusive };
   }, [periodGranularity, dateRange?.from]);
 
-  /** Cubre el periodo KPI y el rango completo del gráfico (semana o todo el mes del gráfico). */
+  /** Cubre el periodo KPI, el rango del gráfico y el día de reimpresión de tickets. */
+  const reprintDayStart = useMemo(() => startOfDayFromDateKey(reprintDayKey), [reprintDayKey]);
+  const reprintDayEnd = useMemo(() => addDays(reprintDayStart, 1), [reprintDayStart]);
+
   const fetchBounds = useMemo(() => {
     let chartStart: Date;
     let chartEndExclusive: Date;
@@ -272,10 +275,14 @@ export function Dashboard() {
       chartStart = chartTimeRange.weekStart;
       chartEndExclusive = chartTimeRange.weekEndExclusive;
     }
-    const fetchStart = new Date(Math.min(inicio.getTime(), chartStart.getTime()));
-    const fetchEnd = new Date(Math.max(fin.getTime(), chartEndExclusive.getTime()));
+    const fetchStart = new Date(
+      Math.min(inicio.getTime(), chartStart.getTime(), reprintDayStart.getTime())
+    );
+    const fetchEnd = new Date(
+      Math.max(fin.getTime(), chartEndExclusive.getTime(), reprintDayEnd.getTime())
+    );
     return { fetchStart, fetchEnd };
-  }, [inicio, fin, chartTimeRange]);
+  }, [inicio, fin, chartTimeRange, reprintDayStart, reprintDayEnd]);
 
   const { sales: salesFetched, loading: salesLoading } = useSalesByDateRange(
     fetchBounds.fetchStart,
@@ -355,12 +362,15 @@ export function Dashboard() {
   const { products: lowStockProducts, loading: stockLoading } = useLowStockProducts();
   const outgoingTransferPendingIds = useOutgoingPendingTransferIds();
 
-  const reprintDayStart = useMemo(() => startOfDayFromDateKey(reprintDayKey), [reprintDayKey]);
-  const reprintDayEnd = useMemo(() => addDays(reprintDayStart, 1), [reprintDayStart]);
-  const { sales: reprintSalesRaw, loading: reprintSalesLoading } = useSalesByDateRange(
-    reprintDayStart,
-    reprintDayEnd
-  );
+  const reprintSalesRaw = useMemo(() => {
+    const i0 = reprintDayStart.getTime();
+    const f0 = reprintDayEnd.getTime();
+    return salesFetched.filter((s) => {
+      const t = s.createdAt instanceof Date ? s.createdAt : new Date(s.createdAt);
+      const x = t.getTime();
+      return x >= i0 && x < f0;
+    });
+  }, [salesFetched, reprintDayStart, reprintDayEnd]);
   const reprintSalesSorted = useMemo(
     () =>
       [...reprintSalesRaw].sort(
@@ -655,7 +665,7 @@ export function Dashboard() {
   }, [kpiDrillDownDayStart]);
 
   return (
-    <div className="flex min-h-0 w-full flex-1 flex-col gap-1 overflow-hidden sm:gap-2 md:gap-3">
+    <div className="flex min-h-0 w-full min-w-0 max-w-[100vw] flex-1 flex-col gap-1 overflow-hidden sm:gap-2 md:gap-2.5 lg:gap-3">
       <header className="flex shrink-0 flex-col gap-1.5 border-b border-slate-200/80 dark:border-slate-800/40 pb-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2 sm:pb-2">
         <div className="min-w-0">
           <h1 className="truncate text-base font-bold text-slate-900 dark:text-slate-100 sm:text-xl lg:text-2xl">Panel</h1>
@@ -712,7 +722,7 @@ export function Dashboard() {
         </div>
       </header>
 
-      <div className="grid min-h-0 shrink-0 grid-cols-2 gap-1.5 sm:gap-2 lg:grid-cols-4 lg:gap-3">
+      <div className="grid min-h-0 shrink-0 grid-cols-2 gap-1.5 sm:gap-2 md:grid-cols-4 md:gap-2 lg:gap-3">
         <StatCard
           title="Ventas periodo"
           value={formatMoney(totals.total)}
@@ -881,35 +891,42 @@ export function Dashboard() {
         </div>
       </div>
 
-      <div className="hidden min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden md:flex md:flex-col lg:flex-row lg:gap-3">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden lg:min-h-0 lg:flex-[1.4]">
-          <Card
-            className={cn(
-              'hidden min-h-[11rem] flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 lg:flex lg:min-h-0',
-            )}
-          >
-            <CardHeader className="shrink-0 space-y-0 py-2">
-              <CardTitle className="flex flex-col gap-0.5 text-sm text-slate-900 dark:text-slate-100 sm:text-base">
-                <span className="flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 shrink-0 text-cyan-400" />
-                  {chartCardTitle}
+      {/* Escritorio: gráfica + listas reparten el alto; en pantallas muy anchas van en columnas */}
+      <div
+        className={cn(
+          'hidden min-h-0 min-w-0 flex-1 gap-2 overflow-hidden md:grid lg:gap-3',
+          'md:grid-cols-1 md:grid-rows-[minmax(0,1fr)_minmax(9rem,0.42fr)]',
+          '2xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] 2xl:grid-rows-1'
+        )}
+      >
+        <Card
+          className={cn(
+            'flex min-h-0 min-w-0 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50',
+            'md:min-h-[10rem] md:max-h-[min(52vh,28rem)] 2xl:max-h-none'
+          )}
+        >
+          <CardHeader className="shrink-0 space-y-0 py-2">
+            <CardTitle className="flex flex-col gap-0.5 text-sm text-slate-900 dark:text-slate-100 sm:text-base">
+              <span className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 shrink-0 text-cyan-400" />
+                {chartCardTitle}
+              </span>
+              <span className="text-[10px] font-normal text-slate-600 dark:text-slate-500 sm:text-xs">
+                {chartCardSubtitle}
+              </span>
+              {chartMonthPeak ? (
+                <span className="text-[10px] font-normal tabular-nums text-slate-600 dark:text-slate-400 sm:text-[11px]">
+                  Mayor facturación en un día: {formatMoney(chartMonthPeak.total)} (
+                  {chartMonthPeak.fullLabel})
                 </span>
-                <span className="text-[10px] font-normal text-slate-600 dark:text-slate-500 sm:text-xs">
-                  {chartCardSubtitle}
-                </span>
-                {chartMonthPeak ? (
-                  <span className="text-[10px] font-normal tabular-nums text-slate-600 dark:text-slate-400 sm:text-[11px]">
-                    Mayor facturación en un día: {formatMoney(chartMonthPeak.total)} (
-                    {chartMonthPeak.fullLabel})
-                  </span>
-                ) : null}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex min-h-0 flex-1 flex-col p-2 pt-0 sm:p-3">
-              <div
-                ref={chartPanelRef}
-                className="flex h-full min-h-[180px] w-full min-w-0 flex-1 flex-col"
-              >
+              ) : null}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-2 pt-0 sm:p-3">
+            <div
+              ref={chartPanelRef}
+              className="flex h-full min-h-[140px] w-full min-w-0 flex-1 flex-col"
+            >
                 {salesLoading ? (
                   <div className="flex h-full min-h-[120px] items-center justify-center text-xs text-slate-600 dark:text-slate-500">
                     Cargando ventas…
@@ -1070,30 +1087,36 @@ export function Dashboard() {
                 )}
               </div>
             </CardContent>
-          </Card>
+        </Card>
 
-          <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden sm:grid sm:grid-cols-2 sm:gap-3 lg:gap-3">
-            <Card
-              role="button"
-              tabIndex={0}
-              onClick={goInventarioStock}
-              onKeyDown={stockCardKeyHandler}
-              className={cn(
-                'flex min-h-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 sm:flex-none',
-                'cursor-pointer transition-colors hover:border-amber-500/35 hover:bg-slate-100 dark:bg-slate-900/70',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40'
-              )}
-            >
-              <CardHeader className="shrink-0 py-2">
-                <CardTitle className="flex items-center justify-between gap-2 text-xs text-slate-900 dark:text-slate-100 sm:text-sm">
-                  <span className="flex min-w-0 items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400" />
-                    Stock bajo
-                  </span>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-slate-600 dark:text-slate-500" aria-hidden />
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-2 pt-0">
+        <div
+          className={cn(
+            'grid min-h-0 min-w-0 gap-2 overflow-hidden lg:gap-3',
+            'grid-cols-2 grid-rows-1',
+            '2xl:grid-cols-1 2xl:grid-rows-[minmax(0,1fr)_minmax(0,1fr)]'
+          )}
+        >
+          <Card
+            role="button"
+            tabIndex={0}
+            onClick={goInventarioStock}
+            onKeyDown={stockCardKeyHandler}
+            className={cn(
+              'flex min-h-0 min-w-0 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50',
+              'cursor-pointer transition-colors hover:border-amber-500/35 hover:bg-slate-100 dark:bg-slate-900/70',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40'
+            )}
+          >
+            <CardHeader className="shrink-0 py-2">
+              <CardTitle className="flex items-center justify-between gap-2 text-xs text-slate-900 dark:text-slate-100 sm:text-sm">
+                <span className="flex min-w-0 items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400" />
+                  <span className="truncate">Stock bajo</span>
+                </span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-slate-600 dark:text-slate-500" aria-hidden />
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain p-2 pt-0">
                 {stockLoading ? (
                   <div className="space-y-2">
                     {[1, 2, 3].map((i) => (
@@ -1144,7 +1167,7 @@ export function Dashboard() {
               onClick={openTodaySalesDialog}
               onKeyDown={recentSalesCardKeyHandler}
               className={cn(
-                'flex min-h-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 sm:flex-none',
+                'flex min-h-0 min-w-0 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50',
                 'cursor-pointer transition-colors hover:border-cyan-500/35 hover:bg-slate-100 dark:bg-slate-900/70',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40'
               )}
@@ -1153,12 +1176,12 @@ export function Dashboard() {
                 <CardTitle className="flex items-center justify-between gap-2 text-xs text-slate-900 dark:text-slate-100 sm:text-sm">
                   <span className="flex min-w-0 items-center gap-2">
                     <ShoppingCart className="h-4 w-4 shrink-0 text-cyan-400" />
-                    Ventas recientes
+                    <span className="truncate">Ventas recientes</span>
                   </span>
                   <ChevronRight className="h-4 w-4 shrink-0 text-slate-600 dark:text-slate-500" aria-hidden />
                 </CardTitle>
               </CardHeader>
-              <CardContent className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-2 pt-0">
+              <CardContent className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain p-2 pt-0">
                 {salesLoading ? (
                   <div className="space-y-2">
                     {[1, 2, 3].map((i) => (
@@ -1201,7 +1224,6 @@ export function Dashboard() {
                 </p>
               </CardContent>
             </Card>
-          </div>
         </div>
       </div>
 
@@ -1442,7 +1464,7 @@ export function Dashboard() {
                   Reimprimir ticket
                 </Button>
               </div>
-            ) : reprintSalesLoading ? (
+            ) : salesLoading ? (
               <div className="space-y-2">
                 {[1, 2, 3, 4].map((i) => (
                   <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-200/80 dark:bg-slate-800/50" />

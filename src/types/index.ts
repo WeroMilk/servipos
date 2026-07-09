@@ -274,6 +274,44 @@ export interface PurchaseOrderItem {
   actualizarPrecioCompra?: boolean;
 }
 
+/** Motivo de una salida de mercancía (sin venta). */
+export type GoodsExitMotivo =
+  | 'merma'
+  | 'devolucion_proveedor'
+  | 'consumo_interno'
+  | 'donacion'
+  | 'muestra'
+  | 'otro';
+
+export type GoodsExitEstado = 'completada' | 'cancelada';
+
+export interface GoodsExitItem {
+  lineId: string;
+  productId: string;
+  nombre?: string;
+  sku?: string;
+  cantidad: number;
+}
+
+export interface GoodsExit {
+  id: string;
+  folio: string;
+  motivo: GoodsExitMotivo;
+  /** Texto libre que complementa el motivo (p. ej. «empaque dañado»). */
+  motivoDetalle?: string;
+  /** Destino o responsable (opcional). */
+  destino?: string;
+  productos: GoodsExitItem[];
+  estado: GoodsExitEstado;
+  notas?: string;
+  sucursalId?: string;
+  usuarioId?: string;
+  usuarioNombre?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  syncStatus: SyncStatus;
+}
+
 /** Entrada en historial de abonos (Cuentas por cobrar); `at` más reciente primero en el arreglo. */
 export interface ClientAbonoHistorialEntry {
   at: Date;
@@ -281,6 +319,21 @@ export interface ClientAbonoHistorialEntry {
   saldoAnterior: number;
   saldoNuevo: number;
   usuarioNombre?: string;
+}
+
+/** Movimiento de crédito de tienda (saldo a favor del cliente). */
+export interface ClientCreditoHistorialEntry {
+  at: Date;
+  /** Importe del movimiento (siempre positivo). */
+  monto: number;
+  saldoAnterior: number;
+  saldoNuevo: number;
+  tipo: 'emision' | 'uso' | 'ajuste';
+  motivo?: string;
+  /** ventaId, folio devolución, etc. */
+  referencia?: string;
+  usuarioNombre?: string;
+  notas?: string;
 }
 
 // ============================================
@@ -326,6 +379,20 @@ export interface Client {
    * Limitado en servidor/local para no inflar el documento del cliente.
    */
   abonosHistorial?: ClientAbonoHistorialEntry[];
+  /**
+   * Saldo a favor del cliente (crédito de tienda): devoluciones sin reembolso en efectivo, etc.
+   * Se consume en POS con forma de pago STC.
+   */
+  saldoCreditoTienda?: number;
+  ultimoCreditoMonto?: number;
+  ultimoCreditoAt?: Date;
+  ultimoCreditoSaldoAnterior?: number;
+  ultimoCreditoSaldoNuevo?: number;
+  ultimoCreditoTipo?: ClientCreditoHistorialEntry['tipo'];
+  ultimoCreditoMotivo?: string;
+  ultimoCreditoUsuarioNombre?: string;
+  /** Movimientos de crédito (más reciente primero). */
+  creditoHistorial?: ClientCreditoHistorialEntry[];
   /** Notas solo para el equipo (no se muestran al cliente ni en CFDI). */
   notasInternas?: string;
   /** Aislamiento por tienda en datos locales (Dexie). */
@@ -482,7 +549,8 @@ export type FormaPago =
   | 'TTS' // Transferencia de tienda a tienda (interno; solo admin, total $0)
   | 'DEV' // Devolución: cancela ticket previo y reembolso en mostrador (no es forma SAT)
   | 'COT' // Cotización: solo en POS para cargar carrito; no se guarda en venta timbrada
-  | 'PPC'; // Pendiente de pago: venta completada sin cobro; saldo en cuenta (POS interno)
+  | 'PPC' // Pendiente de pago: venta completada sin cobro; saldo en cuenta (POS interno)
+  | 'STC'; // Crédito de tienda: saldo a favor del cliente (POS interno)
 
 export type MetodoPago = 'PUE' | 'PPD'; // Pago en una sola exhibición o Parcialidades
 

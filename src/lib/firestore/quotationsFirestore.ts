@@ -1,4 +1,5 @@
 import type { Quotation } from '@/types';
+import { createDebouncedAsyncFn } from '@/lib/debouncedAsync';
 import { getSupabase } from '@/lib/supabaseClient';
 
 function tsToDate(v: unknown): Date {
@@ -144,11 +145,25 @@ export async function deleteQuotationFirestore(sucursalId: string, quotationId: 
   if (error) throw new Error(error.message);
 }
 
+let lastQuotations: Quotation[] = [];
+const quotationsListeners = new Set<(rows: Quotation[]) => void>();
+let quotationsChannel: ReturnType<ReturnType<typeof getSupabase>['channel']> | null = null;
+let quotationsSucursalId: string | null = null;
+let quotationsReloadDebounced: (() => void) | null = null;
+
+export function getQuotationsCatalogSnapshot(): Quotation[] {
+  return lastQuotations;
+}
+
 export function subscribeQuotationsCatalog(
   sucursalId: string,
   onData: (rows: Quotation[]) => void
 ): () => void {
+  onData([...lastQuotations]);
+  quotationsListeners.add(onData);
+
   const supabase = getSupabase();
+
   const load = async () => {
     const { data, error } = await supabase
       .from('quotations')
@@ -156,26 +171,57 @@ export function subscribeQuotationsCatalog(
       .eq('sucursal_id', sucursalId);
     if (error) {
       console.error('Quotations:', error);
-      onData([]);
+      if (lastQuotations.length > 0) {
+        quotationsListeners.forEach((l) => {
+          try {
+            l([...lastQuotations]);
+          } catch (e) {
+            console.error('subscribeQuotationsCatalog listener:', e);
+          }
+        });
+      }
       return;
     }
-    const list = (data ?? [])
+    lastQuotations = (data ?? [])
       .map((r) => mapQuotation(sucursalId, r.id, r.doc as Record<string, unknown>))
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-    onData(list);
-  };
-  void load();
-  const ch = supabase
-    .channel(`quotations-${sucursalId}`)
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'quotations', filter: `sucursal_id=eq.${sucursalId}` },
-      () => {
-        void load();
+    quotationsListeners.forEach((l) => {
+      try {
+        l([...lastQuotations]);
+      } catch (e) {
+        console.error('subscribeQuotationsCatalog listener:', e);
       }
-    )
-    .subscribe();
+    });
+  };
+
+  if (quotationsSucursalId !== sucursalId) {
+    if (quotationsChannel) {
+      void supabase.removeChannel(quotationsChannel);
+      quotationsChannel = null;
+    }
+    quotationsSucursalId = sucursalId;
+    quotationsReloadDebounced = createDebouncedAsyncFn(load, 500);
+    lastQuotations = [];
+    void load();
+    quotationsChannel = supabase
+      .channel(`quotations-${sucursalId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'quotations', filter: `sucursal_id=eq.${sucursalId}` },
+        () => {
+          quotationsReloadDebounced?.();
+        }
+      )
+      .subscribe();
+  } else {
+    try {
+      onData([...lastQuotations]);
+    } catch (e) {
+      console.error('subscribeQuotationsCatalog (resync existing):', e);
+    }
+  }
+
   return () => {
-    void supabase.removeChannel(ch);
+    quotationsListeners.delete(onData);
   };
 }

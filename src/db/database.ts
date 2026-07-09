@@ -6,8 +6,11 @@ import type {
   InventoryMovement,
   PurchaseOrder,
   PurchaseOrderItem,
+  GoodsExit,
+  GoodsExitItem,
   Client,
   ClientAbonoHistorialEntry,
+  ClientCreditoHistorialEntry,
   Sale,
   SaleItem,
   Quotation,
@@ -18,6 +21,7 @@ import type {
 import { productEsServicio } from '@/lib/productServicio';
 import { POS_GENERIC_CLIENT_LABEL } from '@/lib/posDefaultCliente';
 import { derivePurchaseOrderEstado, mapLegacyPurchaseOrderEstado } from '@/lib/purchaseOrderLogic';
+import { parseGoodsExitEstado, parseGoodsExitMotivo } from '@/lib/goodsExitLogic';
 import { updateStockUnified } from '@/data/stockBridge';
 import {
   createSaleFirestore,
@@ -43,6 +47,7 @@ import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
 import { SERIE_FACTURA_PRUEBA, SERIE_NOMINA_PRUEBA } from '@/lib/fiscalConstants';
 import { getDefaultSucursalIdForNewData } from '@/lib/sucursales';
 import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
+import { sumCreditoTiendaEnPagosParcial } from '@/lib/clientCreditoTienda';
 import { saleItemsQtyByProductId } from '@/lib/posOpenSaleResume';
 import { normSkuBarcode } from '@/lib/productCatalogUniqueness';
 
@@ -59,6 +64,7 @@ class POSDatabase extends Dexie {
   products!: Table<Product>;
   inventoryMovements!: Table<InventoryMovement>;
   purchaseOrders!: Table<PurchaseOrder>;
+  goodsExits!: Table<GoodsExit>;
   clients!: Table<Client>;
   sales!: Table<Sale>;
   quotations!: Table<Quotation>;
@@ -139,6 +145,21 @@ class POSDatabase extends Dexie {
       await tx.table('clients').toCollection().modify((c) => {
         if ((c as Client).sucursalId == null) (c as Client).sucursalId = def;
       });
+    });
+
+    this.version(4).stores({
+      users: '++id, username, email, role, isActive, createdAt',
+      fiscalConfig: '++id, rfc, serie, folioActual',
+      products:
+        '++id, sku, codigoBarras, nombre, categoria, existencia, existenciaMinima, activo, syncStatus, updatedAt',
+      inventoryMovements: '++id, productId, tipo, referencia, createdAt, syncStatus',
+      purchaseOrders: '++id, proveedor, estado, createdAt',
+      goodsExits: '++id, folio, estado, motivo, createdAt',
+      clients: '++id, rfc, nombre, isMostrador, sucursalId, syncStatus, createdAt',
+      sales: '++id, folio, clienteId, estado, facturaId, usuarioId, createdAt, syncStatus',
+      quotations: '++id, folio, clienteId, estado, ventaId, sucursalId, createdAt, syncStatus',
+      invoices: '++id, uuid, folio, serie, ventaId, clienteId, estado, sucursalId, createdAt, syncStatus',
+      syncLogs: '++id, entidad, entidadId, operacion, estado, createdAt',
     });
 
     // Hooks para actualizar timestamps
@@ -676,6 +697,11 @@ export async function createSale(
       if (adeudo > 0) {
         await adjustClientSaldoAdeudado(sale.clienteId, adeudo, { sucursalId: options.sucursalId });
       }
+      await consumirCreditoTiendaEnPagos(sale.clienteId, sale.pagos, {
+        sucursalId: options.sucursalId,
+        referencia: id,
+        usuarioNombre: sale.usuarioNombre,
+      });
     }
     return { id, folio };
   }
@@ -714,6 +740,10 @@ export async function createSale(
     if (adeudo > 0) {
       await adjustClientSaldoAdeudado(sale.clienteId, adeudo);
     }
+    await consumirCreditoTiendaEnPagos(sale.clienteId, sale.pagos, {
+      referencia: id as string,
+      usuarioNombre: sale.usuarioNombre,
+    });
   }
   return { id: id as string, folio };
 }
@@ -818,6 +848,11 @@ export async function completePendingSale(
       if (adeudo > 0) {
         await adjustClientSaldoAdeudado(updated.clienteId, adeudo, { sucursalId });
       }
+      await consumirCreditoTiendaEnPagos(updated.clienteId, patch.pagos, {
+        sucursalId,
+        referencia: id,
+        usuarioNombre: patch.usuarioNombreCierre ?? updated.usuarioNombre,
+      });
     }
     return;
   }
@@ -871,6 +906,10 @@ export async function completePendingSale(
     if (adeudo > 0) {
       await adjustClientSaldoAdeudado(clienteIdTickets, adeudo);
     }
+    await consumirCreditoTiendaEnPagos(clienteIdTickets, patch.pagos, {
+      referencia: id,
+      usuarioNombre: patch.usuarioNombreCierre ?? sale.usuarioNombre,
+    });
   }
 }
 
@@ -913,6 +952,10 @@ export async function appendPagosToCompletedSale(
       if (cleared > 0.005) {
         await adjustClientSaldoAdeudado(prev.clienteId, -cleared, { sucursalId });
       }
+      await consumirCreditoTiendaEnPagos(prev.clienteId, patch.pagosToAdd, {
+        sucursalId,
+        referencia: id,
+      });
     }
     return;
   }
@@ -938,6 +981,9 @@ export async function appendPagosToCompletedSale(
     if (cleared > 0.005) {
       await adjustClientSaldoAdeudado(prev.clienteId, -cleared);
     }
+    await consumirCreditoTiendaEnPagos(prev.clienteId, patch.pagosToAdd, {
+      referencia: id,
+    });
   }
 }
 
@@ -1449,6 +1495,65 @@ export async function deletePurchaseOrder(id: string): Promise<void> {
 }
 
 // ============================================
+// SALIDAS DE MERCANCÍA (sin venta)
+// ============================================
+
+function mapLocalGoodsExitItem(it: GoodsExitItem): GoodsExitItem {
+  return {
+    lineId: it.lineId || crypto.randomUUID(),
+    productId: it.productId,
+    nombre: it.nombre,
+    sku: it.sku,
+    cantidad: Math.max(0, Math.floor(Number(it.cantidad) || 0)),
+  };
+}
+
+function mapLocalGoodsExit(row: GoodsExit): GoodsExit {
+  const productos = (row.productos ?? []).map(mapLocalGoodsExitItem);
+  return {
+    ...row,
+    productos,
+    motivo: parseGoodsExitMotivo(row.motivo),
+    estado: parseGoodsExitEstado(row.estado),
+    folio: row.folio || row.id.slice(0, 8),
+  };
+}
+
+export async function getGoodsExits(sucursalId?: string): Promise<GoodsExit[]> {
+  const all = await db.goodsExits.toArray();
+  const rows = sucursalId ? all.filter((g) => g.sucursalId === sucursalId) : all;
+  return rows
+    .map(mapLocalGoodsExit)
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+}
+
+export async function generateGoodsExitFolio(_sucursalId?: string): Promise<string> {
+  const now = new Date();
+  const prefix = `SAL-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+  const all = await db.goodsExits.toArray();
+  const count = all.filter((g) => (g.folio || '').startsWith(prefix)).length;
+  return `${prefix}-${String(count + 1).padStart(4, '0')}`;
+}
+
+export async function createGoodsExit(
+  exit: Omit<GoodsExit, 'id' | 'folio' | 'createdAt' | 'updatedAt' | 'syncStatus'> & {
+    folio?: string;
+  }
+): Promise<string> {
+  const folio = exit.folio?.trim() || (await generateGoodsExitFolio(exit.sucursalId));
+  const id = crypto.randomUUID();
+  await db.goodsExits.put({
+    ...exit,
+    id,
+    folio,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    syncStatus: 'pending',
+  } as GoodsExit);
+  return id;
+}
+
+// ============================================
 // FUNCIONES DE FACTURAS
 // ============================================
 
@@ -1609,6 +1714,151 @@ export async function registrarAbonoACuentaCliente(
     ultimoAbonoUsuarioNombre: usuarioNombre || undefined,
     abonosHistorial,
   } as const;
+  if (sid) {
+    await updateClientFirestore(sid, clienteId, patch);
+  }
+  await db.clients.update(clienteId, {
+    ...patch,
+    updatedAt: now,
+    syncStatus: sid ? 'synced' : 'pending',
+  });
+}
+
+function normalizeCreditoHistorialEntry(e: ClientCreditoHistorialEntry): ClientCreditoHistorialEntry {
+  return {
+    at: e.at instanceof Date ? e.at : new Date(e.at),
+    monto: Math.round(Math.max(0, Number(e.monto) || 0) * 100) / 100,
+    saldoAnterior: Math.round(Math.max(0, Number(e.saldoAnterior) || 0) * 100) / 100,
+    saldoNuevo: Math.round(Math.max(0, Number(e.saldoNuevo) || 0) * 100) / 100,
+    tipo: e.tipo === 'uso' || e.tipo === 'ajuste' ? e.tipo : 'emision',
+    motivo: e.motivo?.trim() || undefined,
+    referencia: e.referencia?.trim() || undefined,
+    usuarioNombre: e.usuarioNombre?.trim() || undefined,
+    notas: e.notas?.trim() || undefined,
+  };
+}
+
+function appendCreditoHistorial(
+  prev: ClientCreditoHistorialEntry[] | undefined,
+  entrada: ClientCreditoHistorialEntry
+): ClientCreditoHistorialEntry[] {
+  const prevNorm = Array.isArray(prev) ? prev.map(normalizeCreditoHistorialEntry) : [];
+  return [normalizeCreditoHistorialEntry(entrada), ...prevNorm].slice(0, 80);
+}
+
+/** Otorga crédito de tienda al cliente (saldo a favor). */
+export async function emitirCreditoTiendaCliente(
+  clienteId: string,
+  monto: number,
+  options?: {
+    sucursalId?: string;
+    usuarioNombre?: string;
+    motivo?: string;
+    referencia?: string;
+    notas?: string;
+  }
+): Promise<{ saldoAnterior: number; saldoNuevo: number }> {
+  const m = Math.round(Number(monto) * 100) / 100;
+  if (!clienteId || clienteId === MOSTRADOR_CLIENT_ID) throw new Error('Cliente no válido');
+  if (!Number.isFinite(m) || m <= 0) throw new Error('Ingrese un monto mayor a cero');
+
+  const row = await db.clients.get(clienteId);
+  if (!row || row.isMostrador) throw new Error('Cliente no encontrado');
+
+  const current = Math.round(Math.max(0, Number(row.saldoCreditoTienda) || 0) * 100) / 100;
+  const next = Math.round((current + m) * 100) / 100;
+  const sid = options?.sucursalId?.trim();
+  const now = new Date();
+  const usuarioNombre = options?.usuarioNombre?.trim();
+  const motivo = options?.motivo?.trim() || 'devolucion_sin_reembolso';
+  const entrada: ClientCreditoHistorialEntry = {
+    at: now,
+    monto: m,
+    saldoAnterior: current,
+    saldoNuevo: next,
+    tipo: 'emision',
+    motivo,
+    referencia: options?.referencia?.trim() || undefined,
+    usuarioNombre: usuarioNombre || undefined,
+    notas: options?.notas?.trim() || undefined,
+  };
+  const creditoHistorial = appendCreditoHistorial(row.creditoHistorial, entrada);
+
+  const patch = {
+    saldoCreditoTienda: next,
+    ultimoCreditoMonto: m,
+    ultimoCreditoAt: now,
+    ultimoCreditoSaldoAnterior: current,
+    ultimoCreditoSaldoNuevo: next,
+    ultimoCreditoTipo: 'emision' as const,
+    ultimoCreditoMotivo: motivo,
+    ultimoCreditoUsuarioNombre: usuarioNombre || undefined,
+    creditoHistorial,
+  };
+
+  if (sid) {
+    await updateClientFirestore(sid, clienteId, patch);
+  }
+  await db.clients.update(clienteId, {
+    ...patch,
+    updatedAt: now,
+    syncStatus: sid ? 'synced' : 'pending',
+  });
+
+  return { saldoAnterior: current, saldoNuevo: next };
+}
+
+/** Descuenta crédito usado en pagos STC de una venta (POS / cobro CxC). */
+export async function consumirCreditoTiendaEnPagos(
+  clienteId: string | undefined,
+  pagos: readonly Pick<import('@/types').Payment, 'formaPago' | 'monto'>[],
+  options?: {
+    sucursalId?: string | null;
+    referencia?: string;
+    usuarioNombre?: string;
+  }
+): Promise<void> {
+  const montoUsado = sumCreditoTiendaEnPagosParcial(pagos);
+  if (!clienteId || clienteId === MOSTRADOR_CLIENT_ID || montoUsado <= 0.005) return;
+
+  const row = await db.clients.get(clienteId);
+  if (!row || row.isMostrador) throw new Error('Cliente no encontrado para aplicar crédito');
+
+  const current = Math.round(Math.max(0, Number(row.saldoCreditoTienda) || 0) * 100) / 100;
+  if (montoUsado > current + 0.001) {
+    throw new Error(
+      `Crédito de tienda insuficiente. Disponible: $${current.toFixed(2)}, solicitado: $${montoUsado.toFixed(2)}`
+    );
+  }
+
+  const next = Math.max(0, Math.round((current - montoUsado) * 100) / 100);
+  const sid = options?.sucursalId?.trim();
+  const now = new Date();
+  const usuarioNombre = options?.usuarioNombre?.trim();
+  const entrada: ClientCreditoHistorialEntry = {
+    at: now,
+    monto: montoUsado,
+    saldoAnterior: current,
+    saldoNuevo: next,
+    tipo: 'uso',
+    motivo: 'uso_en_venta',
+    referencia: options?.referencia?.trim() || undefined,
+    usuarioNombre: usuarioNombre || undefined,
+  };
+  const creditoHistorial = appendCreditoHistorial(row.creditoHistorial, entrada);
+
+  const patch = {
+    saldoCreditoTienda: next,
+    ultimoCreditoMonto: montoUsado,
+    ultimoCreditoAt: now,
+    ultimoCreditoSaldoAnterior: current,
+    ultimoCreditoSaldoNuevo: next,
+    ultimoCreditoTipo: 'uso' as const,
+    ultimoCreditoMotivo: 'uso_en_venta',
+    ultimoCreditoUsuarioNombre: usuarioNombre || undefined,
+    creditoHistorial,
+  };
+
   if (sid) {
     await updateClientFirestore(sid, clienteId, patch);
   }

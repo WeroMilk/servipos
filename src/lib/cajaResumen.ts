@@ -2,7 +2,7 @@ import type { CajaSesion, FormaPago, Sale } from '@/types';
 import { FORMAS_PAGO } from '@/types';
 import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
 
-const FORMAS_SIN_COBRO_CIERRE = new Set<FormaPago>(['TTS', 'DEV', 'COT', 'PPC']);
+const FORMAS_SIN_COBRO_CIERRE = new Set<FormaPago>(['TTS', 'DEV', 'COT', 'PPC', 'STC']);
 
 /** Estados que sí cuentan como venta cobrada para arqueo/cierre. */
 function saleCuentaEnCaja(sale: Sale): boolean {

@@ -63,6 +63,7 @@ import type { Quotation, Product } from '@/types';
 import { cn, formatMoney } from '@/lib/utils';
 import { parsePrecioNumberFromFirestore } from '@/lib/precioListaNorm';
 import { PageShell } from '@/components/ui-custom/PageShell';
+import { ClientProfileLink } from '@/components/ui-custom/ClientProfileLink';
 import { SendEmailDialog } from '@/components/ui-custom/SendEmailDialog';
 import { printLetterDocument, printThermalQuotation } from '@/lib/printTicket';
 import { buildQuotationLetterInnerHtml, exportQuotationLetterToPdf } from '@/lib/quotationPdfExport';
@@ -826,7 +827,11 @@ export function Cotizaciones() {
                           </span>
                         </div>
                         <p className="mt-1 truncate text-sm text-slate-600 dark:text-slate-400">
-                          {q.cliente?.nombre ?? 'Mostrador'}
+                          <ClientProfileLink
+                            clienteId={q.clienteId}
+                            nombre={q.cliente?.nombre}
+                            tab="cotizaciones"
+                          />
                         </p>
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                           <span className="text-xs text-slate-600 dark:text-slate-500">
@@ -938,7 +943,11 @@ export function Cotizaciones() {
                         <TableRow key={quotation.id} className="border-slate-200/80 dark:border-slate-800/50">
                           <TableCell className="font-medium text-slate-800 dark:text-slate-200">{quotation.folio}</TableCell>
                           <TableCell className="max-w-[12rem] truncate text-slate-600 dark:text-slate-400">
-                            {quotation.cliente?.nombre || 'Mostrador'}
+                            <ClientProfileLink
+                              clienteId={quotation.clienteId}
+                              nombre={quotation.cliente?.nombre}
+                              tab="cotizaciones"
+                            />
                           </TableCell>
                           <TableCell className="whitespace-nowrap text-slate-600 dark:text-slate-400">
                             {new Date(quotation.createdAt).toLocaleDateString('es-MX')}
@@ -1406,7 +1415,14 @@ export function Cotizaciones() {
               <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
                 <div>
                   <p className="text-slate-600 dark:text-slate-500">Cliente</p>
-                  <p className="text-slate-800 dark:text-slate-200">{selectedQuotation.cliente?.nombre || 'Mostrador'}</p>
+                  <p className="text-slate-800 dark:text-slate-200">
+                    <ClientProfileLink
+                      clienteId={selectedQuotation.clienteId}
+                      nombre={selectedQuotation.cliente?.nombre}
+                      tab="cotizaciones"
+                      stopPropagation={false}
+                    />
+                  </p>
                 </div>
                 <div>
                   <p className="text-slate-600 dark:text-slate-500">Fecha</p>

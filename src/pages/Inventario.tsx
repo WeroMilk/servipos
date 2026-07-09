@@ -1855,6 +1855,23 @@ export function Inventario() {
         </div>
       </div>
 
+      <div className="mt-3 shrink-0 rounded-xl border border-orange-500/30 bg-orange-500/5 p-3 sm:mt-4 sm:p-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+              Salidas de mercancía (sin venta)
+            </p>
+            <p className="mt-1 text-[11px] leading-snug text-slate-600 dark:text-slate-500 sm:text-xs">
+              Registre merma, consumo interno, devolución a proveedor u otras bajas de inventario con folio y detalle por
+              producto.
+            </p>
+          </div>
+          <Button type="button" size="sm" variant="secondary" className="shrink-0" asChild>
+            <Link to="/inventario/salidas-mercancia">Abrir salidas de mercancía</Link>
+          </Button>
+        </div>
+      </div>
+
       {productsError ? (
         <div
           role="alert"

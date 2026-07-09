@@ -19,6 +19,7 @@ import {
   deleteQuotationFirestore,
   subscribeQuotationsCatalog,
   updateQuotationFirestore,
+  getQuotationsCatalogSnapshot,
 } from '@/lib/firestore/quotationsFirestore';
 import { cotizacionDebeEliminarsePorCaducidad } from '@/lib/quotationCaducidad';
 
@@ -28,8 +29,14 @@ import { cotizacionDebeEliminarsePorCaducidad } from '@/lib/quotationCaducidad';
 
 export function useQuotations() {
   const { effectiveSucursalId } = useEffectiveSucursalId();
-  const [quotations, setQuotations] = useState<Quotation[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [quotations, setQuotations] = useState<Quotation[]>(() => {
+    if (!effectiveSucursalId) return [];
+    return getQuotationsCatalogSnapshot().filter((q) => !cotizacionDebeEliminarsePorCaducidad(q));
+  });
+  const [loading, setLoading] = useState(() => {
+    if (!effectiveSucursalId) return true;
+    return getQuotationsCatalogSnapshot().length === 0;
+  });
   const [error, setError] = useState<string | null>(null);
   const purgingIdsRef = useRef(new Set<string>());
 
@@ -89,7 +96,12 @@ export function useQuotations() {
 
   useEffect(() => {
     if (effectiveSucursalId) {
-      setLoading(true);
+      const snap = getQuotationsCatalogSnapshot();
+      if (snap.length === 0) {
+        setLoading(true);
+      } else {
+        ingestQuotations(snap);
+      }
       const unsub = subscribeQuotationsCatalog(effectiveSucursalId, ingestQuotations);
       return unsub;
     }

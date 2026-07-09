@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Plus,
   Search,
@@ -13,11 +13,6 @@ import {
   Ticket,
   Wallet,
   Trash2,
-  BadgeCheck,
-  FileQuestion,
-  Printer,
-  Loader2,
-  ChevronLeft,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -55,64 +50,25 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { useClients, useClientSearch, useEffectiveSucursalId, useSales } from '@/hooks';
+import { useClients, useClientSearch, useSales } from '@/hooks';
 import { useAppStore, useAuthStore } from '@/stores';
-import type { Client, Sale, SaleItem } from '@/types';
+import type { Client, Sale } from '@/types';
 import { REGIMENES_FISCALES, USOS_CFDI } from '@/types';
 import { PageShell } from '@/components/ui-custom/PageShell';
 import { ClientAddressSonoraFields } from '@/components/ui-custom/ClientAddressSonoraFields';
-import { cn, formatMoney } from '@/lib/utils';
-import { formatInAppTimezone } from '@/lib/appTimezone';
-import { getSalesByClienteId } from '@/db/database';
-import {
-  buildComprasCountByCliente,
-  saleCuentaComoCompraCliente,
-  ticketsHistorialUI,
-} from '@/lib/saleClienteHistorial';
-import { printThermalTicketFromSale } from '@/lib/printTicket';
-import { saleIsInvoiced } from '@/lib/saleInvoiced';
-import { saleListaCancelacionEtiqueta } from '@/lib/saleCancelacion';
+import { cn } from '@/lib/utils';
+import { buildComprasCountByCliente, ticketsHistorialUI } from '@/lib/saleClienteHistorial';
 import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
 import { ESTADO_SONORA, lookupCp } from '@/data/sonoraAddress';
-import { useClientPriceListCatalog } from '@/hooks/useClientPriceListCatalog';
 import { type ClientPriceListId } from '@/lib/clientPriceLists';
+import { useClientPriceListCatalog } from '@/hooks/useClientPriceListCatalog';
 
 type ClientSortMode = 'nombre' | 'rfc' | 'email' | 'tickets';
-
-type AdeudoTicketRow = { sale: Sale; adeudo: number };
 
 const ADEUDOS_BTN_ACTIVE =
   'border-red-600/40 bg-red-500/15 text-red-800 hover:bg-red-500/25 dark:border-red-500/40 dark:bg-red-500/15 dark:text-red-100 dark:hover:bg-red-500/25';
 const ADEUDOS_BTN_EMPTY =
   'border-slate-300/60 bg-slate-100/90 text-slate-500 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-500';
-
-function buildAdeudosTicketsForCliente(clientId: string, sales: Sale[]): AdeudoTicketRow[] {
-  const cid = clientId.trim();
-  if (!cid || cid === 'mostrador') return [];
-  const rows: AdeudoTicketRow[] = [];
-  for (const sale of sales) {
-    if (sale.estado !== 'completada') continue;
-    const adeudo = computeSaleClienteAdeudo(sale);
-    if (adeudo <= 0.005) continue;
-    if ((sale.clienteId ?? '').trim() !== cid) continue;
-    rows.push({ sale, adeudo });
-  }
-  rows.sort((a, b) => b.sale.createdAt.getTime() - a.sale.createdAt.getTime());
-  return rows;
-}
-
-function totalAdeudoTickets(rows: readonly AdeudoTicketRow[]): number {
-  return Math.round(rows.reduce((s, x) => s + x.adeudo, 0) * 100) / 100;
-}
-
-function totalPagadoVenta(s: Sale): number {
-  return (s.pagos ?? []).reduce((sum, p) => sum + (Number(p.monto) || 0), 0);
-}
-
-function lineaDescripcionAdeudo(item: SaleItem): string {
-  const n = item.productoNombre?.trim() || item.producto?.nombre?.trim();
-  return n || 'Artículo';
-}
 
 function buildAdeudosCxCCountByCliente(sales: Sale[]): Map<string, number> {
   const map = new Map<string, number>();
@@ -164,18 +120,11 @@ function sortClients(list: Client[], mode: ClientSortMode, comprasPorCliente: Re
   return next;
 }
 
-function saleEstadoEtiqueta(s: Sale): string {
-  if (s.estado === 'pendiente') return 'Pendiente de cobro';
-  if (s.estado === 'cancelada') return 'Cancelada';
-  if (s.estado === 'facturada') return 'Facturada';
-  return 'Completada';
-}
-
 export function Clientes() {
   const navigate = useNavigate();
-  const { clients, loading, addClient, editClient, removeClient, refresh } = useClients();
+  const location = useLocation();
+  const { clients, loading, addClient, editClient, removeClient } = useClients();
   const { sales } = useSales(500);
-  const { effectiveSucursalId } = useEffectiveSucursalId();
   const { addToast } = useAppStore();
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === 'admin';
@@ -189,99 +138,16 @@ export function Clientes() {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [sortMode, setSortMode] = useState<ClientSortMode>('nombre');
   const [municipioSonora, setMunicipioSonora] = useState('');
-  const [detailClient, setDetailClient] = useState<Client | null>(null);
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
   const [deletingClient, setDeletingClient] = useState(false);
-
-  const [clientVentasCliente, setClientVentasCliente] = useState<Client | null>(null);
-  const [clientVentasSale, setClientVentasSale] = useState<Sale | null>(null);
-  const [clientVentasList, setClientVentasList] = useState<Sale[]>([]);
-  const [clientVentasLoading, setClientVentasLoading] = useState(false);
-  const ventasHistorialSyncKeyRef = useRef<string | null>(null);
-
-  const [adeudosClienteDialog, setAdeudosClienteDialog] = useState<Client | null>(null);
-  const [adeudosTicketDetalle, setAdeudosTicketDetalle] = useState<AdeudoTicketRow | null>(null);
 
   const adeudosPorCliente = useMemo(() => buildAdeudosCxCCountByCliente(sales), [sales]);
   const comprasPorCliente = useMemo(() => buildComprasCountByCliente(sales), [sales]);
 
-  useEffect(() => {
-    if (!clientVentasCliente) {
-      setClientVentasList([]);
-      return;
-    }
-    let cancelled = false;
-    setClientVentasLoading(true);
-    void getSalesByClienteId(clientVentasCliente.id, { sucursalId: effectiveSucursalId })
-      .then((rows) => {
-        if (!cancelled) setClientVentasList(rows.filter(saleCuentaComoCompraCliente));
-      })
-      .catch(() => {
-        if (!cancelled) setClientVentasList([]);
-      })
-      .finally(() => {
-        if (!cancelled) setClientVentasLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [clientVentasCliente, effectiveSucursalId]);
-
-  useEffect(() => {
-    if (!clientVentasCliente || clientVentasCliente.isMostrador || clientVentasLoading) return;
-    const correctCount = clientVentasList.length;
-    const fresh = clients.find((x) => x.id === clientVentasCliente.id);
-    if (fresh?.ventasHistorial === correctCount) return;
-
-    const syncKey = `${clientVentasCliente.id}:${correctCount}`;
-    if (ventasHistorialSyncKeyRef.current === syncKey) return;
-    ventasHistorialSyncKeyRef.current = syncKey;
-
-    void (async () => {
-      try {
-        await editClient(clientVentasCliente.id, { ventasHistorial: correctCount });
-        if (!effectiveSucursalId) await refresh();
-      } catch {
-        ventasHistorialSyncKeyRef.current = null;
-      }
-    })();
-  }, [
-    clientVentasCliente,
-    clientVentasLoading,
-    clientVentasList,
-    clients,
-    editClient,
-    refresh,
-    effectiveSucursalId,
-  ]);
-
-  const openClientVentasDialog = (client: Client) => {
-    setClientVentasSale(null);
-    setClientVentasCliente(client);
+  const openClientProfile = (client: Client, tab?: 'compras' | 'adeudos') => {
+    const suffix = tab ? `?tab=${tab}` : '';
+    navigate(`/clientes/${client.id}${suffix}`);
   };
-
-  const closeClientVentasDialog = () => {
-    ventasHistorialSyncKeyRef.current = null;
-    setClientVentasCliente(null);
-    setClientVentasSale(null);
-    setClientVentasList([]);
-  };
-
-  const openAdeudosClienteDialog = (client: Client) => {
-    if (adeudosCxCUI(client.id, adeudosPorCliente) === 0) return;
-    setAdeudosTicketDetalle(null);
-    setAdeudosClienteDialog(client);
-  };
-
-  const closeAdeudosClienteDialog = () => {
-    setAdeudosClienteDialog(null);
-    setAdeudosTicketDetalle(null);
-  };
-
-  const adeudosTicketsDialog = useMemo(() => {
-    if (!adeudosClienteDialog) return [];
-    return buildAdeudosTicketsForCliente(adeudosClienteDialog.id, sales);
-  }, [adeudosClienteDialog, sales]);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -328,7 +194,7 @@ export function Clientes() {
           codigoPostal: formData.codigoPostal,
           ciudad: formData.ciudad,
           estado: formData.estado || ESTADO_SONORA,
-          pais: 'México',
+          pais: 'MÃ©xico',
         },
       } as any);
 
@@ -348,7 +214,6 @@ export function Clientes() {
     setDeletingClient(true);
     try {
       await removeClient(clientToDelete.id);
-      if (detailClient?.id === clientToDelete.id) setDetailClient(null);
       addToast({ type: 'success', message: 'Cliente eliminado' });
       setClientToDelete(null);
     } catch (error: unknown) {
@@ -376,7 +241,7 @@ export function Clientes() {
           codigoPostal: formData.codigoPostal,
           ciudad: formData.ciudad,
           estado: formData.estado || ESTADO_SONORA,
-          pais: 'México',
+          pais: 'MÃ©xico',
         },
       });
       
@@ -419,6 +284,15 @@ export function Clientes() {
     setShowEditDialog(true);
   };
 
+  useEffect(() => {
+    const editId = (location.state as { editClientId?: string } | null)?.editClientId;
+    if (!editId || loading) return;
+    const target = clients.find((c) => c.id === editId);
+    if (!target) return;
+    openEditDialog(target);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [clients, loading, location.pathname, location.state, navigate]);
+
   const resetForm = () => {
     setFormData({
       rfc: '',
@@ -454,7 +328,7 @@ export function Clientes() {
     <>
     <PageShell
       title="Clientes"
-      subtitle="Datos para facturación"
+      subtitle="Datos para facturaciÃ³n"
       className="min-w-0 max-w-none"
       actionsClassName="md:mt-2"
       actions={
@@ -473,7 +347,7 @@ export function Clientes() {
       }
     >
       <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden sm:gap-3">
-      <div className="grid w-full min-w-0 shrink-0 grid-cols-3 gap-1.5 sm:gap-3">
+      <div className="grid w-full min-w-0 shrink-0 grid-cols-2 gap-1.5 sm:gap-2 md:grid-cols-3 md:gap-2 lg:gap-3">
         <button
           type="button"
           onClick={() => setSortMode('nombre')}
@@ -564,7 +438,7 @@ export function Clientes() {
             onClick={() => setSortMode((m) => (m === 'tickets' ? 'nombre' : 'tickets'))}
           >
             <Ticket className="mr-1.5 h-3.5 w-3.5" />
-            {sortMode === 'tickets' ? 'Más compras primero' : 'Mejores clientes'}
+            {sortMode === 'tickets' ? 'MÃ¡s compras primero' : 'Mejores clientes'}
           </Button>
         </CardHeader>
         <CardContent className="min-h-0 flex-1 overflow-auto p-0">
@@ -582,7 +456,13 @@ export function Clientes() {
                   className="rounded-xl border border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-950/40 p-3"
                 >
                   <div className="min-w-0 space-y-1">
-                    <p className="text-sm font-medium leading-snug text-slate-900 dark:text-slate-100">{client.nombre}</p>
+                    <button
+                      type="button"
+                      className="text-left text-sm font-medium leading-snug text-cyan-800 hover:underline dark:text-cyan-300/90"
+                      onClick={() => openClientProfile(client)}
+                    >
+                      {client.nombre}
+                    </button>
                     {client.rfc ? (
                       <p className="truncate text-xs text-emerald-400">{client.rfc}</p>
                     ) : null}
@@ -593,16 +473,9 @@ export function Clientes() {
                   <div className="mt-3 flex items-center gap-2 border-t border-slate-200/80 dark:border-slate-800/60 pt-2">
                     <button
                       type="button"
-                      className="min-w-0 flex-1 truncate text-left text-xs font-medium text-cyan-500/90 hover:text-cyan-400"
-                      onClick={() => setDetailClient(client)}
-                    >
-                      Ver ficha completa…
-                    </button>
-                    <button
-                      type="button"
                       className="flex shrink-0 items-center gap-1 rounded-lg border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-black transition-colors hover:bg-amber-500/20 dark:text-amber-100 dark:hover:text-amber-50"
                       title="Compras registradas (sin canceladas)"
-                      onClick={() => openClientVentasDialog(client)}
+                      onClick={() => openClientProfile(client, 'compras')}
                     >
                       <Ticket className="h-3 w-3" aria-hidden />
                       {ticketsHistorialUI(client, comprasPorCliente)}
@@ -613,9 +486,8 @@ export function Clientes() {
                         'flex shrink-0 items-center gap-1 rounded-lg border px-2 py-0.5 text-[11px] font-semibold tabular-nums transition-colors',
                         adeudosCxCUI(client.id, adeudosPorCliente) > 0 ? ADEUDOS_BTN_ACTIVE : ADEUDOS_BTN_EMPTY
                       )}
-                      title="Ver adeudos en Cuentas por cobrar"
-                      onClick={() => openAdeudosClienteDialog(client)}
-                      disabled={adeudosCxCUI(client.id, adeudosPorCliente) === 0}
+                      title="Ver adeudos y abonos en perfil del cliente"
+                      onClick={() => openClientProfile(client, 'adeudos')}
                     >
                       <Wallet className="h-3 w-3" aria-hidden />
                       {adeudosCxCUI(client.id, adeudosPorCliente)}
@@ -654,7 +526,7 @@ export function Clientes() {
             )}
           </div>
 
-          <div className="hidden min-h-0 min-w-0 md:block">
+          <div className="hidden min-h-0 min-w-0 overflow-x-auto md:block">
             <Table>
               <TableHeader>
                 <TableRow className="border-slate-200 dark:border-slate-800">
@@ -673,7 +545,7 @@ export function Clientes() {
                   </TableHead>
                   <TableHead className="text-slate-600 dark:text-slate-400">RFC</TableHead>
                   <TableHead className="text-slate-600 dark:text-slate-400">Contacto</TableHead>
-                  <TableHead className="text-slate-600 dark:text-slate-400">Dirección</TableHead>
+                  <TableHead className="hidden text-slate-600 dark:text-slate-400 lg:table-cell">Dirección</TableHead>
                   <TableHead className="text-right text-slate-600 dark:text-slate-400">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -697,7 +569,7 @@ export function Clientes() {
                         <button
                           type="button"
                           className="w-full text-left"
-                          onClick={() => setDetailClient(client)}
+                          onClick={() => openClientProfile(client)}
                         >
                           <p className="truncate font-medium text-cyan-800 hover:underline dark:text-cyan-300/90">{client.nombre}</p>
                           {client.razonSocial ? (
@@ -710,7 +582,7 @@ export function Clientes() {
                           type="button"
                           className="inline-flex items-center justify-center gap-1 rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold tabular-nums text-black transition-colors hover:bg-amber-500/20 dark:text-amber-100 dark:hover:text-amber-50"
                           title="Compras registradas (sin canceladas)"
-                          onClick={() => openClientVentasDialog(client)}
+                          onClick={() => openClientProfile(client, 'compras')}
                         >
                           <Ticket className="h-3.5 w-3.5" aria-hidden />
                           {ticketsHistorialUI(client, comprasPorCliente)}
@@ -723,9 +595,8 @@ export function Clientes() {
                             'inline-flex items-center justify-center gap-1 rounded-md border px-2 py-0.5 text-xs font-semibold tabular-nums transition-colors',
                             adeudosCxCUI(client.id, adeudosPorCliente) > 0 ? ADEUDOS_BTN_ACTIVE : ADEUDOS_BTN_EMPTY
                           )}
-                          title="Ver adeudos en Cuentas por cobrar"
-                          onClick={() => openAdeudosClienteDialog(client)}
-                          disabled={adeudosCxCUI(client.id, adeudosPorCliente) === 0}
+                          title="Ver adeudos y abonos en perfil del cliente"
+                          onClick={() => openClientProfile(client, 'adeudos')}
                         >
                           <Wallet className="h-3.5 w-3.5" aria-hidden />
                           {adeudosCxCUI(client.id, adeudosPorCliente)}
@@ -759,7 +630,7 @@ export function Clientes() {
                           ) : null}
                         </div>
                       </TableCell>
-                      <TableCell className="max-w-[12rem] align-top">
+                      <TableCell className="hidden max-w-[12rem] align-top lg:table-cell">
                         {client.direccion ? (
                           <p className="line-clamp-2 text-sm text-slate-600 dark:text-slate-400">
                             <MapPin className="mr-1 inline h-3 w-3 shrink-0" />
@@ -850,7 +721,7 @@ export function Clientes() {
             </div>
 
             <div className="min-w-0 space-y-1.5 lg:space-y-1">
-              <Label className="text-sm lg:text-xs">Razón Social</Label>
+              <Label className="text-sm lg:text-xs">RazÃ³n Social</Label>
               <Input
                 value={formData.razonSocial}
                 onChange={(e) => setFormData({ ...formData, razonSocial: e.target.value })}
@@ -869,7 +740,7 @@ export function Clientes() {
             </div>
 
             <div className="min-w-0 space-y-1.5 lg:space-y-1">
-              <Label className="text-sm lg:text-xs">Teléfono</Label>
+              <Label className="text-sm lg:text-xs">TelÃ©fono</Label>
               <Input
                 type="tel"
                 inputMode="tel"
@@ -899,12 +770,12 @@ export function Clientes() {
                 ))}
               </select>
               <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-500 lg:text-[10px] lg:leading-tight">
-                Precios que verá este cliente al elegirlo en punto de venta (regular, técnico, mayoreo, etc.).
+                Precios que verÃ¡ este cliente al elegirlo en punto de venta (regular, tÃ©cnico, mayoreo, etc.).
               </p>
             </div>
 
             <div className="min-w-0 space-y-1.5 lg:col-span-2 lg:space-y-1">
-              <Label className="text-sm lg:text-xs">Régimen Fiscal</Label>
+              <Label className="text-sm lg:text-xs">RÃ©gimen Fiscal</Label>
               <select
                 value={formData.regimenFiscal}
                 onChange={(e) => setFormData({ ...formData, regimenFiscal: e.target.value })}
@@ -959,7 +830,7 @@ export function Clientes() {
               disabled={!formData.nombre.trim() || addClientSubmitting}
               className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
             >
-              {addClientSubmitting ? 'Guardando…' : 'Guardar Cliente'}
+              {addClientSubmitting ? 'Guardandoâ€¦' : 'Guardar Cliente'}
             </Button>
           </DialogFooter>
           </form>
@@ -996,7 +867,7 @@ export function Clientes() {
             </div>
 
             <div className="min-w-0 space-y-2">
-              <Label>Razón Social</Label>
+              <Label>RazÃ³n Social</Label>
               <Input
                 value={formData.razonSocial}
                 onChange={(e) => setFormData({ ...formData, razonSocial: e.target.value })}
@@ -1015,7 +886,7 @@ export function Clientes() {
             </div>
 
             <div className="min-w-0 space-y-2">
-              <Label>Teléfono</Label>
+              <Label>TelÃ©fono</Label>
               <Input
                 type="tel"
                 inputMode="tel"
@@ -1044,12 +915,12 @@ export function Clientes() {
                 ))}
               </select>
               <p className="text-[11px] text-slate-500 dark:text-slate-500">
-                Precios que verá este cliente al elegirlo en punto de venta (regular, técnico, mayoreo, etc.).
+                Precios que verÃ¡ este cliente al elegirlo en punto de venta (regular, tÃ©cnico, mayoreo, etc.).
               </p>
             </div>
 
             <div className="min-w-0 space-y-2">
-              <Label>Régimen Fiscal</Label>
+              <Label>RÃ©gimen Fiscal</Label>
               <select
                 value={formData.regimenFiscal}
                 onChange={(e) => setFormData({ ...formData, regimenFiscal: e.target.value })}
@@ -1102,522 +973,12 @@ export function Clientes() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!detailClient} onOpenChange={(o) => !o && setDetailClient(null)}>
-        <DialogContent className="max-h-[92dvh] overflow-y-auto border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 md:max-w-[min(92vw,44rem)] lg:max-w-[min(92vw,52rem)]">
-          <DialogHeader>
-            <DialogTitle>Ficha de cliente</DialogTitle>
-          </DialogHeader>
-          {detailClient && (
-            <div className="space-y-3 text-sm">
-              <div>
-                <p className="text-slate-600 dark:text-slate-500">Nombre</p>
-                <p className="text-slate-900 dark:text-slate-100">{detailClient.nombre}</p>
-              </div>
-              <div>
-                <p className="text-slate-600 dark:text-slate-500">Lista de precios (POS)</p>
-                <p className="text-slate-900 dark:text-slate-100">
-                  {priceListCatalog.labels[detailClient.listaPreciosId ?? 'regular'] ?? 'Regular'}
-                </p>
-              </div>
-              <div>
-                <p className="text-slate-600 dark:text-slate-500">Ventas en historial</p>
-                <div className="mt-1 flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    className="group inline-flex flex-wrap items-center gap-1.5 rounded-lg border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-left text-black transition-colors hover:bg-amber-500/20 dark:text-amber-100 dark:hover:text-amber-50"
-                    title="Historial de ventas (incluye canceladas) y reimprimir tickets"
-                    onClick={() => {
-                      const c = detailClient;
-                      setDetailClient(null);
-                      openClientVentasDialog(c);
-                    }}
-                  >
-                    <Ticket className="h-4 w-4 shrink-0" aria-hidden />
-                    <span className="text-lg font-semibold tabular-nums">
-                      {ticketsHistorialUI(detailClient, comprasPorCliente)}
-                    </span>
-                    <span className="text-xs font-normal text-slate-600 group-hover:text-slate-500 dark:text-slate-500">
-                      (pulse para ver ventas)
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className={cn(
-                      'group inline-flex flex-wrap items-center gap-1.5 rounded-lg border px-2 py-1 text-left transition-colors',
-                      adeudosCxCUI(detailClient.id, adeudosPorCliente) > 0 ? ADEUDOS_BTN_ACTIVE : ADEUDOS_BTN_EMPTY
-                    )}
-                    title="Ver adeudos en Cuentas por cobrar"
-                    onClick={() => {
-                      if (adeudosCxCUI(detailClient.id, adeudosPorCliente) > 0) {
-                        const c = detailClient;
-                        setDetailClient(null);
-                        openAdeudosClienteDialog(c);
-                      }
-                    }}
-                    disabled={adeudosCxCUI(detailClient.id, adeudosPorCliente) === 0}
-                  >
-                    <Wallet className="h-4 w-4 shrink-0" aria-hidden />
-                    <span className="text-lg font-semibold tabular-nums">
-                      {adeudosCxCUI(detailClient.id, adeudosPorCliente)}
-                    </span>
-                    <span className="text-xs font-normal text-slate-600 group-hover:text-slate-500 dark:text-slate-500">
-                      (pulse para ver adeudos)
-                    </span>
-                  </button>
-                  {isAdmin && !detailClient.isMostrador && detailClient.id !== 'mostrador' ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-9 w-9 shrink-0 text-red-600 hover:bg-red-500/15 hover:text-red-500 dark:text-red-400 dark:hover:text-red-300"
-                      title="Eliminar cliente"
-                      aria-label={`Eliminar cliente ${detailClient.nombre}`}
-                      onClick={() => setClientToDelete(detailClient)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
-              {detailClient.rfc ? (
-                <div>
-                  <p className="text-slate-600 dark:text-slate-500">RFC</p>
-                  <p className="text-emerald-400">{detailClient.rfc}</p>
-                </div>
-              ) : null}
-              {detailClient.email ? (
-                <div>
-                  <p className="text-slate-600 dark:text-slate-500">Email</p>
-                  <p className="break-all text-slate-700 dark:text-slate-300">{detailClient.email}</p>
-                </div>
-              ) : null}
-              {detailClient.telefono ? (
-                <div>
-                  <p className="text-slate-600 dark:text-slate-500">Teléfono</p>
-                  <p className="text-slate-700 dark:text-slate-300">{detailClient.telefono}</p>
-                </div>
-              ) : null}
-              {detailClient.notasInternas?.trim() ? (
-                <div>
-                  <p className="text-slate-600 dark:text-slate-500">Comentarios (solo tienda)</p>
-                  <p className="whitespace-pre-wrap rounded-md border border-slate-200/80 bg-slate-200/40 px-2 py-1.5 text-slate-800 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-200">
-                    {detailClient.notasInternas.trim()}
-                  </p>
-                </div>
-              ) : null}
-              {detailClient.direccion ? (
-                <div>
-                  <p className="text-slate-600 dark:text-slate-500">Dirección</p>
-                  <p className="text-slate-700 dark:text-slate-300">
-                    {detailClient.direccion.calle} {detailClient.direccion.numeroExterior}{' '}
-                    {detailClient.direccion.colonia}, {detailClient.direccion.ciudad},{' '}
-                    {detailClient.direccion.estado} CP {detailClient.direccion.codigoPostal}
-                  </p>
-                </div>
-              ) : null}
-              <div className="flex flex-col gap-2 pt-2 sm:flex-row">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300"
-                  onClick={() => setDetailClient(null)}
-                >
-                  Cerrar
-                </Button>
-                <Button
-                  type="button"
-                  className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
-                  onClick={() => {
-                    const c = detailClient;
-                    setDetailClient(null);
-                    openEditDialog(c);
-                  }}
-                >
-                  Editar
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={!!clientVentasCliente}
-        onOpenChange={(o) => {
-          if (!o) closeClientVentasDialog();
-        }}
-      >
-        <DialogContent className="flex max-h-[92dvh] w-[calc(100%-1.5rem)] max-w-none flex-col gap-0 overflow-hidden border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 p-0 text-slate-900 dark:text-slate-100 sm:w-full md:max-w-[min(92vw,32rem)] lg:max-w-[min(92vw,36rem)]">
-          <DialogHeader className="shrink-0 space-y-0 border-b border-slate-200 dark:border-slate-800/80 px-4 pb-3 pt-4 pr-14 text-left">
-            {clientVentasSale ? (
-              <div className="flex items-start gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9 shrink-0 text-slate-600 dark:text-slate-400"
-                  aria-label="Volver al listado"
-                  onClick={() => setClientVentasSale(null)}
-                >
-                  <ChevronLeft className="h-5 w-5" />
-                </Button>
-                <div className="min-w-0">
-                  <DialogTitle className="truncate">Ticket {clientVentasSale.folio}</DialogTitle>
-                  <p className="mt-1 text-sm font-normal text-slate-600 dark:text-slate-500">
-                    {clientVentasCliente?.nombre}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <>
-                <DialogTitle>Ventas del cliente</DialogTitle>
-                <p className="mt-1 text-sm font-normal text-slate-600 dark:text-slate-500">
-                  {clientVentasCliente?.nombre}
-                </p>
-              </>
-            )}
-          </DialogHeader>
-
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3">
-            {clientVentasSale ? (
-              <div className="space-y-4">
-                <div
-                  className={cn(
-                    'rounded-lg border px-3 py-2.5 text-sm',
-                    saleIsInvoiced(clientVentasSale)
-                      ? 'border-emerald-500/35 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200'
-                      : 'border-slate-300/80 bg-slate-200/80 text-slate-800 dark:border-slate-600 dark:bg-slate-800/50 dark:text-slate-200'
-                  )}
-                >
-                  <p className="flex items-center gap-2 font-medium">
-                    {saleIsInvoiced(clientVentasSale) ? (
-                      <>
-                        <BadgeCheck className="h-5 w-5 shrink-0 text-emerald-500" aria-hidden />
-                        Facturada
-                      </>
-                    ) : (
-                      <>
-                        <FileQuestion className="h-5 w-5 shrink-0 text-slate-500" aria-hidden />
-                        Sin facturar
-                      </>
-                    )}
-                  </p>
-                  {saleIsInvoiced(clientVentasSale) && clientVentasSale.facturaId ? (
-                    <p className="mt-1 text-xs opacity-90">
-                      Vinculada a factura (id: {clientVentasSale.facturaId.slice(0, 8)}…)
-                    </p>
-                  ) : null}
-                </div>
-                <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
-                  <div>
-                    <dt className="text-slate-600 dark:text-slate-500">Fecha</dt>
-                    <dd className="font-medium text-slate-900 dark:text-slate-100">
-                      {formatInAppTimezone(
-                        clientVentasSale.createdAt instanceof Date
-                          ? clientVentasSale.createdAt
-                          : new Date(clientVentasSale.createdAt),
-                        { dateStyle: 'medium', timeStyle: 'short' }
-                      )}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-slate-600 dark:text-slate-500">Estado</dt>
-                    <dd className="font-medium text-slate-900 dark:text-slate-100">
-                      {saleEstadoEtiqueta(clientVentasSale)}
-                    </dd>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <dt className="text-slate-600 dark:text-slate-500">Total</dt>
-                    <dd className="text-lg font-semibold tabular-nums text-cyan-600 dark:text-cyan-400">
-                      {formatMoney(clientVentasSale.total)}
-                    </dd>
-                  </div>
-                </dl>
-                <Button
-                  type="button"
-                  className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white sm:w-auto"
-                  onClick={() => void printThermalTicketFromSale(clientVentasSale)}
-                >
-                  <Printer className="mr-2 h-4 w-4" />
-                  Abrir ticket para imprimir
-                </Button>
-              </div>
-            ) : clientVentasLoading ? (
-              <div className="flex flex-col items-center justify-center gap-2 py-12 text-slate-600 dark:text-slate-500">
-                <Loader2 className="h-8 w-8 animate-spin text-cyan-500" aria-hidden />
-                <p className="text-sm">Cargando ventas…</p>
-              </div>
-            ) : clientVentasList.length === 0 ? (
-              <div className="py-10 text-center text-sm text-slate-600 dark:text-slate-500">
-                <p>
-                  {effectiveSucursalId
-                    ? 'No hay ventas registradas para este cliente en esta sucursal.'
-                    : 'No hay ventas guardadas en este dispositivo para este cliente.'}
-                </p>
-                {!effectiveSucursalId ? (
-                  <p className="mt-2 text-xs">
-                    Si usa otra sucursal o recién sincronizó, espere a que las ventas bajen al historial local.
-                  </p>
-                ) : null}
-              </div>
-            ) : (
-              <ul className="space-y-2">
-                {clientVentasList.map((sale) => (
-                  <li key={sale.id}>
-                    <button
-                      type="button"
-                      className="flex w-full flex-col gap-1 rounded-lg border border-slate-200/80 p-3 text-left transition-colors hover:bg-slate-200/80 dark:border-slate-800/60 dark:hover:bg-slate-800/40"
-                      onClick={() => setClientVentasSale(sale)}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="flex min-w-0 items-center gap-2 font-medium text-slate-900 dark:text-slate-100">
-                          <span
-                            className="shrink-0"
-                            title={saleIsInvoiced(sale) ? 'Facturada' : 'Sin facturar'}
-                          >
-                            {saleIsInvoiced(sale) ? (
-                              <BadgeCheck className="h-4 w-4 text-emerald-500" aria-hidden />
-                            ) : (
-                              <FileQuestion className="h-4 w-4 text-slate-500" aria-hidden />
-                            )}
-                          </span>
-                          <span className="truncate">{sale.folio}</span>
-                        </span>
-                        <span className="shrink-0 text-sm font-semibold tabular-nums text-cyan-600 dark:text-cyan-400">
-                          {formatMoney(sale.total)}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-600 dark:text-slate-500">
-                        {formatInAppTimezone(
-                          sale.createdAt instanceof Date ? sale.createdAt : new Date(sale.createdAt),
-                          { dateStyle: 'short', timeStyle: 'short' }
-                        )}
-                        {saleListaCancelacionEtiqueta(sale) ? (
-                          <span className="text-amber-600 dark:text-amber-400">
-                            {' '}
-                            · {saleListaCancelacionEtiqueta(sale)}
-                          </span>
-                        ) : null}
-                        {sale.estado === 'pendiente' ? (
-                          <span className="text-amber-600 dark:text-amber-400"> · Fiado</span>
-                        ) : null}
-                      </p>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          <DialogFooter className="shrink-0 border-t border-slate-200 dark:border-slate-800/80 px-4 py-3">
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full border-slate-300 dark:border-slate-700 sm:w-auto"
-              onClick={closeClientVentasDialog}
-            >
-              Cerrar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={!!adeudosClienteDialog}
-        onOpenChange={(o) => {
-          if (!o) closeAdeudosClienteDialog();
-        }}
-      >
-        <DialogContent className="flex max-h-[92dvh] w-[calc(100%-1.5rem)] max-w-none flex-col gap-0 overflow-hidden border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 p-0 text-slate-900 dark:text-slate-100 sm:w-full md:max-w-[min(92vw,32rem)] lg:max-w-[min(92vw,36rem)]">
-          <DialogHeader className="shrink-0 space-y-0 border-b border-slate-200 dark:border-slate-800/80 px-4 pb-3 pt-4 pr-14 text-left">
-            {adeudosTicketDetalle ? (
-              <div className="flex items-start gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9 shrink-0 text-slate-600 dark:text-slate-400"
-                  aria-label="Volver al listado"
-                  onClick={() => setAdeudosTicketDetalle(null)}
-                >
-                  <ChevronLeft className="h-5 w-5" />
-                </Button>
-                <div className="min-w-0">
-                  <DialogTitle className="truncate">
-                    Ticket {adeudosTicketDetalle.sale.folio?.trim() || adeudosTicketDetalle.sale.id.slice(0, 8)}
-                  </DialogTitle>
-                  <p className="mt-1 text-sm font-normal text-slate-600 dark:text-slate-500">
-                    {adeudosClienteDialog?.nombre}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <>
-                <DialogTitle>Adeudos del cliente</DialogTitle>
-                <p className="mt-1 text-sm font-normal text-slate-600 dark:text-slate-500">
-                  {adeudosClienteDialog?.nombre}
-                </p>
-                {adeudosTicketsDialog.length > 0 ? (
-                  <p className="mt-2 text-sm font-semibold tabular-nums text-red-700 dark:text-red-400">
-                    Saldo total: {formatMoney(totalAdeudoTickets(adeudosTicketsDialog))}
-                  </p>
-                ) : null}
-              </>
-            )}
-          </DialogHeader>
-
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3">
-            {adeudosTicketDetalle ? (
-              <div className="space-y-4 text-sm">
-                <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <div>
-                    <dt className="text-slate-600 dark:text-slate-500">Fecha</dt>
-                    <dd className="font-medium text-slate-900 dark:text-slate-100">
-                      {formatInAppTimezone(adeudosTicketDetalle.sale.createdAt, {
-                        dateStyle: 'medium',
-                        timeStyle: 'short',
-                      })}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-slate-600 dark:text-slate-500">Saldo pendiente</dt>
-                    <dd className="font-semibold tabular-nums text-red-700 dark:text-red-400">
-                      {formatMoney(adeudosTicketDetalle.adeudo)}
-                    </dd>
-                  </div>
-                </dl>
-                <div>
-                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-500">
-                    Artículos
-                  </p>
-                  <ul className="max-h-48 space-y-1.5 overflow-y-auto rounded-lg border border-slate-200/80 bg-white/60 p-2.5 text-xs dark:border-slate-700/60 dark:bg-slate-900/40">
-                    {(adeudosTicketDetalle.sale.productos ?? []).length === 0 ? (
-                      <li className="text-slate-600 dark:text-slate-500">Sin líneas registradas.</li>
-                    ) : (
-                      (adeudosTicketDetalle.sale.productos ?? []).map((item) => (
-                        <li
-                          key={item.id}
-                          className="flex justify-between gap-2 border-b border-slate-200/60 pb-1 last:border-0 last:pb-0 dark:border-slate-700/50"
-                        >
-                          <span className="min-w-0 truncate">{lineaDescripcionAdeudo(item)}</span>
-                          <span className="shrink-0 tabular-nums text-slate-700 dark:text-slate-300">
-                            ×{item.cantidad} · {formatMoney(Number(item.total) || 0)}
-                          </span>
-                        </li>
-                      ))
-                    )}
-                  </ul>
-                </div>
-                <div className="space-y-1 rounded-lg border border-slate-200/80 bg-slate-200/50 px-3 py-2.5 dark:border-slate-700/60 dark:bg-slate-800/40">
-                  <div className="flex justify-between gap-2 text-slate-700 dark:text-slate-300">
-                    <span>Subtotal</span>
-                    <span className="tabular-nums">
-                      {formatMoney(Number(adeudosTicketDetalle.sale.subtotal) || 0)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between gap-2 text-slate-700 dark:text-slate-300">
-                    <span>IVA</span>
-                    <span className="tabular-nums">
-                      {formatMoney(Number(adeudosTicketDetalle.sale.impuestos) || 0)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between gap-2 font-semibold text-cyan-600 dark:text-cyan-400">
-                    <span>Total</span>
-                    <span className="tabular-nums">
-                      {formatMoney(Number(adeudosTicketDetalle.sale.total) || 0)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between gap-2 text-slate-700 dark:text-slate-300">
-                    <span>Pagado</span>
-                    <span className="tabular-nums">{formatMoney(totalPagadoVenta(adeudosTicketDetalle.sale))}</span>
-                  </div>
-                  <div className="flex justify-between gap-2 font-semibold text-red-700 dark:text-red-400">
-                    <span>Saldo</span>
-                    <span className="tabular-nums">{formatMoney(adeudosTicketDetalle.adeudo)}</span>
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white sm:w-auto"
-                  onClick={() => void printThermalTicketFromSale(adeudosTicketDetalle.sale)}
-                >
-                  <Printer className="mr-2 h-4 w-4" />
-                  Abrir ticket para imprimir
-                </Button>
-              </div>
-            ) : adeudosTicketsDialog.length === 0 ? (
-              <div className="py-10 text-center text-sm text-slate-600 dark:text-slate-500">
-                No hay tickets con saldo pendiente para este cliente.
-              </div>
-            ) : (
-              <ul className="space-y-2">
-                {adeudosTicketsDialog.map(({ sale, adeudo }) => (
-                  <li key={sale.id}>
-                    <button
-                      type="button"
-                      className="flex w-full flex-col gap-1 rounded-lg border border-red-200/80 bg-red-500/5 p-3 text-left transition-colors hover:bg-red-500/10 dark:border-red-900/50 dark:bg-red-500/10 dark:hover:bg-red-500/15"
-                      onClick={() => setAdeudosTicketDetalle({ sale, adeudo })}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="flex min-w-0 items-center gap-2 font-medium text-slate-900 dark:text-slate-100">
-                          <Wallet className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" aria-hidden />
-                          <span className="truncate font-mono">
-                            {sale.folio?.trim() || sale.id.slice(0, 8)}
-                          </span>
-                        </span>
-                        <span className="shrink-0 text-sm font-semibold tabular-nums text-red-700 dark:text-red-400">
-                          {formatMoney(adeudo)}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-600 dark:text-slate-500">
-                        {formatInAppTimezone(
-                          sale.createdAt instanceof Date ? sale.createdAt : new Date(sale.createdAt),
-                          { dateStyle: 'short', timeStyle: 'short' }
-                        )}
-                        {' · '}
-                        Total {formatMoney(sale.total)} · Pagado {formatMoney(totalPagadoVenta(sale))}
-                      </p>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          <DialogFooter className="shrink-0 flex-col gap-2 border-t border-slate-200 dark:border-slate-800/80 px-4 py-3 sm:flex-row sm:justify-between">
-            {!adeudosTicketDetalle && adeudosTicketsDialog.length > 0 ? (
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full border-slate-300 dark:border-slate-700 sm:w-auto"
-                onClick={() => {
-                  closeAdeudosClienteDialog();
-                  navigate('/cuentas-por-cobrar');
-                }}
-              >
-                Ir a Cuentas por cobrar
-              </Button>
-            ) : (
-              <span className="hidden sm:block" />
-            )}
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full border-slate-300 dark:border-slate-700 sm:ml-auto sm:w-auto"
-              onClick={closeAdeudosClienteDialog}
-            >
-              Cerrar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <AlertDialog open={!!clientToDelete} onOpenChange={(o) => !o && setClientToDelete(null)}>
         <AlertDialogContent className="border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100">
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminar cliente</AlertDialogTitle>
             <AlertDialogDescription className="text-slate-600 dark:text-slate-400">
-              ¿Eliminar a <strong className="text-slate-800 dark:text-slate-200">{clientToDelete?.nombre}</strong>? Esta acción no se
+              Â¿Eliminar a <strong className="text-slate-800 dark:text-slate-200">{clientToDelete?.nombre}</strong>? Esta acciÃ³n no se
               puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -1633,7 +994,7 @@ export function Clientes() {
               }}
               className="bg-red-600 text-white hover:bg-red-500"
             >
-              {deletingClient ? 'Eliminando…' : 'Eliminar'}
+              {deletingClient ? 'Eliminandoâ€¦' : 'Eliminar'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

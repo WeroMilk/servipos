@@ -109,7 +109,8 @@ import { useClientPriceListCatalog } from '@/hooks/useClientPriceListCatalog';
 import { subscribeSucursales } from '@/lib/firestore/sucursalesMetaFirestore';
 import { cn, formatMoney } from '@/lib/utils';
 import { formatInAppTimezone } from '@/lib/appTimezone';
-import { printThermalTicket } from '@/lib/printTicket';
+import { printThermalTicket, printThermalClientCreditoReceipt } from '@/lib/printTicket';
+import { labelCreditoTiendaMotivo } from '@/lib/clientCreditoTienda';
 import {
   getCartLineUnitSinIvaBase,
   getProductIvaUnitarioDesdeSinIva,
@@ -136,6 +137,7 @@ import {
   type DevolucionLineInput,
 } from '@/lib/salePartialReturnCompute';
 import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
+import { saldoCreditoCliente, sumCreditoTiendaEnPagosParcial } from '@/lib/clientCreditoTienda';
 
 function buildProductStubFromResumeFields(args: {
   productId: string;
@@ -702,14 +704,29 @@ export function POS() {
   ]);
 
   const formasPagoPosEffective = useMemo(() => {
-    if (openSaleResume) {
-      return formasPagoPos.filter(
-        (fp) =>
-          fp.clave !== 'DEV' && fp.clave !== 'TTS' && fp.clave !== 'COT' && fp.clave !== 'PPC'
-      );
+    let base =
+      openSaleResume ?
+        formasPagoPos.filter(
+          (fp) =>
+            fp.clave !== 'DEV' && fp.clave !== 'TTS' && fp.clave !== 'COT' && fp.clave !== 'PPC'
+        )
+      : [...formasPagoPos];
+
+    const creditoDisp =
+      client && !client.isMostrador && client.id !== 'mostrador' ?
+        saldoCreditoCliente(client)
+      : 0;
+    if (creditoDisp > 0.005 && !base.some((fp) => fp.clave === 'STC')) {
+      base = [
+        ...base,
+        {
+          clave: 'STC' as const,
+          descripcion: `Crédito de tienda (${formatMoney(creditoDisp)})`,
+        },
+      ];
     }
-    return formasPagoPos;
-  }, [formasPagoPos, openSaleResume]);
+    return base;
+  }, [formasPagoPos, openSaleResume, client]);
 
   const formaPagoSelectValue = useMemo(() => {
     if (formasPagoPosEffective.some((fp) => fp.clave === formaPago)) return formaPago;
@@ -728,6 +745,8 @@ export function POS() {
   const [devolucionBusy, setDevolucionBusy] = useState(false);
   /** Cantidades a devolver por id de línea (0 = no devolver). Por defecto: todo el ticket. */
   const [devolucionLineasQty, setDevolucionLineasQty] = useState<Record<string, number>>({});
+  /** Si true, el importe de la devolución se acredita como crédito de tienda (sin efectivo). */
+  const [devolucionAcreditarCuenta, setDevolucionAcreditarCuenta] = useState(false);
   const [cotizacionUltimos4, setCotizacionUltimos4] = useState('');
   const [cotizacionBusy, setCotizacionBusy] = useState(false);
   const [saleFromQuotationId, setSaleFromQuotationId] = useState<string | null>(null);
@@ -773,6 +792,7 @@ export function POS() {
   useEffect(() => {
     if (!devolucionSaleResuelta?.productos?.length) {
       setDevolucionLineasQty({});
+      setDevolucionAcreditarCuenta(false);
       return;
     }
     const init: Record<string, number> = {};
@@ -780,6 +800,7 @@ export function POS() {
       init[p.id] = Number(p.cantidad) || 0;
     }
     setDevolucionLineasQty(init);
+    setDevolucionAcreditarCuenta(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al resolver otro ticket (id)
   }, [devolucionSaleResuelta?.id]);
 
@@ -787,6 +808,19 @@ export function POS() {
     () => previewReembolsoDevolucion(devolucionSaleResuelta, devolucionLineasQty),
     [devolucionSaleResuelta, devolucionLineasQty]
   );
+
+  const devolucionClienteIdAcreditable = useMemo(() => {
+    const id = (devolucionSaleResuelta?.clienteId ?? '').trim();
+    if (!id || id === 'mostrador') return null;
+    return id;
+  }, [devolucionSaleResuelta?.clienteId]);
+
+  const puedeAcreditarDevolucion =
+    Boolean(devolucionClienteIdAcreditable) && (previewDevolucion?.reembolso ?? 0) > 0.005;
+
+  useEffect(() => {
+    if (!puedeAcreditarDevolucion) setDevolucionAcreditarCuenta(false);
+  }, [puedeAcreditarDevolucion]);
 
   useEffect(() => {
     if (esFormaCotizacion) {
@@ -831,8 +865,10 @@ export function POS() {
     metodoPago === 'PPD' &&
     Boolean(client?.id && client.id !== 'mostrador' && !client.isMostrador);
 
-  const labelFormaPago = (clave: string) =>
-    formasPagoPos.find((fp) => fp.clave === clave)?.descripcion ?? clave;
+  const labelFormaPago = (clave: string) => {
+    if (clave === 'STC') return 'Crédito de tienda';
+    return formasPagoPos.find((fp) => fp.clave === clave)?.descripcion ?? clave;
+  };
 
   const [searchQuery, setSearchQuery] = useState('');
   /** Texto ya buscado (tras debounce); evita mostrar «sin resultados» mientras el usuario sigue escribiendo. */
@@ -911,7 +947,7 @@ export function POS() {
     search: searchProducts,
     searchByBarcode,
   } = useProductSearch({ maxResults: 80 });
-  const { clients, refresh: refreshClients } = useClients();
+  const { clients, refresh: refreshClients, emitirCreditoTienda } = useClients();
 
   const clientesFiltradosParaCxc = useMemo(
     () => filterClientesRegistrados(clients, pasarCxcClienteSearch),
@@ -2379,6 +2415,38 @@ export function POS() {
         const ratio = monto / totOrig;
         const cajeroNombre =
           user?.name?.trim() || user?.username?.trim() || user?.email?.trim() || undefined;
+        const acreditar =
+          devolucionAcreditarCuenta && Boolean(devolucionClienteIdAcreditable);
+        let saldoCreditoNuevo: number | undefined;
+        if (acreditar && devolucionClienteIdAcreditable) {
+          const credito = await emitirCreditoTienda(devolucionClienteIdAcreditable, monto, {
+            usuarioNombre: cajeroNombre,
+            motivo: 'devolucion_sin_reembolso',
+            referencia: devolucionSaleResuelta.folio,
+            notas: out.kind === 'partial' ? 'Devolución parcial en POS' : 'Devolución total en POS',
+          });
+          saldoCreditoNuevo = credito.saldoNuevo;
+          const fechaLabel = formatInAppTimezone(new Date(), {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+          });
+          const clienteNombre =
+            devolucionSaleResuelta.cliente?.nombre?.trim() || POS_GENERIC_CLIENT_LABEL;
+          const creditoPrint = {
+            fechaLabel,
+            sucursalId: effectiveSucursalId ?? undefined,
+            cajeroNombre,
+            clienteNombre,
+            montoCredito: monto,
+            saldoAnterior: credito.saldoAnterior,
+            saldoNuevo: credito.saldoNuevo,
+            motivoLabel: labelCreditoTiendaMotivo('devolucion_sin_reembolso'),
+            notas: `Ticket ${devolucionSaleResuelta.folio}`,
+          };
+          printThermalClientCreditoReceipt(creditoPrint);
+          printThermalClientCreditoReceipt({ ...creditoPrint, copiaCliente: true });
+          await refreshClients();
+        }
         const devolucionTicketSnap: PosTicketSnapshot = {
           clienteNombre: devolucionSaleResuelta.cliente?.nombre?.trim() || POS_GENERIC_CLIENT_LABEL,
           cajeroNombre,
@@ -2392,23 +2460,31 @@ export function POS() {
           modoDevolucion: true,
           folioVentaOrigen: devolucionSaleResuelta.folio,
           devolucionParcial: out.kind === 'partial',
-          notas:
-            out.kind === 'partial' ?
-              `DEVOLUCIÓN PARCIAL: Reembolso ${formatMoney(monto)}. El ticket original se actualizó (líneas y cobros).`
-            : 'DEVOLUCIÓN: Entregue al cliente el importe indicado. El ticket original quedó cancelado por devolución.',
-          resumenPagos: [{ label: 'Reembolso (devolución)', monto }],
+          notas: acreditar
+            ? out.kind === 'partial'
+              ? `DEVOLUCIÓN PARCIAL: ${formatMoney(monto)} acreditados a crédito de tienda. Saldo disponible: ${formatMoney(saldoCreditoNuevo ?? monto)}.`
+              : `DEVOLUCIÓN: ${formatMoney(monto)} acreditados a crédito de tienda. Saldo disponible: ${formatMoney(saldoCreditoNuevo ?? monto)}.`
+            : out.kind === 'partial'
+              ? `DEVOLUCIÓN PARCIAL: Reembolso ${formatMoney(monto)}. El ticket original se actualizó (líneas y cobros).`
+              : 'DEVOLUCIÓN: Entregue al cliente el importe indicado. El ticket original quedó cancelado por devolución.',
+          resumenPagos: acreditar
+            ? [{ label: 'Crédito de tienda (devolución)', monto }]
+            : [{ label: 'Reembolso (devolución)', monto }],
         };
         setTicketSnapshot(devolucionTicketSnap);
         printPosTicketSnapshot(devolucionTicketSnap);
         setDevolucionFolioInput('');
         setDevolucionSaleResuelta(null);
         setDevolucionLineasQty({});
+        setDevolucionAcreditarCuenta(false);
         setFormaPago('01');
         void finalizePosCartAfterSale();
         setCheckoutPhase('success');
         addToast({
           type: 'success',
-          message: `Devolución registrada. Reembolso al cliente: ${formatMoney(monto)}`,
+          message: acreditar
+            ? `Devolución registrada. Crédito de tienda: ${formatMoney(monto)}${saldoCreditoNuevo != null ? ` (saldo ${formatMoney(saldoCreditoNuevo)})` : ''}`
+            : `Devolución registrada. Reembolso al cliente: ${formatMoney(monto)}`,
           logToAppEvents: true,
         });
       } catch (error: unknown) {
@@ -2544,6 +2620,29 @@ export function POS() {
         message: 'Abra caja con «Abrir caja» antes de cobrar en esta tienda.',
       });
       return;
+    }
+
+    const stcEnCobro = sumCreditoTiendaEnPagosParcial(
+      pagosParaVenta as Pick<Payment, 'formaPago' | 'monto'>[]
+    );
+    if (stcEnCobro > 0.005) {
+      const cid = client?.id?.trim();
+      if (!cid || cid === 'mostrador' || client?.isMostrador) {
+        addToast({
+          type: 'error',
+          message: 'Seleccione un cliente registrado para usar crédito de tienda.',
+        });
+        return;
+      }
+      const fresh = (await getClientById(cid)) ?? client;
+      const disponible = saldoCreditoCliente(fresh);
+      if (stcEnCobro > disponible + 0.001) {
+        addToast({
+          type: 'error',
+          message: `Crédito de tienda insuficiente. Disponible: ${formatMoney(disponible)}`,
+        });
+        return;
+      }
     }
 
     setProcessingSale(true);
@@ -2957,7 +3056,9 @@ export function POS() {
 
   const etiquetaImporteCobroDialogo =
     checkoutDevolucionListo
-      ? 'Total a devolver al cliente'
+      ? devolucionAcreditarCuenta && puedeAcreditarDevolucion
+        ? 'Total a acreditar a cuenta'
+        : 'Total a devolver al cliente'
       : openSaleResume?.sale?.estado === 'completada' && cobroReferencia + 0.01 < totalCobro
         ? 'Saldo a cobrar (cuentas por cobrar)'
         : cobroDialogoMuestraFalta && totalPagadoVenta > 0.005 && importeDestacadoCobroDialogo > 0.02
@@ -3823,12 +3924,44 @@ export function POS() {
                               })}
                             </ul>
                             {previewDevolucion && previewDevolucion.reembolso > 0 ? (
-                              <p className="text-[11px] font-medium text-cyan-600 dark:text-cyan-400">
-                                Reembolso estimado: {formatMoney(previewDevolucion.reembolso)}
-                                {previewDevolucion.kind === 'partial' ?
-                                  ' (devolución parcial)'
-                                : ' (ticket completo)'}
-                              </p>
+                              <>
+                                <p className="text-[11px] font-medium text-cyan-600 dark:text-cyan-400">
+                                  {devolucionAcreditarCuenta && puedeAcreditarDevolucion
+                                    ? 'Crédito estimado'
+                                    : 'Reembolso estimado'}
+                                  : {formatMoney(previewDevolucion.reembolso)}
+                                  {previewDevolucion.kind === 'partial' ?
+                                    ' (devolución parcial)'
+                                  : ' (ticket completo)'}
+                                </p>
+                                {puedeAcreditarDevolucion ? (
+                                  <div className="mt-2 space-y-1.5 rounded-md border border-violet-500/25 bg-violet-500/5 p-2">
+                                    <Label className="text-[10px] text-slate-600 dark:text-slate-400">
+                                      ¿Cómo devolver al cliente?
+                                    </Label>
+                                    <div className="flex flex-col gap-1.5 sm:flex-row">
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant={devolucionAcreditarCuenta ? 'outline' : 'default'}
+                                        className="h-8 flex-1 text-xs"
+                                        onClick={() => setDevolucionAcreditarCuenta(false)}
+                                      >
+                                        Efectivo / reembolso
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant={devolucionAcreditarCuenta ? 'default' : 'outline'}
+                                        className="h-8 flex-1 bg-violet-600 text-xs text-white hover:bg-violet-500"
+                                        onClick={() => setDevolucionAcreditarCuenta(true)}
+                                      >
+                                        Acreditar a cuenta
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ) : null}
+                              </>
                             ) : (
                               <p className="text-[11px] text-black dark:text-amber-100">
                                 Ajuste las cantidades para ver el reembolso.
@@ -4326,9 +4459,48 @@ export function POS() {
                   </div>
                 ) : null}
 
+                {checkoutDevolucionListo && puedeAcreditarDevolucion ? (
+                  <div className="flex flex-col gap-1.5 rounded-lg border border-violet-500/25 bg-violet-500/5 p-2.5">
+                    <Label className="text-xs text-slate-600 dark:text-slate-400">
+                      Forma de devolución al cliente
+                    </Label>
+                    <div className="flex flex-col gap-1.5 sm:flex-row">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={devolucionAcreditarCuenta ? 'outline' : 'default'}
+                        className="h-9 flex-1"
+                        onClick={() => setDevolucionAcreditarCuenta(false)}
+                      >
+                        Efectivo / reembolso
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={devolucionAcreditarCuenta ? 'default' : 'outline'}
+                        className="h-9 flex-1 bg-violet-600 text-white hover:bg-violet-500"
+                        onClick={() => setDevolucionAcreditarCuenta(true)}
+                      >
+                        Acreditar a cuenta
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+
                 {checkoutDevolucionListo ? (
                   <p className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-3 text-center text-xs leading-relaxed text-black dark:text-slate-400 sm:text-sm">
-                    {previewDevolucion?.kind === 'partial' ?
+                    {devolucionAcreditarCuenta && puedeAcreditarDevolucion ?
+                      previewDevolucion?.kind === 'partial' ?
+                        <>
+                          Al confirmar, se registrará la devolución parcial: el inventario se reintegrará, el ticket se
+                          actualizará y el importe se acreditará como crédito de tienda al cliente (sin entregar
+                          efectivo).
+                        </>
+                      : <>
+                          Al confirmar, el ticket quedará cancelado por devolución, el inventario se restaurará y el
+                          importe se acreditará como crédito de tienda al cliente (sin entregar efectivo).
+                        </>
+                    : previewDevolucion?.kind === 'partial' ?
                       <>
                         Al confirmar, se registrará la devolución de las líneas elegidas: el inventario se
                         reintegrará, el ticket se actualizará y los cobros se ajustarán al nuevo total. Entregue al

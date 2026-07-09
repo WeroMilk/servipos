@@ -4,6 +4,7 @@
 
 export { useProducts, useProductSearch, useLowStockProducts } from './useProducts';
 export { usePurchaseOrders } from './usePurchaseOrders';
+export { useGoodsExits } from './useGoodsExits';
 export { useSales, useSalesByDateRange, useTodaySales, useSaleDetails } from './useSales';
 export { useClients, useClientSearch, useClientDetails } from './useClients';
 export { useQuotations, useQuotationDetails } from './useQuotations';

@@ -1,4 +1,4 @@
-import type { Client, ClientAbonoHistorialEntry } from '@/types';
+import type { Client, ClientAbonoHistorialEntry, ClientCreditoHistorialEntry } from '@/types';
 import { normalizeClientPriceListId } from '@/lib/clientPriceLists';
 import { createDebouncedAsyncFn } from '@/lib/debouncedAsync';
 import { getSupabase } from '@/lib/supabaseClient';
@@ -40,6 +40,40 @@ function parseAbonosHistorialDoc(raw: unknown): ClientAbonoHistorialEntry[] | un
         Number.isFinite(saldoAnt) ? Math.max(0, Math.round(saldoAnt * 100) / 100) : 0,
       saldoNuevo: Number.isFinite(saldoNvo) ? Math.max(0, Math.round(saldoNvo * 100) / 100) : 0,
       usuarioNombre: usuarioNombreRaw || undefined,
+    });
+  }
+  return out.length ? out : undefined;
+}
+
+function parseCreditoHistorialDoc(raw: unknown): ClientCreditoHistorialEntry[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  const out: ClientCreditoHistorialEntry[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const o = item as Record<string, unknown>;
+    if (o.at == null) continue;
+    const at = firestoreTimestampToDate(o.at);
+    const monto = Number(o.monto);
+    if (!Number.isFinite(monto) || monto < 0) continue;
+    const saldoAnt = Number(o.saldoAnterior);
+    const saldoNvo = Number(o.saldoNuevo);
+    const tipoRaw = String(o.tipo ?? 'emision');
+    const tipo =
+      tipoRaw === 'uso' || tipoRaw === 'ajuste' ? tipoRaw : ('emision' as const);
+    out.push({
+      at,
+      monto: Math.max(0, Math.round(monto * 100) / 100),
+      saldoAnterior:
+        Number.isFinite(saldoAnt) ? Math.max(0, Math.round(saldoAnt * 100) / 100) : 0,
+      saldoNuevo: Number.isFinite(saldoNvo) ? Math.max(0, Math.round(saldoNvo * 100) / 100) : 0,
+      tipo,
+      motivo: o.motivo != null ? String(o.motivo) : undefined,
+      referencia: o.referencia != null ? String(o.referencia) : undefined,
+      usuarioNombre:
+        o.usuarioNombre != null && String(o.usuarioNombre).trim() !== ''
+          ? String(o.usuarioNombre).trim()
+          : undefined,
+      notas: o.notas != null && String(o.notas).trim() !== '' ? String(o.notas) : undefined,
     });
   }
   return out.length ? out : undefined;
@@ -95,6 +129,37 @@ export function docToClient(sucursalId: string, id: string, d: Record<string, un
         ? String(d.ultimoAbonoUsuarioNombre).trim()
         : undefined,
     abonosHistorial: parseAbonosHistorialDoc(d.abonosHistorial),
+    saldoCreditoTienda:
+      d.saldoCreditoTienda != null && Number.isFinite(Number(d.saldoCreditoTienda))
+        ? Math.max(0, Math.round(Number(d.saldoCreditoTienda) * 100) / 100)
+        : undefined,
+    ultimoCreditoMonto:
+      d.ultimoCreditoMonto != null && Number.isFinite(Number(d.ultimoCreditoMonto))
+        ? Math.max(0, Math.round(Number(d.ultimoCreditoMonto) * 100) / 100)
+        : undefined,
+    ultimoCreditoAt:
+      d.ultimoCreditoAt != null ? firestoreTimestampToDate(d.ultimoCreditoAt) : undefined,
+    ultimoCreditoSaldoAnterior:
+      d.ultimoCreditoSaldoAnterior != null && Number.isFinite(Number(d.ultimoCreditoSaldoAnterior))
+        ? Math.max(0, Math.round(Number(d.ultimoCreditoSaldoAnterior) * 100) / 100)
+        : undefined,
+    ultimoCreditoSaldoNuevo:
+      d.ultimoCreditoSaldoNuevo != null && Number.isFinite(Number(d.ultimoCreditoSaldoNuevo))
+        ? Math.max(0, Math.round(Number(d.ultimoCreditoSaldoNuevo) * 100) / 100)
+        : undefined,
+    ultimoCreditoTipo:
+      d.ultimoCreditoTipo === 'uso' || d.ultimoCreditoTipo === 'ajuste' || d.ultimoCreditoTipo === 'emision'
+        ? d.ultimoCreditoTipo
+        : undefined,
+    ultimoCreditoMotivo:
+      d.ultimoCreditoMotivo != null && String(d.ultimoCreditoMotivo).trim() !== ''
+        ? String(d.ultimoCreditoMotivo).trim()
+        : undefined,
+    ultimoCreditoUsuarioNombre:
+      d.ultimoCreditoUsuarioNombre != null && String(d.ultimoCreditoUsuarioNombre).trim() !== ''
+        ? String(d.ultimoCreditoUsuarioNombre).trim()
+        : undefined,
+    creditoHistorial: parseCreditoHistorialDoc(d.creditoHistorial),
     notasInternas:
       d.notasInternas != null && String(d.notasInternas).trim() !== ''
         ? String(d.notasInternas)
@@ -221,16 +286,7 @@ export function subscribeClientsCatalog(
   return () => {
     clientsListeners.delete(onData);
     if (onMirrorLocal) clientsMirrorListeners.delete(onMirrorLocal);
-    if (clientsListeners.size === 0) {
-      if (clientsChannel) {
-        void supabase.removeChannel(clientsChannel);
-        clientsChannel = null;
-      }
-      clientsSucursalId = null;
-      clientsReloadDebounced = null;
-      lastClients = [];
-      clientsMirrorListeners.clear();
-    }
+    // Mantener canal y caché en sesión: evita refetch completo al volver a una pantalla.
   };
 }
 
@@ -320,6 +376,53 @@ export async function updateClientFirestore(
           saldoAnterior: Math.max(0, Math.round(Number(e.saldoAnterior) * 100) / 100),
           saldoNuevo: Math.max(0, Math.round(Number(e.saldoNuevo) * 100) / 100),
           usuarioNombre: e.usuarioNombre?.trim() ? e.usuarioNombre.trim() : null,
+        }))
+      : null;
+  }
+  if (updates.saldoCreditoTienda !== undefined) {
+    const v = Number(updates.saldoCreditoTienda);
+    doc.saldoCreditoTienda = Number.isFinite(v) ? Math.max(0, Math.round(v * 100) / 100) : null;
+  }
+  if (updates.ultimoCreditoMonto !== undefined) {
+    const v = Number(updates.ultimoCreditoMonto);
+    doc.ultimoCreditoMonto = Number.isFinite(v) ? Math.max(0, Math.round(v * 100) / 100) : null;
+  }
+  if (updates.ultimoCreditoAt !== undefined) {
+    doc.ultimoCreditoAt = updates.ultimoCreditoAt ? new Date(updates.ultimoCreditoAt).toISOString() : null;
+  }
+  if (updates.ultimoCreditoSaldoAnterior !== undefined) {
+    const v = Number(updates.ultimoCreditoSaldoAnterior);
+    doc.ultimoCreditoSaldoAnterior = Number.isFinite(v) ? Math.max(0, Math.round(v * 100) / 100) : null;
+  }
+  if (updates.ultimoCreditoSaldoNuevo !== undefined) {
+    const v = Number(updates.ultimoCreditoSaldoNuevo);
+    doc.ultimoCreditoSaldoNuevo = Number.isFinite(v) ? Math.max(0, Math.round(v * 100) / 100) : null;
+  }
+  if (updates.ultimoCreditoTipo !== undefined) {
+    doc.ultimoCreditoTipo = updates.ultimoCreditoTipo ?? null;
+  }
+  if (updates.ultimoCreditoMotivo !== undefined) {
+    const t = updates.ultimoCreditoMotivo?.trim();
+    doc.ultimoCreditoMotivo = t ? t : null;
+  }
+  if (updates.ultimoCreditoUsuarioNombre !== undefined) {
+    const t = updates.ultimoCreditoUsuarioNombre?.trim();
+    doc.ultimoCreditoUsuarioNombre = t ? t : null;
+  }
+  if (updates.creditoHistorial !== undefined) {
+    const arr = updates.creditoHistorial;
+    doc.creditoHistorial =
+      arr && arr.length > 0 ?
+        arr.map((e) => ({
+          at: new Date(e.at).toISOString(),
+          monto: Math.max(0, Math.round(Number(e.monto) * 100) / 100),
+          saldoAnterior: Math.max(0, Math.round(Number(e.saldoAnterior) * 100) / 100),
+          saldoNuevo: Math.max(0, Math.round(Number(e.saldoNuevo) * 100) / 100),
+          tipo: e.tipo === 'uso' || e.tipo === 'ajuste' ? e.tipo : 'emision',
+          motivo: e.motivo?.trim() ? e.motivo.trim() : null,
+          referencia: e.referencia?.trim() ? e.referencia.trim() : null,
+          usuarioNombre: e.usuarioNombre?.trim() ? e.usuarioNombre.trim() : null,
+          notas: e.notas?.trim() ? e.notas.trim() : null,
         }))
       : null;
   }

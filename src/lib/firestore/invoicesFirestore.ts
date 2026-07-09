@@ -1,4 +1,5 @@
 import type { Invoice } from '@/types';
+import { createDebouncedAsyncFn } from '@/lib/debouncedAsync';
 import { getSupabase } from '@/lib/supabaseClient';
 
 function tsToDate(v: unknown): Date {
@@ -113,6 +114,16 @@ export async function deleteInvoiceFirestore(sucursalId: string, invoiceId: stri
   if (error) throw new Error(error.message);
 }
 
+let lastInvoices: Invoice[] = [];
+const invoicesListeners = new Set<(rows: Invoice[]) => void>();
+let invoicesChannel: ReturnType<ReturnType<typeof getSupabase>['channel']> | null = null;
+let invoicesSucursalId: string | null = null;
+let invoicesReloadDebounced: (() => void) | null = null;
+
+export function getInvoicesCatalogSnapshot(): Invoice[] {
+  return lastInvoices;
+}
+
 export async function getInvoiceFirestore(
   sucursalId: string,
   invoiceId: string
@@ -132,31 +143,69 @@ export function subscribeInvoicesCatalog(
   sucursalId: string,
   onData: (rows: Invoice[]) => void
 ): () => void {
+  onData([...lastInvoices]);
+  invoicesListeners.add(onData);
+
   const supabase = getSupabase();
+
   const load = async () => {
-    const { data, error } = await supabase.from('invoices').select('id, doc').eq('sucursal_id', sucursalId);
+    const { data, error } = await supabase
+      .from('invoices')
+      .select('id, doc')
+      .eq('sucursal_id', sucursalId);
     if (error) {
       console.error('Invoices:', error);
-      onData([]);
+      if (lastInvoices.length > 0) {
+        invoicesListeners.forEach((l) => {
+          try {
+            l([...lastInvoices]);
+          } catch (e) {
+            console.error('subscribeInvoicesCatalog listener:', e);
+          }
+        });
+      }
       return;
     }
-    const list = (data ?? [])
+    lastInvoices = (data ?? [])
       .map((r) => mapInvoice(sucursalId, r.id, r.doc as Record<string, unknown>))
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-    onData(list);
-  };
-  void load();
-  const ch = supabase
-    .channel(`invoices-${sucursalId}`)
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'invoices', filter: `sucursal_id=eq.${sucursalId}` },
-      () => {
-        void load();
+    invoicesListeners.forEach((l) => {
+      try {
+        l([...lastInvoices]);
+      } catch (e) {
+        console.error('subscribeInvoicesCatalog listener:', e);
       }
-    )
-    .subscribe();
+    });
+  };
+
+  if (invoicesSucursalId !== sucursalId) {
+    if (invoicesChannel) {
+      void supabase.removeChannel(invoicesChannel);
+      invoicesChannel = null;
+    }
+    invoicesSucursalId = sucursalId;
+    invoicesReloadDebounced = createDebouncedAsyncFn(load, 500);
+    lastInvoices = [];
+    void load();
+    invoicesChannel = supabase
+      .channel(`invoices-${sucursalId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'invoices', filter: `sucursal_id=eq.${sucursalId}` },
+        () => {
+          invoicesReloadDebounced?.();
+        }
+      )
+      .subscribe();
+  } else {
+    try {
+      onData([...lastInvoices]);
+    } catch (e) {
+      console.error('subscribeInvoicesCatalog (resync existing):', e);
+    }
+  }
+
   return () => {
-    void supabase.removeChannel(ch);
+    invoicesListeners.delete(onData);
   };
 }

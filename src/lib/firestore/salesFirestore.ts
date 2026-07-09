@@ -732,17 +732,7 @@ export function subscribeSalesCatalog(sucursalId: string, onSales: (sales: Sale[
 
   return () => {
     salesListeners.delete(onSales);
-    if (salesListeners.size === 0) {
-      if (salesChannel) {
-        void supabase.removeChannel(salesChannel);
-        salesChannel = null;
-      }
-      salesSucursalId = null;
-      salesReloadDebounced = null;
-      lastSalesRecent = [];
-      lastSalesPending = [];
-      lastSales = [];
-    }
+    // Mantener canal y caché en sesión: evita refetch completo al volver a una pantalla.
   };
 }
 

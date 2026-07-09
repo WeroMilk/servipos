@@ -1,27 +1,39 @@
 import React, { useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout, LoginForm, LoadingIndicator } from '@/components/ui-custom';
-import {
-  Dashboard,
-  POS,
-  Inventario,
-  Cotizaciones,
-  Clientes,
-  CuentasPorCobrar,
-  Configuracion,
-  Checador,
-  MisionInventario,
-  RecepcionPedidos,
-  EtiquetasProductos,
-} from '@/pages';
-
-const Facturas = lazy(() =>
-  import('@/pages/Facturas').then((m) => ({ default: m.Facturas }))
-);
 import { useAuthStore, useSyncStore, subscribeSupabaseAuth } from '@/stores';
 import { initializeDemoData, syncServipartzSeedUsers } from '@/db/database';
 import { setAppEventActorResolver } from '@/lib/appEventContext';
 import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
+
+const Dashboard = lazy(() => import('@/pages/Dashboard').then((m) => ({ default: m.Dashboard })));
+const POS = lazy(() => import('@/pages/POS').then((m) => ({ default: m.POS })));
+const Inventario = lazy(() => import('@/pages/Inventario').then((m) => ({ default: m.Inventario })));
+const RecepcionPedidos = lazy(() =>
+  import('@/pages/RecepcionPedidos').then((m) => ({ default: m.RecepcionPedidos }))
+);
+const SalidasMercancia = lazy(() =>
+  import('@/pages/SalidasMercancia').then((m) => ({ default: m.SalidasMercancia }))
+);
+const EtiquetasProductos = lazy(() =>
+  import('@/pages/EtiquetasProductos').then((m) => ({ default: m.EtiquetasProductos }))
+);
+const MisionInventario = lazy(() =>
+  import('@/pages/MisionInventario').then((m) => ({ default: m.MisionInventario }))
+);
+const Cotizaciones = lazy(() => import('@/pages/Cotizaciones').then((m) => ({ default: m.Cotizaciones })));
+const Facturas = lazy(() => import('@/pages/Facturas').then((m) => ({ default: m.Facturas })));
+const Clientes = lazy(() => import('@/pages/Clientes').then((m) => ({ default: m.Clientes })));
+const ClientePerfil = lazy(() => import('@/pages/ClientePerfil').then((m) => ({ default: m.ClientePerfil })));
+const CuentasPorCobrar = lazy(() =>
+  import('@/pages/CuentasPorCobrar').then((m) => ({ default: m.CuentasPorCobrar }))
+);
+const Configuracion = lazy(() => import('@/pages/Configuracion').then((m) => ({ default: m.Configuracion })));
+const Checador = lazy(() => import('@/pages/Checador').then((m) => ({ default: m.Checador })));
+
+function PageFallback({ message }: { message: string }) {
+  return <LoadingIndicator inline message={message} tone="onBrand" />;
+}
 
 setAppEventActorResolver(() => {
   const u = useAuthStore.getState().user;
@@ -84,13 +96,13 @@ function App() {
     <BrowserRouter>
       <Routes>
         {/* Ruta de Login */}
-        <Route 
-          path="/login" 
+        <Route
+          path="/login"
           element={
             <PublicRoute>
               <LoginForm />
             </PublicRoute>
-          } 
+          }
         />
 
         {/* Rutas protegidas con Layout */}
@@ -102,27 +114,118 @@ function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<Dashboard />} />
-          <Route path="pos" element={<POS />} />
-          <Route path="inventario" element={<Inventario />} />
-          <Route path="inventario/recepcion-pedidos" element={<RecepcionPedidos />} />
-          <Route path="etiquetas-productos" element={<EtiquetasProductos />} />
-          <Route path="mision-inventario" element={<MisionInventario />} />
-          <Route path="cotizaciones" element={<Cotizaciones />} />
-          <Route path="checador" element={<Checador />} />
+          <Route
+            index
+            element={
+              <Suspense fallback={<PageFallback message="Cargando panel" />}>
+                <Dashboard />
+              </Suspense>
+            }
+          />
+          <Route
+            path="pos"
+            element={
+              <Suspense fallback={<PageFallback message="Cargando punto de venta" />}>
+                <POS />
+              </Suspense>
+            }
+          />
+          <Route
+            path="inventario"
+            element={
+              <Suspense fallback={<PageFallback message="Cargando inventario" />}>
+                <Inventario />
+              </Suspense>
+            }
+          />
+          <Route
+            path="inventario/recepcion-pedidos"
+            element={
+              <Suspense fallback={<PageFallback message="Cargando recepción" />}>
+                <RecepcionPedidos />
+              </Suspense>
+            }
+          />
+          <Route
+            path="inventario/salidas-mercancia"
+            element={
+              <Suspense fallback={<PageFallback message="Cargando salidas" />}>
+                <SalidasMercancia />
+              </Suspense>
+            }
+          />
+          <Route
+            path="etiquetas-productos"
+            element={
+              <Suspense fallback={<PageFallback message="Cargando etiquetas" />}>
+                <EtiquetasProductos />
+              </Suspense>
+            }
+          />
+          <Route
+            path="mision-inventario"
+            element={
+              <Suspense fallback={<PageFallback message="Cargando misión inventario" />}>
+                <MisionInventario />
+              </Suspense>
+            }
+          />
+          <Route
+            path="cotizaciones"
+            element={
+              <Suspense fallback={<PageFallback message="Cargando cotizaciones" />}>
+                <Cotizaciones />
+              </Suspense>
+            }
+          />
+          <Route
+            path="checador"
+            element={
+              <Suspense fallback={<PageFallback message="Cargando checador" />}>
+                <Checador />
+              </Suspense>
+            }
+          />
           <Route
             path="facturas"
             element={
-              <Suspense
-                fallback={<LoadingIndicator inline message="Cargando facturas" tone="onBrand" />}
-              >
+              <Suspense fallback={<PageFallback message="Cargando facturas" />}>
                 <Facturas />
               </Suspense>
             }
           />
-          <Route path="clientes" element={<Clientes />} />
-          <Route path="cuentas-por-cobrar" element={<CuentasPorCobrar />} />
-          <Route path="configuracion" element={<Configuracion />} />
+          <Route
+            path="clientes"
+            element={
+              <Suspense fallback={<PageFallback message="Cargando clientes" />}>
+                <Clientes />
+              </Suspense>
+            }
+          />
+          <Route
+            path="clientes/:clientId"
+            element={
+              <Suspense fallback={<PageFallback message="Cargando perfil" />}>
+                <ClientePerfil />
+              </Suspense>
+            }
+          />
+          <Route
+            path="cuentas-por-cobrar"
+            element={
+              <Suspense fallback={<PageFallback message="Cargando cuentas por cobrar" />}>
+                <CuentasPorCobrar />
+              </Suspense>
+            }
+          />
+          <Route
+            path="configuracion"
+            element={
+              <Suspense fallback={<PageFallback message="Cargando configuración" />}>
+                <Configuracion />
+              </Suspense>
+            }
+          />
         </Route>
 
         {/* Redirección por defecto */}

@@ -389,18 +389,7 @@ export function subscribeProductCatalog(
   return () => {
     catalogListeners.delete(onProducts);
     if (onError) catalogErrorListeners.delete(onError);
-    if (catalogListeners.size === 0) {
-      if (catalogChannel) {
-        void supabase.removeChannel(catalogChannel);
-        catalogChannel = null;
-      }
-      catalogSucursalId = null;
-      catalogReloadDebounced = null;
-      catalogInitialLoadDone = false;
-      lastProducts = [];
-      lastSearchIndex = buildProductSearchIndex([]);
-      catalogErrorListeners.clear();
-    }
+    // Mantener canal, índice y caché en sesión: evita refetch paginado al volver al POS.
   };
 }
 

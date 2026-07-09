@@ -10,6 +10,7 @@ import {
   updateClient,
   deleteClient,
   registrarAbonoACuentaCliente,
+  emitirCreditoTiendaCliente,
 } from '@/db/database';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 import { reportHookFailure } from '@/lib/appEventLog';
@@ -20,7 +21,10 @@ import {
   createClientFirestore,
   updateClientFirestore,
   deleteClientFirestore,
+  getClientsCatalogSnapshot,
 } from '@/lib/firestore/clientsFirestore';
+import { createDebouncedAsyncFn } from '@/lib/debouncedAsync';
+import { filterClientsByQuery } from '@/lib/clientCatalogSearch';
 
 function mostradorPlaceholder(sucursalId: string): Client {
   return {
@@ -122,10 +126,17 @@ async function mirrorClientsCloudToDexie(sucursalId: string, rows: Client[]): Pr
 
 export function useClients() {
   const { effectiveSucursalId } = useEffectiveSucursalId();
-  const [clients, setClients] = useState<Client[]>([]);
+  const [clients, setClients] = useState<Client[]>(() => {
+    if (!effectiveSucursalId) return [];
+    const snap = getClientsCatalogSnapshot();
+    return snap.length > 0 ? clientsWithMostrador(snap, effectiveSucursalId) : [];
+  });
   const clientsRef = useRef<Client[]>([]);
   clientsRef.current = clients;
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    if (!effectiveSucursalId) return true;
+    return getClientsCatalogSnapshot().length === 0;
+  });
   const [error, setError] = useState<string | null>(null);
 
   const loadClients = useCallback(async () => {
@@ -146,7 +157,15 @@ export function useClients() {
 
   useEffect(() => {
     if (effectiveSucursalId) {
-      setLoading(true);
+      const snap = getClientsCatalogSnapshot();
+      if (snap.length === 0) {
+        setLoading(true);
+      } else {
+        setClients(clientsWithMostrador(snap, effectiveSucursalId));
+      }
+      const mirrorDebounced = createDebouncedAsyncFn(async () => {
+        await mirrorClientsCloudToDexie(effectiveSucursalId, getClientsCatalogSnapshot());
+      }, 1200);
       const unsub = subscribeClientsCatalog(
         effectiveSucursalId,
         (rows) => {
@@ -154,7 +173,7 @@ export function useClients() {
           setError(null);
           setLoading(false);
         },
-        (rows) => mirrorClientsCloudToDexie(effectiveSucursalId, rows)
+        () => mirrorDebounced()
       );
       return unsub;
     }
@@ -267,6 +286,30 @@ export function useClients() {
     [effectiveSucursalId, refresh]
   );
 
+  const emitirCreditoTienda = useCallback(
+    async (
+      clienteId: string,
+      monto: number,
+      options?: {
+        usuarioNombre?: string;
+        motivo?: string;
+        referencia?: string;
+        notas?: string;
+      }
+    ) => {
+      const result = await emitirCreditoTiendaCliente(clienteId, monto, {
+        sucursalId: effectiveSucursalId ?? undefined,
+        usuarioNombre: options?.usuarioNombre,
+        motivo: options?.motivo,
+        referencia: options?.referencia,
+        notas: options?.notas,
+      });
+      await refresh();
+      return result;
+    },
+    [effectiveSucursalId, refresh]
+  );
+
   return {
     clients,
     loading,
@@ -276,6 +319,7 @@ export function useClients() {
     editClient,
     removeClient,
     registrarAbonoCuenta,
+    emitirCreditoTienda,
   };
 }
 
@@ -283,24 +327,44 @@ export function useClientSearch() {
   const { effectiveSucursalId } = useEffectiveSucursalId();
   const [results, setResults] = useState<Client[]>([]);
   const [loading, setLoading] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   const search = useCallback(
-    async (query: string) => {
-      if (!query.trim()) {
+    (query: string) => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      const trimmed = query.trim();
+      if (!trimmed) {
         setResults([]);
+        setLoading(false);
         return;
       }
 
-      try {
-        setLoading(true);
-        const data = await searchClients(query, effectiveSucursalId);
-        setResults(data);
-      } catch (err) {
-        reportHookFailure('hook:useClientSearch', 'Búsqueda de clientes', err);
-        console.error('Error en búsqueda:', err);
-      } finally {
-        setLoading(false);
-      }
+      setLoading(true);
+      debounceRef.current = setTimeout(() => {
+        if (effectiveSucursalId) {
+          setResults(filterClientsByQuery(getClientsCatalogSnapshot(), trimmed));
+          setLoading(false);
+          return;
+        }
+
+        void (async () => {
+          try {
+            const data = await searchClients(query, effectiveSucursalId);
+            setResults(data);
+          } catch (err) {
+            reportHookFailure('hook:useClientSearch', 'Búsqueda de clientes', err);
+            console.error('Error en búsqueda:', err);
+          } finally {
+            setLoading(false);
+          }
+        })();
+      }, 180);
     },
     [effectiveSucursalId]
   );

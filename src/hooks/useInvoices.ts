@@ -22,6 +22,7 @@ import {
   getInvoiceFirestore,
   subscribeInvoicesCatalog,
   updateInvoiceFirestore,
+  getInvoicesCatalogSnapshot,
 } from '@/lib/firestore/invoicesFirestore';
 import { patchSaleInvoiceFirestore } from '@/lib/firestore/salesFirestore';
 
@@ -31,8 +32,14 @@ import { patchSaleInvoiceFirestore } from '@/lib/firestore/salesFirestore';
 
 export function useInvoices() {
   const { effectiveSucursalId } = useEffectiveSucursalId();
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [invoices, setInvoices] = useState<Invoice[]>(() => {
+    if (!effectiveSucursalId) return [];
+    return getInvoicesCatalogSnapshot();
+  });
+  const [loading, setLoading] = useState(() => {
+    if (!effectiveSucursalId) return true;
+    return getInvoicesCatalogSnapshot().length === 0;
+  });
   const [error, setError] = useState<string | null>(null);
 
   const loadInvoices = useCallback(async () => {
@@ -52,7 +59,12 @@ export function useInvoices() {
 
   useEffect(() => {
     if (effectiveSucursalId) {
-      setLoading(true);
+      const snap = getInvoicesCatalogSnapshot();
+      if (snap.length === 0) {
+        setLoading(true);
+      } else {
+        setInvoices(snap);
+      }
       const unsub = subscribeInvoicesCatalog(effectiveSucursalId, (rows) => {
         setInvoices(rows);
         setError(null);
@@ -61,7 +73,7 @@ export function useInvoices() {
       return unsub;
     }
     void loadInvoices();
-  }, [loadInvoices]);
+  }, [loadInvoices, effectiveSucursalId]);
 
   const addInvoice = async (
     invoice: Omit<Invoice, 'id' | 'folio' | 'serie' | 'createdAt' | 'updatedAt' | 'syncStatus' | 'esPrueba'>

@@ -57,6 +57,7 @@ import type { Invoice, Sale, Client } from '@/types';
 import { FORMAS_PAGO_UI, USOS_CFDI } from '@/types';
 import { cn, formatMoney } from '@/lib/utils';
 import { PageShell } from '@/components/ui-custom/PageShell';
+import { ClientProfileLink } from '@/components/ui-custom/ClientProfileLink';
 import { SendEmailDialog } from '@/components/ui-custom/SendEmailDialog';
 import { AVISO_DOC_FISCAL_PRUEBA } from '@/lib/printTicket';
 import { printInvoiceCfdiRepresentacion } from '@/lib/cfdiRepresentacionImpresa';
@@ -487,7 +488,11 @@ export function Facturas() {
                       <span className="shrink-0 text-cyan-400">{formatMoney(invoice.total)}</span>
                     </div>
                     <p className="mt-1 truncate text-sm text-slate-600 dark:text-slate-400">
-                      {invoice.cliente?.nombre || 'Mostrador'}
+                      <ClientProfileLink
+                        clienteId={invoice.clienteId}
+                        nombre={invoice.cliente?.nombre}
+                        tab="facturas"
+                      />
                     </p>
                     <div className="mt-2 flex items-center justify-between gap-2">
                       <span className="text-xs text-slate-600 dark:text-slate-500">
@@ -577,7 +582,11 @@ export function Facturas() {
                         </div>
                       </TableCell>
                       <TableCell className="max-w-[14rem] truncate text-slate-600 dark:text-slate-400">
-                        {invoice.cliente?.nombre || 'Mostrador'}
+                        <ClientProfileLink
+                          clienteId={invoice.clienteId}
+                          nombre={invoice.cliente?.nombre}
+                          tab="facturas"
+                        />
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-slate-600 dark:text-slate-400">
                         {new Date(invoice.fechaEmision).toLocaleDateString('es-MX')}
@@ -730,7 +739,11 @@ export function Facturas() {
                         >
                           <span className="min-w-0 font-mono text-slate-900 dark:text-slate-100">{sale.folio}</span>
                           <span className="min-w-0 flex-1 truncate text-slate-700 dark:text-slate-300">
-                            {sale.cliente?.nombre || 'Mostrador'}
+                            <ClientProfileLink
+                              clienteId={sale.clienteId}
+                              nombre={sale.cliente?.nombre}
+                              tab="compras"
+                            />
                           </span>
                           <span className="shrink-0 font-medium text-cyan-600 dark:text-cyan-400">
                             {formatMoney(sale.total)}
@@ -934,7 +947,15 @@ export function Facturas() {
 
               <div className="border-t border-slate-200 dark:border-slate-800 pt-4">
                 <p className="text-slate-600 dark:text-slate-500 text-sm mb-2">Receptor</p>
-                <p className="text-slate-800 dark:text-slate-200">{selectedInvoice.cliente?.nombre || 'Público en General'}</p>
+                <p className="text-slate-800 dark:text-slate-200">
+                  <ClientProfileLink
+                    clienteId={selectedInvoice.clienteId}
+                    nombre={selectedInvoice.cliente?.nombre}
+                    fallback="Público en General"
+                    tab="facturas"
+                    stopPropagation={false}
+                  />
+                </p>
                 <p className="text-slate-600 dark:text-slate-400">{selectedInvoice.cliente?.rfc || 'XAXX010101000'}</p>
               </div>
 

@@ -15,6 +15,7 @@ import {
   subscribeProductCatalog,
   getProductSearchIndex,
   isProductCatalogReady,
+  getProductCatalogSnapshot,
   createProductFirestore,
   updateProductFirestore,
   deleteProductFirestore,
@@ -42,8 +43,14 @@ export function useProducts() {
   const { effectiveSucursalId: sucursalId } = useEffectiveSucursalId();
   const catalogUsuarioId = useAuthStore((s) => s.user?.id ?? 'system');
   const catalogUserName = useAuthStore((s) => s.user?.name);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [products, setProducts] = useState<Product[]>(() => {
+    if (!sucursalId || !isProductCatalogReady()) return [];
+    return getProductCatalogSnapshot();
+  });
+  const [loading, setLoading] = useState(() => {
+    if (!sucursalId) return true;
+    return !isProductCatalogReady();
+  });
   const [error, setError] = useState<string | null>(null);
 
   const onCatalogFirestoreError = useCallback((err: unknown) => {
@@ -80,7 +87,11 @@ export function useProducts() {
 
   useEffect(() => {
     if (sucursalId) {
-      setLoading(true);
+      if (!isProductCatalogReady()) {
+        setLoading(true);
+      } else {
+        setProducts(getProductCatalogSnapshot());
+      }
       setError(null);
       const unsub = subscribeProductCatalog(
         sucursalId,

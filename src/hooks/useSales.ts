@@ -13,7 +13,7 @@ import {
 import type { DevolucionLineInput } from '@/lib/salePartialReturnCompute';
 import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
-import { subscribeSalesCatalog, subscribeSaleDocument } from '@/lib/firestore/salesFirestore';
+import { subscribeSalesCatalog, subscribeSaleDocument, getSalesCatalogSnapshot } from '@/lib/firestore/salesFirestore';
 import { reportHookFailure } from '@/lib/appEventLog';
 
 // ============================================
@@ -22,8 +22,14 @@ import { reportHookFailure } from '@/lib/appEventLog';
 
 export function useSales(limit: number = 100) {
   const { effectiveSucursalId: sucursalId } = useEffectiveSucursalId();
-  const [sales, setSales] = useState<Sale[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [sales, setSales] = useState<Sale[]>(() => {
+    if (!sucursalId) return [];
+    return getSalesCatalogSnapshot().slice(0, limit);
+  });
+  const [loading, setLoading] = useState(() => {
+    if (!sucursalId) return true;
+    return getSalesCatalogSnapshot().length === 0;
+  });
   const [error, setError] = useState<string | null>(null);
 
   const loadSalesLocal = useCallback(async () => {
@@ -43,7 +49,12 @@ export function useSales(limit: number = 100) {
 
   useEffect(() => {
     if (sucursalId) {
-      setLoading(true);
+      const snap = getSalesCatalogSnapshot();
+      if (snap.length === 0) {
+        setLoading(true);
+      } else {
+        setSales(snap.slice(0, limit));
+      }
       const unsub = subscribeSalesCatalog(sucursalId, (all) => {
         setSales(all.slice(0, limit));
         setError(null);
@@ -186,7 +197,10 @@ export function useSales(limit: number = 100) {
 export function useSalesByDateRange(inicio: Date, fin: Date) {
   const { effectiveSucursalId: sucursalId } = useEffectiveSucursalId();
   const [sales, setSales] = useState<Sale[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    if (!sucursalId) return true;
+    return getSalesCatalogSnapshot().length === 0;
+  });
   const [totals, setTotals] = useState({ total: 0, count: 0 });
 
   const applyFilter = useCallback(
@@ -224,7 +238,12 @@ export function useSalesByDateRange(inicio: Date, fin: Date) {
 
   useEffect(() => {
     if (sucursalId) {
-      setLoading(true);
+      const snap = getSalesCatalogSnapshot();
+      if (snap.length === 0) {
+        setLoading(true);
+      } else {
+        applyFilter(snap);
+      }
       const unsub = subscribeSalesCatalog(sucursalId, (all) => {
         applyFilter(all);
         setLoading(false);
