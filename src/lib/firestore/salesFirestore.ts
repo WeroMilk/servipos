@@ -157,6 +157,10 @@ export function saleDataToSale(id: string, d: Record<string, unknown>, sucursalI
         ? d.cajaSesionId.trim()
         : undefined,
     sucursalId,
+    completedAt:
+      d.completedAt != null && String(d.completedAt).length > 0
+        ? firestoreTimestampToDate(d.completedAt)
+        : undefined,
     createdAt: firestoreTimestampToDate(d.createdAt),
     updatedAt: firestoreTimestampToDate(d.updatedAt),
     syncStatus: 'synced',
@@ -244,6 +248,9 @@ function saleToRpcPayload(
       typeof sale.cajaSesionId === 'string' && sale.cajaSesionId.trim().length > 0
         ? sale.cajaSesionId.trim()
         : null,
+    ...(sale.estado !== 'pendiente'
+      ? { completedAt: (sale.completedAt ?? new Date()).toISOString() }
+      : {}),
   };
 }
 
@@ -514,11 +521,13 @@ export async function completePendingSaleFirestore(
     doc.clienteId = patch.clienteId;
     doc.cliente = clientSnapshotToFirestorePayload(patch.cliente ?? null);
   }
-  doc.updatedAt = new Date().toISOString();
+  const nowIso = new Date().toISOString();
+  doc.completedAt = nowIso;
+  doc.updatedAt = nowIso;
 
   const { error } = await supabase
     .from('sales')
-    .update({ doc, updated_at: new Date().toISOString() })
+    .update({ doc, updated_at: nowIso })
     .eq('sucursal_id', sucursalId)
     .eq('id', saleId);
   if (error) throw new Error(error.message);

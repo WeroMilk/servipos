@@ -437,6 +437,8 @@ export interface Sale {
   posResumeListaPrecios?: string;
   /** Sesión de caja (apertura/cierre) en la que se registró la venta; para arqueo. */
   cajaSesionId?: string;
+  /** Momento en que la venta quedó cobrada (ventas abiertas retomadas en otro día). */
+  completedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
   syncStatus: SyncStatus;

@@ -69,6 +69,7 @@ import { saleListaCancelacionEtiqueta } from '@/lib/saleCancelacion';
 import { saleIsInvoiced } from '@/lib/saleInvoiced';
 import { parrafosAyudaCancelacionVentaAdmin } from '@/lib/cancelacionVentaAdminUi';
 import { efectivoNetoEnCajaPorVenta } from '@/lib/cajaResumen';
+import { saleEnRangoHistorial, saleFechaHistorial } from '@/lib/saleHistorialFecha';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -320,8 +321,7 @@ export function Dashboard() {
     const i0 = kpiPeriodStart.getTime();
     const f0 = kpiPeriodEndExclusive.getTime();
     return salesFetched.filter((s) => {
-      const t = s.createdAt instanceof Date ? s.createdAt : new Date(s.createdAt);
-      const x = t.getTime();
+      const x = saleFechaHistorial(s).getTime();
       return x >= i0 && x < f0;
     });
   }, [salesFetched, kpiPeriodStart, kpiPeriodEndExclusive]);
@@ -363,18 +363,12 @@ export function Dashboard() {
   const outgoingTransferPendingIds = useOutgoingPendingTransferIds();
 
   const reprintSalesRaw = useMemo(() => {
-    const i0 = reprintDayStart.getTime();
-    const f0 = reprintDayEnd.getTime();
-    return salesFetched.filter((s) => {
-      const t = s.createdAt instanceof Date ? s.createdAt : new Date(s.createdAt);
-      const x = t.getTime();
-      return x >= i0 && x < f0;
-    });
+    return salesFetched.filter((s) => saleEnRangoHistorial(s, reprintDayStart, reprintDayEnd));
   }, [salesFetched, reprintDayStart, reprintDayEnd]);
   const reprintSalesSorted = useMemo(
     () =>
       [...reprintSalesRaw].sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        (a, b) => saleFechaHistorial(b).getTime() - saleFechaHistorial(a).getTime()
       ),
     [reprintSalesRaw]
   );
@@ -476,8 +470,7 @@ export function Dashboard() {
         const next = addDays(day0, 1);
         const ventasDelDia = salesFetched.filter((sale) => {
           if (sale.estado === 'cancelada' || sale.estado === 'pendiente') return false;
-          const t = sale.createdAt instanceof Date ? sale.createdAt : new Date(sale.createdAt);
-          const x = t.getTime();
+          const x = saleFechaHistorial(sale).getTime();
           return x >= day0.getTime() && x < next.getTime();
         });
         const ventas = ventasDelDia.reduce((sum, sale) => sum + (Number(sale.total) || 0), 0);
@@ -499,8 +492,7 @@ export function Dashboard() {
       const next = addDays(day0, 1);
       const ventas = salesFetched.reduce((sum, sale) => {
         if (sale.estado === 'cancelada' || sale.estado === 'pendiente') return sum;
-        const t = sale.createdAt instanceof Date ? sale.createdAt : new Date(sale.createdAt);
-        const x = t.getTime();
+        const x = saleFechaHistorial(sale).getTime();
         if (x >= day0.getTime() && x < next.getTime()) {
           return sum + (Number(sale.total) || 0);
         }
@@ -1364,12 +1356,10 @@ export function Dashboard() {
                   <div>
                     <dt className="text-slate-600 dark:text-slate-500">Fecha</dt>
                     <dd className="font-medium text-slate-900 dark:text-slate-100">
-                      {formatInAppTimezone(
-                        reprintSaleDetail.createdAt instanceof Date
-                          ? reprintSaleDetail.createdAt
-                          : new Date(reprintSaleDetail.createdAt),
-                        { dateStyle: 'medium', timeStyle: 'short' }
-                      )}
+                      {formatInAppTimezone(saleFechaHistorial(reprintSaleDetail), {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      })}
                     </dd>
                   </div>
                   <div>
@@ -1498,10 +1488,12 @@ export function Dashboard() {
                         <span className="truncate">{sale.folio}</span>
                       </p>
                       <p className="text-xs text-slate-600 dark:text-slate-500">
-                        {formatInAppTimezone(
-                          sale.createdAt instanceof Date ? sale.createdAt : new Date(sale.createdAt),
-                          { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }
-                        )}
+                        {formatInAppTimezone(saleFechaHistorial(sale), {
+                          day: '2-digit',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
                         {saleListaCancelacionEtiqueta(sale) ? (
                           <span className="ml-2 text-amber-400">
                             · {saleListaCancelacionEtiqueta(sale)}

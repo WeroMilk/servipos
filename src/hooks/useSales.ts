@@ -15,6 +15,7 @@ import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 import { subscribeSalesCatalog, subscribeSaleDocument, getSalesCatalogSnapshot } from '@/lib/firestore/salesFirestore';
 import { reportHookFailure } from '@/lib/appEventLog';
+import { saleEnRangoHistorial } from '@/lib/saleHistorialFecha';
 
 // ============================================
 // HOOK DE VENTAS
@@ -209,7 +210,7 @@ export function useSalesByDateRange(inicio: Date, fin: Date) {
         ...s,
         productos: Array.isArray(s.productos) ? s.productos : [],
       }));
-      const filtered = normalized.filter((s) => s.createdAt >= inicio && s.createdAt < fin);
+      const filtered = normalized.filter((s) => saleEnRangoHistorial(s, inicio, fin));
       const total = filtered.reduce((sum, sale) => sum + (Number(sale.total) || 0), 0);
       setSales(filtered);
       setTotals({ total, count: filtered.length });

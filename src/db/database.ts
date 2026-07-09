@@ -50,6 +50,7 @@ import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
 import { sumCreditoTiendaEnPagosParcial } from '@/lib/clientCreditoTienda';
 import { saleItemsQtyByProductId } from '@/lib/posOpenSaleResume';
 import { normSkuBarcode } from '@/lib/productCatalogUniqueness';
+import { saleEnRangoHistorial, saleFechaHistorial } from '@/lib/saleHistorialFecha';
 
 const MOSTRADOR_CLIENT_ID = 'mostrador';
 
@@ -635,10 +636,10 @@ export async function getSales(limit: number = 100): Promise<Sale[]> {
 }
 
 export async function getSalesByDateRange(inicio: Date, fin: Date): Promise<Sale[]> {
-  return await db.sales
-    .where('createdAt')
-    .between(inicio, fin)
-    .toArray();
+  const all = await db.sales.toArray();
+  return all
+    .filter((s) => saleEnRangoHistorial(s, inicio, fin))
+    .sort((a, b) => saleFechaHistorial(b).getTime() - saleFechaHistorial(a).getTime());
 }
 
 /**
@@ -709,12 +710,14 @@ export async function createSale(
   const folio =
     sale.folio && String(sale.folio).trim().length > 0 ? sale.folio : await generateFolio('V');
 
+  const now = new Date();
   const id = await db.sales.add({
     ...sale,
     folio,
     id: crypto.randomUUID(),
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    ...(sale.estado !== 'pendiente' ? { completedAt: now } : {}),
+    createdAt: now,
+    updatedAt: now,
     syncStatus: 'pending',
   } as Sale);
 
@@ -877,19 +880,21 @@ export async function completePendingSale(
     }
   }
 
+  const now = new Date();
   await db.sales.update(id, {
     estado: 'completada',
     formaPago: patch.formaPago,
     metodoPago: patch.metodoPago,
     pagos: patch.pagos,
     cambio: patch.cambio,
+    completedAt: now,
     usuarioNombre:
       typeof patch.usuarioNombreCierre === 'string' && patch.usuarioNombreCierre.trim().length > 0
         ? patch.usuarioNombreCierre.trim()
         : sale.usuarioNombre,
     ...cajaPatch,
     ...clienteCierrePatch,
-    updatedAt: new Date(),
+    updatedAt: now,
     syncStatus: 'pending',
   });
 
