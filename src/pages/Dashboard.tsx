@@ -93,11 +93,22 @@ const LINE_DOT_STROKE = '#164e63';
 
 const WEEKDAY_SHORT_ES = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'] as const;
 
+/** Altura fija del plot: evita que Recharts colapse en viewports bajos con flex sin alto explícito. */
+const CHART_PLOT_HEIGHT_PX = 240;
+
 function saleEstadoEtiqueta(s: Sale): string {
   if (s.estado === 'pendiente') return 'Pendiente de cobro';
   if (s.estado === 'cancelada') return 'Cancelada';
   if (s.estado === 'facturada') return 'Facturada';
   return 'Completada';
+}
+
+function formatChartYAxisTick(value: number): string {
+  const n = Number(value) || 0;
+  if (Math.abs(n) >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+  if (Math.abs(n) >= 10_000) return `$${Math.round(n / 1_000)}k`;
+  if (Math.abs(n) >= 1_000) return `$${(n / 1_000).toFixed(1)}k`;
+  return `$${n}`;
 }
 
 function lineaDescripcion(item: SaleItem): string {
@@ -137,7 +148,7 @@ function StatCard({
       className={cn(
         'flex h-full min-h-0 flex-col border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 backdrop-blur-sm',
         'transition-colors duration-200 hover:border-slate-300/80 dark:border-slate-700/50',
-        'max-md:min-h-0 md:min-h-[7.75rem] lg:min-h-[8.5rem] xl:min-h-[9rem]'
+        'max-md:min-h-0 md:min-h-[6.25rem] lg:min-h-[7.5rem] xl:min-h-[8.5rem]'
       )}
     >
       <CardContent className="flex flex-1 flex-col p-2.5 sm:p-3 md:p-3 lg:p-4">
@@ -158,11 +169,11 @@ function StatCard({
         <p className="mt-1.5 text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100 max-md:leading-tight sm:mt-3 sm:text-2xl">
           {value}
         </p>
-        <p className="mt-0.5 text-[9px] text-slate-600 dark:text-slate-500 max-md:leading-tight sm:mt-1 sm:min-h-[1.125rem] sm:text-xs">
+        <p className="mt-0.5 line-clamp-2 text-[9px] text-slate-600 dark:text-slate-500 max-md:leading-tight sm:mt-1 sm:text-xs">
           {description}
         </p>
 
-        <div className="mt-auto min-h-0 pt-1 sm:min-h-[1.35rem] sm:pt-2">
+        <div className="mt-auto min-h-0 pt-1 sm:pt-1.5">
           <div
             className={cn(
               'flex items-center gap-1 text-[9px] sm:text-xs',
@@ -178,7 +189,7 @@ function StatCard({
             ) : trend === 'down' ? (
               <ArrowDownRight className="h-3 w-3 shrink-0" />
             ) : null}
-            <span className="leading-tight">{trendValue}</span>
+            <span className="line-clamp-2 leading-tight">{trendValue}</span>
           </div>
         </div>
       </CardContent>
@@ -673,7 +684,7 @@ export function Dashboard() {
   }, [kpiDrillDownDayStart]);
 
   return (
-    <div className="flex min-h-0 w-full min-w-0 max-w-[100vw] flex-1 flex-col gap-1 overflow-hidden sm:gap-2 md:gap-2.5 lg:gap-3">
+    <div className="flex min-h-0 w-full min-w-0 max-w-[100vw] flex-1 flex-col gap-1 overflow-x-hidden overflow-y-auto sm:gap-2 md:gap-2.5 lg:gap-3">
       <header className="flex shrink-0 flex-col gap-1.5 border-b border-slate-200/80 dark:border-slate-800/40 pb-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2 sm:pb-2">
         <div className="min-w-0">
           <h1 className="truncate text-base font-bold text-slate-900 dark:text-slate-100 sm:text-xl lg:text-2xl">Panel</h1>
@@ -774,9 +785,9 @@ export function Dashboard() {
         />
       </div>
 
-      {/* Móvil: mismas tarjetas que en escritorio, reparten el alto restante (sin scroll de página) */}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 md:hidden">
-        <div className="grid min-h-0 min-w-0 flex-1 grid-cols-2 gap-2">
+      {/* Móvil: stock + ventas recientes */}
+      <div className="flex min-h-0 min-w-0 flex-col gap-2 md:hidden">
+        <div className="grid min-h-0 min-w-0 grid-cols-2 gap-2">
           <Card
             role="button"
             tabIndex={0}
@@ -899,18 +910,17 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* Escritorio: gráfica + listas reparten el alto; en pantallas muy anchas van en columnas */}
+      {/* Escritorio / tablet: gráfica arriba y listas abajo; scroll vertical si el viewport es bajo */}
       <div
         className={cn(
-          'hidden min-h-0 min-w-0 flex-1 gap-2 overflow-hidden md:grid lg:gap-3',
-          'md:grid-cols-1 md:grid-rows-[minmax(0,1fr)_minmax(9rem,0.42fr)]',
-          '2xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] 2xl:grid-rows-1'
+          'hidden min-w-0 flex-col gap-2 md:flex lg:gap-3',
+          'xl:grid xl:min-h-0 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)] xl:items-start xl:gap-3'
         )}
       >
         <Card
           className={cn(
-            'flex min-h-0 min-w-0 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50',
-            'md:min-h-[10rem] md:max-h-[min(52vh,28rem)] 2xl:max-h-none'
+            'flex min-w-0 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50',
+            'shrink-0'
           )}
         >
           <CardHeader className="shrink-0 space-y-0 py-2">
@@ -919,35 +929,36 @@ export function Dashboard() {
                 <TrendingUp className="h-4 w-4 shrink-0 text-cyan-400" />
                 {chartCardTitle}
               </span>
-              <span className="text-[10px] font-normal text-slate-600 dark:text-slate-500 sm:text-xs">
+              <span className="line-clamp-2 text-[10px] font-normal text-slate-600 dark:text-slate-500 sm:text-xs xl:line-clamp-none">
                 {chartCardSubtitle}
               </span>
               {chartMonthPeak ? (
-                <span className="text-[10px] font-normal tabular-nums text-slate-600 dark:text-slate-400 sm:text-[11px]">
+                <span className="line-clamp-1 text-[10px] font-normal tabular-nums text-slate-600 dark:text-slate-400 sm:text-[11px] xl:line-clamp-none">
                   Mayor facturación en un día: {formatMoney(chartMonthPeak.total)} (
                   {chartMonthPeak.fullLabel})
                 </span>
               ) : null}
             </CardTitle>
           </CardHeader>
-          <CardContent className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-2 pt-0 sm:p-3">
+          <CardContent className="flex min-w-0 shrink-0 flex-col p-2 pt-0 sm:p-3">
             <div
               ref={chartPanelRef}
-              className="flex h-full min-h-[140px] w-full min-w-0 flex-1 flex-col"
+              className="w-full min-w-0"
+              style={{ height: CHART_PLOT_HEIGHT_PX }}
             >
                 {salesLoading ? (
-                  <div className="flex h-full min-h-[120px] items-center justify-center text-xs text-slate-600 dark:text-slate-500">
+                  <div className="flex h-full items-center justify-center text-xs text-slate-600 dark:text-slate-500">
                     Cargando ventas…
                   </div>
                 ) : (
-                  <ResponsiveContainer width="100%" height="100%" minHeight={180}>
+                  <ResponsiveContainer width="100%" height={CHART_PLOT_HEIGHT_PX}>
                     <LineChart
                       data={chartData}
                       margin={{
                         top: 12,
                         right: 8,
-                        left: 4,
-                        bottom: periodGranularity === 'month' ? 48 : 36,
+                        left: 0,
+                        bottom: periodGranularity === 'month' ? 44 : 32,
                       }}
                       onClick={handleChartPlotClick}
                     >
@@ -981,11 +992,11 @@ export function Dashboard() {
                         />
                       ) : null}
                       <YAxis
-                        width={48}
+                        width={44}
                         stroke="#64748b"
                         fontSize={10}
                         tickLine={false}
-                        tickFormatter={(value) => `$${value}`}
+                        tickFormatter={formatChartYAxisTick}
                       />
                       <Tooltip
                         contentStyle={{
@@ -1099,9 +1110,9 @@ export function Dashboard() {
 
         <div
           className={cn(
-            'grid min-h-0 min-w-0 gap-2 overflow-hidden lg:gap-3',
-            'grid-cols-2 grid-rows-1',
-            '2xl:grid-cols-1 2xl:grid-rows-[minmax(0,1fr)_minmax(0,1fr)]'
+            'grid min-w-0 shrink-0 gap-2 lg:gap-3',
+            'grid-cols-1 sm:grid-cols-2',
+            'xl:grid-cols-1 xl:grid-rows-[minmax(9rem,auto)_minmax(9rem,auto)]'
           )}
         >
           <Card
@@ -1110,7 +1121,7 @@ export function Dashboard() {
             onClick={goInventarioStock}
             onKeyDown={stockCardKeyHandler}
             className={cn(
-              'flex min-h-0 min-w-0 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50',
+              'flex min-h-[9rem] min-w-0 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50',
               'cursor-pointer transition-colors hover:border-amber-500/35 hover:bg-slate-100 dark:bg-slate-900/70',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40'
             )}
@@ -1124,7 +1135,7 @@ export function Dashboard() {
                 <ChevronRight className="h-4 w-4 shrink-0 text-slate-600 dark:text-slate-500" aria-hidden />
               </CardTitle>
             </CardHeader>
-            <CardContent className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain p-2 pt-0">
+            <CardContent className="min-h-0 min-w-0 max-h-[12rem] flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain p-2 pt-0">
                 {stockLoading ? (
                   <div className="space-y-2">
                     {[1, 2, 3].map((i) => (
@@ -1175,7 +1186,7 @@ export function Dashboard() {
               onClick={openTodaySalesDialog}
               onKeyDown={recentSalesCardKeyHandler}
               className={cn(
-                'flex min-h-0 min-w-0 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50',
+                'flex min-h-[9rem] min-w-0 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50',
                 'cursor-pointer transition-colors hover:border-cyan-500/35 hover:bg-slate-100 dark:bg-slate-900/70',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40'
               )}
@@ -1189,7 +1200,7 @@ export function Dashboard() {
                   <ChevronRight className="h-4 w-4 shrink-0 text-slate-600 dark:text-slate-500" aria-hidden />
                 </CardTitle>
               </CardHeader>
-              <CardContent className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain p-2 pt-0">
+              <CardContent className="min-h-0 min-w-0 max-h-[12rem] flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain p-2 pt-0">
                 {salesLoading ? (
                   <div className="space-y-2">
                     {[1, 2, 3].map((i) => (
