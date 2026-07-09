@@ -19,6 +19,8 @@ import {
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { thermalTicketCancelacionNotas } from '@/lib/saleCancelacion';
 import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
+import { nombreClienteVenta, nombreCajeroVenta } from '@/lib/saleTicketUi';
+import { saleFechaHistorial } from '@/lib/saleHistorialFecha';
 import { getProductCatalogSnapshot } from '@/lib/firestore/productsFirestore';
 import { labelFormaPagoCaja, resumenGruposMedioPagoCierre, totalesPorFormaPago } from '@/lib/cajaResumen';
 import { openCfdiLetterPrint } from '@/lib/openLetterPrint';
@@ -1026,7 +1028,7 @@ export function printThermalDailySalesReport(input: {
   ventas: Sale[];
 }): void {
   const list = [...input.ventas].sort(
-    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    (a, b) => saleFechaHistorial(a).getTime() - saleFechaHistorial(b).getTime()
   );
   const rows = list
     .map((v) => {
@@ -1036,7 +1038,10 @@ export function printThermalDailySalesReport(input: {
           : ' (cancel.)'
         : v.estado === 'pendiente' ? ' (abierta)'
         : '';
-      return `<tr><td>${escapeHtml(v.folio)}${st}</td><td class="right">${formatMoney(Number(v.total) || 0)}</td></tr>`;
+      const cliente = nombreClienteVenta(v);
+      const cajero = nombreCajeroVenta(v);
+      const meta = cajero ? `${cliente} · ${cajero}` : cliente;
+      return `<tr><td>${escapeHtml(v.folio)}${st}<br/><span style="font-size:${THERMAL_MIN_FONT_PX}px;">${escapeHtml(meta)}</span></td><td class="right">${formatMoney(Number(v.total) || 0)}</td></tr>`;
     })
     .join('');
   const bruto = list

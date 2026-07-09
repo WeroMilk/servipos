@@ -17,6 +17,7 @@ import {
   FileQuestion,
   FileText,
   Boxes,
+  Search,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -31,6 +32,7 @@ import {
 } from '@/components/ui/dialog';
 import {
   useSalesByDateRange,
+  useSales,
   useLowStockProducts,
   useEffectiveSucursalId,
   useOutgoingPendingTransferIds,
@@ -71,6 +73,11 @@ import { parrafosAyudaCancelacionVentaAdmin } from '@/lib/cancelacionVentaAdminU
 import { efectivoNetoEnCajaPorVenta } from '@/lib/cajaResumen';
 import { saleEnRangoHistorial, saleFechaHistorial } from '@/lib/saleHistorialFecha';
 import {
+  nombreClienteVenta,
+  nombreCajeroVenta,
+  saleMatchesTicketSearch,
+} from '@/lib/saleTicketUi';
+import {
   AlertDialog,
   AlertDialogCancel,
   AlertDialogContent,
@@ -91,13 +98,6 @@ function saleEstadoEtiqueta(s: Sale): string {
   if (s.estado === 'cancelada') return 'Cancelada';
   if (s.estado === 'facturada') return 'Facturada';
   return 'Completada';
-}
-
-function nombreClienteVenta(s: Sale): string {
-  const n = s.cliente?.nombre?.trim();
-  if (n) return n;
-  if (s.clienteId && s.clienteId !== 'mostrador') return s.clienteId;
-  return 'Mostrador';
 }
 
 function lineaDescripcion(item: SaleItem): string {
@@ -223,6 +223,8 @@ export function Dashboard() {
   const [todaySalesOpen, setTodaySalesOpen] = useState(false);
   const [reprintSaleDetail, setReprintSaleDetail] = useState<Sale | null>(null);
   const [reprintDayKey, setReprintDayKey] = useState(() => getMexicoDateKey());
+  const [reprintSearchMode, setReprintSearchMode] = useState(false);
+  const [reprintSearchQuery, setReprintSearchQuery] = useState('');
   const [saleCancelOpen, setSaleCancelOpen] = useState(false);
   const [saleToCancel, setSaleToCancel] = useState<Sale | null>(null);
   const [saleCancelBusy, setSaleCancelBusy] = useState(false);
@@ -289,6 +291,7 @@ export function Dashboard() {
     fetchBounds.fetchStart,
     fetchBounds.fetchEnd
   );
+  const { sales: ticketCatalogSales, loading: ticketCatalogLoading } = useSales(500);
 
   useEffect(() => {
     setKpiDrillDownDayStart(null);
@@ -372,6 +375,15 @@ export function Dashboard() {
       ),
     [reprintSalesRaw]
   );
+  const reprintSearchResults = useMemo(() => {
+    const q = reprintSearchQuery.trim();
+    if (!q) return [];
+    return ticketCatalogSales
+      .filter((s) => saleMatchesTicketSearch(s, q))
+      .sort((a, b) => saleFechaHistorial(b).getTime() - saleFechaHistorial(a).getTime());
+  }, [ticketCatalogSales, reprintSearchQuery]);
+  const reprintListSales = reprintSearchMode ? reprintSearchResults : reprintSalesSorted;
+  const reprintListLoading = reprintSearchMode ? ticketCatalogLoading : salesLoading;
   const reprintTodayKey = getMexicoDateKey();
   const reprintCanGoNext = reprintDayKey < reprintTodayKey;
 
@@ -381,6 +393,8 @@ export function Dashboard() {
     setTodaySalesOpen(false);
     setReprintSaleDetail(null);
     setReprintDayKey(getMexicoDateKey());
+    setReprintSearchMode(false);
+    setReprintSearchQuery('');
   }, []);
 
   const openTodaySalesDialog = useCallback(() => {
@@ -393,6 +407,8 @@ export function Dashboard() {
       dayKey = snap !== undefined ? snap : getMexicoDateKey();
     }
     setReprintSaleDetail(null);
+    setReprintSearchMode(false);
+    setReprintSearchQuery('');
     setReprintDayKey(dayKey);
     setTodaySalesOpen(true);
   }, [kpiDrillDownDayStart]);
@@ -1255,69 +1271,109 @@ export function Dashboard() {
                 <div className="min-w-0">
                   <DialogTitle>Ventas del día</DialogTitle>
                   <p className="mt-1 text-sm font-normal text-slate-600 dark:text-slate-500">
-                    Elegí la fecha y reimprimí el ticket de cada venta.
+                    {reprintSearchMode
+                      ? 'Buscá por folio, cliente, cajero o artículo en el historial reciente de tickets.'
+                      : 'Elegí la fecha y reimprimí el ticket de cada venta.'}
                   </p>
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <Label htmlFor="reprint-day" className="text-xs text-slate-600 dark:text-slate-400">
-                      Fecha
-                    </Label>
-                    <div className="flex min-w-0 flex-1 items-center gap-1 sm:flex-initial">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="h-9 w-9 shrink-0 border-slate-300 dark:border-slate-600"
-                        aria-label="Día anterior"
-                        onClick={() => setReprintDayKey((k) => shiftMexicoDateKey(k, -1))}
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </Button>
+                  {reprintSearchMode ? (
+                    <div className="relative mt-3 min-w-0">
+                      <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
                       <Input
-                        id="reprint-day"
-                        type="date"
-                        max={reprintTodayKey}
-                        value={reprintDayKey}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          if (v) setReprintDayKey(v);
-                        }}
-                        className="h-9 w-auto min-w-[10.5rem] flex-1 border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900 dark:[color-scheme:dark] sm:flex-initial"
+                        id="reprint-ticket-search"
+                        type="search"
+                        autoFocus
+                        placeholder="Folio, cliente, cajero…"
+                        value={reprintSearchQuery}
+                        onChange={(e) => setReprintSearchQuery(e.target.value)}
+                        className="h-9 w-full border-slate-300 bg-white pl-9 dark:border-slate-600 dark:bg-slate-900"
                       />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="h-9 w-9 shrink-0 border-slate-300 dark:border-slate-600"
-                        aria-label="Día siguiente"
-                        disabled={!reprintCanGoNext}
-                        onClick={() => setReprintDayKey((k) => shiftMexicoDateKey(k, 1))}
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </Button>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <Label htmlFor="reprint-day" className="text-xs text-slate-600 dark:text-slate-400">
+                        Fecha
+                      </Label>
+                      <div className="flex min-w-0 flex-1 items-center gap-1 sm:flex-initial">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-9 w-9 shrink-0 border-slate-300 dark:border-slate-600"
+                          aria-label="Día anterior"
+                          onClick={() => setReprintDayKey((k) => shiftMexicoDateKey(k, -1))}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        <Input
+                          id="reprint-day"
+                          type="date"
+                          max={reprintTodayKey}
+                          value={reprintDayKey}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (v) setReprintDayKey(v);
+                          }}
+                          className="h-9 w-auto min-w-[10.5rem] flex-1 border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900 dark:[color-scheme:dark] sm:flex-initial"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-9 w-9 shrink-0 border-slate-300 dark:border-slate-600"
+                          aria-label="Día siguiente"
+                          disabled={!reprintCanGoNext}
+                          onClick={() => setReprintDayKey((k) => shiftMexicoDateKey(k, 1))}
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="shrink-0 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:bg-slate-800 hover:text-cyan-400"
-                  title="Reporte de ventas del día (térmica)"
-                  aria-label="Imprimir reporte térmico del día seleccionado"
-                  disabled={reprintSalesSorted.length === 0}
-                  onClick={() => {
-                    printThermalDailySalesReport({
-                      fechaLabel: formatInAppTimezone(reprintDayStart, {
-                        dateStyle: 'full',
-                        timeStyle: 'short',
-                      }),
-                      sucursalId: effectiveSucursalId,
-                      ventas: reprintSalesSorted,
-                    });
-                  }}
-                >
-                  <Printer className="h-5 w-5" />
-                </Button>
+                <div className="flex shrink-0 items-center gap-1">
+                  <Button
+                    type="button"
+                    variant={reprintSearchMode ? 'secondary' : 'ghost'}
+                    size="icon"
+                    className={cn(
+                      'text-slate-600 dark:text-slate-400',
+                      reprintSearchMode
+                        ? 'bg-cyan-500/15 text-cyan-700 hover:bg-cyan-500/25 dark:text-cyan-300'
+                        : 'hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-cyan-400'
+                    )}
+                    title={reprintSearchMode ? 'Volver al listado por día' : 'Buscar en historial de tickets'}
+                    aria-label={reprintSearchMode ? 'Volver al listado por día' : 'Buscar en historial de tickets'}
+                    onClick={() => {
+                      setReprintSearchMode((on) => !on);
+                      setReprintSearchQuery('');
+                    }}
+                  >
+                    <Search className="h-5 w-5" />
+                  </Button>
+                  {!reprintSearchMode ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:bg-slate-800 hover:text-cyan-400"
+                      title="Reporte de ventas del día (térmica)"
+                      aria-label="Imprimir reporte térmico del día seleccionado"
+                      disabled={reprintSalesSorted.length === 0}
+                      onClick={() => {
+                        printThermalDailySalesReport({
+                          fechaLabel: formatInAppTimezone(reprintDayStart, {
+                            dateStyle: 'full',
+                            timeStyle: 'short',
+                          }),
+                          sucursalId: effectiveSucursalId,
+                          ventas: reprintSalesSorted,
+                        });
+                      }}
+                    >
+                      <Printer className="h-5 w-5" />
+                    </Button>
+                  ) : null}
+                </div>
               </div>
             )}
           </DialogHeader>
@@ -1454,20 +1510,27 @@ export function Dashboard() {
                   Reimprimir ticket
                 </Button>
               </div>
-            ) : salesLoading ? (
+            ) : reprintListLoading ? (
               <div className="space-y-2">
                 {[1, 2, 3, 4].map((i) => (
                   <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-200/80 dark:bg-slate-800/50" />
                 ))}
               </div>
-            ) : reprintSalesSorted.length === 0 ? (
+            ) : reprintSearchMode && !reprintSearchQuery.trim() ? (
+              <div className="flex flex-col items-center justify-center py-10 text-slate-600 dark:text-slate-500">
+                <Search className="mb-2 h-10 w-10 text-slate-600" />
+                <p className="text-sm">Escribí folio, cliente, cajero o artículo para buscar</p>
+              </div>
+            ) : reprintListSales.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-10 text-slate-600 dark:text-slate-500">
                 <Receipt className="mb-2 h-10 w-10 text-slate-600" />
-                <p className="text-sm">No hay ventas en esta fecha</p>
+                <p className="text-sm">
+                  {reprintSearchMode ? 'No hay tickets que coincidan con la búsqueda' : 'No hay ventas en esta fecha'}
+                </p>
               </div>
             ) : (
               <ul className="space-y-2">
-                {reprintSalesSorted.map((sale: Sale) => (
+                {reprintListSales.map((sale: Sale) => (
                   <li
                     key={sale.id}
                     className="flex flex-col gap-2 rounded-lg border border-slate-200/80 dark:border-slate-800/60 bg-slate-200 dark:bg-slate-800/25 p-3 sm:flex-row sm:items-center sm:justify-between"
@@ -1504,6 +1567,17 @@ export function Dashboard() {
                         ) : null}
                         {sale.formaPago === 'TTS' && outgoingTransferPendingIds.has(sale.id) ? (
                           <span className="ml-2 text-amber-400">· Traspaso pendiente recepción</span>
+                        ) : null}
+                      </p>
+                      <p className="mt-0.5 truncate text-xs text-slate-700 dark:text-slate-400">
+                        <span className="font-medium text-slate-800 dark:text-slate-300">
+                          {nombreClienteVenta(sale)}
+                        </span>
+                        {nombreCajeroVenta(sale) ? (
+                          <span className="text-slate-600 dark:text-slate-500">
+                            {' '}
+                            · Cajero: {nombreCajeroVenta(sale)}
+                          </span>
                         ) : null}
                       </p>
                       <p
