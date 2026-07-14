@@ -17,6 +17,7 @@ export type CajaSesionHookValue = {
     closedByUserId: string;
     closedByNombre: string;
     sesionId: string;
+    cierreTerminal: { total: number; folio: string };
   }) => Promise<void>;
   closeLocalOnly: () => void;
 };
@@ -108,6 +109,7 @@ export function useCajaSesion(options: { sucursalId: string | null | undefined }
       closedByUserId: string;
       closedByNombre: string;
       sesionId: string;
+      cierreTerminal: { total: number; folio: string };
     }) => {
       if (sucursalId) {
         await closeCajaSessionFirestore(sucursalId, input.sesionId, {
@@ -115,6 +117,7 @@ export function useCajaSesion(options: { sucursalId: string | null | undefined }
           notasCierre: input.notasCierre,
           closedByUserId: input.closedByUserId,
           closedByNombre: input.closedByNombre,
+          cierreTerminal: input.cierreTerminal,
         });
         return;
       }

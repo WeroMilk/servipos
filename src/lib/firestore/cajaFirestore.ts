@@ -1,9 +1,15 @@
-import type { CajaAporteEfectivo, CajaRetiroEfectivo, CajaSesion } from '@/types';
+import type {
+  CajaAporteEfectivo,
+  CajaCierreTerminal,
+  CajaRetiroEfectivo,
+  CajaSesion,
+} from '@/types';
 import {
   computeCajaEfectivoEsperado,
   efectivoEsperadoCajaSesion,
   filterVentasCompletadasSesion,
   resumenBrutoSesion,
+  resumenGruposMedioPagoCierre,
 } from '@/lib/cajaResumen';
 import { fetchSalesByCajaSesion } from '@/lib/firestore/salesFirestore';
 import { getSupabase } from '@/lib/supabaseClient';
@@ -46,6 +52,34 @@ function parseMovimientosEfectivoFirestore<T extends CajaRetiroEfectivo>(raw: un
   return out.length > 0 ? out : undefined;
 }
 
+function parseCierresTerminalFirestore(raw: unknown): CajaCierreTerminal[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  const out: CajaCierreTerminal[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== 'object') continue;
+    const o = row as Record<string, unknown>;
+    const id = String(o.id ?? '');
+    const total = Number(o.total);
+    const folio = String(o.folio ?? '').trim();
+    if (!id || !Number.isFinite(total) || total < 0) continue;
+    if (!/^\d{5}$/.test(folio)) continue;
+    out.push({
+      id,
+      total,
+      folio,
+      createdAt: firestoreTimestampToDate(o.createdAt),
+      usuarioId: String(o.usuarioId ?? ''),
+      usuarioNombre: String(o.usuarioNombre ?? ''),
+    });
+  }
+  return out.length > 0 ? out : undefined;
+}
+
+/** Folio del voucher de corte de terminal: exactamente 5 dígitos. */
+export function isValidCierreTerminalFolio(folio: string): boolean {
+  return /^\d{5}$/.test(folio.trim());
+}
+
 function mapCajaSesionDoc(sucursalId: string, sesionId: string, d: Record<string, unknown>): CajaSesion {
   return {
     id: sesionId,
@@ -66,6 +100,11 @@ function mapCajaSesionDoc(sucursalId: string, sesionId: string, d: Record<string
     conteoDeclarado: d.conteoDeclarado != null ? Number(d.conteoDeclarado) : undefined,
     efectivoEsperado: d.efectivoEsperado != null ? Number(d.efectivoEsperado) : undefined,
     diferencia: d.diferencia != null ? Number(d.diferencia) : undefined,
+    cierresTerminal: parseCierresTerminalFirestore(d.cierresTerminal),
+    conteoTarjetasDeclarado:
+      d.conteoTarjetasDeclarado != null ? Number(d.conteoTarjetasDeclarado) : undefined,
+    tarjetasEsperadas: d.tarjetasEsperadas != null ? Number(d.tarjetasEsperadas) : undefined,
+    diferenciaTarjetas: d.diferenciaTarjetas != null ? Number(d.diferenciaTarjetas) : undefined,
     notasCierre: d.notasCierre != null ? String(d.notasCierre) : undefined,
     ticketsCompletados: d.ticketsCompletados != null ? Number(d.ticketsCompletados) : undefined,
     totalVentasBruto: d.totalVentasBruto != null ? Number(d.totalVentasBruto) : undefined,
@@ -178,6 +217,11 @@ export async function openCajaSessionFirestore(
   return { id: o.id };
 }
 
+export type CloseCajaSessionTerminalInput = {
+  total: number;
+  folio: string;
+};
+
 export async function closeCajaSessionFirestore(
   sucursalId: string,
   sesionId: string,
@@ -186,14 +230,27 @@ export async function closeCajaSessionFirestore(
     notasCierre?: string;
     closedByUserId: string;
     closedByNombre: string;
+    /** Primer/corte de terminal obligatorio al cerrar. */
+    cierreTerminal: CloseCajaSessionTerminalInput;
   }
 ): Promise<void> {
   const sid = sesionId.trim();
   if (!sid) throw new Error('Sesión inválida');
 
+  const folio = input.cierreTerminal.folio.trim();
+  if (!isValidCierreTerminalFolio(folio)) {
+    throw new Error('Indique el folio del voucher de terminal (5 dígitos)');
+  }
+  const totalTerminal = Number(input.cierreTerminal.total);
+  if (!Number.isFinite(totalTerminal) || totalTerminal < 0) {
+    throw new Error('Indique el total del corte de terminal');
+  }
+
   const ventas = await fetchSalesByCajaSesion(sucursalId, sid);
-  const completadas = filterVentasCompletadasSesion(ventas);
   const { tickets, total } = resumenBrutoSesion(ventas);
+  const { tarjetas: tarjetasEsperadas } = resumenGruposMedioPagoCierre(
+    filterVentasCompletadasSesion(ventas)
+  );
 
   const { data: sRow } = await getSupabase()
     .from('caja_sesiones')
@@ -208,12 +265,18 @@ export async function closeCajaSessionFirestore(
   const fondo = Number(data.fondoInicial) || 0;
   const aportesTotal = Number(data.aportesEfectivoTotal) || 0;
   const retirosTotal = Number(data.retirosEfectivoTotal) || 0;
-  const { esperadoEnCaja: esperadoBruto } = computeCajaEfectivoEsperado(fondo, completadas);
+  const { esperadoEnCaja: esperadoBruto } = computeCajaEfectivoEsperado(
+    fondo,
+    filterVentasCompletadasSesion(ventas)
+  );
   const esperadoEnCaja = efectivoEsperadoCajaSesion(esperadoBruto, aportesTotal, retirosTotal);
   const declarado = Number(input.conteoDeclarado);
   if (!Number.isFinite(declarado) || declarado < 0) {
     throw new Error('Indique un conteo de efectivo válido');
   }
+
+  const totalTerminalRounded = Math.round(totalTerminal * 100) / 100;
+  const tarjetasEspRounded = Math.round(tarjetasEsperadas * 100) / 100;
 
   const supabase = getSupabase();
   const { error } = await supabase.rpc('rpc_close_caja_session', {
@@ -226,6 +289,9 @@ export async function closeCajaSessionFirestore(
     p_efectivo_esperado: esperadoEnCaja,
     p_tickets: tickets,
     p_total_ventas_bruto: total,
+    p_tarjetas_esperadas: tarjetasEspRounded,
+    p_cierre_terminal_total: totalTerminalRounded,
+    p_cierre_terminal_folio: folio,
   });
   if (error) throw new Error(error.message);
 }
@@ -303,6 +369,36 @@ export async function registrarAporteEfectivoFirestore(
     p_sesion_id: sesionId.trim(),
     p_monto: input.monto,
     p_notas: input.notas ?? null,
+    p_usuario_id: input.usuarioId,
+    p_usuario_nombre: input.usuarioNombre,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function registrarCierreTerminalFirestore(
+  sucursalId: string,
+  sesionId: string,
+  input: {
+    total: number;
+    folio: string;
+    usuarioId: string;
+    usuarioNombre: string;
+  }
+): Promise<void> {
+  const folio = input.folio.trim();
+  if (!isValidCierreTerminalFolio(folio)) {
+    throw new Error('Indique el folio del voucher de terminal (5 dígitos)');
+  }
+  const total = Number(input.total);
+  if (!Number.isFinite(total) || total < 0) {
+    throw new Error('Indique el total del corte de terminal');
+  }
+  const supabase = getSupabase();
+  const { error } = await supabase.rpc('rpc_registrar_cierre_terminal', {
+    p_sucursal_id: sucursalId,
+    p_sesion_id: sesionId.trim(),
+    p_total: Math.round(total * 100) / 100,
+    p_folio: folio,
     p_usuario_id: input.usuarioId,
     p_usuario_nombre: input.usuarioNombre,
   });

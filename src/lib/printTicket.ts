@@ -11,6 +11,7 @@ import { getClientById } from '@/db/database';
 import {
   FORMAS_PAGO,
   type CajaAporteEfectivo,
+  type CajaCierreTerminal,
   type CajaRetiroEfectivo,
   type Client,
   type Quotation,
@@ -1260,6 +1261,10 @@ export function printThermalCajaCierre(input: {
   retirosEfectivoTotal?: number;
   /** Detalle de cada retiro (impresión / cuadre). */
   retirosEfectivo?: CajaRetiroEfectivo[];
+  tarjetasEsperadas?: number;
+  conteoTarjetasDeclarado?: number;
+  diferenciaTarjetas?: number;
+  cierresTerminal?: CajaCierreTerminal[];
   /** `arqueo_previo`: sin conteo físico ni diferencia; título distinto. */
   ticketKind?: 'cierre' | 'arqueo_previo';
 }): void {
@@ -1311,6 +1316,42 @@ export function printThermalCajaCierre(input: {
     return `<div class="ticket-section-title">Detalle retiros</div>${rows}`;
   })();
 
+  const tarjetasEsperadasPrint =
+    input.tarjetasEsperadas != null ? Number(input.tarjetasEsperadas) : grupos.tarjetas;
+  const bloqueTerminal = (() => {
+    if (esArqueo) return '';
+    const list = input.cierresTerminal;
+    const declarado =
+      input.conteoTarjetasDeclarado != null
+        ? Number(input.conteoTarjetasDeclarado)
+        : list?.length
+          ? Math.round(list.reduce((s, c) => s + (Number(c.total) || 0), 0) * 100) / 100
+          : null;
+    if (declarado == null && !list?.length) return '';
+    const dif =
+      input.diferenciaTarjetas != null
+        ? Number(input.diferenciaTarjetas)
+        : declarado != null
+          ? Math.round((declarado - tarjetasEsperadasPrint) * 100) / 100
+          : null;
+    const sorted = list?.length
+      ? [...list].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+      : [];
+    const rows = sorted
+      .map(
+        (c) =>
+          `<div>Folio ${escapeHtml(c.folio)}: ${formatMoney(Number(c.total) || 0)}</div>`
+      )
+      .join('');
+    return `<div class="tot" style="border-top:none;padding-top:4px;">
+    <div><strong>Cierres de terminal</strong></div>
+    <div>Tarjetas POS: ${formatMoney(tarjetasEsperadasPrint)}</div>
+    ${declarado != null ? `<div>Total corte declarado: ${formatMoney(declarado)}</div>` : ''}
+    ${dif != null ? `<div>Diferencia tarjetas: ${formatMoney(dif)}</div>` : ''}
+    ${rows ? `<div class="ticket-section-title">Vouchers</div>${rows}` : ''}
+  </div>`;
+  })();
+
   void openThermalPrintDocument({
     heading: titulo,
     pageTitle: titulo,
@@ -1343,6 +1384,7 @@ export function printThermalCajaCierre(input: {
     <div style="font-size:11px;"><strong>${formatMoney(input.efectivoEsperado)}</strong></div>
     ${bloqueConteo}
   </div>
+  ${bloqueTerminal}
   ${pie}`,
   });
 }

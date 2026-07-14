@@ -21,9 +21,11 @@ import {
   fetchSalesByCajaSesion,
 } from '@/lib/firestore/salesFirestore';
 import {
+  isValidCierreTerminalFolio,
   registrarAporteEfectivoFirestore,
   registrarRetiroEfectivoFirestore,
 } from '@/lib/firestore/cajaFirestore';
+import type { CajaCierreTerminal, Sale } from '@/types';
 import {
   computeCajaEfectivoEsperado,
   efectivoEsperadoCajaSesion,
@@ -32,7 +34,6 @@ import {
   resumenBrutoSesion,
   resumenGruposMedioPagoCierre,
 } from '@/lib/cajaResumen';
-import type { Sale } from '@/types';
 import { useCajaLocalStore } from '@/stores/cajaLocalStore';
 import type { ModificarSaldoKind } from '@/stores/cajaPosHeaderStore';
 import { isRemotePermissionDenied, SUPABASE_PERMISSION_HINT } from '@/lib/remotePermissionError';
@@ -103,6 +104,8 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
   const [saldoKind, setSaldoKind] = useState<ModificarSaldoKind>('retiro');
   const [fondoInput, setFondoInput] = useState('0');
   const [conteoInput, setConteoInput] = useState('');
+  const [tarjetasCorteInput, setTarjetasCorteInput] = useState('');
+  const [folioTerminalInput, setFolioTerminalInput] = useState('');
   const [notasCierre, setNotasCierre] = useState('');
   const [saldoMontoInput, setSaldoMontoInput] = useState('');
   const [saldoNotas, setSaldoNotas] = useState('');
@@ -429,17 +432,47 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
       addToast({ type: 'error', message: 'Ingrese el efectivo contado en caja', logToAppEvents: true });
       return;
     }
+    const totalTerminal = parseFloat(tarjetasCorteInput.replace(',', '.'));
+    if (!Number.isFinite(totalTerminal) || totalTerminal < 0) {
+      addToast({
+        type: 'error',
+        message: 'Ingrese el total del corte de terminal (tarjeta)',
+        logToAppEvents: true,
+      });
+      return;
+    }
+    const folio = folioTerminalInput.trim();
+    if (!isValidCierreTerminalFolio(folio)) {
+      addToast({
+        type: 'error',
+        message: 'Indique el folio del voucher de terminal (5 dígitos)',
+        logToAppEvents: true,
+      });
+      return;
+    }
+    const totalTerminalRounded = Math.round(totalTerminal * 100) / 100;
+    const tarjetasPos = gruposPagoPreview.tarjetas;
+    const cierreParaPrint: CajaCierreTerminal = {
+      id: 'close',
+      total: totalTerminalRounded,
+      folio,
+      createdAt: new Date(),
+      usuarioId: userId,
+      usuarioNombre: userNombre,
+    };
     setBusy(true);
     try {
       let ventasPrint = ventasSesion;
+      const closePayload = {
+        sesionId: activa.id,
+        conteoDeclarado: declarado,
+        notasCierre: notasCierre.trim() || undefined,
+        closedByUserId: userId,
+        closedByNombre: userNombre,
+        cierreTerminal: { total: totalTerminalRounded, folio },
+      };
       if (isCloud && effectiveSucursalId) {
-        await closeCaja({
-          sesionId: activa.id,
-          conteoDeclarado: declarado,
-          notasCierre: notasCierre.trim() || undefined,
-          closedByUserId: userId,
-          closedByNombre: userNombre,
-        });
+        await closeCaja(closePayload);
         const ventasBySid = await fetchSalesByCajaSesion(effectiveSucursalId, activa.id);
         const ventasFallbackWindow = collectSalesForCajaSesion(sales, activa);
         const seen = new Set<string>();
@@ -449,13 +482,7 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
           return true;
         });
       } else {
-        await closeCaja({
-          sesionId: activa.id,
-          conteoDeclarado: declarado,
-          notasCierre: notasCierre.trim() || undefined,
-          closedByUserId: userId,
-          closedByNombre: userNombre,
-        });
+        await closeCaja(closePayload);
       }
 
       const completadas = filterVentasCompletadasSesion(ventasPrint);
@@ -465,6 +492,10 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
       const esperadoEnCaja = efectivoEsperadoCajaSesion(esperadoBruto, aportesTotal, retirosTotal);
       const { tickets, total } = resumenBrutoSesion(ventasPrint);
       const diferencia = Math.round((declarado - esperadoEnCaja) * 100) / 100;
+      const previos = activa.cierresTerminal ?? [];
+      const cierresPrint = [...previos, cierreParaPrint];
+      const conteoTarjetas =
+        Math.round(cierresPrint.reduce((s, c) => s + (Number(c.total) || 0), 0) * 100) / 100;
 
       printThermalCajaCierre({
         fechaLabel: formatInAppTimezone(new Date(), { dateStyle: 'full', timeStyle: 'short' }),
@@ -484,6 +515,10 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
         aportesEfectivo: activa.aportesEfectivo?.length ? activa.aportesEfectivo : undefined,
         retirosEfectivoTotal: retirosTotal > 0.005 ? retirosTotal : undefined,
         retirosEfectivo: activa.retirosEfectivo?.length ? activa.retirosEfectivo : undefined,
+        tarjetasEsperadas: tarjetasPos,
+        conteoTarjetasDeclarado: conteoTarjetas,
+        diferenciaTarjetas: Math.round((conteoTarjetas - tarjetasPos) * 100) / 100,
+        cierresTerminal: cierresPrint,
         ticketKind: 'cierre',
       });
 
@@ -500,6 +535,8 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
       });
       setCloseDialog(false);
       setConteoInput('');
+      setTarjetasCorteInput('');
+      setFolioTerminalInput('');
       setNotasCierre('');
     } catch (e: unknown) {
       addToast({
@@ -661,13 +698,13 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
       </Dialog>
 
       <Dialog open={closeDialog} onOpenChange={setCloseDialog}>
-        <DialogContent className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:max-w-md">
+        <DialogContent className="max-h-[min(90dvh,40rem)] overflow-y-auto border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Cerrar caja</DialogTitle>
             <DialogDescription className="text-left text-slate-600 dark:text-slate-400">
               Efectivo esperado: fondo inicial + efectivo neto de ventas, más aportes y menos retiros de la sesión
-              si los hubo. Total tarjetas para cuadrar con terminal o vouchers. Compare el conteo físico con el
-              esperado. Al confirmar se imprime el comprobante.
+              si los hubo. Registre el total del corte de terminal y el folio del voucher. Al confirmar se imprime el
+              comprobante.
             </DialogDescription>
           </DialogHeader>
           {activa && previewCierre ? (
@@ -712,6 +749,59 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
                   placeholder={String(previewCierre.esperadoEnCaja)}
                   className="border-slate-300 dark:border-slate-700 dark:bg-slate-800"
                 />
+              </div>
+              <div className="space-y-2 rounded-lg border border-cyan-500/40 bg-cyan-500/[0.08] p-3 dark:border-cyan-500/30 dark:bg-cyan-950/30">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-cyan-900 dark:text-cyan-300">
+                  Cierre de terminal
+                </p>
+                <p className="text-xs text-cyan-900/85 dark:text-cyan-200/80">
+                  POS tarjetas: {formatMoney(gruposPagoPreview.tarjetas)}. Capture el total real del corte y el folio
+                  de 5 dígitos del voucher.
+                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="cierre-terminal-total">Total del corte de terminal</Label>
+                  <Input
+                    id="cierre-terminal-total"
+                    type="text"
+                    inputMode="decimal"
+                    value={tarjetasCorteInput}
+                    onChange={(e) => setTarjetasCorteInput(e.target.value)}
+                    placeholder={String(gruposPagoPreview.tarjetas)}
+                    className="border-cyan-600/30 dark:border-cyan-500/40 dark:bg-slate-800"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cierre-terminal-folio">Folio del voucher (5 dígitos)</Label>
+                  <Input
+                    id="cierre-terminal-folio"
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={5}
+                    value={folioTerminalInput}
+                    onChange={(e) => setFolioTerminalInput(e.target.value.replace(/\D/g, '').slice(0, 5))}
+                    placeholder="00000"
+                    className="border-cyan-600/30 font-mono tracking-widest dark:border-cyan-500/40 dark:bg-slate-800"
+                  />
+                </div>
+                {(() => {
+                  const t = parseFloat(tarjetasCorteInput.replace(',', '.'));
+                  if (!Number.isFinite(t) || tarjetasCorteInput.trim() === '') return null;
+                  const dif = Math.round((t - gruposPagoPreview.tarjetas) * 100) / 100;
+                  return (
+                    <p
+                      className={cn(
+                        'text-xs font-medium tabular-nums',
+                        dif > 0.005
+                          ? 'text-emerald-700 dark:text-emerald-400'
+                          : dif < -0.005
+                            ? 'text-red-600 dark:text-red-400'
+                            : 'text-cyan-900 dark:text-cyan-200'
+                      )}
+                    >
+                      Diferencia vs POS: {formatMoney(dif)}
+                    </p>
+                  );
+                })()}
               </div>
               <div className="space-y-2">
                 <Label>Notas (opcional)</Label>

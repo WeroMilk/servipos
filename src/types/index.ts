@@ -24,6 +24,11 @@ export type Permission =
   | 'cotizaciones:crear'
   | 'facturas:ver'
   | 'facturas:crear'
+  | 'facturas:timbrar'
+  | 'facturas:cancelar'
+  | 'nominas:ver'
+  | 'nominas:crear'
+  | 'nominas:timbrar'
   | 'reportes:ver'
   | 'configuracion:ver'
   | 'configuracion:editar'
@@ -460,6 +465,17 @@ export interface CajaRetiroEfectivo {
 /** Ingreso de efectivo a caja durante la sesión (no venta): fondeo, cambio extra, etc. */
 export type CajaAporteEfectivo = CajaRetiroEfectivo;
 
+/** Corte de terminal bancaria (voucher): total del corte + folio de 5 dígitos. */
+export interface CajaCierreTerminal {
+  id: string;
+  total: number;
+  /** Folio del voucher del corte (exactamente 5 dígitos). */
+  folio: string;
+  createdAt: Date;
+  usuarioId: string;
+  usuarioNombre: string;
+}
+
 /** Registro de apertura/cierre de caja por sucursal (`public.caja_sesiones`). */
 export interface CajaSesion {
   id: string;
@@ -484,6 +500,14 @@ export interface CajaSesion {
   efectivoEsperado?: number;
   /** Declarado − esperado (positivo = sobrante). */
   diferencia?: number;
+  /** Cortes de terminal registrados (total + folio del voucher). */
+  cierresTerminal?: CajaCierreTerminal[];
+  /** Suma de totales de `cierresTerminal` (tarjeta declarada / corte real). */
+  conteoTarjetasDeclarado?: number;
+  /** Total POS de cobros con tarjeta (04/28/29) al momento del cierre. */
+  tarjetasEsperadas?: number;
+  /** conteoTarjetasDeclarado − tarjetasEsperadas. */
+  diferenciaTarjetas?: number;
   notasCierre?: string;
   ticketsCompletados?: number;
   totalVentasBruto?: number;
@@ -601,9 +625,42 @@ export type QuotationStatus = 'pendiente' | 'aceptada' | 'rechazada' | 'vencida'
 // ============================================
 // FACTURAS CFDI 4.0
 // ============================================
+/** Complemento de pago (CFDI tipo P) ligado a una factura PPD. */
+export interface InvoicePaymentComplement {
+  id: string;
+  facturamaId: string;
+  uuid: string;
+  fechaPago: string;
+  formaPago: string;
+  monto: number;
+  saldoAnterior: number;
+  numeroParcialidad: number;
+  fechaTimbrado?: string;
+  xml?: string;
+  selloDigital?: string;
+  estado: 'timbrada' | 'cancelada';
+}
+
+/** Nota de crédito / CFDI relacionado emitido desde una factura. */
+export interface InvoiceRelatedCfdi {
+  id: string;
+  facturamaId: string;
+  uuid: string;
+  tipo: 'E' | 'P' | 'I';
+  serie?: string;
+  folio?: string;
+  total?: number;
+  fechaTimbrado?: string;
+  xml?: string;
+  selloDigital?: string;
+  estado: 'timbrada' | 'cancelada';
+}
+
 export interface Invoice {
   id: string;
   uuid?: string; // UUID asignado por el PAC al timbrar
+  /** Id interno del CFDI en Facturama (API Web). */
+  facturamaId?: string;
   folio: string;
   serie: string;
   ventaId?: string;
@@ -629,6 +686,12 @@ export interface Invoice {
   pdfUrl?: string;
   motivoCancelacion?: string;
   fechaCancelacion?: Date;
+  /** Acuse de cancelación (XML o base64) devuelto por el PAC. */
+  acuseCancelacion?: string;
+  /** Complementos de pago emitidos (PPD). */
+  complementosPago?: InvoicePaymentComplement[];
+  /** Notas de crédito u otros CFDI relacionados. */
+  cfdisRelacionados?: InvoiceRelatedCfdi[];
   /** Generada en modo prueba: sin validez fiscal; no consume folio SAT configurado. */
   esPrueba?: boolean;
   /** Aislamiento por tienda en datos locales (Dexie). */
@@ -636,6 +699,84 @@ export interface Invoice {
   createdAt: Date;
   updatedAt: Date;
   syncStatus: SyncStatus;
+}
+
+/** Empleado para CFDI de nómina (catálogo RH mínimo). */
+export interface Employee {
+  id: string;
+  numeroEmpleado: string;
+  nombre: string;
+  rfc: string;
+  curp: string;
+  nss?: string;
+  tipoContrato: string;
+  tipoJornada?: string;
+  tipoRegimen: string;
+  puesto: string;
+  riesgoPuesto?: string;
+  periodicidadPago: string;
+  fechaInicioRelLaboral: string;
+  departamento?: string;
+  claveEntFed: string;
+  codigoPostal: string;
+  regimenFiscalReceptor?: string;
+  banco?: string;
+  cuentaBancaria?: string;
+  salarioBaseCotApor?: number;
+  salarioDiarioIntegrado?: number;
+  email?: string;
+  activo: boolean;
+  sucursalId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type NominaReciboStatus = 'borrador' | 'timbrada' | 'cancelada' | 'error';
+
+export interface NominaConceptoLinea {
+  tipo: string;
+  clave: string;
+  concepto: string;
+  importeGravado?: number;
+  importeExento?: number;
+  importe?: number;
+  subsidioCausado?: number;
+}
+
+/** Recibo de nómina electrónica (CFDI tipo N). */
+export interface NominaRecibo {
+  id: string;
+  empleadoId: string;
+  empleado?: Employee;
+  serie: string;
+  folio: string;
+  tipoNomina: 'O' | 'E';
+  fechaPago: string;
+  fechaInicialPago: string;
+  fechaFinalPago: string;
+  numDiasPagados: number;
+  formaPago: string;
+  lugarExpedicion: string;
+  percepciones: NominaConceptoLinea[];
+  deducciones: NominaConceptoLinea[];
+  otrosPagos: NominaConceptoLinea[];
+  totalPercepciones: number;
+  totalDeducciones: number;
+  totalOtrosPagos: number;
+  neto: number;
+  estado: NominaReciboStatus;
+  uuid?: string;
+  facturamaId?: string;
+  fechaTimbrado?: Date;
+  selloDigital?: string;
+  xml?: string;
+  motivoCancelacion?: string;
+  fechaCancelacion?: Date;
+  acuseCancelacion?: string;
+  esPrueba?: boolean;
+  sucursalId?: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface InvoiceItem {

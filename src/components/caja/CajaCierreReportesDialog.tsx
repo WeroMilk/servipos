@@ -8,10 +8,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { cn, formatMoney } from '@/lib/utils';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import type { CajaSesion, Sale } from '@/types';
-import { listCajaSesionesFirestore } from '@/lib/firestore/cajaFirestore';
+import {
+  isValidCierreTerminalFolio,
+  listCajaSesionesFirestore,
+  registrarCierreTerminalFirestore,
+} from '@/lib/firestore/cajaFirestore';
 import { fetchSalesByCajaSesion } from '@/lib/firestore/salesFirestore';
 import {
   computeCajaEfectivoEsperado,
@@ -21,6 +27,8 @@ import {
   type SesionCierreMetrics,
 } from '@/lib/cajaResumen';
 import { printThermalCajaCierre } from '@/lib/printTicket';
+import { useAuthStore } from '@/stores';
+import { useAppStore } from '@/stores';
 
 /** Por encima del menú móvil (Sheet z-[181]) y del Dialog por defecto (z-[121]). */
 const CAJA_CIERRE_DIALOG_OVERLAY_Z = '!z-[240] bg-black/60';
@@ -103,13 +111,21 @@ function SesionDetallePanel({
   ventas,
   sucursalId,
   sucursalLabel,
+  onSesionUpdated,
 }: {
   sesion: CajaSesion;
   metrics: SesionCierreMetrics;
   ventas: Sale[];
   sucursalId: string;
   sucursalLabel?: string;
+  onSesionUpdated?: () => void;
 }) {
+  const { user } = useAuthStore();
+  const { addToast } = useAppStore();
+  const [terminalTotalInput, setTerminalTotalInput] = useState('');
+  const [terminalFolioInput, setTerminalFolioInput] = useState('');
+  const [terminalBusy, setTerminalBusy] = useState(false);
+
   const completadas = metrics.tickets;
   const { esperadoEnCaja: esperadoBruto } = computeCajaEfectivoEsperado(
     sesion.fondoInicial,
@@ -124,6 +140,20 @@ function SesionDetallePanel({
   const esperadoStored = sesion.efectivoEsperado;
   const diferencia = sesion.diferencia;
   const declarado = sesion.conteoDeclarado;
+
+  const cierresTerminal = sesion.cierresTerminal ?? [];
+  const sumaCierres = Math.round(
+    cierresTerminal.reduce((s, c) => s + (Number(c.total) || 0), 0) * 100
+  ) / 100;
+  const tarjetasPos = metrics.tarjetas;
+  const tarjetasEsperadasShow = sesion.tarjetasEsperadas ?? tarjetasPos;
+  const conteoTarjetasShow = sesion.conteoTarjetasDeclarado ?? (cierresTerminal.length ? sumaCierres : null);
+  const diferenciaTarjetasShow =
+    sesion.diferenciaTarjetas != null
+      ? sesion.diferenciaTarjetas
+      : conteoTarjetasShow != null
+        ? Math.round((conteoTarjetasShow - tarjetasEsperadasShow) * 100) / 100
+        : null;
 
   const handlePrint = () => {
     if (sesion.estado !== 'cerrada' || declarado == null || esperadoStored == null || diferencia == null) {
@@ -149,7 +179,51 @@ function SesionDetallePanel({
       aportesEfectivo: sesion.aportesEfectivo,
       retirosEfectivoTotal: sesion.retirosEfectivoTotal,
       retirosEfectivo: sesion.retirosEfectivo,
+      tarjetasEsperadas: tarjetasEsperadasShow,
+      conteoTarjetasDeclarado: conteoTarjetasShow ?? undefined,
+      diferenciaTarjetas: diferenciaTarjetasShow ?? undefined,
+      cierresTerminal: cierresTerminal.length ? cierresTerminal : undefined,
     });
+  };
+
+  const handleAddCierreTerminal = async () => {
+    const total = parseFloat(terminalTotalInput.replace(',', '.'));
+    if (!Number.isFinite(total) || total < 0) {
+      addToast({ type: 'error', message: 'Indique el total del corte de terminal', logToAppEvents: true });
+      return;
+    }
+    const folio = terminalFolioInput.trim();
+    if (!isValidCierreTerminalFolio(folio)) {
+      addToast({
+        type: 'error',
+        message: 'Indique el folio del voucher de terminal (5 dígitos)',
+        logToAppEvents: true,
+      });
+      return;
+    }
+    const userId = user?.id ?? 'system';
+    const userNombre = user?.name?.trim() || user?.username?.trim() || user?.email?.trim() || 'Usuario';
+    setTerminalBusy(true);
+    try {
+      await registrarCierreTerminalFirestore(sucursalId, sesion.id, {
+        total: Math.round(total * 100) / 100,
+        folio,
+        usuarioId: userId,
+        usuarioNombre: userNombre,
+      });
+      setTerminalTotalInput('');
+      setTerminalFolioInput('');
+      addToast({ type: 'success', message: 'Cierre de terminal registrado', logToAppEvents: true });
+      onSesionUpdated?.();
+    } catch (e: unknown) {
+      addToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'No se pudo registrar el cierre de terminal',
+        logToAppEvents: true,
+      });
+    } finally {
+      setTerminalBusy(false);
+    }
   };
 
   return (
@@ -236,6 +310,106 @@ function SesionDetallePanel({
             ))}
           </ul>
         ) : null}
+      </div>
+
+      <div>
+        <SectionTitle>Cierres de terminal</SectionTitle>
+        <div className="grid gap-1.5 sm:grid-cols-3">
+          <MetricRow label="Tarjetas POS" value={formatMoney(tarjetasEsperadasShow)} />
+          <MetricRow
+            label="Total cortes"
+            value={conteoTarjetasShow != null ? formatMoney(conteoTarjetasShow) : '—'}
+          />
+          <MetricRow
+            label="Diferencia"
+            value={diferenciaTarjetasShow != null ? formatMoney(diferenciaTarjetasShow) : '—'}
+            valueClassName={
+              diferenciaTarjetasShow != null
+                ? diferenciaTarjetasShow > 0.005
+                  ? 'text-emerald-700 dark:text-emerald-400'
+                  : diferenciaTarjetasShow < -0.005
+                    ? 'text-red-600 dark:text-red-400'
+                    : undefined
+                : undefined
+            }
+            hint="Corte − POS"
+          />
+        </div>
+        {cierresTerminal.length > 0 ? (
+          <ul className="mt-1.5 space-y-1 rounded-md border border-cyan-500/30 bg-cyan-500/[0.06] px-2 py-1.5 text-[10px] dark:border-cyan-500/25 dark:bg-cyan-950/30">
+            {[...cierresTerminal]
+              .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+              .map((c) => (
+                <li
+                  key={c.id}
+                  className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 border-b border-cyan-800/10 pb-1 last:border-0 last:pb-0 dark:border-cyan-400/10"
+                >
+                  <span>
+                    <span className="font-mono font-semibold tracking-wider text-cyan-950 dark:text-cyan-50">
+                      Folio {c.folio}
+                    </span>
+                    <span className="text-cyan-900/80 dark:text-cyan-200/80">
+                      {' '}
+                      · {formatInAppTimezone(c.createdAt, { dateStyle: 'short', timeStyle: 'short' })} ·{' '}
+                      {c.usuarioNombre}
+                    </span>
+                  </span>
+                  <span className="shrink-0 tabular-nums font-semibold text-cyan-950 dark:text-cyan-50">
+                    {formatMoney(c.total)}
+                  </span>
+                </li>
+              ))}
+          </ul>
+        ) : (
+          <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-500">
+            Sin cierres de terminal registrados en este turno.
+          </p>
+        )}
+        <div className="mt-2 space-y-1.5 rounded-md border border-cyan-500/35 bg-white/70 p-2 dark:border-cyan-500/25 dark:bg-slate-900/40">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-cyan-900 dark:text-cyan-300">
+            Agregar cierre de terminal
+          </p>
+          <div className="grid gap-1.5 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label htmlFor={`term-total-${sesion.id}`} className="text-[10px]">
+                Total del corte
+              </Label>
+              <Input
+                id={`term-total-${sesion.id}`}
+                type="text"
+                inputMode="decimal"
+                value={terminalTotalInput}
+                onChange={(e) => setTerminalTotalInput(e.target.value)}
+                placeholder="0.00"
+                className="h-8 border-cyan-600/25 text-xs dark:border-cyan-500/30 dark:bg-slate-800"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor={`term-folio-${sesion.id}`} className="text-[10px]">
+                Folio (5 dígitos)
+              </Label>
+              <Input
+                id={`term-folio-${sesion.id}`}
+                type="text"
+                inputMode="numeric"
+                maxLength={5}
+                value={terminalFolioInput}
+                onChange={(e) => setTerminalFolioInput(e.target.value.replace(/\D/g, '').slice(0, 5))}
+                placeholder="00000"
+                className="h-8 border-cyan-600/25 font-mono tracking-widest text-xs dark:border-cyan-500/30 dark:bg-slate-800"
+              />
+            </div>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            disabled={terminalBusy}
+            className="h-8 text-xs"
+            onClick={() => void handleAddCierreTerminal()}
+          >
+            {terminalBusy ? 'Guardando…' : 'Registrar cierre'}
+          </Button>
+        </div>
       </div>
         </div>
 
@@ -444,7 +618,8 @@ export function CajaCierreReportesDialog({
               Reportes de cierre de caja
             </DialogTitle>
             <DialogDescription className="text-left text-slate-600 dark:text-slate-400">
-              Historial de turnos: apertura, cierre, ventas por medio de pago, arqueo y saldos pendientes.
+              Historial de turnos: apertura, cierre, ventas por medio de pago, cierres de terminal, arqueo y saldos
+              pendientes.
               {sucursalLabel ? ` Tienda: ${sucursalLabel}.` : null}
             </DialogDescription>
           </div>
@@ -548,6 +723,7 @@ export function CajaCierreReportesDialog({
                   ventas={ventasDetalle}
                   sucursalId={sucursalId}
                   sucursalLabel={sucursalLabel}
+                  onSesionUpdated={() => void loadList()}
                 />
               ) : (
                 <p className="py-8 text-center text-sm text-red-600 dark:text-red-400">
