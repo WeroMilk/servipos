@@ -53,6 +53,14 @@ function mapInvoice(sucursalId: string, id: string, doc: Record<string, unknown>
     pdfUrl: typeof doc.pdfUrl === 'string' ? doc.pdfUrl : undefined,
     motivoCancelacion: typeof doc.motivoCancelacion === 'string' ? doc.motivoCancelacion : undefined,
     fechaCancelacion: doc.fechaCancelacion ? tsToDate(doc.fechaCancelacion) : undefined,
+    facturamaId: typeof doc.facturamaId === 'string' ? doc.facturamaId : undefined,
+    acuseCancelacion: typeof doc.acuseCancelacion === 'string' ? doc.acuseCancelacion : undefined,
+    complementosPago: Array.isArray(doc.complementosPago)
+      ? (doc.complementosPago as Invoice['complementosPago'])
+      : undefined,
+    cfdisRelacionados: Array.isArray(doc.cfdisRelacionados)
+      ? (doc.cfdisRelacionados as Invoice['cfdisRelacionados'])
+      : undefined,
     esPrueba: doc.esPrueba === true,
     sucursalId,
     createdAt: tsToDate(doc.createdAt),
