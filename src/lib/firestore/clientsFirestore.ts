@@ -39,6 +39,14 @@ function parseAbonosHistorialDoc(raw: unknown): ClientAbonoHistorialEntry[] | un
       saldoAnterior:
         Number.isFinite(saldoAnt) ? Math.max(0, Math.round(saldoAnt * 100) / 100) : 0,
       saldoNuevo: Number.isFinite(saldoNvo) ? Math.max(0, Math.round(saldoNvo * 100) / 100) : 0,
+      formaPago:
+        o.formaPago != null && String(o.formaPago).trim()
+          ? (String(o.formaPago).trim() as ClientAbonoHistorialEntry['formaPago'])
+          : undefined,
+      cajaSesionId:
+        o.cajaSesionId != null && String(o.cajaSesionId).trim()
+          ? String(o.cajaSesionId).trim()
+          : undefined,
       usuarioNombre: usuarioNombreRaw || undefined,
     });
   }
@@ -375,6 +383,8 @@ export async function updateClientFirestore(
           monto: Math.max(0, Math.round(Number(e.monto) * 100) / 100),
           saldoAnterior: Math.max(0, Math.round(Number(e.saldoAnterior) * 100) / 100),
           saldoNuevo: Math.max(0, Math.round(Number(e.saldoNuevo) * 100) / 100),
+          formaPago: e.formaPago ?? null,
+          cajaSesionId: e.cajaSesionId?.trim() ? e.cajaSesionId.trim() : null,
           usuarioNombre: e.usuarioNombre?.trim() ? e.usuarioNombre.trim() : null,
         }))
       : null;

@@ -10,6 +10,7 @@ import {
 import { getClientById } from '@/db/database';
 import {
   FORMAS_PAGO,
+  type CajaAbonoCobro,
   type CajaAporteEfectivo,
   type CajaCierreTerminal,
   type CajaRetiroEfectivo,
@@ -985,6 +986,7 @@ export type ThermalClientAbonoReceiptInput = {
   cajeroNombre?: string;
   clienteNombre: string;
   montoAbono: number;
+  formaPago?: string;
   saldoAnterior: number;
   saldoNuevo: number;
   /** Segundo ticket con leyenda orientada al cliente. */
@@ -1001,6 +1003,9 @@ export function printThermalClientAbonoReceipt(input: ThermalClientAbonoReceiptI
   const notaPie = copia ?
     'Conserve este comprobante como respaldo de su pago.'
   : 'Comprobante de archivo interno. Entregue copia al cliente si corresponde.';
+  const formaLabel = input.formaPago
+    ? escapeHtml(labelFormaPagoCaja(input.formaPago))
+    : '';
   void openThermalPrintDocument({
     heading: 'COMPROBANTE DE ABONO',
     pageTitle: 'Comprobante de abono',
@@ -1015,6 +1020,7 @@ export function printThermalClientAbonoReceipt(input: ThermalClientAbonoReceiptI
   <div class="tot abono-saldos">
     <div>Saldo anterior: ${formatMoney(Number(input.saldoAnterior) || 0)}</div>
     <div>Abono recibido: ${formatMoney(Number(input.montoAbono) || 0)}</div>
+    ${formaLabel ? `<div>Forma de pago: ${formaLabel}</div>` : ''}
     <div class="abono-saldo-actual">Saldo actual: ${formatMoney(saldoNuevo)}</div>
   </div>
   <p class="abono-nota">${escapeHtml(notaPie)}</p>
@@ -1261,6 +1267,8 @@ export function printThermalCajaCierre(input: {
   retirosEfectivoTotal?: number;
   /** Detalle de cada retiro (impresión / cuadre). */
   retirosEfectivo?: CajaRetiroEfectivo[];
+  /** Abonos CxC cobrados en la sesión (cuentan en medios de pago del corte). */
+  abonosCobros?: CajaAbonoCobro[];
   tarjetasEsperadas?: number;
   conteoTarjetasDeclarado?: number;
   diferenciaTarjetas?: number;
@@ -1268,8 +1276,9 @@ export function printThermalCajaCierre(input: {
   /** `arqueo_previo`: sin conteo físico ni diferencia; título distinto. */
   ticketKind?: 'cierre' | 'arqueo_previo';
 }): void {
-  const grupos = resumenGruposMedioPagoCierre(input.ventas);
-  const porForma = totalesPorFormaPago(input.ventas);
+  const abonos = input.abonosCobros;
+  const grupos = resumenGruposMedioPagoCierre(input.ventas, abonos);
+  const porForma = totalesPorFormaPago(input.ventas, abonos);
   const formaRows = Object.entries(porForma)
     .filter(([, m]) => (Number(m) || 0) > 0)
     .sort(([a], [b]) => a.localeCompare(b))
@@ -1314,6 +1323,20 @@ export function printThermalCajaCierre(input: {
     );
     const rows = sorted.map((r) => thermalCajaMovimientoLineHtml('retiro', r)).join('');
     return `<div class="ticket-section-title">Detalle retiros</div>${rows}`;
+  })();
+  const abonosLista = (() => {
+    const list = input.abonosCobros;
+    if (!list?.length) return '';
+    const sorted = [...list].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+    const rows = sorted
+      .map((a) => {
+        const cliente = a.clienteNombre?.trim() ? escapeHtml(a.clienteNombre.trim()) : 'Cliente';
+        return `<div>+${formatMoney(Number(a.monto) || 0)} · ${escapeHtml(labelFormaPagoCaja(a.formaPago))} · ${cliente}</div>`;
+      })
+      .join('');
+    return `<div class="ticket-section-title">Abonos CxC (sesión)</div>${rows}`;
   })();
 
   const tarjetasEsperadasPrint =
@@ -1381,6 +1404,7 @@ export function printThermalCajaCierre(input: {
     ${aportesLista}
     ${retiros}
     ${retirosLista}
+    ${abonosLista}
     <div style="font-size:11px;"><strong>${formatMoney(input.efectivoEsperado)}</strong></div>
     ${bloqueConteo}
   </div>

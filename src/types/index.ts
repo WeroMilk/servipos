@@ -323,6 +323,10 @@ export interface ClientAbonoHistorialEntry {
   monto: number;
   saldoAnterior: number;
   saldoNuevo: number;
+  /** Medio con el que se recibió el abono (01 efectivo, 04/28 tarjeta, etc.). */
+  formaPago?: FormaPago;
+  /** Sesión de caja en la que se registró (para el corte). */
+  cajaSesionId?: string;
   usuarioNombre?: string;
 }
 
@@ -476,6 +480,18 @@ export interface CajaCierreTerminal {
   usuarioNombre: string;
 }
 
+/** Abono a CxC cobrado durante la sesión (cuenta en el corte por forma de pago). */
+export interface CajaAbonoCobro {
+  id: string;
+  monto: number;
+  formaPago: FormaPago;
+  clienteId?: string;
+  clienteNombre?: string;
+  createdAt: Date;
+  usuarioId: string;
+  usuarioNombre: string;
+}
+
 /** Registro de apertura/cierre de caja por sucursal (`public.caja_sesiones`). */
 export interface CajaSesion {
   id: string;
@@ -491,12 +507,14 @@ export interface CajaSesion {
   /** Suma de retiros registrados en la sesión; reduce el efectivo esperado en caja. */
   retirosEfectivoTotal?: number;
   retirosEfectivo?: CajaRetiroEfectivo[];
+  /** Abonos CxC cobrados en esta sesión (efectivo/tarjeta/etc. para el corte). */
+  abonosCobros?: CajaAbonoCobro[];
   closedAt?: Date;
   closedByUserId?: string;
   closedByNombre?: string;
   /** Efectivo contado físicamente al cierre. */
   conteoDeclarado?: number;
-  /** Fondo + efectivo cobrado − cambio entregado + aportes − retiros (ventas de la sesión completadas). */
+  /** Fondo + efectivo cobrado − cambio entregado + aportes + abonos efectivo − retiros. */
   efectivoEsperado?: number;
   /** Declarado − esperado (positivo = sobrante). */
   diferencia?: number;

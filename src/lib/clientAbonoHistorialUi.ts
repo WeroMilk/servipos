@@ -10,6 +10,8 @@ function normalizeEntry(e: ClientAbonoHistorialEntry): ClientAbonoHistorialEntry
     monto,
     saldoAnterior,
     saldoNuevo,
+    formaPago: e.formaPago,
+    cajaSesionId: e.cajaSesionId?.trim() || undefined,
     usuarioNombre: e.usuarioNombre?.trim() || undefined,
   };
 }

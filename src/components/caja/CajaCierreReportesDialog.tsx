@@ -24,6 +24,8 @@ import {
   computeSesionCierreMetrics,
   efectivoEsperadoCajaSesion,
   filterVentasCompletadasSesion,
+  labelFormaPagoCaja,
+  totalAbonosEfectivoSesion,
   type SesionCierreMetrics,
 } from '@/lib/cajaResumen';
 import { printThermalCajaCierre } from '@/lib/printTicket';
@@ -134,7 +136,8 @@ function SesionDetallePanel({
   const esperadoCalc = efectivoEsperadoCajaSesion(
     esperadoBruto,
     sesion.aportesEfectivoTotal,
-    sesion.retirosEfectivoTotal
+    sesion.retirosEfectivoTotal,
+    totalAbonosEfectivoSesion(sesion.abonosCobros)
   );
   const esperadoShow = sesion.efectivoEsperado ?? esperadoCalc;
   const esperadoStored = sesion.efectivoEsperado;
@@ -179,6 +182,7 @@ function SesionDetallePanel({
       aportesEfectivo: sesion.aportesEfectivo,
       retirosEfectivoTotal: sesion.retirosEfectivoTotal,
       retirosEfectivo: sesion.retirosEfectivo,
+      abonosCobros: sesion.abonosCobros,
       tarjetasEsperadas: tarjetasEsperadasShow,
       conteoTarjetasDeclarado: conteoTarjetasShow ?? undefined,
       diferenciaTarjetas: diferenciaTarjetasShow ?? undefined,
@@ -311,6 +315,45 @@ function SesionDetallePanel({
           </ul>
         ) : null}
       </div>
+
+      {(sesion.abonosCobros?.length ?? 0) > 0 ? (
+        <div>
+          <SectionTitle>Abonos CxC en el turno</SectionTitle>
+          <div className="grid gap-1.5 sm:grid-cols-2">
+            <MetricRow
+              label="Total abonos"
+              value={formatMoney(metrics.abonosCobrosTotal)}
+            />
+            <MetricRow
+              label="Efectivo de abonos"
+              value={formatMoney(totalAbonosEfectivoSesion(sesion.abonosCobros))}
+            />
+          </div>
+          <ul className="mt-1.5 space-y-1 rounded-md border border-violet-500/30 bg-violet-500/[0.06] px-2 py-1.5 text-[10px] dark:border-violet-500/25 dark:bg-violet-950/30">
+            {[...(sesion.abonosCobros ?? [])]
+              .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+              .map((a) => (
+                <li
+                  key={a.id}
+                  className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 border-b border-violet-800/10 pb-1 last:border-0 last:pb-0 dark:border-violet-400/10"
+                >
+                  <span>
+                    <span className="font-semibold tabular-nums text-violet-950 dark:text-violet-50">
+                      +{formatMoney(a.monto)}
+                    </span>
+                    <span className="text-violet-900/80 dark:text-violet-200/80">
+                      {' '}
+                      · {labelFormaPagoCaja(a.formaPago)}
+                      {a.clienteNombre?.trim() ? ` · ${a.clienteNombre.trim()}` : ''}
+                      {' · '}
+                      {formatInAppTimezone(a.createdAt, { timeStyle: 'short' })} · {a.usuarioNombre}
+                    </span>
+                  </span>
+                </li>
+              ))}
+          </ul>
+        </div>
+      ) : null}
 
       <div>
         <SectionTitle>Cierres de terminal</SectionTitle>

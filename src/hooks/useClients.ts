@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { isRemotePermissionDenied, SUPABASE_PERMISSION_HINT } from '@/lib/remotePermissionError';
-import type { Client } from '@/types';
+import type { Client, FormaPago } from '@/types';
 import {
   db,
   getClients,
@@ -276,10 +276,21 @@ export function useClients() {
   }, [effectiveSucursalId, loadClients]);
 
   const registrarAbonoCuenta = useCallback(
-    async (clienteId: string, monto: number, options?: { usuarioNombre?: string }) => {
+    async (
+      clienteId: string,
+      monto: number,
+      options?: {
+        usuarioNombre?: string;
+        formaPago: FormaPago;
+        cajaSesionId?: string;
+      }
+    ) => {
+      if (!options?.formaPago) throw new Error('Indique cómo se pagó el abono');
       await registrarAbonoACuentaCliente(clienteId, monto, {
         sucursalId: effectiveSucursalId ?? undefined,
         usuarioNombre: options?.usuarioNombre,
+        formaPago: options.formaPago,
+        cajaSesionId: options?.cajaSesionId,
       });
       await refresh();
     },

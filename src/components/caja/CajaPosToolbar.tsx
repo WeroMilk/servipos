@@ -33,6 +33,7 @@ import {
   lineasMediosPagoSesion,
   resumenBrutoSesion,
   resumenGruposMedioPagoCierre,
+  totalAbonosEfectivoSesion,
 } from '@/lib/cajaResumen';
 import { useCajaLocalStore } from '@/stores/cajaLocalStore';
 import type { ModificarSaldoKind } from '@/stores/cajaPosHeaderStore';
@@ -122,7 +123,13 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
     );
     const aportesTotal = activa.aportesEfectivoTotal ?? 0;
     const retirosTotal = activa.retirosEfectivoTotal ?? 0;
-    const esperadoEnCaja = efectivoEsperadoCajaSesion(esperadoBruto, aportesTotal, retirosTotal);
+    const abonosEfectivo = totalAbonosEfectivoSesion(activa.abonosCobros);
+    const esperadoEnCaja = efectivoEsperadoCajaSesion(
+      esperadoBruto,
+      aportesTotal,
+      retirosTotal,
+      abonosEfectivo
+    );
     const { tickets, total } = resumenBrutoSesion(ventasSesion);
     /** Efectivo que quedó en caja por ventas (cobros en 01 menos vueltos); mismo valor que (esperadoBruto − fondo). */
     const efectivoNetoVentas = Math.round((efectivoCobrado - cambioEntregado) * 100) / 100;
@@ -131,6 +138,7 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
       esperadoBruto,
       aportesTotal,
       retirosTotal,
+      abonosEfectivo,
       efectivoNetoVentas,
       tickets,
       total,
@@ -140,8 +148,14 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
   const previewRef = useRef(previewCierre);
   previewRef.current = previewCierre;
 
-  const lineasPagoPreview = useMemo(() => lineasMediosPagoSesion(ventasSesion), [ventasSesion]);
-  const gruposPagoPreview = useMemo(() => resumenGruposMedioPagoCierre(ventasSesion), [ventasSesion]);
+  const lineasPagoPreview = useMemo(
+    () => lineasMediosPagoSesion(ventasSesion, activa?.abonosCobros),
+    [ventasSesion, activa?.abonosCobros]
+  );
+  const gruposPagoPreview = useMemo(
+    () => resumenGruposMedioPagoCierre(ventasSesion, activa?.abonosCobros),
+    [ventasSesion, activa?.abonosCobros]
+  );
   const lineasTarjetaPreview = useMemo(
     () => lineasPagoPreview.filter((r) => r.clave === '04' || r.clave === '28' || r.clave === '29'),
     [lineasPagoPreview]
@@ -214,6 +228,12 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
                 <>
                   {' '}
                   + {formatMoney(previewCierre.aportesTotal)} (aportes)
+                </>
+              ) : null}
+              {previewCierre.abonosEfectivo > 0.005 ? (
+                <>
+                  {' '}
+                  + {formatMoney(previewCierre.abonosEfectivo)} (abonos CxC)
                 </>
               ) : null}
               {previewCierre.retirosTotal > 0.005 ? (
@@ -489,7 +509,13 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
       const { esperadoEnCaja: esperadoBruto } = computeCajaEfectivoEsperado(activa.fondoInicial, completadas);
       const aportesTotal = activa.aportesEfectivoTotal ?? 0;
       const retirosTotal = activa.retirosEfectivoTotal ?? 0;
-      const esperadoEnCaja = efectivoEsperadoCajaSesion(esperadoBruto, aportesTotal, retirosTotal);
+      const abonosEfectivo = totalAbonosEfectivoSesion(activa.abonosCobros);
+      const esperadoEnCaja = efectivoEsperadoCajaSesion(
+        esperadoBruto,
+        aportesTotal,
+        retirosTotal,
+        abonosEfectivo
+      );
       const { tickets, total } = resumenBrutoSesion(ventasPrint);
       const diferencia = Math.round((declarado - esperadoEnCaja) * 100) / 100;
       const previos = activa.cierresTerminal ?? [];
@@ -515,6 +541,7 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
         aportesEfectivo: activa.aportesEfectivo?.length ? activa.aportesEfectivo : undefined,
         retirosEfectivoTotal: retirosTotal > 0.005 ? retirosTotal : undefined,
         retirosEfectivo: activa.retirosEfectivo?.length ? activa.retirosEfectivo : undefined,
+        abonosCobros: activa.abonosCobros?.length ? activa.abonosCobros : undefined,
         tarjetasEsperadas: tarjetasPos,
         conteoTarjetasDeclarado: conteoTarjetas,
         diferenciaTarjetas: Math.round((conteoTarjetas - tarjetasPos) * 100) / 100,
@@ -555,7 +582,13 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
     const { esperadoEnCaja: esperadoBruto } = computeCajaEfectivoEsperado(activa.fondoInicial, completadas);
     const aportesTotal = activa.aportesEfectivoTotal ?? 0;
     const retirosTotal = activa.retirosEfectivoTotal ?? 0;
-    const esperadoEnCaja = efectivoEsperadoCajaSesion(esperadoBruto, aportesTotal, retirosTotal);
+    const abonosEfectivo = totalAbonosEfectivoSesion(activa.abonosCobros);
+    const esperadoEnCaja = efectivoEsperadoCajaSesion(
+      esperadoBruto,
+      aportesTotal,
+      retirosTotal,
+      abonosEfectivo
+    );
     const { tickets, total } = resumenBrutoSesion(ventasSesion);
     const ahora = new Date();
     printThermalCajaCierre({
@@ -576,6 +609,7 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
       aportesEfectivo: activa.aportesEfectivo?.length ? activa.aportesEfectivo : undefined,
       retirosEfectivoTotal: retirosTotal > 0.005 ? retirosTotal : undefined,
       retirosEfectivo: activa.retirosEfectivo?.length ? activa.retirosEfectivo : undefined,
+      abonosCobros: activa.abonosCobros?.length ? activa.abonosCobros : undefined,
       ticketKind: 'arqueo_previo',
     });
     printThermalDailySalesReport({

@@ -11,6 +11,7 @@ import type {
   Client,
   ClientAbonoHistorialEntry,
   ClientCreditoHistorialEntry,
+  FormaPago,
   Sale,
   SaleItem,
   Quotation,
@@ -1676,11 +1677,18 @@ export async function adjustClientSaldoAdeudado(
 export async function registrarAbonoACuentaCliente(
   clienteId: string,
   monto: number,
-  options?: { sucursalId?: string; usuarioNombre?: string }
+  options?: {
+    sucursalId?: string;
+    usuarioNombre?: string;
+    formaPago?: FormaPago;
+    cajaSesionId?: string;
+  }
 ): Promise<void> {
   const m = Math.round(Number(monto) * 100) / 100;
   if (!clienteId || clienteId === MOSTRADOR_CLIENT_ID) throw new Error('Cliente no válido');
   if (!Number.isFinite(m) || m <= 0) throw new Error('Ingrese un monto mayor a cero');
+  const formaPago = options?.formaPago;
+  if (!formaPago) throw new Error('Indique cómo se pagó el abono (efectivo, tarjeta, etc.)');
 
   const row = await db.clients.get(clienteId);
   if (!row || row.isMostrador) throw new Error('Cliente no encontrado');
@@ -1691,11 +1699,14 @@ export async function registrarAbonoACuentaCliente(
   const sid = options?.sucursalId?.trim();
   const now = new Date();
   const usuarioNombre = options?.usuarioNombre?.trim();
+  const cajaSesionId = options?.cajaSesionId?.trim() || undefined;
   const entrada: ClientAbonoHistorialEntry = {
     at: now,
     monto: m,
     saldoAnterior: current,
     saldoNuevo: next,
+    formaPago,
+    cajaSesionId,
     usuarioNombre: usuarioNombre || undefined,
   };
   const prevHist = Array.isArray(row.abonosHistorial) ? row.abonosHistorial : [];
@@ -1706,6 +1717,8 @@ export async function registrarAbonoACuentaCliente(
       monto: Math.round(Math.max(0, Number(e.monto) || 0) * 100) / 100,
       saldoAnterior: Math.round(Math.max(0, Number(e.saldoAnterior) || 0) * 100) / 100,
       saldoNuevo: Math.round(Math.max(0, Number(e.saldoNuevo) || 0) * 100) / 100,
+      formaPago: e.formaPago,
+      cajaSesionId: e.cajaSesionId?.trim() || undefined,
       usuarioNombre: e.usuarioNombre?.trim() || undefined,
     })),
   ].slice(0, 80);

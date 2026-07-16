@@ -900,6 +900,7 @@ export function ClientePerfil() {
                               </div>
                               <p className="text-xs text-slate-600 dark:text-slate-500">
                                 Saldo {formatMoney(entry.saldoAnterior)} → {formatMoney(entry.saldoNuevo)}
+                                {entry.formaPago ? ` · pago ${entry.formaPago}` : ''}
                                 {entry.usuarioNombre ? ` · ${entry.usuarioNombre}` : ''}
                               </p>
                             </li>

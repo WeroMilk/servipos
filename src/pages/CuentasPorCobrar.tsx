@@ -33,16 +33,29 @@ import {
 } from '@/components/ui/table';
 import { useClients } from '@/hooks/useClients';
 import { useSales } from '@/hooks/useSales';
+import { useInvoices } from '@/hooks/useInvoices';
 import { useAppStore, useAuthStore } from '@/stores';
-import { FORMAS_PAGO, type Client, type Sale, type SaleItem } from '@/types';
+import { FORMAS_PAGO, FORMAS_PAGO_UI, type Client, type FormaPago, type Sale, type SaleItem } from '@/types';
 import { formatMoney } from '@/lib/utils';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
 import { printThermalClientAbonoReceipt, printThermalTicketFromSale, type ThermalClientAbonoReceiptInput } from '@/lib/printTicket';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
+import { useCajaSesion } from '@/hooks/useCajaSesion';
+import { registrarAbonoCobroCajaFirestore } from '@/lib/firestore/cajaFirestore';
 import { listaAbonosCxCMostrable } from '@/lib/clientAbonoHistorialUi';
 import { parrafosAyudaCancelacionVentaAdmin } from '@/lib/cancelacionVentaAdminUi';
 import { efectivoNetoEnCajaPorVenta } from '@/lib/cajaResumen';
+import { stampPaymentComplementWithFacturama } from '@/hooks/useFacturama';
+import { saldoInsolutoFacturaPpd, siguienteParcialidad } from '@/lib/facturama/ppdSaldo';
+import type { Invoice } from '@/types';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 function saldoCliente(c: Client): number {
   const v = Number(c.saldoAdeudado);
@@ -90,12 +103,15 @@ export function CuentasPorCobrar() {
   const navigate = useNavigate();
   const { clients, loading: loadingClients, registrarAbonoCuenta } = useClients();
   const { sales, loading: loadingSales, cancelSale } = useSales(500);
+  const { invoices } = useInvoices();
   const { addToast } = useAppStore();
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === 'admin';
   const { effectiveSucursalId } = useEffectiveSucursalId();
+  const caja = useCajaSesion({ sucursalId: effectiveSucursalId });
   const puedeIrPos = hasPermission('ventas:crear');
+  const canTimbrar = hasPermission('facturas:timbrar') || hasPermission('facturas:crear');
 
   const deudores = useMemo(() => {
     const rows = clients.filter((c) => !c.isMostrador && saldoCliente(c) > 0.005);
@@ -123,7 +139,11 @@ export function CuentasPorCobrar() {
 
   const [abonoCliente, setAbonoCliente] = useState<Client | null>(null);
   const [abonoMonto, setAbonoMonto] = useState('');
+  const [abonoFormaPago, setAbonoFormaPago] = useState<FormaPago>('01');
   const [abonoBusy, setAbonoBusy] = useState(false);
+  const [emitirComplemento, setEmitirComplemento] = useState(false);
+  const [abonoFacturaId, setAbonoFacturaId] = useState<string>('');
+  const [abonoFormaPagoCfdi, setAbonoFormaPagoCfdi] = useState('03');
 
   const [copiaClienteOpen, setCopiaClienteOpen] = useState(false);
   const [copiaClientePayload, setCopiaClientePayload] = useState<ThermalClientAbonoReceiptInput | null>(
@@ -139,9 +159,26 @@ export function CuentasPorCobrar() {
   const [cancelTicketConfirmOpen, setCancelTicketConfirmOpen] = useState(false);
   const [cancelTicketBusy, setCancelTicketBusy] = useState(false);
 
+  const ppdFacturasCliente = useMemo((): Invoice[] => {
+    if (!abonoCliente) return [];
+    return invoices.filter(
+      (inv) =>
+        inv.clienteId === abonoCliente.id &&
+        inv.estado === 'timbrada' &&
+        inv.metodoPago === 'PPD' &&
+        inv.uuid &&
+        !inv.esPrueba &&
+        saldoInsolutoFacturaPpd(inv) > 0.005
+    );
+  }, [abonoCliente, invoices]);
+
   const cerrarAbono = () => {
     setAbonoCliente(null);
     setAbonoMonto('');
+    setAbonoFormaPago('01');
+    setEmitirComplemento(false);
+    setAbonoFacturaId('');
+    setAbonoFormaPagoCfdi('03');
   };
 
   const confirmarAbono = async () => {
@@ -152,23 +189,100 @@ export function CuentasPorCobrar() {
       addToast({ type: 'warning', message: 'Ingrese un monto válido mayor a cero.' });
       return;
     }
+    if (!abonoFormaPago) {
+      addToast({ type: 'warning', message: 'Seleccione cómo se pagó el abono (efectivo, tarjeta, etc.).' });
+      return;
+    }
+    if (caja.mustOpenCajaToSell && !caja.activa) {
+      addToast({
+        type: 'error',
+        message: 'Abra la caja para registrar el abono y que cuente en el corte.',
+        logToAppEvents: true,
+      });
+      return;
+    }
     setAbonoBusy(true);
     try {
       const saldoAnterior = saldoCliente(abonoCliente);
+      const cajaSesionId = caja.activa?.id;
+      const cajeroNombre = user?.name?.trim() || user?.email || undefined;
       const receipt: ThermalClientAbonoReceiptInput = {
         fechaLabel: formatInAppTimezone(new Date(), { dateStyle: 'short', timeStyle: 'short' }),
         sucursalId: effectiveSucursalId ?? undefined,
-        cajeroNombre: user?.name?.trim() || user?.email || undefined,
+        cajeroNombre,
         clienteNombre: abonoCliente.nombre,
         montoAbono: m,
+        formaPago: abonoFormaPago,
         saldoAnterior,
         saldoNuevo: Math.max(0, Math.round((saldoAnterior - m) * 100) / 100),
       };
       await registrarAbonoCuenta(abonoCliente.id, m, {
-        usuarioNombre: user?.name?.trim() || user?.email || undefined,
+        usuarioNombre: cajeroNombre,
+        formaPago: abonoFormaPago,
+        cajaSesionId,
       });
+
+      if (effectiveSucursalId && cajaSesionId) {
+        try {
+          await registrarAbonoCobroCajaFirestore(effectiveSucursalId, cajaSesionId, {
+            monto: m,
+            formaPago: abonoFormaPago,
+            clienteId: abonoCliente.id,
+            clienteNombre: abonoCliente.nombre,
+            usuarioId: user?.id ?? 'system',
+            usuarioNombre: cajeroNombre || 'Usuario',
+          });
+        } catch (cajaErr) {
+          addToast({
+            type: 'warning',
+            message:
+              cajaErr instanceof Error
+                ? `Abono guardado, pero no se reflejó en caja: ${cajaErr.message}`
+                : 'Abono guardado; no se pudo registrar en el corte de caja',
+            logToAppEvents: true,
+          });
+        }
+      }
+
+      if (emitirComplemento && canTimbrar && abonoFacturaId) {
+        const inv = invoices.find((x) => x.id === abonoFacturaId);
+        if (inv) {
+          try {
+            const prev = saldoInsolutoFacturaPpd(inv);
+            const amount = Math.min(m, prev);
+            const { complement } = await stampPaymentComplementWithFacturama({
+              invoice: inv,
+              paymentDate: new Date(),
+              paymentForm: abonoFormaPagoCfdi || abonoFormaPago,
+              amountPaid: amount,
+              previousBalance: prev,
+              partialityNumber: siguienteParcialidad(inv),
+            });
+            addToast({
+              type: 'success',
+              message: `Abono + complemento CFDI (${complement.uuid.slice(0, 8)}…)`,
+              logToAppEvents: true,
+            });
+          } catch (cfdiErr) {
+            addToast({
+              type: 'warning',
+              message:
+                cfdiErr instanceof Error
+                  ? `Abono guardado, pero el complemento falló: ${cfdiErr.message}`
+                  : 'Abono guardado; falló el complemento de pago',
+              logToAppEvents: true,
+            });
+          }
+        }
+      } else {
+        addToast({
+          type: 'success',
+          message: `Abono de ${formatMoney(m)} en ${labelFormaPago(abonoFormaPago)} registrado.`,
+          logToAppEvents: true,
+        });
+      }
+
       printThermalClientAbonoReceipt(receipt);
-      addToast({ type: 'success', message: `Abono registrado: ${formatMoney(m)}`, logToAppEvents: true });
       cerrarAbono();
       setCopiaClientePayload(receipt);
       setCopiaClienteOpen(true);
@@ -671,6 +785,81 @@ export function CuentasPorCobrar() {
               className="border-slate-300 dark:border-slate-700 dark:bg-slate-800"
               autoComplete="off"
             />
+            <div className="space-y-1">
+              <Label>Forma de pago</Label>
+              <Select
+                value={abonoFormaPago}
+                onValueChange={(v) => {
+                  setAbonoFormaPago(v as FormaPago);
+                  setAbonoFormaPagoCfdi(v);
+                }}
+              >
+                <SelectTrigger className="border-slate-300 dark:border-slate-700 dark:bg-slate-800">
+                  <SelectValue placeholder="Seleccione medio de pago" />
+                </SelectTrigger>
+                <SelectContent>
+                  {FORMAS_PAGO_UI.map((f) => (
+                    <SelectItem key={f.clave} value={f.clave}>
+                      {f.clave} — {f.descripcion}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Este cobro se suma al corte de caja de la sesión abierta (efectivo, tarjeta, etc.).
+              </p>
+            </div>
+            {canTimbrar && ppdFacturasCliente.length > 0 ? (
+              <div className="space-y-2 rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={emitirComplemento}
+                    onChange={(e) => {
+                      setEmitirComplemento(e.target.checked);
+                      if (e.target.checked && !abonoFacturaId && ppdFacturasCliente[0]) {
+                        setAbonoFacturaId(ppdFacturasCliente[0].id);
+                      }
+                    }}
+                  />
+                  Emitir complemento de pago CFDI (Facturama)
+                </label>
+                {emitirComplemento ? (
+                  <>
+                    <div className="space-y-1">
+                      <Label>Factura PPD</Label>
+                      <Select value={abonoFacturaId} onValueChange={setAbonoFacturaId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccione factura" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ppdFacturasCliente.map((inv) => (
+                            <SelectItem key={inv.id} value={inv.id}>
+                              {inv.serie}-{inv.folio} · saldo {formatMoney(saldoInsolutoFacturaPpd(inv))}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Forma de pago CFDI</Label>
+                      <Select value={abonoFormaPagoCfdi} onValueChange={setAbonoFormaPagoCfdi}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {FORMAS_PAGO.map((f) => (
+                            <SelectItem key={f.clave} value={f.clave}>
+                              {f.clave} — {f.descripcion}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            ) : null}
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="outline" onClick={cerrarAbono} disabled={abonoBusy}>
@@ -739,6 +928,7 @@ export function CuentasPorCobrar() {
                     <TableRow className="border-slate-200 hover:bg-transparent dark:border-slate-800">
                       <TableHead className="text-slate-700 dark:text-slate-300">Fecha</TableHead>
                       <TableHead className="text-right text-slate-700 dark:text-slate-300">Abono</TableHead>
+                      <TableHead className="text-slate-700 dark:text-slate-300">Pago</TableHead>
                       <TableHead className="text-right text-slate-700 dark:text-slate-300">Saldo después</TableHead>
                       <TableHead className="text-slate-700 dark:text-slate-300">Cajero</TableHead>
                     </TableRow>
@@ -751,6 +941,9 @@ export function CuentasPorCobrar() {
                         </TableCell>
                         <TableCell className="text-right text-sm font-semibold tabular-nums text-cyan-700 dark:text-cyan-400">
                           {formatMoney(row.monto)}
+                        </TableCell>
+                        <TableCell className="text-xs text-slate-700 dark:text-slate-300">
+                          {row.formaPago ? labelFormaPago(row.formaPago) : '—'}
                         </TableCell>
                         <TableCell className="text-right text-sm tabular-nums text-slate-700 dark:text-slate-300">
                           {formatMoney(row.saldoNuevo)}

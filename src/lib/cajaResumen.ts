@@ -84,15 +84,29 @@ export function efectivoEsperadoMenosRetiros(
 }
 
 /**
- * Efectivo esperado en cajón: ventas (fondo + cobros 01 − cambio) + aportes de sesión − retiros.
+ * Efectivo esperado en cajón: ventas (fondo + cobros 01 − cambio) + aportes + abonos efectivo − retiros.
  */
 export function efectivoEsperadoCajaSesion(
   esperadoBruto: number,
   aportesEfectivoTotal?: number | null,
-  retirosEfectivoTotal?: number | null
+  retirosEfectivoTotal?: number | null,
+  abonosEfectivoTotal?: number | null
 ): number {
   const a = Math.max(0, Number(aportesEfectivoTotal) || 0);
-  return efectivoEsperadoMenosRetiros(esperadoBruto + a, retirosEfectivoTotal);
+  const ab = Math.max(0, Number(abonosEfectivoTotal) || 0);
+  return efectivoEsperadoMenosRetiros(esperadoBruto + a + ab, retirosEfectivoTotal);
+}
+
+/** Suma de abonos CxC en efectivo (01) de la sesión. */
+export function totalAbonosEfectivoSesion(
+  abonos: { formaPago: FormaPago; monto: number }[] | undefined | null
+): number {
+  if (!abonos?.length) return 0;
+  let t = 0;
+  for (const a of abonos) {
+    if (a.formaPago === '01') t += Number(a.monto) || 0;
+  }
+  return Math.round(t * 100) / 100;
 }
 
 export function filterVentasCompletadasSesion(ventas: Sale[]): Sale[] {
@@ -132,14 +146,23 @@ export function resumenBrutoSesion(ventas: Sale[]): { tickets: number; total: nu
   };
 }
 
-/** Suma de montos por clave de forma de pago (solo ventas completadas). */
-export function totalesPorFormaPago(ventas: Sale[]): Partial<Record<FormaPago, number>> {
+/** Suma de montos por clave de forma de pago (ventas completadas + abonos CxC de la sesión). */
+export function totalesPorFormaPago(
+  ventas: Sale[],
+  abonosCobros?: { formaPago: FormaPago; monto: number }[] | null
+): Partial<Record<FormaPago, number>> {
   const out: Partial<Record<FormaPago, number>> = {};
   for (const s of filterVentasCompletadasSesion(ventas)) {
     for (const p of pagosParaResumenCaja(s)) {
       const k = p.formaPago;
       out[k] = (out[k] || 0) + p.monto;
     }
+  }
+  for (const a of abonosCobros ?? []) {
+    const k = a.formaPago;
+    const m = Number(a.monto) || 0;
+    if (!k || m <= 0) continue;
+    out[k] = (out[k] || 0) + m;
   }
   return out;
 }
@@ -150,8 +173,11 @@ export function labelFormaPagoCaja(clave: string): string {
 }
 
 /** Filas ordenadas para ticket/UI de cierre (solo montos &gt; 0). */
-export function lineasMediosPagoSesion(ventas: Sale[]): { clave: string; label: string; monto: number }[] {
-  const porForma = totalesPorFormaPago(ventas);
+export function lineasMediosPagoSesion(
+  ventas: Sale[],
+  abonosCobros?: { formaPago: FormaPago; monto: number }[] | null
+): { clave: string; label: string; monto: number }[] {
+  const porForma = totalesPorFormaPago(ventas, abonosCobros);
   return Object.entries(porForma)
     .filter(([, m]) => (Number(m) || 0) > 0)
     .sort(([a], [b]) => a.localeCompare(b))
@@ -159,12 +185,15 @@ export function lineasMediosPagoSesion(ventas: Sale[]): { clave: string; label: 
 }
 
 /** Agrupación típica de POS: efectivo, tarjetas SAT 04/28/29, resto de formas. */
-export function resumenGruposMedioPagoCierre(ventas: Sale[]): {
+export function resumenGruposMedioPagoCierre(
+  ventas: Sale[],
+  abonosCobros?: { formaPago: FormaPago; monto: number }[] | null
+): {
   efectivoCobros: number;
   tarjetas: number;
   otros: number;
 } {
-  const por = totalesPorFormaPago(ventas);
+  const por = totalesPorFormaPago(ventas, abonosCobros);
   const num = (clave: string) => Number(por[clave as FormaPago]) || 0;
   const efectivoCobros = num('01');
   const tarjetas = num('04') + num('28') + num('29');
@@ -187,22 +216,30 @@ export type SesionCierreMetrics = {
   ventasCanceladas: number;
   cambioEntregado: number;
   efectivoNetoVentas: number;
+  abonosCobrosTotal: number;
   lineasMedio: { clave: string; label: string; monto: number }[];
 };
 
 /** Totales de ventas y medios de pago para un turno de caja (histórico o arqueo). */
 export function computeSesionCierreMetrics(
-  sesion: Pick<CajaSesion, 'fondoInicial' | 'aportesEfectivoTotal' | 'retirosEfectivoTotal'>,
+  sesion: Pick<
+    CajaSesion,
+    'fondoInicial' | 'aportesEfectivoTotal' | 'retirosEfectivoTotal' | 'abonosCobros'
+  >,
   ventas: Sale[]
 ): SesionCierreMetrics {
   const completadas = filterVentasCompletadasSesion(ventas);
+  const abonos = sesion.abonosCobros ?? [];
   const { tickets, total } = resumenBrutoSesion(ventas);
-  const grupos = resumenGruposMedioPagoCierre(ventas);
+  const grupos = resumenGruposMedioPagoCierre(ventas, abonos);
   const { efectivoCobrado, cambioEntregado } = computeCajaEfectivoEsperado(sesion.fondoInicial, completadas);
   let saldoPendiente = 0;
   for (const s of completadas) {
     saldoPendiente += computeSaleClienteAdeudo(s);
   }
+  const abonosCobrosTotal = Math.round(
+    abonos.reduce((s, a) => s + (Number(a.monto) || 0), 0) * 100
+  ) / 100;
   return {
     tickets,
     totalVentasBruto: total,
@@ -214,6 +251,7 @@ export function computeSesionCierreMetrics(
     ventasCanceladas: ventas.filter((s) => s.estado === 'cancelada').length,
     cambioEntregado,
     efectivoNetoVentas: Math.round((efectivoCobrado - cambioEntregado) * 100) / 100,
-    lineasMedio: lineasMediosPagoSesion(ventas),
+    abonosCobrosTotal,
+    lineasMedio: lineasMediosPagoSesion(ventas, abonos),
   };
 }

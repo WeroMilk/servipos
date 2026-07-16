@@ -1,8 +1,10 @@
 import type {
+  CajaAbonoCobro,
   CajaAporteEfectivo,
   CajaCierreTerminal,
   CajaRetiroEfectivo,
   CajaSesion,
+  FormaPago,
 } from '@/types';
 import {
   computeCajaEfectivoEsperado,
@@ -10,6 +12,7 @@ import {
   filterVentasCompletadasSesion,
   resumenBrutoSesion,
   resumenGruposMedioPagoCierre,
+  totalAbonosEfectivoSesion,
 } from '@/lib/cajaResumen';
 import { fetchSalesByCajaSesion } from '@/lib/firestore/salesFirestore';
 import { getSupabase } from '@/lib/supabaseClient';
@@ -75,6 +78,33 @@ function parseCierresTerminalFirestore(raw: unknown): CajaCierreTerminal[] | und
   return out.length > 0 ? out : undefined;
 }
 
+function parseAbonosCobrosFirestore(raw: unknown): CajaAbonoCobro[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  const out: CajaAbonoCobro[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== 'object') continue;
+    const o = row as Record<string, unknown>;
+    const id = String(o.id ?? '');
+    const monto = Number(o.monto) || 0;
+    const formaPago = String(o.formaPago ?? '').trim() as FormaPago;
+    if (!id || monto <= 0 || !formaPago) continue;
+    out.push({
+      id,
+      monto,
+      formaPago,
+      clienteId: o.clienteId != null && String(o.clienteId).trim() ? String(o.clienteId).trim() : undefined,
+      clienteNombre:
+        o.clienteNombre != null && String(o.clienteNombre).trim()
+          ? String(o.clienteNombre).trim()
+          : undefined,
+      createdAt: firestoreTimestampToDate(o.createdAt),
+      usuarioId: String(o.usuarioId ?? ''),
+      usuarioNombre: String(o.usuarioNombre ?? ''),
+    });
+  }
+  return out.length > 0 ? out : undefined;
+}
+
 /** Folio del voucher de corte de terminal: exactamente 5 dígitos. */
 export function isValidCierreTerminalFolio(folio: string): boolean {
   return /^\d{5}$/.test(folio.trim());
@@ -91,6 +121,7 @@ function mapCajaSesionDoc(sucursalId: string, sesionId: string, d: Record<string
     retirosEfectivoTotal:
       d.retirosEfectivoTotal != null ? Number(d.retirosEfectivoTotal) || 0 : undefined,
     retirosEfectivo: parseMovimientosEfectivoFirestore<CajaRetiroEfectivo>(d.retirosEfectivo),
+    abonosCobros: parseAbonosCobrosFirestore(d.abonosCobros),
     openedAt: firestoreTimestampToDate(d.openedAt),
     openedByUserId: String(d.openedByUserId ?? ''),
     openedByNombre: String(d.openedByNombre ?? ''),
@@ -248,9 +279,6 @@ export async function closeCajaSessionFirestore(
 
   const ventas = await fetchSalesByCajaSesion(sucursalId, sid);
   const { tickets, total } = resumenBrutoSesion(ventas);
-  const { tarjetas: tarjetasEsperadas } = resumenGruposMedioPagoCierre(
-    filterVentasCompletadasSesion(ventas)
-  );
 
   const { data: sRow } = await getSupabase()
     .from('caja_sesiones')
@@ -262,14 +290,26 @@ export async function closeCajaSessionFirestore(
   const data = sRow.doc as Record<string, unknown>;
   if (data.estado !== 'abierta') throw new Error('Esta sesión de caja ya está cerrada');
 
+  const abonosCobros = parseAbonosCobrosFirestore(data.abonosCobros) ?? [];
+  const { tarjetas: tarjetasEsperadas } = resumenGruposMedioPagoCierre(
+    filterVentasCompletadasSesion(ventas),
+    abonosCobros
+  );
+
   const fondo = Number(data.fondoInicial) || 0;
   const aportesTotal = Number(data.aportesEfectivoTotal) || 0;
   const retirosTotal = Number(data.retirosEfectivoTotal) || 0;
+  const abonosEfectivo = totalAbonosEfectivoSesion(abonosCobros);
   const { esperadoEnCaja: esperadoBruto } = computeCajaEfectivoEsperado(
     fondo,
     filterVentasCompletadasSesion(ventas)
   );
-  const esperadoEnCaja = efectivoEsperadoCajaSesion(esperadoBruto, aportesTotal, retirosTotal);
+  const esperadoEnCaja = efectivoEsperadoCajaSesion(
+    esperadoBruto,
+    aportesTotal,
+    retirosTotal,
+    abonosEfectivo
+  );
   const declarado = Number(input.conteoDeclarado);
   if (!Number.isFinite(declarado) || declarado < 0) {
     throw new Error('Indique un conteo de efectivo válido');
@@ -399,6 +439,38 @@ export async function registrarCierreTerminalFirestore(
     p_sesion_id: sesionId.trim(),
     p_total: Math.round(total * 100) / 100,
     p_folio: folio,
+    p_usuario_id: input.usuarioId,
+    p_usuario_nombre: input.usuarioNombre,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/** Registra un abono CxC en la sesión abierta para que cuente en el corte. */
+export async function registrarAbonoCobroCajaFirestore(
+  sucursalId: string,
+  sesionId: string,
+  input: {
+    monto: number;
+    formaPago: FormaPago;
+    clienteId?: string;
+    clienteNombre?: string;
+    usuarioId: string;
+    usuarioNombre: string;
+  }
+): Promise<void> {
+  const monto = Number(input.monto);
+  if (!Number.isFinite(monto) || monto <= 0) {
+    throw new Error('Indique un monto de abono válido');
+  }
+  if (!input.formaPago) throw new Error('Indique la forma de pago del abono');
+  const supabase = getSupabase();
+  const { error } = await supabase.rpc('rpc_registrar_abono_caja', {
+    p_sucursal_id: sucursalId,
+    p_sesion_id: sesionId.trim(),
+    p_monto: Math.round(monto * 100) / 100,
+    p_forma_pago: input.formaPago,
+    p_cliente_id: input.clienteId ?? null,
+    p_cliente_nombre: input.clienteNombre ?? null,
     p_usuario_id: input.usuarioId,
     p_usuario_nombre: input.usuarioNombre,
   });
