@@ -39,6 +39,8 @@ import {
 } from '@/hooks';
 import { cn, formatMoney } from '@/lib/utils';
 import { printThermalDailySalesReport, printThermalTicketFromSale } from '@/lib/printTicket';
+import { listCajaSesionesFirestore } from '@/lib/firestore/cajaFirestore';
+import type { CajaAbonoCobro } from '@/types';
 import {
   CartesianGrid,
   Line,
@@ -1371,14 +1373,37 @@ export function Dashboard() {
                       aria-label="Imprimir reporte térmico del día seleccionado"
                       disabled={reprintSalesSorted.length === 0}
                       onClick={() => {
-                        printThermalDailySalesReport({
-                          fechaLabel: formatInAppTimezone(reprintDayStart, {
-                            dateStyle: 'full',
-                            timeStyle: 'short',
-                          }),
-                          sucursalId: effectiveSucursalId,
-                          ventas: reprintSalesSorted,
-                        });
+                        void (async () => {
+                          let abonosCobros: CajaAbonoCobro[] | undefined;
+                          if (effectiveSucursalId) {
+                            try {
+                              const sesiones = await listCajaSesionesFirestore(effectiveSucursalId, {
+                                limit: 40,
+                              });
+                              const delDia = sesiones.filter((s) => {
+                                const t = s.openedAt?.getTime?.() ?? NaN;
+                                return (
+                                  Number.isFinite(t) &&
+                                  t >= reprintDayStart.getTime() &&
+                                  t < reprintDayEnd.getTime()
+                                );
+                              });
+                              const merged = delDia.flatMap((s) => s.abonosCobros ?? []);
+                              if (merged.length) abonosCobros = merged;
+                            } catch {
+                              /* el reporte de ventas sigue sin abonos si falla la carga */
+                            }
+                          }
+                          printThermalDailySalesReport({
+                            fechaLabel: formatInAppTimezone(reprintDayStart, {
+                              dateStyle: 'full',
+                              timeStyle: 'short',
+                            }),
+                            sucursalId: effectiveSucursalId,
+                            ventas: reprintSalesSorted,
+                            abonosCobros,
+                          });
+                        })();
                       }}
                     >
                       <Printer className="h-5 w-5" />

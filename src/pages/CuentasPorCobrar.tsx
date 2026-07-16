@@ -496,7 +496,8 @@ export function CuentasPorCobrar() {
                               variant="outline"
                               size="sm"
                               className="whitespace-nowrap border-cyan-500/40 text-cyan-700 hover:bg-cyan-500/10 dark:border-cyan-500/35 dark:text-cyan-300 dark:hover:bg-cyan-500/15"
-                              onClick={() =>
+                              onClick={() => {
+                                const ultimo = listaAbonosCxCMostrable(c)[0];
                                 printThermalClientAbonoReceipt({
                                   fechaLabel: formatInAppTimezone(c.ultimoAbonoAt!, {
                                     dateStyle: 'short',
@@ -506,10 +507,11 @@ export function CuentasPorCobrar() {
                                   cajeroNombre: c.ultimoAbonoUsuarioNombre || undefined,
                                   clienteNombre: c.nombre,
                                   montoAbono: c.ultimoAbonoMonto!,
+                                  formaPago: ultimo?.formaPago,
                                   saldoAnterior: c.ultimoAbonoSaldoAnterior!,
                                   saldoNuevo: c.ultimoAbonoSaldoNuevo!,
-                                })
-                              }
+                                });
+                              }}
                             >
                               <Printer className="mr-1.5 h-3.5 w-3.5" />
                               Reimprimir último abono

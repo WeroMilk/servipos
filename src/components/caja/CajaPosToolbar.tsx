@@ -553,6 +553,7 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
         fechaLabel: formatInAppTimezone(new Date(), { dateStyle: 'full', timeStyle: 'short' }),
         sucursalId: effectiveSucursalId ?? undefined,
         ventas: ventasPrint,
+        abonosCobros: activa.abonosCobros?.length ? activa.abonosCobros : undefined,
       });
 
       addToast({
@@ -616,6 +617,7 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
       fechaLabel: formatInAppTimezone(ahora, { dateStyle: 'full', timeStyle: 'short' }),
       sucursalId: effectiveSucursalId ?? undefined,
       ventas: ventasSesion,
+      abonosCobros: activa.abonosCobros?.length ? activa.abonosCobros : undefined,
     });
     addToast({
       type: 'success',

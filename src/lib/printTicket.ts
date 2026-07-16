@@ -1033,10 +1033,13 @@ export function printThermalDailySalesReport(input: {
   fechaLabel: string;
   sucursalId?: string;
   ventas: Sale[];
+  /** Abonos CxC de la sesión (con forma de pago) para el resumen del reporte. */
+  abonosCobros?: CajaAbonoCobro[];
 }): void {
   const list = [...input.ventas].sort(
     (a, b) => saleFechaHistorial(a).getTime() - saleFechaHistorial(b).getTime()
   );
+  const abonos = input.abonosCobros ?? [];
   const rows = list
     .map((v) => {
       const st =
@@ -1055,8 +1058,8 @@ export function printThermalDailySalesReport(input: {
     .filter((v) => v.estado !== 'cancelada' && v.estado !== 'pendiente')
     .reduce((s, v) => s + (Number(v.total) || 0), 0);
 
-  const grupos = resumenGruposMedioPagoCierre(input.ventas);
-  const porForma = totalesPorFormaPago(input.ventas);
+  const grupos = resumenGruposMedioPagoCierre(input.ventas, abonos);
+  const porForma = totalesPorFormaPago(input.ventas, abonos);
   const formaRows = Object.entries(porForma)
     .filter(([, m]) => (Number(m) || 0) > 0)
     .sort(([a], [b]) => a.localeCompare(b))
@@ -1065,6 +1068,16 @@ export function printThermalDailySalesReport(input: {
         `<tr><td>${escapeHtml(labelFormaPagoCaja(clave))}</td><td class="right">${formatMoney(Number(m) || 0)}</td></tr>`
     )
     .join('');
+
+  const abonosRows = [...abonos]
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+    .map((a) => {
+      const cliente = a.clienteNombre?.trim() || 'Cliente';
+      const forma = labelFormaPagoCaja(a.formaPago);
+      return `<tr><td>Abono CxC<br/><span style="font-size:${THERMAL_MIN_FONT_PX}px;">${escapeHtml(cliente)} · ${escapeHtml(forma)}</span></td><td class="right">${formatMoney(Number(a.monto) || 0)}</td></tr>`;
+    })
+    .join('');
+  const abonosTotal = Math.round(abonos.reduce((s, a) => s + (Number(a.monto) || 0), 0) * 100) / 100;
 
   const completadasDia = list.filter((v) => v.estado === 'completada');
   const totalAdeudoDia = completadasDia.reduce((s, v) => s + computeSaleClienteAdeudo(v), 0);
@@ -1077,10 +1090,17 @@ export function printThermalDailySalesReport(input: {
     pageTitle: 'Reporte ventas',
     bodyClass: 'ticket-cierre-turno',
     styles: THERMAL_CIERRE_TURNO_STYLES,
-    bodyInnerHtml: `<div class="meta">${escapeHtml(input.fechaLabel)}<br/>${list.length} ticket(s)</div>
+    bodyInnerHtml: `<div class="meta">${escapeHtml(input.fechaLabel)}<br/>${list.length} ticket(s)${abonos.length ? ` · ${abonos.length} abono(s) CxC` : ''}</div>
   <table>${rows || '<tr><td>Sin ventas.</td></tr>'}</table>
+  ${
+    abonosRows
+      ? `<p class="ticket-section-title">Abonos CxC (con forma de pago)</p>
+  <table>${abonosRows}</table>
+  <div class="tot" style="border-top:none;padding-top:2px;">Total abonos: <strong>${formatMoney(abonosTotal)}</strong></div>`
+      : ''
+  }
   <div class="tot" style="border-top:none;padding-top:4px;">
-    <div><strong>Resumen medios</strong> <span style="font-size:${THERMAL_MIN_FONT_PX}px;">(cobros en ventas completadas)</span></div>
+    <div><strong>Resumen medios</strong> <span style="font-size:${THERMAL_MIN_FONT_PX}px;">(ventas + abonos CxC)</span></div>
     <div>Efectivo: ${formatMoney(grupos.efectivoCobros)}</div>
     <div>Tarjetas: ${formatMoney(grupos.tarjetas)}</div>
     <div>Otros: ${formatMoney(grupos.otros)}</div>
