@@ -43,6 +43,7 @@ import { printThermalClientAbonoReceipt, printThermalTicketFromSale, type Therma
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 import { useCajaSesion } from '@/hooks/useCajaSesion';
 import { registrarAbonoCobroCajaFirestore } from '@/lib/firestore/cajaFirestore';
+import { aplicarAbonoATicketsCliente } from '@/db/database';
 import { listaAbonosCxCMostrable } from '@/lib/clientAbonoHistorialUi';
 import { parrafosAyudaCancelacionVentaAdmin } from '@/lib/cancelacionVentaAdminUi';
 import { efectivoNetoEnCajaPorVenta } from '@/lib/cajaResumen';
@@ -222,6 +223,26 @@ export function CuentasPorCobrar() {
         cajaSesionId,
       });
 
+      let ticketsAplicados = 0;
+      try {
+        const { aplicadoATickets, tickets } = await aplicarAbonoATicketsCliente(abonoCliente.id, m, {
+          formaPago: abonoFormaPago,
+          sucursalId: effectiveSucursalId ?? undefined,
+          cajaSesionId,
+        });
+        ticketsAplicados = tickets.length;
+        void aplicadoATickets;
+      } catch (ticketErr) {
+        addToast({
+          type: 'warning',
+          message:
+            ticketErr instanceof Error
+              ? `Abono guardado, pero no se aplicó a tickets: ${ticketErr.message}`
+              : 'Abono guardado; no se pudo aplicar a las ventas',
+          logToAppEvents: true,
+        });
+      }
+
       if (effectiveSucursalId && cajaSesionId) {
         try {
           await registrarAbonoCobroCajaFirestore(effectiveSucursalId, cajaSesionId, {
@@ -277,7 +298,10 @@ export function CuentasPorCobrar() {
       } else {
         addToast({
           type: 'success',
-          message: `Abono de ${formatMoney(m)} en ${labelFormaPago(abonoFormaPago)} registrado.`,
+          message:
+            ticketsAplicados > 0
+              ? `Abono de ${formatMoney(m)} en ${labelFormaPago(abonoFormaPago)} registrado y aplicado a ${ticketsAplicados} ticket(s).`
+              : `Abono de ${formatMoney(m)} en ${labelFormaPago(abonoFormaPago)} registrado.`,
           logToAppEvents: true,
         });
       }

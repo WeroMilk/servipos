@@ -551,6 +551,13 @@ export interface Payment {
   monto: number;
   /** Referencia bancaria / folio; en tarjeta (04/28) = últimos 4 dígitos para voucher/auditoría. */
   referencia?: string;
+  /** Sesión de caja en la que se cobró este pago (abonos CxC sobre tickets de otro turno). */
+  cajaSesionId?: string;
+  /**
+   * Abono global de CxC aplicado al ticket: reduce adeudo de la venta, pero el efectivo/tarjeta
+   * del corte se cuenta vía `CajaSesion.abonosCobros` (evita doble conteo).
+   */
+  esAbonoCxC?: boolean;
 }
 
 export type SaleStatus = 'pendiente' | 'completada' | 'cancelada' | 'facturada';

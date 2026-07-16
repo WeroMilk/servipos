@@ -921,7 +921,7 @@ export async function completePendingSale(
 
 /**
  * Añade pagos a una venta `completada` con saldo (cobro desde POS / Cuentas por cobrar).
- * Ajusta `saldoAdeudado` del cliente cuando aplica (no mostrador).
+ * Ajusta `saldoAdeudado` del cliente cuando aplica (no mostrador), salvo `skipClientSaldoAdjust`.
  */
 export async function appendPagosToCompletedSale(
   id: string,
@@ -929,6 +929,10 @@ export async function appendPagosToCompletedSale(
     pagosToAdd: Sale['pagos'];
     cambio: number;
     cajaSesionId?: string | null;
+    /** No mover la venta a otra sesión de caja (abonos CxC). Default true = sí reasignar. */
+    reassignCajaSesion?: boolean;
+    /** No tocar saldoAdeudado del cliente (el abono CxC ya lo ajusta). */
+    skipClientSaldoAdjust?: boolean;
   },
   options?: { sucursalId?: string | null }
 ): Promise<void> {
@@ -950,9 +954,15 @@ export async function appendPagosToCompletedSale(
       pagosToAdd: patch.pagosToAdd,
       cambio: patch.cambio,
       cajaSesionId: patch.cajaSesionId,
+      reassignCajaSesion: patch.reassignCajaSesion,
     });
     const updated = await getSaleByIdFirestore(sucursalId, id);
-    if (updated && prev.clienteId && prev.clienteId !== MOSTRADOR_CLIENT_ID) {
+    if (
+      !patch.skipClientSaldoAdjust &&
+      updated &&
+      prev.clienteId &&
+      prev.clienteId !== MOSTRADOR_CLIENT_ID
+    ) {
       const adeudoDespues = computeSaleClienteAdeudo(updated);
       const cleared = adeudoAntes - adeudoDespues;
       if (cleared > 0.005) {
@@ -968,7 +978,9 @@ export async function appendPagosToCompletedSale(
 
   const merged = [...(prev.pagos ?? []), ...patch.pagosToAdd];
   const cajaPatch =
-    typeof patch.cajaSesionId === 'string' && patch.cajaSesionId.trim().length > 0
+    patch.reassignCajaSesion !== false &&
+    typeof patch.cajaSesionId === 'string' &&
+    patch.cajaSesionId.trim().length > 0
       ? { cajaSesionId: patch.cajaSesionId.trim() }
       : {};
 
@@ -981,7 +993,12 @@ export async function appendPagosToCompletedSale(
   });
 
   const updatedLocal = await db.sales.get(id);
-  if (updatedLocal && prev.clienteId && prev.clienteId !== MOSTRADOR_CLIENT_ID) {
+  if (
+    !patch.skipClientSaldoAdjust &&
+    updatedLocal &&
+    prev.clienteId &&
+    prev.clienteId !== MOSTRADOR_CLIENT_ID
+  ) {
     const adeudoDespues = computeSaleClienteAdeudo(updatedLocal);
     const cleared = adeudoAntes - adeudoDespues;
     if (cleared > 0.005) {
@@ -991,6 +1008,71 @@ export async function appendPagosToCompletedSale(
       referencia: id,
     });
   }
+}
+
+/**
+ * Distribuye un abono CxC sobre tickets con saldo del cliente (más antiguos primero)
+ * y deja el pago marcado como `esAbonoCxC` para no duplicarlo en el corte de ventas.
+ */
+export async function aplicarAbonoATicketsCliente(
+  clienteId: string,
+  monto: number,
+  options: {
+    formaPago: FormaPago;
+    sucursalId?: string;
+    cajaSesionId?: string;
+  }
+): Promise<{ aplicadoATickets: number; tickets: { saleId: string; folio: string; monto: number }[] }> {
+  const m = Math.round(Number(monto) * 100) / 100;
+  if (!clienteId || clienteId === MOSTRADOR_CLIENT_ID) throw new Error('Cliente no válido');
+  if (!Number.isFinite(m) || m <= 0) throw new Error('Ingrese un monto mayor a cero');
+  if (!options.formaPago) throw new Error('Indique la forma de pago del abono');
+
+  const sales = await getSalesByClienteId(clienteId, { sucursalId: options.sucursalId });
+  const conAdeudo = sales
+    .filter((s) => s.estado === 'completada' || s.estado === 'facturada')
+    .map((s) => ({ sale: s, adeudo: computeSaleClienteAdeudo(s) }))
+    .filter((x) => x.adeudo > 0.02)
+    .sort((a, b) => {
+      const ta = a.sale.createdAt instanceof Date ? a.sale.createdAt.getTime() : new Date(a.sale.createdAt).getTime();
+      const tb = b.sale.createdAt instanceof Date ? b.sale.createdAt.getTime() : new Date(b.sale.createdAt).getTime();
+      return ta - tb;
+    });
+
+  let remaining = m;
+  const tickets: { saleId: string; folio: string; monto: number }[] = [];
+  for (const { sale, adeudo } of conAdeudo) {
+    if (remaining <= 0.005) break;
+    // Facturadas: no se puede append en Firestore (regla actual); solo completadas.
+    if (sale.estado !== 'completada') continue;
+    const apply = Math.min(remaining, adeudo);
+    const applyRounded = Math.round(apply * 100) / 100;
+    if (applyRounded <= 0.005) continue;
+    await appendPagosToCompletedSale(
+      sale.id,
+      {
+        pagosToAdd: [
+          {
+            id: crypto.randomUUID(),
+            formaPago: options.formaPago,
+            monto: applyRounded,
+            cajaSesionId: options.cajaSesionId,
+            esAbonoCxC: true,
+          },
+        ],
+        cambio: Number(sale.cambio) || 0,
+        cajaSesionId: options.cajaSesionId,
+        reassignCajaSesion: false,
+        skipClientSaldoAdjust: true,
+      },
+      { sucursalId: options.sucursalId }
+    );
+    tickets.push({ saleId: sale.id, folio: sale.folio, monto: applyRounded });
+    remaining = Math.round((remaining - applyRounded) * 100) / 100;
+  }
+
+  const aplicadoATickets = Math.round((m - Math.max(0, remaining)) * 100) / 100;
+  return { aplicadoATickets, tickets };
 }
 
 export async function cancelSale(

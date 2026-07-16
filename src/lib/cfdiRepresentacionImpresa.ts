@@ -4,6 +4,7 @@ import { formatInAppTimezone } from '@/lib/appTimezone';
 import { formatMoney } from '@/lib/utils';
 import {
   buildInvoiceCfdiQrUrl,
+  buildNominaCfdiQrUrl,
   buildNominaPruebaCfdiQrUrl,
   buildSatVerificacionCfdiUrl,
   CFDI_MUESTRA_UUID,
@@ -16,6 +17,7 @@ import {
   USOS_CFDI,
   type FiscalConfig,
   type Invoice,
+  type NominaRecibo,
 } from '@/types';
 
 const AVISO_FISCAL_PRUEBA = 'DOCUMENTO DE PRUEBA - SIN VALIDEZ FISCAL ANTE EL SAT';
@@ -736,6 +738,118 @@ export function printNominaPruebaCfdiLetter(input: NominaPruebaPrintInput): void
       openCfdiLetterPrint(html);
     } catch (e) {
       console.error('printNominaPruebaCfdiLetter', e);
+    }
+  })();
+}
+
+/** Representación impresa de nómina timbrada con QR SAT real. */
+export async function buildNominaTimbradaPrintDocumentHtml(opts: {
+  config: FiscalConfig;
+  recibo: NominaRecibo;
+}): Promise<string> {
+  const { config, recibo } = opts;
+  const emp = recibo.empleado;
+  if (!emp) throw new Error('Recibo sin datos de empleado');
+
+  let qrRowHtml = '';
+  const qrUrl = buildNominaCfdiQrUrl({
+    uuid: recibo.uuid,
+    selloDigital: recibo.selloDigital,
+    rfcEmisor: config.rfc,
+    rfcReceptorTrabajador: emp.rfc,
+    totalNeto: recibo.neto,
+  });
+  if (qrUrl) {
+    const QRCode = (await import('qrcode')).default;
+    const dataUrl = await QRCode.toDataURL(qrUrl, {
+      width: 92,
+      margin: 0,
+      errorCorrectionLevel: 'M',
+    });
+    qrRowHtml = `<div class="nomina-qr-row"><div class="qr-zona"><img src="${dataUrl}" width="92" height="92" alt="QR CFDI" /><div class="qr-caption">${escHtml(
+      'Verifique en el portal del SAT con este QR'
+    )}</div></div></div>`;
+  }
+
+  const rowsPerc = recibo.percepciones
+    .map(
+      (p) =>
+        `<tr><td>${escHtml(p.clave)}</td><td>${escHtml(p.concepto)}</td><td class="num">${formatMoney(
+          (p.importeGravado ?? 0) + (p.importeExento ?? 0)
+        )}</td></tr>`
+    )
+    .join('');
+  const rowsDed = recibo.deducciones
+    .map(
+      (d) =>
+        `<tr><td>${escHtml(d.clave)}</td><td>${escHtml(d.concepto)}</td><td class="num">${formatMoney(
+          d.importe ?? 0
+        )}</td></tr>`
+    )
+    .join('');
+
+  const foot = buildLetterFooterHtml();
+  const inner = `
+<div class="meta"><strong>${escHtml(config.razonSocial)}</strong> · RFC ${escHtml(config.rfc)} · CP ${escHtml(
+    config.lugarExpedicion || ''
+  )}</div>
+<p class="periodo"><strong>Recibo de nómina CFDI</strong> ${escHtml(recibo.serie)}-${escHtml(
+    String(recibo.folio)
+  )} · UUID ${escHtml(recibo.uuid || '—')}</p>
+<div class="grid-2">
+  <div class="box">
+    <h3>Trabajador</h3>
+    <div>${escHtml(emp.nombre)}</div>
+    <div>RFC ${escHtml(emp.rfc)} · CURP ${escHtml(emp.curp)}</div>
+    <div>No. emp. ${escHtml(emp.numeroEmpleado)} · ${escHtml(emp.puesto)}</div>
+  </div>
+  <div class="box">
+    <h3>Periodo</h3>
+    <div>Pago: ${escHtml(recibo.fechaPago)}</div>
+    <div>${escHtml(recibo.fechaInicialPago)} → ${escHtml(recibo.fechaFinalPago)}</div>
+    <div>Días pagados: ${recibo.numDiasPagados}</div>
+  </div>
+</div>
+<div class="tables-2">
+  <div>
+    <strong style="font-size:7pt;">Percepciones</strong>
+    <table class="mini"><thead><tr><th>Clave</th><th>Concepto</th><th class="num">Importe</th></tr></thead>
+    <tbody>${rowsPerc || '<tr><td colspan="3">—</td></tr>'}</tbody></table>
+  </div>
+  <div>
+    <strong style="font-size:7pt;">Deducciones</strong>
+    <table class="mini"><thead><tr><th>Clave</th><th>Concepto</th><th class="num">Importe</th></tr></thead>
+    <tbody>${rowsDed || '<tr><td colspan="3">—</td></tr>'}</tbody></table>
+  </div>
+</div>
+<div class="tot">
+  <div>Total percepciones: ${formatMoney(recibo.totalPercepciones)}</div>
+  <div>Total deducciones: ${formatMoney(recibo.totalDeducciones)}</div>
+  <div><strong>Neto a pagar: ${formatMoney(recibo.neto)}</strong></div>
+</div>
+${qrRowHtml}
+<p class="muted">Documento timbrado. El QR enlaza al verificador oficial del SAT con UUID y sello reales.</p>
+`;
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Nómina ${escHtml(
+    recibo.serie
+  )}-${escHtml(String(recibo.folio))}</title>
+<style>${NOMINA_ONE_PAGE_STYLES}</style></head><body>
+${inner}
+${foot}
+</body></html>`;
+}
+
+export function printNominaTimbradaCfdiLetter(opts: {
+  config: FiscalConfig;
+  recibo: NominaRecibo;
+}): void {
+  void (async () => {
+    try {
+      const html = await buildNominaTimbradaPrintDocumentHtml(opts);
+      openCfdiLetterPrint(html);
+    } catch (e) {
+      console.error('printNominaTimbradaCfdiLetter', e);
     }
   })();
 }

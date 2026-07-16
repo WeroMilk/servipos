@@ -53,8 +53,9 @@ export const CFDI_MUESTRA_UUID = 'A1B2C3D4-E5F6-4A90-ABCD-EF1234567890';
 const CFDI_MUESTRA_SELLO_EMISOR = 'CERTPRUEBA0123456789ABCDEF01234567';
 
 /**
- * URL del portal de verificación del SAT para el QR (real si hay timbre; si no, datos de **muestra**
- * con RFC y total reales para que la representación se vea como un CFDI timbrado).
+ * URL del portal de verificación del SAT para el QR.
+ * Documentos timbrados: solo UUID+sello reales. Prueba local: QR de muestra.
+ * Borradores sin timbre y sin esPrueba: sin QR (no inventar validez fiscal).
  */
 export function buildInvoiceCfdiQrUrl(inv: Invoice): string | null {
   const re = inv.emisor?.rfc?.trim().toUpperCase();
@@ -73,12 +74,32 @@ export function buildInvoiceCfdiQrUrl(inv: Invoice): string | null {
       : null;
   if (urlTimbrada) return urlTimbrada;
 
+  if (!inv.esPrueba) return null;
+
   return buildSatVerificacionCfdiUrl({
     uuid: CFDI_MUESTRA_UUID,
     rfcEmisor: re,
     rfcReceptor: rr,
     total: inv.total,
     selloDigitalEmisor: CFDI_MUESTRA_SELLO_EMISOR,
+  });
+}
+
+/** QR SAT real para nómina timbrada (o null si faltan datos). */
+export function buildNominaCfdiQrUrl(args: {
+  uuid?: string;
+  selloDigital?: string;
+  rfcEmisor: string;
+  rfcReceptorTrabajador: string;
+  totalNeto: number;
+}): string | null {
+  if (!args.uuid?.trim() || !args.selloDigital?.trim()) return null;
+  return buildSatVerificacionCfdiUrl({
+    uuid: args.uuid,
+    rfcEmisor: args.rfcEmisor,
+    rfcReceptor: args.rfcReceptorTrabajador,
+    total: args.totalNeto,
+    selloDigitalEmisor: args.selloDigital,
   });
 }
 

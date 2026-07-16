@@ -26,10 +26,12 @@ export function pagosParaResumenCaja(sale: Sale): { formaPago: FormaPago; monto:
 
   const registrados = sale.pagos ?? [];
   if (sumaMontosPagosRegistrados(registrados) > 0.01) {
-    return registrados.map((p) => ({
-      formaPago: p.formaPago,
-      monto: Number(p.monto) || 0,
-    }));
+    return registrados
+      .filter((p) => p.esAbonoCxC !== true)
+      .map((p) => ({
+        formaPago: p.formaPago,
+        monto: Number(p.monto) || 0,
+      }));
   }
 
   const fp = sale.formaPago;

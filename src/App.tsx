@@ -28,6 +28,7 @@ const ClientePerfil = lazy(() => import('@/pages/ClientePerfil').then((m) => ({ 
 const CuentasPorCobrar = lazy(() =>
   import('@/pages/CuentasPorCobrar').then((m) => ({ default: m.CuentasPorCobrar }))
 );
+const Nominas = lazy(() => import('@/pages/Nominas').then((m) => ({ default: m.Nominas })));
 const Configuracion = lazy(() => import('@/pages/Configuracion').then((m) => ({ default: m.Configuracion })));
 const Checador = lazy(() => import('@/pages/Checador').then((m) => ({ default: m.Checador })));
 
@@ -191,6 +192,14 @@ function App() {
             element={
               <Suspense fallback={<PageFallback message="Cargando facturas" />}>
                 <Facturas />
+              </Suspense>
+            }
+          />
+          <Route
+            path="nominas"
+            element={
+              <Suspense fallback={<PageFallback message="Cargando nóminas" />}>
+                <Nominas />
               </Suspense>
             }
           />

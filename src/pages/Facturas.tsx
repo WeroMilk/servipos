@@ -13,6 +13,9 @@ import {
   Eye,
   Printer,
   Trash2,
+  Stamp,
+  FileMinus2,
+  Banknote,
 } from 'lucide-react';
 import { normalizeClaveProdServ, normalizeClaveUnidadSat } from '@/lib/satCatalog';
 import { Button } from '@/components/ui/button';
@@ -52,7 +55,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { useInvoices, useCFDIGenerator, useSales, useFiscalConfig, useClients, useEffectiveSucursalId } from '@/hooks';
-import { useAppStore } from '@/stores';
+import { useAppStore, useAuthStore } from '@/stores';
 import type { Invoice, Sale, Client } from '@/types';
 import { FORMAS_PAGO_UI, USOS_CFDI } from '@/types';
 import { cn, formatMoney } from '@/lib/utils';
@@ -65,6 +68,22 @@ import { exportInvoiceCfdiToPdf } from '@/lib/invoicePdfExport';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { getInvoiceById } from '@/db/database';
 import { getInvoiceFirestore } from '@/lib/firestore/invoicesFirestore';
+import {
+  stampInvoiceWithFacturama,
+  cancelStampedInvoiceWithFacturama,
+  downloadInvoiceXmlFromFacturama,
+  downloadInvoicePdfBase64FromFacturama,
+  stampCreditNoteWithFacturama,
+  stampPaymentComplementWithFacturama,
+} from '@/hooks/useFacturama';
+import { saldoInsolutoFacturaPpd, siguienteParcialidad } from '@/lib/facturama/ppdSaldo';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 const statusColors: Record<string, string> = {
   pendiente: 'bg-amber-500/10 text-black border-amber-500/30 dark:text-amber-100',
@@ -127,6 +146,9 @@ export function Facturas() {
   const { generateXML } = useCFDIGenerator();
   const { addToast } = useAppStore();
   const { effectiveSucursalId } = useEffectiveSucursalId();
+  const hasPermission = useAuthStore((s) => s.hasPermission);
+  const canTimbrar = hasPermission('facturas:timbrar') || hasPermission('facturas:crear');
+  const canCancelarSat = hasPermission('facturas:cancelar') || hasPermission('facturas:crear');
 
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
@@ -140,6 +162,15 @@ export function Facturas() {
   const [emailBody, setEmailBody] = useState('');
   const [deleteInvoiceTarget, setDeleteInvoiceTarget] = useState<Invoice | null>(null);
   const [deletingInvoice, setDeletingInvoice] = useState(false);
+  const [stampingId, setStampingId] = useState<string | null>(null);
+  const [cancelSatTarget, setCancelSatTarget] = useState<Invoice | null>(null);
+  const [cancelMotive, setCancelMotive] = useState('02');
+  const [cancelUuidReplacement, setCancelUuidReplacement] = useState('');
+  const [cancelingSat, setCancelingSat] = useState(false);
+  const [pagoTarget, setPagoTarget] = useState<Invoice | null>(null);
+  const [pagoMonto, setPagoMonto] = useState('');
+  const [pagoForma, setPagoForma] = useState('03');
+  const [pagoBusy, setPagoBusy] = useState(false);
 
   const handleDeleteInvoice = (inv: Invoice) => {
     setDeleteInvoiceTarget(inv);
@@ -160,6 +191,139 @@ export function Facturas() {
       });
     } finally {
       setDeletingInvoice(false);
+    }
+  };
+
+  const reloadInvoice = async (id: string): Promise<Invoice | null> => {
+    if (effectiveSucursalId) return getInvoiceFirestore(effectiveSucursalId, id);
+    return (await getInvoiceById(id)) ?? null;
+  };
+
+  const handleTimbrar = async (invoice: Invoice) => {
+    if (!canTimbrar) {
+      addToast({ type: 'error', message: 'Sin permiso para timbrar' });
+      return;
+    }
+    setStampingId(invoice.id);
+    try {
+      const stamped = await stampInvoiceWithFacturama(invoice);
+      setSelectedInvoice(stamped);
+      addToast({
+        type: 'success',
+        message: `Factura timbrada. UUID: ${stamped.uuid}`,
+        logToAppEvents: true,
+      });
+    } catch (e) {
+      addToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'No se pudo timbrar',
+        logToAppEvents: true,
+      });
+    } finally {
+      setStampingId(null);
+    }
+  };
+
+  const confirmCancelSat = async () => {
+    if (!cancelSatTarget) return;
+    setCancelingSat(true);
+    try {
+      if (cancelSatTarget.facturamaId && cancelSatTarget.uuid) {
+        await cancelStampedInvoiceWithFacturama({
+          invoice: cancelSatTarget,
+          motive: cancelMotive,
+          uuidReplacement: cancelMotive === '01' ? cancelUuidReplacement : undefined,
+        });
+        addToast({
+          type: 'success',
+          message: 'Solicitud de cancelación enviada al SAT vía Facturama',
+          logToAppEvents: true,
+        });
+      } else {
+        await cancelInvoice(cancelSatTarget.id, `Local: motivo ${cancelMotive}`);
+        addToast({ type: 'success', message: 'Factura cancelada localmente (sin timbre SAT)' });
+      }
+      setCancelSatTarget(null);
+      setCancelUuidReplacement('');
+      setCancelMotive('02');
+    } catch (e) {
+      addToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'No se pudo cancelar',
+        logToAppEvents: true,
+      });
+    } finally {
+      setCancelingSat(false);
+    }
+  };
+
+  const handleNotaCredito = async (invoice: Invoice) => {
+    if (!canTimbrar) {
+      addToast({ type: 'error', message: 'Sin permiso para timbrar' });
+      return;
+    }
+    setStampingId(invoice.id);
+    try {
+      const { related } = await stampCreditNoteWithFacturama({ original: invoice });
+      addToast({
+        type: 'success',
+        message: `Nota de crédito timbrada. UUID: ${related.uuid}`,
+        logToAppEvents: true,
+      });
+      const fresh = await reloadInvoice(invoice.id);
+      if (fresh) setSelectedInvoice(fresh);
+    } catch (e) {
+      addToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'No se pudo emitir la nota de crédito',
+        logToAppEvents: true,
+      });
+    } finally {
+      setStampingId(null);
+    }
+  };
+
+  const openPagoComplement = (invoice: Invoice) => {
+    const saldo = saldoInsolutoFacturaPpd(invoice);
+    setPagoTarget(invoice);
+    setPagoMonto(saldo > 0 ? String(saldo) : '');
+    setPagoForma('03');
+  };
+
+  const confirmPagoComplement = async () => {
+    if (!pagoTarget) return;
+    const m = parseFloat(pagoMonto.replace(',', '.'));
+    if (!Number.isFinite(m) || m <= 0) {
+      addToast({ type: 'warning', message: 'Monto inválido' });
+      return;
+    }
+    const prev = saldoInsolutoFacturaPpd(pagoTarget);
+    setPagoBusy(true);
+    try {
+      const { complement } = await stampPaymentComplementWithFacturama({
+        invoice: pagoTarget,
+        paymentDate: new Date(),
+        paymentForm: pagoForma,
+        amountPaid: m,
+        previousBalance: prev,
+        partialityNumber: siguienteParcialidad(pagoTarget),
+      });
+      addToast({
+        type: 'success',
+        message: `Complemento de pago timbrado. UUID: ${complement.uuid}`,
+        logToAppEvents: true,
+      });
+      const fresh = await reloadInvoice(pagoTarget.id);
+      if (fresh) setSelectedInvoice(fresh);
+      setPagoTarget(null);
+    } catch (e) {
+      addToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'No se pudo emitir el complemento',
+        logToAppEvents: true,
+      });
+    } finally {
+      setPagoBusy(false);
     }
   };
 
@@ -187,7 +351,10 @@ export function Facturas() {
     }
 
     try {
-      const client = selectedClient || selectedSale.cliente;
+      const clientBase = selectedClient || selectedSale.cliente;
+      const client = clientBase
+        ? { ...clientBase, usoCfdi: formData.usoCfdi || clientBase.usoCfdi }
+        : null;
       
       const invoiceData = {
         clienteId: client?.id || 'mostrador',
@@ -275,7 +442,15 @@ export function Facturas() {
 
   const handleViewXML = async (invoice: Invoice) => {
     try {
-      const xml = await generateXML(invoice);
+      let xml = invoice.xml;
+      if (invoice.facturamaId) {
+        try {
+          xml = await downloadInvoiceXmlFromFacturama(invoice);
+        } catch {
+          /* fallback local */
+        }
+      }
+      if (!xml) xml = await generateXML(invoice);
       setGeneratedXML(xml);
       setSelectedInvoice(invoice);
       setShowXMLDialog(true);
@@ -302,6 +477,23 @@ export function Facturas() {
       return;
     }
     try {
+      if (invoice.facturamaId) {
+        const b64 = await downloadInvoicePdfBase64FromFacturama(invoice);
+        const bin = atob(b64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        const blob = new Blob([bytes], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `CFDI_${invoice.serie}_${invoice.folio}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        addToast({ type: 'success', message: 'PDF oficial Facturama descargado', logToAppEvents: true });
+        return;
+      }
       await exportInvoiceCfdiToPdf(invoice, `Factura_${invoice.serie}_${invoice.folio}`);
       addToast({ type: 'success', message: 'PDF descargado (formato factura clásica)', logToAppEvents: true });
     } catch (e) {
@@ -629,6 +821,43 @@ export function Facturas() {
                               <FileCode className="mr-2 h-4 w-4" />
                               Ver XML
                             </DropdownMenuItem>
+                            {canTimbrar &&
+                              !invoice.esPrueba &&
+                              invoice.estado !== 'timbrada' &&
+                              invoice.estado !== 'cancelada' && (
+                                <DropdownMenuItem
+                                  disabled={stampingId === invoice.id}
+                                  onClick={() => void handleTimbrar(invoice)}
+                                  className="text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10"
+                                >
+                                  <Stamp className="mr-2 h-4 w-4" />
+                                  {stampingId === invoice.id ? 'Timbrando…' : 'Timbrar (Facturama)'}
+                                </DropdownMenuItem>
+                              )}
+                            {canTimbrar &&
+                              invoice.estado === 'timbrada' &&
+                              invoice.uuid && (
+                                <DropdownMenuItem
+                                  disabled={stampingId === invoice.id}
+                                  onClick={() => void handleNotaCredito(invoice)}
+                                  className="text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:bg-slate-800"
+                                >
+                                  <FileMinus2 className="mr-2 h-4 w-4" />
+                                  Nota de crédito
+                                </DropdownMenuItem>
+                              )}
+                            {canTimbrar &&
+                              invoice.estado === 'timbrada' &&
+                              invoice.metodoPago === 'PPD' &&
+                              saldoInsolutoFacturaPpd(invoice) > 0.005 && (
+                                <DropdownMenuItem
+                                  onClick={() => openPagoComplement(invoice)}
+                                  className="text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:bg-slate-800"
+                                >
+                                  <Banknote className="mr-2 h-4 w-4" />
+                                  Complemento de pago
+                                </DropdownMenuItem>
+                              )}
                             <DropdownMenuItem
                               onClick={() => void handleGeneratePDF(invoice)}
                               className="text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:bg-slate-800 hover:text-slate-900 dark:text-slate-100"
@@ -650,9 +879,13 @@ export function Facturas() {
                               <Send className="mr-2 h-4 w-4" />
                               Enviar por Email
                             </DropdownMenuItem>
-                            {invoice.estado !== 'cancelada' && (
+                            {invoice.estado !== 'cancelada' && canCancelarSat && (
                               <DropdownMenuItem
-                                onClick={() => cancelInvoice(invoice.id, 'Error en datos')}
+                                onClick={() => {
+                                  setCancelSatTarget(invoice);
+                                  setCancelMotive('02');
+                                  setCancelUuidReplacement('');
+                                }}
                                 className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
                               >
                                 <X className="mr-2 h-4 w-4" />
@@ -959,6 +1192,37 @@ export function Facturas() {
                 <p className="text-slate-600 dark:text-slate-400">{selectedInvoice.cliente?.rfc || 'XAXX010101000'}</p>
               </div>
 
+              {selectedInvoice.uuid ? (
+                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
+                  <p className="font-medium text-emerald-700 dark:text-emerald-300">UUID (SAT)</p>
+                  <p className="break-all font-mono text-xs text-slate-800 dark:text-slate-200">
+                    {selectedInvoice.uuid}
+                  </p>
+                  {selectedInvoice.fechaTimbrado ? (
+                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                      Timbrada:{' '}
+                      {new Date(selectedInvoice.fechaTimbrado).toLocaleString('es-MX')}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {(selectedInvoice.complementosPago?.length || selectedInvoice.cfdisRelacionados?.length) ? (
+                <div className="space-y-2 text-sm">
+                  {(selectedInvoice.complementosPago ?? []).map((c) => (
+                    <p key={c.id} className="text-slate-600 dark:text-slate-400">
+                      Complemento de pago #{c.numeroParcialidad}: {formatMoney(c.monto)} — UUID{' '}
+                      {c.uuid.slice(0, 8)}…
+                    </p>
+                  ))}
+                  {(selectedInvoice.cfdisRelacionados ?? []).map((c) => (
+                    <p key={c.id} className="text-slate-600 dark:text-slate-400">
+                      CFDI {c.tipo}: UUID {c.uuid.slice(0, 8)}…
+                    </p>
+                  ))}
+                </div>
+              ) : null}
+
               <div
                 data-wheel-scroll-x="table"
                 className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800"
@@ -996,7 +1260,21 @@ export function Facturas() {
                 </div>
               </div>
 
-              <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                {canTimbrar &&
+                  !selectedInvoice.esPrueba &&
+                  selectedInvoice.estado !== 'timbrada' &&
+                  selectedInvoice.estado !== 'cancelada' && (
+                    <Button
+                      type="button"
+                      disabled={stampingId === selectedInvoice.id}
+                      className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white"
+                      onClick={() => void handleTimbrar(selectedInvoice)}
+                    >
+                      <Stamp className="mr-2 h-4 w-4" />
+                      {stampingId === selectedInvoice.id ? 'Timbrando…' : 'Timbrar (Facturama)'}
+                    </Button>
+                  )}
                 <Button
                   type="button"
                   variant="outline"
@@ -1051,6 +1329,121 @@ export function Facturas() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog
+        open={cancelSatTarget != null}
+        onOpenChange={(open) => {
+          if (!open) setCancelSatTarget(null);
+        }}
+      >
+        <DialogContent className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
+          <DialogHeader>
+            <DialogTitle>Cancelar factura</DialogTitle>
+          </DialogHeader>
+          {cancelSatTarget ? (
+            <div className="space-y-3 py-2">
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                {cancelSatTarget.serie}-{cancelSatTarget.folio}
+                {cancelSatTarget.uuid
+                  ? ' — se cancelará ante el SAT vía Facturama.'
+                  : ' — solo cancelación local (aún no timbrada).'}
+              </p>
+              <div className="space-y-1">
+                <Label>Motivo SAT</Label>
+                <Select value={cancelMotive} onValueChange={setCancelMotive}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="01">01 — Errores con relación (sustitución)</SelectItem>
+                    <SelectItem value="02">02 — Errores sin relación</SelectItem>
+                    <SelectItem value="03">03 — No se llevó a cabo la operación</SelectItem>
+                    <SelectItem value="04">04 — Operación nominativa / factura global</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {cancelMotive === '01' ? (
+                <div className="space-y-1">
+                  <Label>UUID del CFDI que sustituye</Label>
+                  <Input
+                    value={cancelUuidReplacement}
+                    onChange={(e) => setCancelUuidReplacement(e.target.value)}
+                    placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
+                  />
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancelSatTarget(null)} disabled={cancelingSat}>
+              Cerrar
+            </Button>
+            <Button
+              className="bg-red-600 text-white hover:bg-red-700"
+              disabled={cancelingSat || (cancelMotive === '01' && !cancelUuidReplacement.trim())}
+              onClick={() => void confirmCancelSat()}
+            >
+              {cancelingSat ? 'Cancelando…' : 'Confirmar cancelación'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={pagoTarget != null}
+        onOpenChange={(open) => {
+          if (!open) setPagoTarget(null);
+        }}
+      >
+        <DialogContent className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
+          <DialogHeader>
+            <DialogTitle>Complemento de pago (CFDI tipo P)</DialogTitle>
+          </DialogHeader>
+          {pagoTarget ? (
+            <div className="space-y-3 py-2">
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                Factura {pagoTarget.serie}-{pagoTarget.folio}. Saldo insoluto:{' '}
+                {formatMoney(saldoInsolutoFacturaPpd(pagoTarget))}
+              </p>
+              <div className="space-y-1">
+                <Label>Monto del pago</Label>
+                <Input
+                  value={pagoMonto}
+                  onChange={(e) => setPagoMonto(e.target.value)}
+                  inputMode="decimal"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Forma de pago</Label>
+                <Select value={pagoForma} onValueChange={setPagoForma}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FORMAS_PAGO_UI.map((f) => (
+                      <SelectItem key={f.clave} value={f.clave}>
+                        {f.clave} — {f.descripcion}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPagoTarget(null)} disabled={pagoBusy}>
+              Cerrar
+            </Button>
+            <Button
+              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+              disabled={pagoBusy}
+              onClick={() => void confirmPagoComplement()}
+            >
+              {pagoBusy ? 'Timbrando…' : 'Timbrar complemento'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <SendEmailDialog
         open={emailOpen}

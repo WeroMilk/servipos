@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Navigate } from 'react-router-dom';
 import {
   Building2,
   Receipt,
@@ -19,7 +18,9 @@ import {
   Plus,
   Minus,
   RotateCcw,
+  Wifi,
 } from 'lucide-react';
+import { Navigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -50,6 +51,7 @@ import {
   getSucursalStateDocOnce,
   saveSucursalStateDoc,
 } from '@/lib/firestore/stateDocsFirestore';
+import { testFacturamaConnection } from '@/hooks/useFacturama';
 
 const NOMINA_STORAGE_KEY = 'servipartz-nomina-prueba-draft';
 const SUCURSAL_DOC_INVENTORY_LISTS = 'inventory_lists';
@@ -135,6 +137,8 @@ export function Configuracion() {
   }, [canManageSucursales, canManageUsers, canEditListaPreciosCliente, canVerHistorialAbasto]);
 
   const [activeTab, setActiveTab] = useState('fiscal');
+  const [facturamaBusy, setFacturamaBusy] = useState(false);
+  const [facturamaStatusMsg, setFacturamaStatusMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (!allowedConfigTabs.includes(activeTab)) {
@@ -436,11 +440,6 @@ export function Configuracion() {
     'h-11 border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 text-base leading-normal text-slate-900 dark:text-slate-100 sm:h-8 sm:text-sm lg:h-7 lg:py-1 lg:text-xs';
   const selectClass =
     'h-11 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 px-3 py-2 text-base leading-normal text-slate-900 dark:text-slate-100 sm:h-8 sm:py-1 sm:text-sm lg:h-7 lg:py-1 lg:text-xs';
-  const csdFileInputClass = cn(
-    'h-11 border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 px-2 text-base leading-normal text-slate-900 dark:text-slate-100 sm:h-10 sm:text-sm',
-    'file:mr-2 file:h-9 sm:file:h-8 file:rounded-full file:border-0 file:bg-gradient-to-r file:from-cyan-500 file:to-blue-600 file:px-3.5 file:text-sm file:font-semibold file:text-white',
-    'hover:file:from-cyan-400 hover:file:to-blue-500 dark:hover:file:from-cyan-400 dark:hover:file:to-blue-500'
-  );
 
   /** Pestañas tipo subrayado (activa = borde inferior cyan), sin bloque de fondo. */
   const configuracionTabTriggerClass = cn(
@@ -936,52 +935,53 @@ export function Configuracion() {
               <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
                 <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-slate-100 sm:text-base">
                   <FileKey className="h-4 w-4 text-cyan-400 sm:h-5 sm:w-5" />
-                  CSD (sello digital)
+                  CSD en Facturama (API Web)
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-2 p-3 sm:p-4 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:overscroll-y-contain">
-                <div className="flex gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-800 dark:text-amber-400 sm:h-5 sm:w-5" />
-                  <p className="text-sm leading-snug text-black sm:text-xs dark:text-amber-50">
-                    CSD del SAT para timbrar en producción. En esta demo el XML se genera sin
-                    timbrar.
+                <div className="flex gap-2.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 p-3">
+                  <Lock className="mt-0.5 h-4 w-4 shrink-0 text-cyan-700 dark:text-cyan-400 sm:h-5 sm:w-5" />
+                  <p className="text-sm leading-snug text-slate-800 dark:text-slate-200 sm:text-xs">
+                    El CSD (.cer / .key) se carga en el panel de Facturama (perfil fiscal). El POS no almacena la
+                    llave privada: Facturama sella y timbra con su cuenta API Web de un solo RFC.
                   </p>
                 </div>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <div className="space-y-1">
-                    <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">Certificado (.cer)</Label>
-                    <Input
-                      type="file"
-                      accept=".cer"
-                      className={csdFileInputClass}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">Llave (.key)</Label>
-                    <Input
-                      type="file"
-                      accept=".key"
-                      className={csdFileInputClass}
-                    />
-                  </div>
-                  <div className="space-y-1 sm:col-span-2">
-                    <Label className="text-sm text-slate-600 dark:text-slate-400 sm:text-xs">Contraseña de la llave</Label>
-                    <Input
-                      type="password"
-                      placeholder="••••••••"
-                      className={fieldClass}
-                    />
-                  </div>
-                </div>
-                <div className="flex justify-end pt-1 xl:mt-auto">
+                <ul className="list-disc space-y-1 pl-5 text-sm text-slate-600 dark:text-slate-400 sm:text-xs">
+                  <li>RFC del emisor en Datos fiscales debe coincidir con el de Facturama.</li>
+                  <li>El CP de lugar de expedición debe existir como sucursal en Facturama.</li>
+                  <li>Credenciales API viven solo en secrets de Supabase (nunca en el frontend).</li>
+                </ul>
+                <div className="flex flex-wrap items-center gap-2 pt-1 xl:mt-auto">
                   <Button
                     type="button"
                     size="sm"
+                    disabled={facturamaBusy}
                     className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+                    onClick={() => {
+                      setFacturamaBusy(true);
+                      setFacturamaStatusMsg(null);
+                      void testFacturamaConnection()
+                        .then((r) => {
+                          const acc = r.account as { Email?: string; Name?: string } | null;
+                          setFacturamaStatusMsg(
+                            `Conexión OK${acc?.Email ? ` · ${acc.Email}` : ''}${acc?.Name ? ` · ${acc.Name}` : ''}`
+                          );
+                          addToast({ type: 'success', message: 'Facturama respondió correctamente' });
+                        })
+                        .catch((e) => {
+                          const msg = e instanceof Error ? e.message : 'Error de conexión';
+                          setFacturamaStatusMsg(msg);
+                          addToast({ type: 'error', message: msg });
+                        })
+                        .finally(() => setFacturamaBusy(false));
+                    }}
                   >
-                    <Lock className="mr-2 h-4 w-4" />
-                    Configurar CSD
+                    <Wifi className="mr-2 h-4 w-4" />
+                    {facturamaBusy ? 'Probando…' : 'Probar conexión Facturama'}
                   </Button>
+                  {facturamaStatusMsg ? (
+                    <p className="text-xs text-slate-600 dark:text-slate-400">{facturamaStatusMsg}</p>
+                  ) : null}
                 </div>
               </CardContent>
             </Card>
@@ -990,35 +990,21 @@ export function Configuracion() {
               <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
                 <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-slate-100 sm:text-base">
                   <Key className="h-4 w-4 text-cyan-400 sm:h-5 sm:w-5" />
-                  Soporte (timbrado)
+                  Modo prueba vs producción
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-3 sm:p-4 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:overscroll-y-contain">
                 <div className="rounded-lg bg-slate-200/60 dark:bg-slate-800/30 p-3 sm:p-3">
                   <p className="text-sm text-slate-600 dark:text-slate-400 sm:text-sm">
-                    Para timbrar ante el SAT contacte a Soporte:
+                    Con <strong>modo prueba fiscal</strong> activo no se llama a Facturama (documentos locales sin
+                    validez). Desactívelo en Datos fiscales para timbrar CFDI de ingreso y nómina en producción.
                   </p>
-                  <div className="mt-2 flex gap-2 text-sm text-slate-700 dark:text-slate-300 sm:text-sm">
-                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400 sm:h-3.5 sm:w-3.5" />
-                    <div className="min-w-0 space-y-1.5">
-                      <p>Luis Alfonso Silvas Madrid</p>
-                      <p>
-                        <a
-                          href="mailto:asilvasm97@gmail.com"
-                          className="text-cyan-700 underline-offset-2 hover:underline dark:text-cyan-400"
-                        >
-                          asilvasm97@gmail.com
-                        </a>
-                      </p>
-                      <p>
-                        <a
-                          href="tel:+526623501632"
-                          className="text-cyan-700 underline-offset-2 hover:underline dark:text-cyan-400"
-                        >
-                          6623501632
-                        </a>
-                      </p>
-                    </div>
+                  <div className="mt-3 flex gap-2 text-sm text-slate-700 dark:text-slate-300">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                    <p>
+                      Guía operativa:{' '}
+                      <span className="font-mono text-xs">docs/FACTURAMA.md</span>
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -1036,12 +1022,24 @@ export function Configuracion() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-2 p-2.5 sm:p-3 lg:gap-1.5 lg:p-2 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:overscroll-y-contain">
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-cyan-500/25 bg-cyan-500/10 p-2">
+                  <p className="flex-1 text-[11px] leading-snug text-cyan-900 dark:text-cyan-100 sm:text-xs">
+                    El flujo productivo de nómina timbrada está en el módulo{' '}
+                    <Link to="/nominas" className="font-semibold underline-offset-2 hover:underline">
+                      Nómina
+                    </Link>
+                    . Esta pestaña conserva la representación de <strong>prueba</strong> (sin timbre).
+                  </p>
+                  <Button type="button" size="sm" variant="outline" asChild>
+                    <Link to="/nominas">Ir a Nómina</Link>
+                  </Button>
+                </div>
                 <div className="flex gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/10 p-2 lg:p-1.5">
                   <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400 lg:h-3.5 lg:w-3.5" />
                   <p className="text-[11px] leading-snug text-emerald-400/95 sm:text-xs lg:text-[11px]">
                     Con <span className="font-medium text-emerald-300">serie y folio SAT</span>,{' '}
-                    <span className="font-medium text-emerald-300">CSD</span> y{' '}
-                    <span className="font-medium text-emerald-300">PAC</span> de nómina, el CFDI es válido ante el SAT.
+                    <span className="font-medium text-emerald-300">CSD en Facturama</span> y{' '}
+                    <span className="font-medium text-emerald-300">timbrado</span>, el CFDI de nómina es válido ante el SAT.
                   </p>
                 </div>
 

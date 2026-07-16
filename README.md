@@ -196,32 +196,9 @@ Para generar facturas electrónicas válidas, configure:
 
 ### Nota sobre Timbrado
 
-Este sistema genera el XML en formato correcto pero **no incluye timbrado real**. Para timbrar facturas ante el SAT, necesita:
+El timbrado real ante el SAT se realiza con **Facturama API Web** (un RFC) vía la Edge Function `facturama-cfdi`. Requisitos: CSD cargado en Facturama, secrets `FACTURAMA_USER` / `FACTURAMA_PASSWORD`, y modo prueba fiscal desactivado. Guía: **[docs/FACTURAMA.md](docs/FACTURAMA.md)**.
 
-1. **Certificados de Sello Digital (CSD)** del SAT
-2. **Contratar un PAC** (Proveedor Autorizado de Certificación):
-   - Facturama
-   - Finkok
-   - SW Sapien
-   - Edicom
-
-### Integración con PAC (Futura)
-
-```typescript
-// Ejemplo de integración con PAC
-const timbrarFactura = async (xml: string) => {
-  const response = await fetch('https://api.pac.com.mx/timbrar', {
-    method: 'POST',
-    headers: {
-      'Authorization': 'Bearer TU_API_KEY',
-      'Content-Type': 'application/xml',
-    },
-    body: xml,
-  });
-  return response.json();
-};
-```
-
+Soportado: CFDI ingreso (I), nota de crédito (E), complemento de pago (P) y nómina (N) con QR de verificación SAT.
 ## Sincronización Online/Offline
 
 ### Cómo Funciona
@@ -332,13 +309,13 @@ location.reload();
 
 ### Próximas Funcionalidades
 
-- [ ] Integración con PAC para timbrado real
+- [x] Integración con PAC (Facturama API Web) para timbrado real
 - [ ] Soporte para múltiples sucursales
 - [ ] Reportes avanzados con exportación a Excel
 - [ ] App móvil para consultas
 - [ ] Integración con pasarelas de pago
-- [ ] Soporte para notas de crédito
-- [ ] Complementos de pago (CFDI 4.0)
+- [x] Soporte para notas de crédito
+- [x] Complementos de pago (CFDI 4.0)
 
 ## Contribución
 

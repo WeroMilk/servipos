@@ -11,6 +11,7 @@ import {
   Clock,
   Target,
   Tag,
+  Banknote,
 } from 'lucide-react';
 import type { Permission } from '@/types';
 
@@ -73,6 +74,7 @@ export const MAIN_NAV_ITEMS: MainNavItem[] = [
     permission: 'checador:registrar',
   },
   { to: '/facturas', icon: Receipt, label: 'Facturación', shortLabel: 'Fact.', permission: 'facturas:ver' },
+  { to: '/nominas', icon: Banknote, label: 'Nómina', shortLabel: 'Nóm.', permission: 'nominas:ver' },
   { to: '/clientes', icon: Users, label: 'Clientes', shortLabel: 'Cli.', permission: 'ventas:ver' },
   {
     to: '/cuentas-por-cobrar',

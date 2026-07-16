@@ -92,6 +92,22 @@ function mapPayment(raw: Record<string, unknown>): Payment {
     formaPago: parseFormaPago(raw.formaPago),
     monto: Number(raw.monto) || 0,
     referencia: raw.referencia != null ? String(raw.referencia) : undefined,
+    cajaSesionId:
+      typeof raw.cajaSesionId === 'string' && raw.cajaSesionId.trim().length > 0
+        ? raw.cajaSesionId.trim()
+        : undefined,
+    esAbonoCxC: raw.esAbonoCxC === true ? true : undefined,
+  };
+}
+
+function paymentToDoc(p: Payment): Record<string, unknown> {
+  return {
+    id: p.id,
+    formaPago: p.formaPago,
+    monto: p.monto,
+    referencia: p.referencia ?? null,
+    cajaSesionId: p.cajaSesionId?.trim() ? p.cajaSesionId.trim() : null,
+    esAbonoCxC: p.esAbonoCxC === true ? true : null,
   };
 }
 
@@ -226,12 +242,7 @@ function saleToRpcPayload(
     total: sale.total,
     formaPago: sale.formaPago,
     metodoPago: sale.metodoPago,
-    pagos: sale.pagos.map((p) => ({
-      id: p.id,
-      formaPago: p.formaPago,
-      monto: p.monto,
-      referencia: p.referencia ?? null,
-    })),
+    pagos: sale.pagos.map((p) => paymentToDoc(p)),
     cambio: sale.cambio ?? null,
     estado: sale.estado,
     facturaId: sale.facturaId ?? null,
@@ -329,12 +340,7 @@ export async function partialReturnSaleFirestore(
     descuento: patch.descuento,
     impuestos: patch.impuestos,
     total: patch.total,
-    pagos: patch.pagos.map((p) => ({
-      id: p.id,
-      formaPago: p.formaPago,
-      monto: p.monto,
-      referencia: p.referencia ?? null,
-    })),
+    pagos: patch.pagos.map((p) => paymentToDoc(p)),
     notas: patch.notas,
     estado: patch.estado,
     updatedAt: new Date().toISOString(),
@@ -506,12 +512,7 @@ export async function completePendingSaleFirestore(
   doc.estado = 'completada';
   doc.formaPago = patch.formaPago;
   doc.metodoPago = patch.metodoPago;
-  doc.pagos = patch.pagos.map((p) => ({
-    id: p.id,
-    formaPago: p.formaPago,
-    monto: p.monto,
-    referencia: p.referencia ?? null,
-  }));
+  doc.pagos = patch.pagos.map((p) => paymentToDoc(p));
   doc.cambio = patch.cambio;
   doc.usuarioNombre = nombreCierre;
   if (typeof patch.cajaSesionId === 'string' && patch.cajaSesionId.trim().length > 0) {
@@ -541,6 +542,8 @@ export async function appendPagosToCompletedSaleFirestore(
     pagosToAdd: Payment[];
     cambio: number;
     cajaSesionId?: string | null;
+    /** Si es false, no sobrescribe `sale.cajaSesionId` (abonos CxC sobre tickets de otro turno). */
+    reassignCajaSesion?: boolean;
   }
 ): Promise<void> {
   const sid = saleId.trim();
@@ -567,23 +570,17 @@ export async function appendPagosToCompletedSaleFirestore(
   if (sumAdd <= 0) throw new Error('Indique un importe de cobro válido');
   if (sumAdd > prevAdeudo + 0.05) throw new Error('El cobro supera el saldo pendiente del ticket');
 
-  const existing = (sale.pagos ?? []).map((p) => ({
-    id: p.id,
-    formaPago: p.formaPago,
-    monto: p.monto,
-    referencia: p.referencia ?? null,
-  }));
-  const toAdd = patch.pagosToAdd.map((p) => ({
-    id: p.id,
-    formaPago: p.formaPago,
-    monto: p.monto,
-    referencia: p.referencia ?? null,
-  }));
+  const existing = (sale.pagos ?? []).map((p) => paymentToDoc(p));
+  const toAdd = patch.pagosToAdd.map((p) => paymentToDoc(p));
 
   const doc = { ...(row.doc as Record<string, unknown>) };
   doc.pagos = [...existing, ...toAdd];
   doc.cambio = patch.cambio;
-  if (typeof patch.cajaSesionId === 'string' && patch.cajaSesionId.trim().length > 0) {
+  if (
+    patch.reassignCajaSesion !== false &&
+    typeof patch.cajaSesionId === 'string' &&
+    patch.cajaSesionId.trim().length > 0
+  ) {
     doc.cajaSesionId = patch.cajaSesionId.trim();
   }
   doc.updatedAt = new Date().toISOString();

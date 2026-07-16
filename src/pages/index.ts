@@ -10,6 +10,7 @@ export { SalidasMercancia } from './SalidasMercancia';
 export { EtiquetasProductos } from './EtiquetasProductos';
 export { Cotizaciones } from './Cotizaciones';
 export { Facturas } from './Facturas';
+export { Nominas } from './Nominas';
 export { Clientes } from './Clientes';
 export { ClientePerfil } from './ClientePerfil';
 export { CuentasPorCobrar } from './CuentasPorCobrar';
