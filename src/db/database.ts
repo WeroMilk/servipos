@@ -1824,6 +1824,99 @@ export async function registrarAbonoACuentaCliente(
   });
 }
 
+/**
+ * Condona (elimina) el saldo pendiente de un ticket de cuentas por cobrar.
+ * Registra un pago interno marcado `esAbonoCxC` (no afecta el corte de caja) por el
+ * adeudo restante y ajusta el saldo del cliente. Solo para admin/gerente.
+ */
+export async function condonarTicketCuentaPorCobrar(
+  saleId: string,
+  options?: { sucursalId?: string; usuarioNombre?: string }
+): Promise<{ montoCondonado: number }> {
+  const sid = options?.sucursalId?.trim() || undefined;
+  const sale = sid ? await getSaleByIdFirestore(sid, saleId) : await db.sales.get(saleId);
+  if (!sale) throw new Error('Ticket no encontrado');
+  if (sale.estado !== 'completada') {
+    throw new Error('Solo se puede eliminar el saldo de tickets completados');
+  }
+  const adeudo = computeSaleClienteAdeudo(sale);
+  if (adeudo <= 0.02) throw new Error('Este ticket no tiene saldo por cobrar');
+
+  await appendPagosToCompletedSale(
+    saleId,
+    {
+      pagosToAdd: [
+        {
+          id: crypto.randomUUID(),
+          formaPago: 'STC',
+          monto: adeudo,
+          esAbonoCxC: true,
+        },
+      ],
+      cambio: Number(sale.cambio) || 0,
+      reassignCajaSesion: false,
+      skipClientSaldoAdjust: true,
+    },
+    { sucursalId: sid }
+  );
+
+  if (sale.clienteId && sale.clienteId !== MOSTRADOR_CLIENT_ID) {
+    await adjustClientSaldoAdeudado(sale.clienteId, -adeudo, { sucursalId: sid });
+  }
+
+  return { montoCondonado: adeudo };
+}
+
+/**
+ * Condona (elimina) toda la cuenta por cobrar de un cliente: liquida el saldo de
+ * cada ticket completado con adeudo y pone `saldoAdeudado` en cero. Solo admin/gerente.
+ */
+export async function condonarCuentaPorCobrarCliente(
+  clienteId: string,
+  options?: { sucursalId?: string; usuarioNombre?: string }
+): Promise<{ ticketsAfectados: number; montoCondonado: number }> {
+  if (!clienteId || clienteId === MOSTRADOR_CLIENT_ID) throw new Error('Cliente no válido');
+  const sid = options?.sucursalId?.trim() || undefined;
+
+  const sales = await getSalesByClienteId(clienteId, { sucursalId: sid });
+  const conAdeudo = sales
+    .filter((s) => s.estado === 'completada')
+    .map((s) => ({ sale: s, adeudo: computeSaleClienteAdeudo(s) }))
+    .filter((x) => x.adeudo > 0.02);
+
+  let ticketsAfectados = 0;
+  let montoCondonado = 0;
+  for (const { sale, adeudo } of conAdeudo) {
+    await appendPagosToCompletedSale(
+      sale.id,
+      {
+        pagosToAdd: [
+          {
+            id: crypto.randomUUID(),
+            formaPago: 'STC',
+            monto: adeudo,
+            esAbonoCxC: true,
+          },
+        ],
+        cambio: Number(sale.cambio) || 0,
+        reassignCajaSesion: false,
+        skipClientSaldoAdjust: true,
+      },
+      { sucursalId: sid }
+    );
+    ticketsAfectados += 1;
+    montoCondonado = Math.round((montoCondonado + adeudo) * 100) / 100;
+  }
+
+  const row = await db.clients.get(clienteId);
+  const saldoActual = Math.round((Number(row?.saldoAdeudado) || 0) * 100) / 100;
+  if (saldoActual > 0.005) {
+    await adjustClientSaldoAdeudado(clienteId, -saldoActual, { sucursalId: sid });
+  }
+
+  return { ticketsAfectados, montoCondonado };
+}
+
 function normalizeCreditoHistorialEntry(e: ClientCreditoHistorialEntry): ClientCreditoHistorialEntry {
   return {
     at: e.at instanceof Date ? e.at : new Date(e.at),

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Wallet, ShoppingCart, Ban, Printer, History, FileText } from 'lucide-react';
+import { Wallet, ShoppingCart, Ban, Printer, History, FileText, Trash2 } from 'lucide-react';
 import { PageShell } from '@/components/ui-custom/PageShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,7 +43,11 @@ import { printThermalClientAbonoReceipt, printThermalTicketFromSale, type Therma
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 import { useCajaSesion } from '@/hooks/useCajaSesion';
 import { registrarAbonoCobroCajaFirestore } from '@/lib/firestore/cajaFirestore';
-import { aplicarAbonoATicketsCliente } from '@/db/database';
+import {
+  aplicarAbonoATicketsCliente,
+  condonarTicketCuentaPorCobrar,
+  condonarCuentaPorCobrarCliente,
+} from '@/db/database';
 import { listaAbonosCxCMostrable } from '@/lib/clientAbonoHistorialUi';
 import { parrafosAyudaCancelacionVentaAdmin } from '@/lib/cancelacionVentaAdminUi';
 import { efectivoNetoEnCajaPorVenta } from '@/lib/cajaResumen';
@@ -109,6 +113,7 @@ export function CuentasPorCobrar() {
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === 'admin';
+  const canDeleteCxC = user?.role === 'admin' || user?.role === 'gerente';
   const { effectiveSucursalId } = useEffectiveSucursalId();
   const caja = useCajaSesion({ sucursalId: effectiveSucursalId });
   const puedeIrPos = hasPermission('ventas:crear');
@@ -159,6 +164,14 @@ export function CuentasPorCobrar() {
   } | null>(null);
   const [cancelTicketConfirmOpen, setCancelTicketConfirmOpen] = useState(false);
   const [cancelTicketBusy, setCancelTicketBusy] = useState(false);
+
+  const [eliminarTicketTarget, setEliminarTicketTarget] = useState<{
+    sale: Sale;
+    adeudo: number;
+  } | null>(null);
+  const [eliminarTicketBusy, setEliminarTicketBusy] = useState(false);
+  const [eliminarClienteTarget, setEliminarClienteTarget] = useState<Client | null>(null);
+  const [eliminarClienteBusy, setEliminarClienteBusy] = useState(false);
 
   const ppdFacturasCliente = useMemo((): Invoice[] => {
     if (!abonoCliente) return [];
@@ -349,6 +362,59 @@ export function CuentasPorCobrar() {
     }
   };
 
+  const confirmarEliminarTicket = async () => {
+    if (!eliminarTicketTarget) return;
+    const { sale, adeudo } = eliminarTicketTarget;
+    setEliminarTicketBusy(true);
+    try {
+      const { montoCondonado } = await condonarTicketCuentaPorCobrar(sale.id, {
+        sucursalId: effectiveSucursalId ?? undefined,
+        usuarioNombre: user?.name,
+      });
+      addToast({
+        type: 'success',
+        message: `Cuenta por cobrar del ticket ${sale.folio?.trim() || sale.id.slice(0, 8)} eliminada (${formatMoney(montoCondonado || adeudo)}).`,
+        logToAppEvents: true,
+      });
+      setEliminarTicketTarget(null);
+      setTicketSeleccionado(null);
+    } catch (e: unknown) {
+      addToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'No se pudo eliminar la cuenta por cobrar',
+        logToAppEvents: true,
+      });
+    } finally {
+      setEliminarTicketBusy(false);
+    }
+  };
+
+  const confirmarEliminarCliente = async () => {
+    if (!eliminarClienteTarget) return;
+    const cli = eliminarClienteTarget;
+    setEliminarClienteBusy(true);
+    try {
+      const { ticketsAfectados, montoCondonado } = await condonarCuentaPorCobrarCliente(cli.id, {
+        sucursalId: effectiveSucursalId ?? undefined,
+        usuarioNombre: user?.name,
+      });
+      addToast({
+        type: 'success',
+        message: `Cuenta por cobrar de ${cli.nombre} eliminada: ${formatMoney(montoCondonado)} en ${ticketsAfectados} ticket(s).`,
+        logToAppEvents: true,
+      });
+      setEliminarClienteTarget(null);
+    } catch (e: unknown) {
+      addToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'No se pudo eliminar la cuenta por cobrar',
+        logToAppEvents: true,
+      });
+    } finally {
+      setEliminarClienteBusy(false);
+    }
+  };
+
   return (
     <PageShell title="Cuentas por cobrar">
       <div className="flex min-h-0 min-w-0 w-full flex-1 basis-0 flex-col gap-3 overflow-hidden">
@@ -424,16 +490,30 @@ export function CuentasPorCobrar() {
                         {formatMoney(adeudo)}
                       </TableCell>
                       <TableCell>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="whitespace-nowrap border-slate-300 dark:border-slate-600"
-                          onClick={() => setTicketSeleccionado({ sale, adeudo })}
-                        >
-                          <FileText className="mr-1.5 h-3.5 w-3.5" />
-                          Ver detalle
-                        </Button>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="whitespace-nowrap border-slate-300 dark:border-slate-600"
+                            onClick={() => setTicketSeleccionado({ sale, adeudo })}
+                          >
+                            <FileText className="mr-1.5 h-3.5 w-3.5" />
+                            Ver detalle
+                          </Button>
+                          {canDeleteCxC ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="whitespace-nowrap border-red-300 text-red-600 hover:bg-red-50 dark:border-red-500/40 dark:text-red-400 dark:hover:bg-red-500/10"
+                              onClick={() => setEliminarTicketTarget({ sale, adeudo })}
+                            >
+                              <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                              Eliminar
+                            </Button>
+                          ) : null}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -539,6 +619,18 @@ export function CuentasPorCobrar() {
                             >
                               <Printer className="mr-1.5 h-3.5 w-3.5" />
                               Reimprimir último abono
+                            </Button>
+                          ) : null}
+                          {canDeleteCxC ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="whitespace-nowrap border-red-300 text-red-600 hover:bg-red-50 dark:border-red-500/40 dark:text-red-400 dark:hover:bg-red-500/10"
+                              onClick={() => setEliminarClienteTarget(c)}
+                            >
+                              <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                              Eliminar cuenta
                             </Button>
                           ) : null}
                         </div>
@@ -932,6 +1024,77 @@ export function CuentasPorCobrar() {
               }}
             >
               Sí, imprimir copia cliente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={eliminarTicketTarget != null}
+        onOpenChange={(o) => {
+          if (!o && !eliminarTicketBusy) setEliminarTicketTarget(null);
+        }}
+      >
+        <AlertDialogContent className="border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900">
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar la cuenta por cobrar del ticket?</AlertDialogTitle>
+            <AlertDialogDescription className="text-left text-sm">
+              Se eliminará el saldo pendiente de{' '}
+              <span className="font-semibold text-amber-700 dark:text-amber-400">
+                {formatMoney(eliminarTicketTarget?.adeudo ?? 0)}
+              </span>{' '}
+              del ticket{' '}
+              <span className="font-mono font-medium">
+                {eliminarTicketTarget?.sale.folio?.trim() || eliminarTicketTarget?.sale.id.slice(0, 8)}
+              </span>
+              . El ticket quedará como liquidado y no afectará el corte de caja. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={eliminarTicketBusy}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700"
+              disabled={eliminarTicketBusy}
+              onClick={(e) => {
+                e.preventDefault();
+                void confirmarEliminarTicket();
+              }}
+            >
+              {eliminarTicketBusy ? 'Eliminando…' : 'Sí, eliminar saldo'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={eliminarClienteTarget != null}
+        onOpenChange={(o) => {
+          if (!o && !eliminarClienteBusy) setEliminarClienteTarget(null);
+        }}
+      >
+        <AlertDialogContent className="border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900">
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar toda la cuenta por cobrar del cliente?</AlertDialogTitle>
+            <AlertDialogDescription className="text-left text-sm">
+              Se eliminará el saldo pendiente de{' '}
+              <span className="font-semibold text-amber-700 dark:text-amber-400">
+                {formatMoney(saldoCliente(eliminarClienteTarget ?? ({} as Client)))}
+              </span>{' '}
+              de <span className="font-semibold">{eliminarClienteTarget?.nombre}</span>. Todos sus tickets con
+              saldo quedarán liquidados y no afectará el corte de caja. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={eliminarClienteBusy}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700"
+              disabled={eliminarClienteBusy}
+              onClick={(e) => {
+                e.preventDefault();
+                void confirmarEliminarCliente();
+              }}
+            >
+              {eliminarClienteBusy ? 'Eliminando…' : 'Sí, eliminar cuenta'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
