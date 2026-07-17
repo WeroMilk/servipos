@@ -293,7 +293,8 @@ export async function closeCajaSessionFirestore(
   const abonosCobros = parseAbonosCobrosFirestore(data.abonosCobros) ?? [];
   const { tarjetas: tarjetasEsperadas } = resumenGruposMedioPagoCierre(
     filterVentasCompletadasSesion(ventas),
-    abonosCobros
+    abonosCobros,
+    sid
   );
 
   const fondo = Number(data.fondoInicial) || 0;
@@ -302,7 +303,8 @@ export async function closeCajaSessionFirestore(
   const abonosEfectivo = totalAbonosEfectivoSesion(abonosCobros);
   const { esperadoEnCaja: esperadoBruto } = computeCajaEfectivoEsperado(
     fondo,
-    filterVentasCompletadasSesion(ventas)
+    filterVentasCompletadasSesion(ventas),
+    sid
   );
   const esperadoEnCaja = efectivoEsperadoCajaSesion(
     esperadoBruto,

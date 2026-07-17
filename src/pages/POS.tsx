@@ -88,6 +88,7 @@ import {
   updateProduct,
 } from '@/db/database';
 import { getSaleByIdFirestore } from '@/lib/firestore/salesFirestore';
+import { registrarAbonoCobroCajaFirestore } from '@/lib/firestore/cajaFirestore';
 import { getProductCatalogSnapshot, updateProductFirestore } from '@/lib/firestore/productsFirestore';
 import { commitEmptyPosCartDraft } from '@/lib/firestore/posCartDraftFirestore';
 import { effectiveListaPreciosIncluyenIva } from '@/lib/catalogPricingFlags';
@@ -2675,22 +2676,57 @@ export function POS() {
           pend = saved;
         }
 
+        const cajaSesionIdHoy = cajaSesion.activa?.id;
         const pagosCompletacion: Payment[] = pagosParaVenta.map((p) => ({
           id: crypto.randomUUID(),
           formaPago: p.formaPago as FormaPago,
           monto: p.monto,
           referencia: p.referencia,
+          ...(cajaSesionIdHoy ? { cajaSesionId: cajaSesionIdHoy } : {}),
         }));
 
         if (pend.estado === 'completada') {
           const adeudoAntes = computeSaleClienteAdeudo(pend);
           const sumAbono = pagosCompletacion.reduce((s, p) => s + (Number(p.monto) || 0), 0);
           const cambioCxC = Math.max(0, sumAbono - adeudoAntes);
+          // Cobro de saldo: el dinero cuenta HOY (sesión abierta), no el día de la venta.
+          const pagosCxCHoy: Payment[] = pagosCompletacion.map((p) => ({
+            ...p,
+            esAbonoCxC: true,
+          }));
           await appendPagosToCompletedSale(pend.id, {
-            pagosToAdd: pagosCompletacion,
+            pagosToAdd: pagosCxCHoy,
             cambio: cambioCxC,
-            cajaSesionId: cajaSesion.activa?.id,
+            cajaSesionId: cajaSesionIdHoy,
+            reassignCajaSesion: false,
+            skipClientSaldoAdjust: false,
           });
+
+          if (effectiveSucursalId && cajaSesionIdHoy) {
+            for (const p of pagosCxCHoy) {
+              const monto = Number(p.monto) || 0;
+              if (monto <= 0.005) continue;
+              try {
+                await registrarAbonoCobroCajaFirestore(effectiveSucursalId, cajaSesionIdHoy, {
+                  monto,
+                  formaPago: p.formaPago,
+                  clienteId: pend.clienteId,
+                  clienteNombre: clienteNombreVenta,
+                  usuarioId: user?.id ?? 'system',
+                  usuarioNombre: cajeroNombre || 'Usuario',
+                });
+              } catch (cajaErr) {
+                addToast({
+                  type: 'warning',
+                  message:
+                    cajaErr instanceof Error
+                      ? `Cobro guardado, pero no se reflejó en caja: ${cajaErr.message}`
+                      : 'Cobro guardado; no se pudo registrar en el corte de caja',
+                  logToAppEvents: true,
+                });
+              }
+            }
+          }
 
           const clienteNombre = clienteNombreVenta;
           const lineas = items.map((item) => {

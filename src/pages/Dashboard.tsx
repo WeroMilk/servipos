@@ -1371,7 +1371,7 @@ export function Dashboard() {
                       className="text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:bg-slate-800 hover:text-cyan-400"
                       title="Reporte de ventas del día (térmica)"
                       aria-label="Imprimir reporte térmico del día seleccionado"
-                      disabled={reprintSalesSorted.length === 0}
+                      disabled={reprintSalesSorted.length === 0 && !effectiveSucursalId}
                       onClick={() => {
                         void (async () => {
                           let abonosCobros: CajaAbonoCobro[] | undefined;
@@ -1380,19 +1380,24 @@ export function Dashboard() {
                               const sesiones = await listCajaSesionesFirestore(effectiveSucursalId, {
                                 limit: 40,
                               });
-                              const delDia = sesiones.filter((s) => {
-                                const t = s.openedAt?.getTime?.() ?? NaN;
-                                return (
-                                  Number.isFinite(t) &&
-                                  t >= reprintDayStart.getTime() &&
-                                  t < reprintDayEnd.getTime()
-                                );
-                              });
-                              const merged = delDia.flatMap((s) => s.abonosCobros ?? []);
+                              // Abonos del DÍA en que se cobraron (no el día de la venta ni de apertura de caja).
+                              const merged = sesiones
+                                .flatMap((s) => s.abonosCobros ?? [])
+                                .filter((a) => {
+                                  const t = new Date(a.createdAt).getTime();
+                                  return (
+                                    Number.isFinite(t) &&
+                                    t >= reprintDayStart.getTime() &&
+                                    t < reprintDayEnd.getTime()
+                                  );
+                                });
                               if (merged.length) abonosCobros = merged;
                             } catch {
                               /* el reporte de ventas sigue sin abonos si falla la carga */
                             }
+                          }
+                          if (reprintSalesSorted.length === 0 && !(abonosCobros?.length)) {
+                            return;
                           }
                           printThermalDailySalesReport({
                             fechaLabel: formatInAppTimezone(reprintDayStart, {

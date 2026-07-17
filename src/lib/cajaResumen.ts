@@ -14,25 +14,60 @@ function sumaMontosPagosRegistrados(pagos: Sale['pagos'] | undefined): number {
 }
 
 /**
+ * ¿Este pago cuenta en la sesión `sesionId`?
+ * - Si el pago trae `cajaSesionId`, solo cuenta en esa sesión (abono/cobro el día que se pagó).
+ * - Si no (legado), cuenta con la sesión de la venta.
+ */
+function pagoPerteneceASesion(
+  sale: Pick<Sale, 'cajaSesionId'>,
+  pago: { cajaSesionId?: string },
+  sesionId: string
+): boolean {
+  const sid = sesionId.trim();
+  if (!sid) return false;
+  const paySid = (pago.cajaSesionId ?? '').trim();
+  if (paySid) return paySid === sid;
+  return (sale.cajaSesionId ?? '').trim() === sid;
+}
+
+/**
  * Líneas de cobro para arqueo y totales por forma de pago.
  * Prioriza `pagos` cuando traen montos. Si vienen vacíos o en cero (legado, sync incompleto, etc.),
  * infiere un cobro único como en el POS:
  * - **PUE + efectivo (01):** efectivo recibido = `total + cambio` (lo que entró al cajón antes del vuelto).
  * - **PUE + otra forma:** un pago por `total` (tarjeta, transferencia, …; cambio suele ser 0).
  * - **PPD** sin líneas: último recurso, un pago por `total` con `formaPago` de cabecera (mezclas mal guardadas pueden sesgar).
+ *
+ * Si se pasa `sesionId`, solo incluye cobros de esa sesión (el dinero se refleja el día que se cobró,
+ * aunque la venta sea de otro turno).
  */
-export function pagosParaResumenCaja(sale: Sale): { formaPago: FormaPago; monto: number }[] {
+export function pagosParaResumenCaja(
+  sale: Sale,
+  sesionId?: string
+): { formaPago: FormaPago; monto: number }[] {
   if (!saleCuentaEnCaja(sale)) return [];
 
+  const sid = sesionId?.trim() || '';
   const registrados = sale.pagos ?? [];
   if (sumaMontosPagosRegistrados(registrados) > 0.01) {
     return registrados
       .filter((p) => p.esAbonoCxC !== true)
+      .filter((p) => {
+        if (sid) return pagoPerteneceASesion(sale, p, sid);
+        // Sin sesión: no arrastrar a la venta cobros hechos en otro turno.
+        const paySid = (p.cajaSesionId ?? '').trim();
+        const saleSid = (sale.cajaSesionId ?? '').trim();
+        if (paySid && saleSid && paySid !== saleSid) return false;
+        return true;
+      })
       .map((p) => ({
         formaPago: p.formaPago,
         monto: Number(p.monto) || 0,
       }));
   }
+
+  // Inferencia solo si la venta pertenece a la sesión (o no filtramos por sesión).
+  if (sid && (sale.cajaSesionId ?? '').trim() !== sid) return [];
 
   const fp = sale.formaPago;
   if (FORMAS_SIN_COBRO_CIERRE.has(fp)) return [];
@@ -59,18 +94,24 @@ export function pagosParaResumenCaja(sale: Sale): { formaPago: FormaPago; monto:
 /**
  * Efectivo esperado en caja: fondo + cobros en forma 01 − vueltos (`cambio`).
  * En pantalla de arqueo se muestra como fondo + (efectivoCobrado − cambioEntregado) sin desglosar el cambio.
+ * Si se pasa `sesionId`, solo cuenta cobros de esa sesión (aunque la venta sea de otro día).
  */
 export function computeCajaEfectivoEsperado(
   fondoInicial: number,
-  ventasCompletadas: Sale[]
+  ventasCompletadas: Sale[],
+  sesionId?: string
 ): { efectivoCobrado: number; cambioEntregado: number; esperadoEnCaja: number } {
   let efectivoCobrado = 0;
   let cambioEntregado = 0;
+  const sid = sesionId?.trim() || '';
   for (const s of ventasCompletadas) {
-    for (const p of pagosParaResumenCaja(s)) {
+    for (const p of pagosParaResumenCaja(s, sid || undefined)) {
       if (p.formaPago === '01') efectivoCobrado += p.monto;
     }
-    cambioEntregado += Number(s.cambio) || 0;
+    // El cambio solo descuenta si la venta es de esta sesión (o no filtramos).
+    if (!sid || (s.cajaSesionId ?? '').trim() === sid) {
+      cambioEntregado += Number(s.cambio) || 0;
+    }
   }
   const esperadoEnCaja = fondoInicial + efectivoCobrado - cambioEntregado;
   return { efectivoCobrado, cambioEntregado, esperadoEnCaja };
@@ -151,11 +192,13 @@ export function resumenBrutoSesion(ventas: Sale[]): { tickets: number; total: nu
 /** Suma de montos por clave de forma de pago (ventas completadas + abonos CxC de la sesión). */
 export function totalesPorFormaPago(
   ventas: Sale[],
-  abonosCobros?: { formaPago: FormaPago; monto: number }[] | null
+  abonosCobros?: { formaPago: FormaPago; monto: number }[] | null,
+  sesionId?: string
 ): Partial<Record<FormaPago, number>> {
   const out: Partial<Record<FormaPago, number>> = {};
+  const sid = sesionId?.trim() || undefined;
   for (const s of filterVentasCompletadasSesion(ventas)) {
-    for (const p of pagosParaResumenCaja(s)) {
+    for (const p of pagosParaResumenCaja(s, sid)) {
       const k = p.formaPago;
       out[k] = (out[k] || 0) + p.monto;
     }
@@ -177,9 +220,10 @@ export function labelFormaPagoCaja(clave: string): string {
 /** Filas ordenadas para ticket/UI de cierre (solo montos &gt; 0). */
 export function lineasMediosPagoSesion(
   ventas: Sale[],
-  abonosCobros?: { formaPago: FormaPago; monto: number }[] | null
+  abonosCobros?: { formaPago: FormaPago; monto: number }[] | null,
+  sesionId?: string
 ): { clave: string; label: string; monto: number }[] {
-  const porForma = totalesPorFormaPago(ventas, abonosCobros);
+  const porForma = totalesPorFormaPago(ventas, abonosCobros, sesionId);
   return Object.entries(porForma)
     .filter(([, m]) => (Number(m) || 0) > 0)
     .sort(([a], [b]) => a.localeCompare(b))
@@ -189,13 +233,14 @@ export function lineasMediosPagoSesion(
 /** Agrupación típica de POS: efectivo, tarjetas SAT 04/28/29, resto de formas. */
 export function resumenGruposMedioPagoCierre(
   ventas: Sale[],
-  abonosCobros?: { formaPago: FormaPago; monto: number }[] | null
+  abonosCobros?: { formaPago: FormaPago; monto: number }[] | null,
+  sesionId?: string
 ): {
   efectivoCobros: number;
   tarjetas: number;
   otros: number;
 } {
-  const por = totalesPorFormaPago(ventas, abonosCobros);
+  const por = totalesPorFormaPago(ventas, abonosCobros, sesionId);
   const num = (clave: string) => Number(por[clave as FormaPago]) || 0;
   const efectivoCobros = num('01');
   const tarjetas = num('04') + num('28') + num('29');
@@ -226,15 +271,22 @@ export type SesionCierreMetrics = {
 export function computeSesionCierreMetrics(
   sesion: Pick<
     CajaSesion,
-    'fondoInicial' | 'aportesEfectivoTotal' | 'retirosEfectivoTotal' | 'abonosCobros'
+    'id' | 'fondoInicial' | 'aportesEfectivoTotal' | 'retirosEfectivoTotal' | 'abonosCobros'
   >,
-  ventas: Sale[]
+  ventas: Sale[],
+  /** Pool amplio de ventas (p. ej. catálogo reciente) para cobrar abonos de tickets de otros turnos. */
+  ventasPoolCobros?: Sale[]
 ): SesionCierreMetrics {
   const completadas = filterVentasCompletadasSesion(ventas);
   const abonos = sesion.abonosCobros ?? [];
+  const pool = ventasPoolCobros?.length ? ventasPoolCobros : ventas;
   const { tickets, total } = resumenBrutoSesion(ventas);
-  const grupos = resumenGruposMedioPagoCierre(ventas, abonos);
-  const { efectivoCobrado, cambioEntregado } = computeCajaEfectivoEsperado(sesion.fondoInicial, completadas);
+  const grupos = resumenGruposMedioPagoCierre(pool, abonos, sesion.id);
+  const { efectivoCobrado, cambioEntregado } = computeCajaEfectivoEsperado(
+    sesion.fondoInicial,
+    filterVentasCompletadasSesion(pool),
+    sesion.id
+  );
   let saldoPendiente = 0;
   for (const s of completadas) {
     saldoPendiente += computeSaleClienteAdeudo(s);
@@ -254,6 +306,6 @@ export function computeSesionCierreMetrics(
     cambioEntregado,
     efectivoNetoVentas: Math.round((efectivoCobrado - cambioEntregado) * 100) / 100,
     abonosCobrosTotal,
-    lineasMedio: lineasMediosPagoSesion(ventas, abonos),
+    lineasMedio: lineasMediosPagoSesion(pool, abonos, sesion.id),
   };
 }

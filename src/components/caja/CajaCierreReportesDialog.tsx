@@ -131,7 +131,8 @@ function SesionDetallePanel({
   const completadas = metrics.tickets;
   const { esperadoEnCaja: esperadoBruto } = computeCajaEfectivoEsperado(
     sesion.fondoInicial,
-    filterVentasCompletadasSesion(ventas)
+    filterVentasCompletadasSesion(ventas),
+    sesion.id
   );
   const esperadoCalc = efectivoEsperadoCajaSesion(
     esperadoBruto,
@@ -183,6 +184,7 @@ function SesionDetallePanel({
       retirosEfectivoTotal: sesion.retirosEfectivoTotal,
       retirosEfectivo: sesion.retirosEfectivo,
       abonosCobros: sesion.abonosCobros,
+      cajaSesionId: sesion.id,
       tarjetasEsperadas: tarjetasEsperadasShow,
       conteoTarjetasDeclarado: conteoTarjetasShow ?? undefined,
       diferenciaTarjetas: diferenciaTarjetasShow ?? undefined,

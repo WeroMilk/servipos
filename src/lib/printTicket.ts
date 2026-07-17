@@ -1033,13 +1033,16 @@ export function printThermalDailySalesReport(input: {
   fechaLabel: string;
   sucursalId?: string;
   ventas: Sale[];
-  /** Abonos CxC de la sesión (con forma de pago) para el resumen del reporte. */
+  /** Abonos CxC cobrados ese día (con forma de pago) — se reflejan el día del pago. */
   abonosCobros?: CajaAbonoCobro[];
+  /** Si se indica, atribuye cobros de tickets a esa sesión. */
+  cajaSesionId?: string;
 }): void {
   const list = [...input.ventas].sort(
     (a, b) => saleFechaHistorial(a).getTime() - saleFechaHistorial(b).getTime()
   );
   const abonos = input.abonosCobros ?? [];
+  const sid = input.cajaSesionId?.trim() || undefined;
   const rows = list
     .map((v) => {
       const st =
@@ -1058,8 +1061,8 @@ export function printThermalDailySalesReport(input: {
     .filter((v) => v.estado !== 'cancelada' && v.estado !== 'pendiente')
     .reduce((s, v) => s + (Number(v.total) || 0), 0);
 
-  const grupos = resumenGruposMedioPagoCierre(input.ventas, abonos);
-  const porForma = totalesPorFormaPago(input.ventas, abonos);
+  const grupos = resumenGruposMedioPagoCierre(input.ventas, abonos, sid);
+  const porForma = totalesPorFormaPago(input.ventas, abonos, sid);
   const formaRows = Object.entries(porForma)
     .filter(([, m]) => (Number(m) || 0) > 0)
     .sort(([a], [b]) => a.localeCompare(b))
@@ -1289,6 +1292,8 @@ export function printThermalCajaCierre(input: {
   retirosEfectivo?: CajaRetiroEfectivo[];
   /** Abonos CxC cobrados en la sesión (cuentan en medios de pago del corte). */
   abonosCobros?: CajaAbonoCobro[];
+  /** Si se indica, los cobros de tickets se atribuyen a esta sesión (día del pago). */
+  cajaSesionId?: string;
   tarjetasEsperadas?: number;
   conteoTarjetasDeclarado?: number;
   diferenciaTarjetas?: number;
@@ -1297,8 +1302,9 @@ export function printThermalCajaCierre(input: {
   ticketKind?: 'cierre' | 'arqueo_previo';
 }): void {
   const abonos = input.abonosCobros;
-  const grupos = resumenGruposMedioPagoCierre(input.ventas, abonos);
-  const porForma = totalesPorFormaPago(input.ventas, abonos);
+  const sid = input.cajaSesionId?.trim() || undefined;
+  const grupos = resumenGruposMedioPagoCierre(input.ventas, abonos, sid);
+  const porForma = totalesPorFormaPago(input.ventas, abonos, sid);
   const formaRows = Object.entries(porForma)
     .filter(([, m]) => (Number(m) || 0) > 0)
     .sort(([a], [b]) => a.localeCompare(b))
