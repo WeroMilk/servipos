@@ -378,6 +378,97 @@ function SesionDetallePanel({
           )}
         </div>
 
+        </div>
+
+        <div className="space-y-3">
+      <div>
+        <SectionTitle>Arqueo de efectivo</SectionTitle>
+        <div className="grid gap-1.5 sm:grid-cols-2">
+          <MetricRow label="Fondo inicial" value={formatMoney(sesion.fondoInicial)} />
+          <MetricRow
+            label="Aportes de efectivo"
+            value={formatMoney(sesion.aportesEfectivoTotal ?? 0)}
+          />
+          <MetricRow
+            label="Retiros de efectivo"
+            value={formatMoney(sesion.retirosEfectivoTotal ?? 0)}
+          />
+          <MetricRow
+            label="Efectivo esperado"
+            value={formatMoney(esperadoShow)}
+            valueClassName="text-emerald-800 dark:text-emerald-300"
+          />
+          {sesion.estado === 'cerrada' && declarado != null ? (
+            <>
+              <MetricRow label="Conteo físico" value={formatMoney(declarado)} />
+              <MetricRow
+                label="Diferencia"
+                value={formatMoney(diferencia ?? 0)}
+                valueClassName={
+                  (diferencia ?? 0) > 0.005
+                    ? 'text-emerald-700 dark:text-emerald-400'
+                    : (diferencia ?? 0) < -0.005
+                      ? 'text-red-600 dark:text-red-400'
+                      : undefined
+                }
+                hint="Declarado − esperado"
+              />
+            </>
+          ) : null}
+        </div>
+      </div>
+
+      {(sesion.aportesEfectivo?.length ?? 0) > 0 || (sesion.retirosEfectivo?.length ?? 0) > 0 ? (
+        <div className="grid gap-1.5 lg:grid-cols-2">
+          {(sesion.aportesEfectivo?.length ?? 0) > 0 ? (
+            <div className="rounded-md border border-sky-500/30 bg-sky-500/[0.06] px-2 py-1.5 dark:border-sky-500/25 dark:bg-sky-950/30">
+              <SectionTitle>Detalle aportes</SectionTitle>
+              <ul className="space-y-0.5 text-[10px] leading-snug text-sky-950/90 dark:text-sky-100/90">
+                {[...(sesion.aportesEfectivo ?? [])]
+                  .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+                  .map((r) => (
+                    <li key={r.id} className="border-b border-sky-800/10 pb-1 last:border-0 dark:border-sky-400/10">
+                      <div>
+                        <span className="font-semibold tabular-nums">+{formatMoney(r.monto)}</span>
+                        <span className="text-sky-900/80 dark:text-sky-200/80">
+                          {' '}
+                          · {formatInAppTimezone(r.createdAt, { timeStyle: 'short' })} · {r.usuarioNombre}
+                        </span>
+                      </div>
+                      {r.notas?.trim() ? (
+                        <p className="mt-0.5 font-medium text-sky-950 dark:text-sky-50">{r.notas.trim()}</p>
+                      ) : null}
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          ) : null}
+          {(sesion.retirosEfectivo?.length ?? 0) > 0 ? (
+            <div className="rounded-md border border-amber-500/30 bg-amber-500/[0.06] px-2 py-1.5 dark:border-amber-500/25 dark:bg-amber-950/25">
+              <SectionTitle>Detalle retiros</SectionTitle>
+              <ul className="space-y-0.5 text-[10px] leading-snug text-amber-950/90 dark:text-amber-100/90">
+                {[...(sesion.retirosEfectivo ?? [])]
+                  .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+                  .map((r) => (
+                    <li key={r.id} className="border-b border-amber-800/10 pb-1 last:border-0 dark:border-amber-400/10">
+                      <div>
+                        <span className="font-semibold tabular-nums">−{formatMoney(r.monto)}</span>
+                        <span>
+                          {' '}
+                          · {formatInAppTimezone(r.createdAt, { timeStyle: 'short' })} · {r.usuarioNombre}
+                        </span>
+                      </div>
+                      {r.notas?.trim() ? (
+                        <p className="mt-0.5 font-medium text-amber-950 dark:text-amber-50">{r.notas.trim()}</p>
+                      ) : null}
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       <div>
         <SectionTitle>Cierres de terminal</SectionTitle>
         <div className="grid gap-1.5 sm:grid-cols-3">
@@ -477,96 +568,6 @@ function SesionDetallePanel({
           </Button>
         </div>
       </div>
-        </div>
-
-        <div className="space-y-3">
-      <div>
-        <SectionTitle>Arqueo de efectivo</SectionTitle>
-        <div className="grid gap-1.5 sm:grid-cols-2">
-          <MetricRow label="Fondo inicial" value={formatMoney(sesion.fondoInicial)} />
-          <MetricRow
-            label="Aportes de efectivo"
-            value={formatMoney(sesion.aportesEfectivoTotal ?? 0)}
-          />
-          <MetricRow
-            label="Retiros de efectivo"
-            value={formatMoney(sesion.retirosEfectivoTotal ?? 0)}
-          />
-          <MetricRow
-            label="Efectivo esperado"
-            value={formatMoney(esperadoShow)}
-            valueClassName="text-emerald-800 dark:text-emerald-300"
-          />
-          {sesion.estado === 'cerrada' && declarado != null ? (
-            <>
-              <MetricRow label="Conteo físico" value={formatMoney(declarado)} />
-              <MetricRow
-                label="Diferencia"
-                value={formatMoney(diferencia ?? 0)}
-                valueClassName={
-                  (diferencia ?? 0) > 0.005
-                    ? 'text-emerald-700 dark:text-emerald-400'
-                    : (diferencia ?? 0) < -0.005
-                      ? 'text-red-600 dark:text-red-400'
-                      : undefined
-                }
-                hint="Declarado − esperado"
-              />
-            </>
-          ) : null}
-        </div>
-      </div>
-
-      {(sesion.aportesEfectivo?.length ?? 0) > 0 || (sesion.retirosEfectivo?.length ?? 0) > 0 ? (
-        <div className="grid gap-1.5 lg:grid-cols-2">
-          {(sesion.aportesEfectivo?.length ?? 0) > 0 ? (
-            <div className="rounded-md border border-sky-500/30 bg-sky-500/[0.06] px-2 py-1.5 dark:border-sky-500/25 dark:bg-sky-950/30">
-              <SectionTitle>Detalle aportes</SectionTitle>
-              <ul className="space-y-0.5 text-[10px] leading-snug text-sky-950/90 dark:text-sky-100/90">
-                {[...(sesion.aportesEfectivo ?? [])]
-                  .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-                  .map((r) => (
-                    <li key={r.id} className="border-b border-sky-800/10 pb-1 last:border-0 dark:border-sky-400/10">
-                      <div>
-                        <span className="font-semibold tabular-nums">+{formatMoney(r.monto)}</span>
-                        <span className="text-sky-900/80 dark:text-sky-200/80">
-                          {' '}
-                          · {formatInAppTimezone(r.createdAt, { timeStyle: 'short' })} · {r.usuarioNombre}
-                        </span>
-                      </div>
-                      {r.notas?.trim() ? (
-                        <p className="mt-0.5 font-medium text-sky-950 dark:text-sky-50">{r.notas.trim()}</p>
-                      ) : null}
-                    </li>
-                  ))}
-              </ul>
-            </div>
-          ) : null}
-          {(sesion.retirosEfectivo?.length ?? 0) > 0 ? (
-            <div className="rounded-md border border-amber-500/30 bg-amber-500/[0.06] px-2 py-1.5 dark:border-amber-500/25 dark:bg-amber-950/25">
-              <SectionTitle>Detalle retiros</SectionTitle>
-              <ul className="space-y-0.5 text-[10px] leading-snug text-amber-950/90 dark:text-amber-100/90">
-                {[...(sesion.retirosEfectivo ?? [])]
-                  .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-                  .map((r) => (
-                    <li key={r.id} className="border-b border-amber-800/10 pb-1 last:border-0 dark:border-amber-400/10">
-                      <div>
-                        <span className="font-semibold tabular-nums">−{formatMoney(r.monto)}</span>
-                        <span>
-                          {' '}
-                          · {formatInAppTimezone(r.createdAt, { timeStyle: 'short' })} · {r.usuarioNombre}
-                        </span>
-                      </div>
-                      {r.notas?.trim() ? (
-                        <p className="mt-0.5 font-medium text-amber-950 dark:text-amber-50">{r.notas.trim()}</p>
-                      ) : null}
-                    </li>
-                  ))}
-              </ul>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
 
       {sesion.notasCierre?.trim() ? (
         <div className="rounded-md border border-slate-200/80 bg-slate-50/80 px-2 py-1.5 dark:border-slate-800/60 dark:bg-slate-900/40">
