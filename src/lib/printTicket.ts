@@ -629,67 +629,97 @@ function extractHtmlTitle(html: string): string {
   return m?.[1]?.trim() || 'Documento de impresión';
 }
 
+const mobilePrintPreviewQueue: string[] = [];
+let mobilePrintPreviewOpen = false;
+
 /**
- * Cuando el navegador bloquea la pestaña (p. ej. segundo documento en el mismo toque:
- * arqueo + reporte de ventas), muestra un aviso con botón; el toque del usuario cuenta
- * como gesto nuevo y la pestaña ya se puede abrir.
+ * Móvil / PWA: vista previa a pantalla completa DENTRO de la app.
+ * No abre pestaña ni llama a `print()` al cargar (en Chrome Android eso abre el diálogo
+ * de impresión y al cancelar/cerrar parece que “carga y se cierra”).
+ * El usuario ve el reporte y toca «Imprimir» cuando quiera (gesto válido).
+ * Si hay varios documentos (p. ej. arqueo + reporte), se muestran en cola.
  */
-function showBlockedPrintTabNotice(url: string, docTitle: string): void {
-  const host = document.createElement('div');
-  host.style.cssText =
-    'position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:2147483647;' +
-    'display:flex;align-items:center;gap:10px;max-width:min(92vw,26rem);padding:10px 12px;border-radius:14px;' +
-    'background:#0f172a;color:#f1f5f9;box-shadow:0 10px 30px rgba(0,0,0,.45);font:500 13px/1.35 system-ui,sans-serif';
+function showMobilePrintPreview(html: string): void {
+  if (mobilePrintPreviewOpen) {
+    mobilePrintPreviewQueue.push(html);
+    return;
+  }
+  mobilePrintPreviewOpen = true;
 
-  const label = document.createElement('span');
-  label.style.cssText = 'min-width:0;flex:1;overflow-wrap:anywhere';
-  label.textContent = `Listo: ${docTitle}`;
+  const prev = document.getElementById('servipos-mobile-print-preview');
+  if (prev) prev.remove();
 
-  const openBtn = document.createElement('button');
-  openBtn.type = 'button';
-  openBtn.textContent = 'Ver / imprimir';
-  openBtn.style.cssText =
-    'flex-shrink:0;border:0;border-radius:10px;padding:8px 12px;background:#06b6d4;color:#082f49;font:600 13px system-ui,sans-serif;cursor:pointer';
+  const title = extractHtmlTitle(html);
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+
+  const root = document.createElement('div');
+  root.id = 'servipos-mobile-print-preview';
+  root.setAttribute('role', 'dialog');
+  root.setAttribute('aria-modal', 'true');
+  root.setAttribute('aria-label', title);
+  root.style.cssText =
+    'position:fixed;inset:0;z-index:2147483647;display:flex;flex-direction:column;' +
+    'background:#0f172a;color:#f8fafc;' +
+    'padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);';
+
+  const bar = document.createElement('div');
+  bar.style.cssText =
+    'flex-shrink:0;display:flex;align-items:center;gap:8px;padding:10px 12px;' +
+    'border-bottom:1px solid rgba(148,163,184,.35);background:#0f172a;';
+
+  const titleEl = document.createElement('div');
+  titleEl.style.cssText =
+    'min-width:0;flex:1;font:600 14px/1.3 system-ui,sans-serif;overflow:hidden;' +
+    'text-overflow:ellipsis;white-space:nowrap';
+  titleEl.textContent = title;
+
+  const printBtn = document.createElement('button');
+  printBtn.type = 'button';
+  printBtn.textContent = 'Imprimir';
+  printBtn.style.cssText =
+    'flex-shrink:0;border:0;border-radius:10px;padding:10px 14px;background:#06b6d4;' +
+    'color:#082f49;font:700 14px system-ui,sans-serif;cursor:pointer;';
 
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
-  closeBtn.setAttribute('aria-label', 'Descartar');
-  closeBtn.textContent = '✕';
+  closeBtn.textContent = 'Cerrar';
   closeBtn.style.cssText =
-    'flex-shrink:0;border:0;border-radius:10px;padding:8px 10px;background:transparent;color:#94a3b8;font:600 13px system-ui,sans-serif;cursor:pointer';
+    'flex-shrink:0;border:1px solid rgba(148,163,184,.45);border-radius:10px;padding:10px 12px;' +
+    'background:transparent;color:#e2e8f0;font:600 14px system-ui,sans-serif;cursor:pointer;';
+
+  const frame = document.createElement('iframe');
+  frame.title = title;
+  frame.setAttribute('sandbox', 'allow-modals allow-same-origin allow-scripts');
+  frame.style.cssText = 'flex:1;width:100%;border:0;background:#fff;min-height:0;';
+  frame.src = url;
 
   const tearDown = () => {
-    window.clearTimeout(autoHide);
-    if (host.parentNode) host.parentNode.removeChild(host);
+    URL.revokeObjectURL(url);
+    if (root.parentNode) root.parentNode.removeChild(root);
+    mobilePrintPreviewOpen = false;
+    const next = mobilePrintPreviewQueue.shift();
+    if (next) showMobilePrintPreview(next);
   };
-  const autoHide = window.setTimeout(tearDown, 90_000);
 
-  openBtn.addEventListener('click', () => {
-    window.open(url, '_blank');
-    tearDown();
+  printBtn.addEventListener('click', () => {
+    try {
+      const cw = frame.contentWindow;
+      if (!cw) return;
+      cw.focus();
+      cw.print();
+    } catch {
+      /* noop */
+    }
   });
   closeBtn.addEventListener('click', tearDown);
 
-  host.appendChild(label);
-  host.appendChild(openBtn);
-  host.appendChild(closeBtn);
-  document.body.appendChild(host);
-}
-
-/**
- * Móvil: abre el documento en pestaña nueva con URL `blob:`. En Chrome Android,
- * `window.open('about:blank', …features)` suele devolver `null` (y `print()` desde un
- * iframe oculto no está soportado), por lo que con la ruta de escritorio la pantalla
- * del reporte nunca aparecía. Con `blob:` la pestaña carga el contenido por sí misma,
- * sin depender de `document.write` sobre la referencia devuelta.
- */
-function openPrintTabOnMobile(html: string): void {
-  const blob = new Blob([html], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
-  window.setTimeout(() => URL.revokeObjectURL(url), 180_000);
-  const w = window.open(url, '_blank');
-  if (w) return;
-  showBlockedPrintTabNotice(url, extractHtmlTitle(html));
+  bar.appendChild(titleEl);
+  bar.appendChild(printBtn);
+  bar.appendChild(closeBtn);
+  root.appendChild(bar);
+  root.appendChild(frame);
+  document.body.appendChild(root);
 }
 
 /**
@@ -697,12 +727,11 @@ function openPrintTabOnMobile(html: string): void {
  * así el pie del diálogo de impresión no muestra una URL `blob:https://…` larga.
  * Sin `noopener` en window.open: en Chrome móvil a veces devuelve `null` pero abre pestaña;
  * si el popup está bloqueado, se usa iframe `about:blank` + write + print().
- * Móvil: pestaña con URL `blob:` (ver `openPrintTabOnMobile`); sin script de autocierre
- * para que el documento quede visible aunque el usuario cancele la impresión.
+ * Móvil: vista previa a pantalla completa en la misma app (sin auto-print ni autocierre).
  */
 function openAndPrintHtml(html: string, windowFeatures: string): void {
   if (isMobileLikeBrowser()) {
-    openPrintTabOnMobile(injectPrintWhenReadyScript(html));
+    showMobilePrintPreview(html);
     return;
   }
 
