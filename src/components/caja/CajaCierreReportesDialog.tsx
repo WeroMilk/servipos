@@ -271,7 +271,16 @@ function SesionDetallePanel({
         <SectionTitle>Ventas del turno</SectionTitle>
         <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-4">
           <MetricRow label="Tickets cobrados" value={String(completadas)} />
-          <MetricRow label="Total vendido" value={formatMoney(metrics.totalVentasBruto)} />
+          <MetricRow
+            label="Total vendido (bruto)"
+            value={formatMoney(metrics.totalVentasBruto)}
+            hint="Suma de tickets del turno"
+          />
+          <MetricRow
+            label="Total cobrado"
+            value={formatMoney(metrics.totalCobrado)}
+            hint="Ventas cobradas + abonos CxC del turno"
+          />
           <MetricRow
             label="Saldo pendiente (CxC)"
             value={formatMoney(metrics.saldoPendiente)}

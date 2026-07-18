@@ -358,6 +358,44 @@ export async function listCajaSesionesFirestore(
   return rows.sort((a, b) => b.openedAt.getTime() - a.openedAt.getTime());
 }
 
+/**
+ * Abonos CxC cobrados en un rango de fechas (`createdAt` del abono = día del pago).
+ * Recorre sesiones recientes y filtra por fecha de cobro (no por fecha de la venta).
+ */
+export async function listAbonosCobrosEnRangoFirestore(
+  sucursalId: string,
+  inicio: Date,
+  finExclusive: Date,
+  options?: { limitSesiones?: number }
+): Promise<CajaAbonoCobro[]> {
+  const sid = sucursalId.trim();
+  if (!sid) return [];
+  const t0 = inicio.getTime();
+  const t1 = finExclusive.getTime();
+  if (!Number.isFinite(t0) || !Number.isFinite(t1) || t1 <= t0) return [];
+
+  const sesiones = await listCajaSesionesFirestore(sid, {
+    limit: options?.limitSesiones ?? 200,
+  });
+  const out: CajaAbonoCobro[] = [];
+  const seen = new Set<string>();
+  for (const sesion of sesiones) {
+    for (const a of sesion.abonosCobros ?? []) {
+      const t = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
+      if (!Number.isFinite(t) || t < t0 || t >= t1) continue;
+      const key = a.id?.trim() || `${t}-${a.monto}-${a.formaPago}-${a.clienteId ?? ''}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(a);
+    }
+  }
+  out.sort((a, b) => {
+    const ta = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
+    const tb = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
+    return tb - ta;
+  });
+  return out;
+}
 export async function getCajaSesionFirestore(
   sucursalId: string,
   sesionId: string

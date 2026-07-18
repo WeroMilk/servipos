@@ -1,6 +1,7 @@
-import type { CajaSesion, FormaPago, Sale } from '@/types';
+import type { CajaAbonoCobro, CajaSesion, FormaPago, Sale } from '@/types';
 import { FORMAS_PAGO } from '@/types';
 import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
+import { saleFechaHistorial } from '@/lib/saleHistorialFecha';
 
 const FORMAS_SIN_COBRO_CIERRE = new Set<FormaPago>(['TTS', 'DEV', 'COT', 'PPC', 'STC']);
 
@@ -189,6 +190,125 @@ export function resumenBrutoSesion(ventas: Sale[]): { tickets: number; total: nu
   };
 }
 
+/** Importe cobrado de una venta (excluye `esAbonoCxC`; esos van por `abonosCobros`). */
+export function cobradoEnVenta(sale: Sale, sesionId?: string): number {
+  const t = pagosParaResumenCaja(sale, sesionId).reduce((s, p) => s + (Number(p.monto) || 0), 0);
+  return Math.round(t * 100) / 100;
+}
+
+export function totalAbonosCobros(
+  abonos: { monto: number }[] | undefined | null
+): number {
+  if (!abonos?.length) return 0;
+  return Math.round(abonos.reduce((s, a) => s + (Number(a.monto) || 0), 0) * 100) / 100;
+}
+
+/**
+ * Criterio de caja / cobrado del periodo:
+ * pagos de ventas del periodo (sin abonos CxC) + abonos CxC cobrados en el periodo.
+ * El bruto de tickets (`totalVentasBruto`) se mantiene aparte para no duplicar ingresos.
+ */
+export function computeCobradoPeriodo(
+  ventas: Sale[],
+  abonosCobros?: { formaPago: FormaPago; monto: number }[] | null,
+  sesionId?: string
+): {
+  cobradoTotal: number;
+  cobradoVentas: number;
+  cobradoAbonos: number;
+  movimientos: number;
+  porForma: Partial<Record<FormaPago, number>>;
+  efectivo: number;
+  tarjetas: number;
+  otros: number;
+} {
+  const porForma = totalesPorFormaPago(ventas, abonosCobros, sesionId);
+  let cobradoVentas = 0;
+  for (const s of filterVentasCompletadasSesion(ventas)) {
+    cobradoVentas += cobradoEnVenta(s, sesionId);
+  }
+  cobradoVentas = Math.round(cobradoVentas * 100) / 100;
+  const cobradoAbonos = totalAbonosCobros(abonosCobros);
+  const cobradoTotal = Math.round((cobradoVentas + cobradoAbonos) * 100) / 100;
+  const grupos = resumenGruposMedioPagoCierre(ventas, abonosCobros, sesionId);
+  const movimientos =
+    filterVentasCompletadasSesion(ventas).filter((s) => cobradoEnVenta(s, sesionId) > 0.005).length +
+    (abonosCobros?.filter((a) => (Number(a.monto) || 0) > 0.005).length ?? 0);
+  return {
+    cobradoTotal,
+    cobradoVentas,
+    cobradoAbonos,
+    movimientos,
+    porForma,
+    efectivo: grupos.efectivoCobros,
+    tarjetas: grupos.tarjetas,
+    otros: grupos.otros,
+  };
+}
+
+/** Fila unificada para historial / reporte: venta del día o abono cobrado ese día. */
+export type HistorialCobroMovimiento =
+  | {
+      kind: 'venta';
+      id: string;
+      at: Date;
+      monto: number;
+      sale: Sale;
+    }
+  | {
+      kind: 'abono';
+      id: string;
+      at: Date;
+      monto: number;
+      abono: CajaAbonoCobro;
+    };
+
+/** Mezcla ventas (por fecha de historial) y abonos (por fecha de pago), más recientes primero. */
+export function buildHistorialCobrosMovimientos(
+  ventas: Sale[],
+  abonos: CajaAbonoCobro[] | undefined | null
+): HistorialCobroMovimiento[] {
+  const rows: HistorialCobroMovimiento[] = [];
+  for (const sale of ventas) {
+    if (sale.estado === 'cancelada') continue;
+    const at = saleFechaHistorial(sale);
+    const monto =
+      sale.estado === 'pendiente'
+        ? 0
+        : cobradoEnVenta(sale);
+    rows.push({
+      kind: 'venta',
+      id: `venta:${sale.id}`,
+      at,
+      monto,
+      sale,
+    });
+  }
+  for (const abono of abonos ?? []) {
+    const monto = Math.round((Number(abono.monto) || 0) * 100) / 100;
+    if (monto <= 0) continue;
+    const at =
+      abono.createdAt instanceof Date ? abono.createdAt : new Date(abono.createdAt);
+    rows.push({
+      kind: 'abono',
+      id: `abono:${abono.id}`,
+      at,
+      monto,
+      abono,
+    });
+  }
+  rows.sort((a, b) => b.at.getTime() - a.at.getTime());
+  return rows;
+}
+
+/** Cobrado de un día (ventas con fecha historial en el día + abonos con createdAt en el día). */
+export function cobradoEnDia(
+  ventasDelDia: Sale[],
+  abonosDelDia: CajaAbonoCobro[] | undefined | null
+): number {
+  return computeCobradoPeriodo(ventasDelDia, abonosDelDia).cobradoTotal;
+}
+
 /** Suma de montos por clave de forma de pago (ventas completadas + abonos CxC de la sesión). */
 export function totalesPorFormaPago(
   ventas: Sale[],
@@ -255,6 +375,8 @@ export function resumenGruposMedioPagoCierre(
 export type SesionCierreMetrics = {
   tickets: number;
   totalVentasBruto: number;
+  /** Cobrado real del turno (pagos de ventas + abonos CxC), sin duplicar. */
+  totalCobrado: number;
   efectivoCobros: number;
   tarjetas: number;
   otros: number;
@@ -281,6 +403,7 @@ export function computeSesionCierreMetrics(
   const abonos = sesion.abonosCobros ?? [];
   const pool = ventasPoolCobros?.length ? ventasPoolCobros : ventas;
   const { tickets, total } = resumenBrutoSesion(ventas);
+  const cobrado = computeCobradoPeriodo(filterVentasCompletadasSesion(pool), abonos, sesion.id);
   const grupos = resumenGruposMedioPagoCierre(pool, abonos, sesion.id);
   const { efectivoCobrado, cambioEntregado } = computeCajaEfectivoEsperado(
     sesion.fondoInicial,
@@ -291,12 +414,11 @@ export function computeSesionCierreMetrics(
   for (const s of completadas) {
     saldoPendiente += computeSaleClienteAdeudo(s);
   }
-  const abonosCobrosTotal = Math.round(
-    abonos.reduce((s, a) => s + (Number(a.monto) || 0), 0) * 100
-  ) / 100;
+  const abonosCobrosTotal = cobrado.cobradoAbonos;
   return {
     tickets,
     totalVentasBruto: total,
+    totalCobrado: cobrado.cobradoTotal,
     efectivoCobros: grupos.efectivoCobros,
     tarjetas: grupos.tarjetas,
     otros: grupos.otros,

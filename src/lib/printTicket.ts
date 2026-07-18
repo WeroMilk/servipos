@@ -24,7 +24,13 @@ import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
 import { nombreClienteVenta, nombreCajeroVenta } from '@/lib/saleTicketUi';
 import { saleFechaHistorial } from '@/lib/saleHistorialFecha';
 import { getProductCatalogSnapshot } from '@/lib/firestore/productsFirestore';
-import { labelFormaPagoCaja, resumenGruposMedioPagoCierre, totalesPorFormaPago } from '@/lib/cajaResumen';
+import {
+  buildHistorialCobrosMovimientos,
+  computeCobradoPeriodo,
+  labelFormaPagoCaja,
+  resumenGruposMedioPagoCierre,
+  totalesPorFormaPago,
+} from '@/lib/cajaResumen';
 import { openCfdiLetterPrint } from '@/lib/openLetterPrint';
 import JsBarcode from 'jsbarcode';
 
@@ -1043,8 +1049,19 @@ export function printThermalDailySalesReport(input: {
   );
   const abonos = input.abonosCobros ?? [];
   const sid = input.cajaSesionId?.trim() || undefined;
-  const rows = list
-    .map((v) => {
+  const movimientos = buildHistorialCobrosMovimientos(list, abonos).sort(
+    (a, b) => a.at.getTime() - b.at.getTime()
+  );
+  const rows = movimientos
+    .map((mov) => {
+      if (mov.kind === 'abono') {
+        const cliente = mov.abono.clienteNombre?.trim() || 'Cliente';
+        const forma = labelFormaPagoCaja(mov.abono.formaPago);
+        const cajero = mov.abono.usuarioNombre?.trim();
+        const meta = cajero ? `${cliente} · ${forma} · ${cajero}` : `${cliente} · ${forma}`;
+        return `<tr><td>Abono saldo pend.<br/><span style="font-size:${THERMAL_MIN_FONT_PX}px;">${escapeHtml(meta)}</span></td><td class="right">${formatMoney(mov.monto)}</td></tr>`;
+      }
+      const v = mov.sale;
       const st =
         v.estado === 'cancelada' ?
           v.cancelacionMotivo === 'devolucion' ? ' (dev.)'
@@ -1057,12 +1074,22 @@ export function printThermalDailySalesReport(input: {
       return `<tr><td>${escapeHtml(v.folio)}${st}<br/><span style="font-size:${THERMAL_MIN_FONT_PX}px;">${escapeHtml(meta)}</span></td><td class="right">${formatMoney(Number(v.total) || 0)}</td></tr>`;
     })
     .join('');
-  const bruto = list
-    .filter((v) => v.estado !== 'cancelada' && v.estado !== 'pendiente')
-    .reduce((s, v) => s + (Number(v.total) || 0), 0);
 
-  const grupos = resumenGruposMedioPagoCierre(input.ventas, abonos, sid);
-  const porForma = totalesPorFormaPago(input.ventas, abonos, sid);
+  const cobrado = computeCobradoPeriodo(
+    list.filter((v) => v.estado !== 'cancelada' && v.estado !== 'pendiente'),
+    abonos,
+    sid
+  );
+  const grupos = resumenGruposMedioPagoCierre(
+    list.filter((v) => v.estado !== 'cancelada' && v.estado !== 'pendiente'),
+    abonos,
+    sid
+  );
+  const porForma = totalesPorFormaPago(
+    list.filter((v) => v.estado !== 'cancelada' && v.estado !== 'pendiente'),
+    abonos,
+    sid
+  );
   const formaRows = Object.entries(porForma)
     .filter(([, m]) => (Number(m) || 0) > 0)
     .sort(([a], [b]) => a.localeCompare(b))
@@ -1072,20 +1099,11 @@ export function printThermalDailySalesReport(input: {
     )
     .join('');
 
-  const abonosRows = [...abonos]
-    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-    .map((a) => {
-      const cliente = a.clienteNombre?.trim() || 'Cliente';
-      const forma = labelFormaPagoCaja(a.formaPago);
-      return `<tr><td>Abono CxC<br/><span style="font-size:${THERMAL_MIN_FONT_PX}px;">${escapeHtml(cliente)} · ${escapeHtml(forma)}</span></td><td class="right">${formatMoney(Number(a.monto) || 0)}</td></tr>`;
-    })
-    .join('');
-  const abonosTotal = Math.round(abonos.reduce((s, a) => s + (Number(a.monto) || 0), 0) * 100) / 100;
-
-  const completadasDia = list.filter((v) => v.estado === 'completada');
+  const completadasDia = list.filter((v) => v.estado === 'completada' || v.estado === 'facturada');
   const totalAdeudoDia = completadasDia.reduce((s, v) => s + computeSaleClienteAdeudo(v), 0);
   const adeudoRedondeado = Math.round(totalAdeudoDia * 100) / 100;
   const adeudoStyle = adeudoRedondeado > 0.004 ? 'color:#92400e;' : '';
+  const ticketsCount = list.filter((v) => v.estado !== 'cancelada').length;
 
   const pie = buildThermalPieSucursalHtml(input.sucursalId);
   void openThermalPrintDocument({
@@ -1093,28 +1111,25 @@ export function printThermalDailySalesReport(input: {
     pageTitle: 'Reporte ventas',
     bodyClass: 'ticket-cierre-turno',
     styles: THERMAL_CIERRE_TURNO_STYLES,
-    bodyInnerHtml: `<div class="meta">${escapeHtml(input.fechaLabel)}<br/>${list.length} ticket(s)${abonos.length ? ` · ${abonos.length} abono(s) CxC` : ''}</div>
-  <table>${rows || '<tr><td>Sin ventas.</td></tr>'}</table>
-  ${
-    abonosRows
-      ? `<p class="ticket-section-title">Abonos CxC (con forma de pago)</p>
-  <table>${abonosRows}</table>
-  <div class="tot" style="border-top:none;padding-top:2px;">Total abonos: <strong>${formatMoney(abonosTotal)}</strong></div>`
-      : ''
-  }
+    bodyInnerHtml: `<div class="meta">${escapeHtml(input.fechaLabel)}<br/>${ticketsCount} ticket(s)${abonos.length ? ` · ${abonos.length} abono(s)` : ''} · ${cobrado.movimientos} cobro(s)</div>
+  <table>${rows || '<tr><td>Sin movimientos.</td></tr>'}</table>
   <div class="tot" style="border-top:none;padding-top:4px;">
-    <div><strong>Resumen medios</strong> <span style="font-size:${THERMAL_MIN_FONT_PX}px;">(ventas + abonos CxC)</span></div>
+    <div><strong>Resumen medios</strong> <span style="font-size:${THERMAL_MIN_FONT_PX}px;">(cobrado del día)</span></div>
     <div>Efectivo: ${formatMoney(grupos.efectivoCobros)}</div>
     <div>Tarjetas: ${formatMoney(grupos.tarjetas)}</div>
     <div>Otros: ${formatMoney(grupos.otros)}</div>
   </div>
   <p class="ticket-section-title">Cobros por forma de pago</p>
   <table>${formaRows || '<tr><td>Sin cobros registrados</td></tr>'}</table>
-  <div class="tot"><strong>Total día: ${formatMoney(bruto)}</strong><br/><span style="font-size:${THERMAL_MIN_FONT_PX}px;">Sin canceladas ni ventas abiertas</span></div>
+  <div class="tot"><strong>Total cobrado: ${formatMoney(cobrado.cobradoTotal)}</strong><br/><span style="font-size:${THERMAL_MIN_FONT_PX}px;">Ventas del día + abonos cobrados hoy (criterio de caja)</span>${
+    cobrado.cobradoAbonos > 0.005
+      ? `<br/><span style="font-size:${THERMAL_MIN_FONT_PX}px;">Abonos: ${formatMoney(cobrado.cobradoAbonos)}</span>`
+      : ''
+  }</div>
   <div class="tot" style="border-top:none;padding-top:4px;">
     <div><strong>Saldo pendiente por cobrar (día)</strong></div>
     <div style="font-size:11px;font-weight:700;${adeudoStyle}">${formatMoney(adeudoRedondeado)}</div>
-    <span style="font-size:${THERMAL_MIN_FONT_PX}px;">Lo que quedó por cobrar en ventas completadas del día (parciales / crédito). Si es $0.00, no hubo adeudos.</span>
+    <span style="font-size:${THERMAL_MIN_FONT_PX}px;">Lo que quedó por cobrar en ventas del día (parciales / crédito). Si es $0.00, no hubo adeudos.</span>
   </div>
   ${pie}`,
   });
