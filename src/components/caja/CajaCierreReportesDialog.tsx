@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { CircleDollarSign, Clock, Loader2, RefreshCw } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { CircleDollarSign, Clock, Loader2, RefreshCw, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -38,6 +39,8 @@ import { useAppStore } from '@/stores';
 /** Por encima del menú móvil (Sheet z-[181]) y del Dialog por defecto (z-[121]). */
 const CAJA_CIERRE_DIALOG_OVERLAY_Z = '!z-[240] bg-black/60';
 const CAJA_CIERRE_DIALOG_CONTENT_Z = '!z-[241]';
+/** Panel fijo desde el menú hamburguesa: por encima de todo, sin Radix Dialog. */
+const CAJA_CIERRE_FIXED_PANEL_Z = 'z-[320]';
 
 export function CajaCierreReportesIcon({ className }: { className?: string }) {
   return (
@@ -59,6 +62,12 @@ type CajaCierreReportesDialogProps = {
   onOpenChange: (open: boolean) => void;
   sucursalId: string | null;
   sucursalLabel?: string;
+  /**
+   * `dialog` (default): Radix Dialog (escritorio / header).
+   * `fixed-panel`: pantalla completa en portal, sin Radix — necesario al abrir desde el
+   * Sheet del menú móvil (cerrar el Sheet cancela cualquier Dialog hermano).
+   */
+  presentation?: 'dialog' | 'fixed-panel';
 };
 
 function sesionFechaLabel(s: CajaSesion): string {
@@ -598,6 +607,7 @@ export function CajaCierreReportesDialog({
   onOpenChange,
   sucursalId,
   sucursalLabel,
+  presentation = 'dialog',
 }: CajaCierreReportesDialogProps) {
   const [sesiones, setSesiones] = useState<CajaSesion[]>([]);
   const [listLoading, setListLoading] = useState(false);
@@ -690,6 +700,176 @@ export function CajaCierreReportesDialog({
     };
   }, [open, sucursalId, selectedId, selected, sesiones]);
 
+  useEffect(() => {
+    if (presentation !== 'fixed-panel' || !open) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onOpenChange(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [presentation, open, onOpenChange]);
+
+  const titleBlock = (
+    <div className="min-w-0">
+      <h2 className="flex items-center gap-2 text-lg font-semibold leading-none text-slate-900 dark:text-slate-100">
+        <CajaCierreReportesIcon />
+        Reportes de cierre de caja
+      </h2>
+      <p className="mt-1.5 text-left text-sm text-slate-600 dark:text-slate-400">
+        Historial de turnos: apertura, cierre, ventas por medio de pago, abonos CxC, cierres de terminal y
+        arqueo.
+        {sucursalLabel ? ` Tienda: ${sucursalLabel}.` : null}
+      </p>
+    </div>
+  );
+
+  const body = !sucursalId ? (
+    <p className="px-4 py-8 text-center text-sm text-slate-600 dark:text-slate-400">
+      Elija una sucursal en el selector del encabezado para consultar cierres.
+    </p>
+  ) : (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row md:items-stretch">
+      <div className="flex max-h-[28dvh] min-h-0 shrink-0 flex-col border-b border-slate-200/80 dark:border-slate-800/60 md:max-h-none md:h-auto md:w-48 md:border-b-0 md:border-r lg:w-52 xl:w-56">
+        <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-1.5">
+          <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">Turnos</span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            disabled={listLoading}
+            onClick={() => void loadList()}
+            aria-label="Actualizar lista"
+          >
+            <RefreshCw className={cn('h-4 w-4', listLoading && 'animate-spin')} />
+          </Button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-2 lg:pb-3">
+          {listLoading && sesiones.length === 0 ? (
+            <div className="flex items-center justify-center gap-2 py-8 text-sm text-slate-500">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Cargando…
+            </div>
+          ) : listError ? (
+            <p className="py-6 text-center text-sm text-red-600 dark:text-red-400">{listError}</p>
+          ) : sesiones.length === 0 ? (
+            <p className="py-6 text-center text-sm text-slate-600 dark:text-slate-400">
+              No hay sesiones de caja registradas en esta tienda.
+            </p>
+          ) : (
+            <ul className="space-y-1.5">
+              {sesiones.map((s) => {
+                const active = s.id === selectedId;
+                return (
+                  <li key={s.id}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedId(s.id)}
+                      className={cn(
+                        'w-full rounded-lg border px-2.5 py-2 text-left transition-colors',
+                        active
+                          ? 'border-cyan-500/50 bg-cyan-500/10 dark:border-cyan-500/40 dark:bg-cyan-500/15'
+                          : 'border-slate-200/80 bg-white/70 hover:bg-slate-200/60 dark:border-slate-800/60 dark:bg-slate-900/50 dark:hover:bg-slate-800/80'
+                      )}
+                    >
+                      <p className="text-xs font-medium text-slate-800 dark:text-slate-200">
+                        {sesionFechaLabel(s)}
+                      </p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-500">
+                        {sesionHoraApertura(s)} → {sesionHoraCierre(s)}
+                      </p>
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                        <span
+                          className={cn(
+                            'rounded px-1.5 py-0.5 text-[10px] font-medium',
+                            s.estado === 'abierta'
+                              ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300'
+                              : 'bg-slate-200/80 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                          )}
+                        >
+                          {s.estado === 'abierta' ? 'Abierta' : 'Cerrada'}
+                        </span>
+                        {s.totalVentasBruto != null && s.totalVentasBruto > 0 ? (
+                          <span className="text-[10px] tabular-nums text-cyan-700 dark:text-cyan-400">
+                            {formatMoney(s.totalVentasBruto)}
+                          </span>
+                        ) : null}
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-2.5 sm:p-4">
+        {!selected ? (
+          <p className="py-8 text-center text-sm text-slate-600 dark:text-slate-400">
+            Seleccione un turno de la lista.
+          </p>
+        ) : detailLoading && !metrics ? (
+          <div className="flex flex-1 items-center justify-center gap-2 py-10 text-sm text-slate-500">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            Calculando resumen…
+          </div>
+        ) : metrics ? (
+          <SesionDetallePanel
+            sesion={selected}
+            metrics={metrics}
+            ventas={ventasDetalle}
+            abonosCobros={abonosDetalle}
+            sucursalId={sucursalId}
+            sucursalLabel={sucursalLabel}
+            onSesionUpdated={() => void loadList()}
+          />
+        ) : (
+          <p className="py-8 text-center text-sm text-red-600 dark:text-red-400">
+            No se pudo cargar el detalle del turno.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+
+  if (presentation === 'fixed-panel') {
+    if (!open || typeof document === 'undefined') return null;
+    return createPortal(
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Reportes de cierre de caja"
+        className={cn(
+          'fixed inset-0 flex flex-col bg-slate-100 dark:bg-slate-900',
+          CAJA_CIERRE_FIXED_PANEL_Z,
+          'pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]'
+        )}
+      >
+        <div className="flex shrink-0 items-start gap-2 border-b border-slate-200/80 px-4 py-3 pr-3 dark:border-slate-800/60">
+          <div className="min-w-0 flex-1">{titleBlock}</div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-10 w-10 shrink-0"
+            aria-label="Cerrar"
+            onClick={() => onOpenChange(false)}
+          >
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{body}</div>
+      </div>,
+      document.body
+    );
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -707,123 +887,17 @@ export function CajaCierreReportesDialog({
               Reportes de cierre de caja
             </DialogTitle>
             <DialogDescription className="text-left text-slate-600 dark:text-slate-400">
-              Historial de turnos: apertura, cierre, ventas por medio de pago, abonos CxC, cierres de terminal y arqueo.
+              Historial de turnos: apertura, cierre, ventas por medio de pago, abonos CxC, cierres de terminal y
+              arqueo.
               {sucursalLabel ? ` Tienda: ${sucursalLabel}.` : null}
             </DialogDescription>
           </div>
         </DialogHeader>
-
-        {!sucursalId ? (
-          <p className="px-4 py-8 text-center text-sm text-slate-600 dark:text-slate-400">
-            Elija una sucursal en el selector del encabezado para consultar cierres.
-          </p>
-        ) : (
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row md:items-stretch">
-            <div className="flex max-h-[28dvh] min-h-0 shrink-0 flex-col border-b border-slate-200/80 dark:border-slate-800/60 md:max-h-none md:h-auto md:w-48 md:border-b-0 md:border-r lg:w-52 xl:w-56">
-              <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-1.5">
-                <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">Turnos</span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 shrink-0"
-                  disabled={listLoading}
-                  onClick={() => void loadList()}
-                  aria-label="Actualizar lista"
-                >
-                  <RefreshCw className={cn('h-4 w-4', listLoading && 'animate-spin')} />
-                </Button>
-              </div>
-              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-2 lg:pb-3">
-                {listLoading && sesiones.length === 0 ? (
-                  <div className="flex items-center justify-center gap-2 py-8 text-sm text-slate-500">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Cargando…
-                  </div>
-                ) : listError ? (
-                  <p className="py-6 text-center text-sm text-red-600 dark:text-red-400">{listError}</p>
-                ) : sesiones.length === 0 ? (
-                  <p className="py-6 text-center text-sm text-slate-600 dark:text-slate-400">
-                    No hay sesiones de caja registradas en esta tienda.
-                  </p>
-                ) : (
-                  <ul className="space-y-1.5">
-                    {sesiones.map((s) => {
-                      const active = s.id === selectedId;
-                      return (
-                        <li key={s.id}>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedId(s.id)}
-                            className={cn(
-                              'w-full rounded-lg border px-2.5 py-2 text-left transition-colors',
-                              active
-                                ? 'border-cyan-500/50 bg-cyan-500/10 dark:border-cyan-500/40 dark:bg-cyan-500/15'
-                                : 'border-slate-200/80 bg-white/70 hover:bg-slate-200/60 dark:border-slate-800/60 dark:bg-slate-900/50 dark:hover:bg-slate-800/80'
-                            )}
-                          >
-                            <p className="text-xs font-medium text-slate-800 dark:text-slate-200">
-                              {sesionFechaLabel(s)}
-                            </p>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-500">
-                              {sesionHoraApertura(s)} → {sesionHoraCierre(s)}
-                            </p>
-                            <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                              <span
-                                className={cn(
-                                  'rounded px-1.5 py-0.5 text-[10px] font-medium',
-                                  s.estado === 'abierta'
-                                    ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300'
-                                    : 'bg-slate-200/80 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-                                )}
-                              >
-                                {s.estado === 'abierta' ? 'Abierta' : 'Cerrada'}
-                              </span>
-                              {s.totalVentasBruto != null && s.totalVentasBruto > 0 ? (
-                                <span className="text-[10px] tabular-nums text-cyan-700 dark:text-cyan-400">
-                                  {formatMoney(s.totalVentasBruto)}
-                                </span>
-                              ) : null}
-                            </div>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </div>
-            </div>
-
-            <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-2.5 sm:p-4">
-              {!selected ? (
-                <p className="py-8 text-center text-sm text-slate-600 dark:text-slate-400">
-                  Seleccione un turno de la lista.
-                </p>
-              ) : detailLoading && !metrics ? (
-                <div className="flex flex-1 items-center justify-center gap-2 py-10 text-sm text-slate-500">
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  Calculando resumen…
-                </div>
-              ) : metrics ? (
-                <SesionDetallePanel
-                  sesion={selected}
-                  metrics={metrics}
-                  ventas={ventasDetalle}
-                  abonosCobros={abonosDetalle}
-                  sucursalId={sucursalId}
-                  sucursalLabel={sucursalLabel}
-                  onSesionUpdated={() => void loadList()}
-                />
-              ) : (
-                <p className="py-8 text-center text-sm text-red-600 dark:text-red-400">
-                  No se pudo cargar el detalle del turno.
-                </p>
-              )}
-            </div>
-          </div>
-        )}
+        {body}
       </DialogContent>
     </Dialog>
+  );
+
   );
 }
 

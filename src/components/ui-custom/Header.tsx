@@ -105,16 +105,15 @@ export function Header() {
   }, []);
 
   const openMobileCierreReportes = () => {
-    setMobileMenuOpen(false);
     if (mobileCierreOpenTimerRef.current != null) {
       window.clearTimeout(mobileCierreOpenTimerRef.current);
     }
-    // El Dialog vive fuera del Sheet: esperamos a que el menú se cierre para que
-    // Radix no lo desmonte ni lo trate como dismiss del mismo gesto.
+    setMobileMenuOpen(false);
+    // Panel fijo (sin Radix): se puede abrir en cuanto el Sheet empieza a cerrar.
     mobileCierreOpenTimerRef.current = window.setTimeout(() => {
       mobileCierreOpenTimerRef.current = null;
       setMobileCierreReportesOpen(true);
-    }, 280);
+    }, 50);
   };
 
   const handleSheetTouchStart = (event: TouchEvent<HTMLDivElement>) => {
@@ -659,6 +658,7 @@ export function Header() {
           open={mobileCierreReportesOpen}
           onOpenChange={setMobileCierreReportesOpen}
           sucursalId={effectiveSucursalId ?? null}
+          presentation="fixed-panel"
         />
       ) : null}
     </>
