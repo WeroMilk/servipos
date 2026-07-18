@@ -897,8 +897,6 @@ export function CajaCierreReportesDialog({
       </DialogContent>
     </Dialog>
   );
-
-  );
 }
 
 type CajaCierreReportesHeaderButtonProps = {
