@@ -616,13 +616,96 @@ function injectPrintWhenReadyScript(html: string): string {
   return `${html}${script}`;
 }
 
+function isMobileLikeBrowser(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  if (/Android|iPhone|iPod|iPad/i.test(ua)) return true;
+  // iPadOS con "Solicitar sitio de escritorio" se anuncia como Macintosh pero tiene touch.
+  return /Macintosh/i.test(ua) && (navigator.maxTouchPoints ?? 0) > 1;
+}
+
+function extractHtmlTitle(html: string): string {
+  const m = /<title>([^<]*)<\/title>/i.exec(html);
+  return m?.[1]?.trim() || 'Documento de impresión';
+}
+
 /**
- * Abre HTML para imprimir con `about:blank` + `document.write` (no `blob:` URL).
- * Así el pie del diálogo de impresión no muestra una URL `blob:https://…` larga.
+ * Cuando el navegador bloquea la pestaña (p. ej. segundo documento en el mismo toque:
+ * arqueo + reporte de ventas), muestra un aviso con botón; el toque del usuario cuenta
+ * como gesto nuevo y la pestaña ya se puede abrir.
+ */
+function showBlockedPrintTabNotice(url: string, docTitle: string): void {
+  const host = document.createElement('div');
+  host.style.cssText =
+    'position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:2147483647;' +
+    'display:flex;align-items:center;gap:10px;max-width:min(92vw,26rem);padding:10px 12px;border-radius:14px;' +
+    'background:#0f172a;color:#f1f5f9;box-shadow:0 10px 30px rgba(0,0,0,.45);font:500 13px/1.35 system-ui,sans-serif';
+
+  const label = document.createElement('span');
+  label.style.cssText = 'min-width:0;flex:1;overflow-wrap:anywhere';
+  label.textContent = `Listo: ${docTitle}`;
+
+  const openBtn = document.createElement('button');
+  openBtn.type = 'button';
+  openBtn.textContent = 'Ver / imprimir';
+  openBtn.style.cssText =
+    'flex-shrink:0;border:0;border-radius:10px;padding:8px 12px;background:#06b6d4;color:#082f49;font:600 13px system-ui,sans-serif;cursor:pointer';
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.setAttribute('aria-label', 'Descartar');
+  closeBtn.textContent = '✕';
+  closeBtn.style.cssText =
+    'flex-shrink:0;border:0;border-radius:10px;padding:8px 10px;background:transparent;color:#94a3b8;font:600 13px system-ui,sans-serif;cursor:pointer';
+
+  const tearDown = () => {
+    window.clearTimeout(autoHide);
+    if (host.parentNode) host.parentNode.removeChild(host);
+  };
+  const autoHide = window.setTimeout(tearDown, 90_000);
+
+  openBtn.addEventListener('click', () => {
+    window.open(url, '_blank');
+    tearDown();
+  });
+  closeBtn.addEventListener('click', tearDown);
+
+  host.appendChild(label);
+  host.appendChild(openBtn);
+  host.appendChild(closeBtn);
+  document.body.appendChild(host);
+}
+
+/**
+ * Móvil: abre el documento en pestaña nueva con URL `blob:`. En Chrome Android,
+ * `window.open('about:blank', …features)` suele devolver `null` (y `print()` desde un
+ * iframe oculto no está soportado), por lo que con la ruta de escritorio la pantalla
+ * del reporte nunca aparecía. Con `blob:` la pestaña carga el contenido por sí misma,
+ * sin depender de `document.write` sobre la referencia devuelta.
+ */
+function openPrintTabOnMobile(html: string): void {
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  window.setTimeout(() => URL.revokeObjectURL(url), 180_000);
+  const w = window.open(url, '_blank');
+  if (w) return;
+  showBlockedPrintTabNotice(url, extractHtmlTitle(html));
+}
+
+/**
+ * Abre HTML para imprimir. Escritorio: `about:blank` + `document.write` (no `blob:` URL),
+ * así el pie del diálogo de impresión no muestra una URL `blob:https://…` larga.
  * Sin `noopener` en window.open: en Chrome móvil a veces devuelve `null` pero abre pestaña;
  * si el popup está bloqueado, se usa iframe `about:blank` + write + print().
+ * Móvil: pestaña con URL `blob:` (ver `openPrintTabOnMobile`); sin script de autocierre
+ * para que el documento quede visible aunque el usuario cancele la impresión.
  */
 function openAndPrintHtml(html: string, windowFeatures: string): void {
+  if (isMobileLikeBrowser()) {
+    openPrintTabOnMobile(injectPrintWhenReadyScript(html));
+    return;
+  }
+
   const htmlWithClose = injectPrintCloseScript(injectPrintWhenReadyScript(html));
 
   const runPrint = (target: Window) => {
