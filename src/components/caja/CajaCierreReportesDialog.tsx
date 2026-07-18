@@ -12,19 +12,21 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn, formatMoney } from '@/lib/utils';
 import { formatInAppTimezone } from '@/lib/appTimezone';
-import type { CajaSesion, Sale } from '@/types';
+import type { CajaAbonoCobro, CajaSesion, Sale } from '@/types';
 import {
   isValidCierreTerminalFolio,
   listCajaSesionesFirestore,
   registrarCierreTerminalFirestore,
 } from '@/lib/firestore/cajaFirestore';
-import { fetchSalesByCajaSesion } from '@/lib/firestore/salesFirestore';
+import { fetchSalesByCajaSesion, fetchSalesPoolForCajaSesion } from '@/lib/firestore/salesFirestore';
+import { listAbonosHistorialByCajaSesionFirestore } from '@/lib/firestore/clientsFirestore';
 import {
   computeCajaEfectivoEsperado,
   computeSesionCierreMetrics,
   efectivoEsperadoCajaSesion,
   filterVentasCompletadasSesion,
   labelFormaPagoCaja,
+  resolveAbonosCobrosSesion,
   totalAbonosEfectivoSesion,
   type SesionCierreMetrics,
 } from '@/lib/cajaResumen';
@@ -111,6 +113,7 @@ function SesionDetallePanel({
   sesion,
   metrics,
   ventas,
+  abonosCobros,
   sucursalId,
   sucursalLabel,
   onSesionUpdated,
@@ -118,6 +121,7 @@ function SesionDetallePanel({
   sesion: CajaSesion;
   metrics: SesionCierreMetrics;
   ventas: Sale[];
+  abonosCobros: CajaAbonoCobro[];
   sucursalId: string;
   sucursalLabel?: string;
   onSesionUpdated?: () => void;
@@ -138,7 +142,7 @@ function SesionDetallePanel({
     esperadoBruto,
     sesion.aportesEfectivoTotal,
     sesion.retirosEfectivoTotal,
-    totalAbonosEfectivoSesion(sesion.abonosCobros)
+    totalAbonosEfectivoSesion(abonosCobros)
   );
   const esperadoShow = sesion.efectivoEsperado ?? esperadoCalc;
   const esperadoStored = sesion.efectivoEsperado;
@@ -183,7 +187,7 @@ function SesionDetallePanel({
       aportesEfectivo: sesion.aportesEfectivo,
       retirosEfectivoTotal: sesion.retirosEfectivoTotal,
       retirosEfectivo: sesion.retirosEfectivo,
-      abonosCobros: sesion.abonosCobros,
+      abonosCobros,
       cajaSesionId: sesion.id,
       tarjetasEsperadas: tarjetasEsperadasShow,
       conteoTarjetasDeclarado: conteoTarjetasShow ?? undefined,
@@ -233,9 +237,9 @@ function SesionDetallePanel({
   };
 
   return (
-    <div className="space-y-2 pr-0.5">
+    <div className="space-y-3 pb-2 pr-0.5">
       <div className="flex flex-wrap items-start justify-between gap-1.5 border-b border-slate-200/70 pb-2 dark:border-slate-800/50">
-        <div>
+        <div className="min-w-0">
           <p className="text-sm font-semibold leading-tight text-slate-900 dark:text-slate-100">
             {sesionFechaLabel(sesion)}
           </p>
@@ -256,8 +260,8 @@ function SesionDetallePanel({
         </span>
       </div>
 
-      <div className="grid gap-2 lg:grid-cols-2 lg:gap-x-6 xl:gap-x-8">
-        <div className="space-y-2">
+      <div className="grid gap-3 xl:grid-cols-2 xl:gap-x-6">
+        <div className="space-y-3">
       <div className="grid gap-1.5 sm:grid-cols-2">
         <MetricRow label="Apertura" value={sesionHoraApertura(sesion)} hint={sesion.openedByNombre} />
         <MetricRow
@@ -269,7 +273,7 @@ function SesionDetallePanel({
 
       <div>
         <SectionTitle>Ventas del turno</SectionTitle>
-        <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-1.5 sm:grid-cols-2">
           <MetricRow label="Tickets cobrados" value={String(completadas)} />
           <MetricRow
             label="Total vendido (bruto)"
@@ -314,7 +318,7 @@ function SesionDetallePanel({
           <MetricRow label="Otros medios" value={formatMoney(metrics.otros)} />
         </div>
         {metrics.lineasMedio.length > 0 ? (
-          <ul className="mt-1 grid gap-0.5 rounded-md border border-slate-200/80 bg-white/60 px-2 py-1 text-[10px] dark:border-slate-800/60 dark:bg-slate-900/30 sm:grid-cols-2">
+          <ul className="mt-1.5 grid gap-0.5 rounded-md border border-slate-200/80 bg-white/60 px-2 py-1.5 text-[10px] dark:border-slate-800/60 dark:bg-slate-900/30 sm:grid-cols-2">
             {metrics.lineasMedio.map((row) => (
               <li key={row.clave} className="flex justify-between gap-2">
                 <span className="truncate text-slate-600 dark:text-slate-400">{row.label}</span>
@@ -328,7 +332,7 @@ function SesionDetallePanel({
       </div>
 
       <div>
-          <SectionTitle>Abonos</SectionTitle>
+          <SectionTitle>Abonos CxC del turno</SectionTitle>
           <div className="grid gap-1.5 sm:grid-cols-2">
             <MetricRow
               label="Total abonos"
@@ -337,13 +341,13 @@ function SesionDetallePanel({
             />
             <MetricRow
               label="Efectivo de abonos"
-              value={formatMoney(totalAbonosEfectivoSesion(sesion.abonosCobros))}
+              value={formatMoney(totalAbonosEfectivoSesion(abonosCobros))}
               hint="Incluido en el efectivo esperado"
             />
           </div>
-          {(sesion.abonosCobros?.length ?? 0) > 0 ? (
-            <ul className="mt-1.5 space-y-1 rounded-md border border-violet-500/30 bg-violet-500/[0.06] px-2 py-1.5 text-[10px] dark:border-violet-500/25 dark:bg-violet-950/30">
-              {[...(sesion.abonosCobros ?? [])]
+          {abonosCobros.length > 0 ? (
+            <ul className="mt-1.5 max-h-[min(40dvh,18rem)] space-y-1 overflow-y-auto overscroll-contain rounded-md border border-violet-500/30 bg-violet-500/[0.06] px-2 py-1.5 text-[10px] dark:border-violet-500/25 dark:bg-violet-950/30">
+              {[...abonosCobros]
                 .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
                 .map((a) => (
                   <li
@@ -368,7 +372,7 @@ function SesionDetallePanel({
             </ul>
           ) : (
             <p className="mt-1.5 rounded-md border border-slate-200/80 bg-white/60 px-2 py-1.5 text-[10px] text-slate-500 dark:border-slate-800/60 dark:bg-slate-900/30 dark:text-slate-400">
-              Sin abonos registrados en este turno.
+              Sin abonos registrados en este turno. Si el abono fue de otro día, seleccione ese turno en la lista.
             </p>
           )}
         </div>
@@ -474,10 +478,10 @@ function SesionDetallePanel({
       </div>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-3">
       <div>
         <SectionTitle>Arqueo de efectivo</SectionTitle>
-        <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-1.5 sm:grid-cols-2">
           <MetricRow label="Fondo inicial" value={formatMoney(sesion.fondoInicial)} />
           <MetricRow
             label="Aportes de efectivo"
@@ -599,6 +603,7 @@ export function CajaCierreReportesDialog({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<SesionCierreMetrics | null>(null);
   const [ventasDetalle, setVentasDetalle] = useState<Sale[]>([]);
+  const [abonosDetalle, setAbonosDetalle] = useState<CajaAbonoCobro[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
 
   const selected = useMemo(
@@ -638,20 +643,34 @@ export function CajaCierreReportesDialog({
     if (!open || !sucursalId || !selectedId || !selected) {
       setMetrics(null);
       setVentasDetalle([]);
+      setAbonosDetalle([]);
       return;
     }
     let cancelled = false;
     setDetailLoading(true);
     void (async () => {
       try {
-        const ventas = await fetchSalesByCajaSesion(sucursalId, selectedId);
+        const ventana = {
+          from: selected.openedAt,
+          to: selected.closedAt ?? new Date(),
+        };
+        const [ventasSesion, ventasPool, abonosHistorial] = await Promise.all([
+          fetchSalesByCajaSesion(sucursalId, selectedId),
+          fetchSalesPoolForCajaSesion(sucursalId, selectedId),
+          listAbonosHistorialByCajaSesionFirestore(sucursalId, selectedId, ventana).catch(
+            () => [] as CajaAbonoCobro[]
+          ),
+        ]);
         if (cancelled) return;
-        setVentasDetalle(ventas);
-        setMetrics(computeSesionCierreMetrics(selected, ventas));
+        const abonos = resolveAbonosCobrosSesion(selected, ventasPool, abonosHistorial);
+        setVentasDetalle(ventasSesion);
+        setAbonosDetalle(abonos);
+        setMetrics(computeSesionCierreMetrics(selected, ventasSesion, ventasPool, abonosHistorial));
       } catch {
         if (!cancelled) {
           setMetrics(null);
           setVentasDetalle([]);
+          setAbonosDetalle([]);
         }
       } finally {
         if (!cancelled) setDetailLoading(false);
@@ -669,7 +688,7 @@ export function CajaCierreReportesDialog({
         overlayClassName={CAJA_CIERRE_DIALOG_OVERLAY_Z}
         className={cn(
           CAJA_CIERRE_DIALOG_CONTENT_Z,
-          'flex !max-w-[min(calc(100vw-2rem),96rem)] max-h-[min(82dvh,calc(100dvh-2rem))] w-[min(calc(100vw-2rem),96rem)] flex-col gap-0 overflow-hidden border-slate-200 bg-slate-100 p-0 dark:border-slate-800 dark:bg-slate-900 md:!max-w-[min(calc(100vw-3rem),96rem)] md:w-[min(calc(100vw-3rem),96rem)]'
+          'flex !max-w-[min(calc(100vw-1rem),72rem)] max-h-[min(92dvh,calc(100dvh-1rem))] w-[min(calc(100vw-1rem),72rem)] flex-col gap-0 overflow-hidden border-slate-200 bg-slate-100 p-0 dark:border-slate-800 dark:bg-slate-900 sm:!max-w-[min(calc(100vw-2rem),80rem)] sm:w-[min(calc(100vw-2rem),80rem)]'
         )}
       >
         <DialogHeader className="shrink-0 border-b border-slate-200/80 px-4 py-2 dark:border-slate-800/60 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:py-2.5">
@@ -679,8 +698,7 @@ export function CajaCierreReportesDialog({
               Reportes de cierre de caja
             </DialogTitle>
             <DialogDescription className="text-left text-slate-600 dark:text-slate-400">
-              Historial de turnos: apertura, cierre, ventas por medio de pago, cierres de terminal, arqueo y saldos
-              pendientes.
+              Historial de turnos: apertura, cierre, ventas por medio de pago, abonos CxC, cierres de terminal y arqueo.
               {sucursalLabel ? ` Tienda: ${sucursalLabel}.` : null}
             </DialogDescription>
           </div>
@@ -691,8 +709,8 @@ export function CajaCierreReportesDialog({
             Elija una sucursal en el selector del encabezado para consultar cierres.
           </p>
         ) : (
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden sm:flex-row sm:items-stretch">
-            <div className="flex max-h-[32dvh] min-h-0 shrink-0 flex-col border-b border-slate-200/80 dark:border-slate-800/60 sm:max-h-none sm:h-auto sm:w-44 sm:border-b-0 sm:border-r md:w-48 lg:w-52 xl:w-56">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row md:items-stretch">
+            <div className="flex max-h-[28dvh] min-h-0 shrink-0 flex-col border-b border-slate-200/80 dark:border-slate-800/60 md:max-h-none md:h-auto md:w-48 md:border-b-0 md:border-r lg:w-52 xl:w-56">
               <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-1.5">
                 <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">Turnos</span>
                 <Button
@@ -767,13 +785,13 @@ export function CajaCierreReportesDialog({
               </div>
             </div>
 
-            <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-2.5 sm:overflow-visible sm:p-4">
+            <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-2.5 sm:p-4">
               {!selected ? (
                 <p className="py-8 text-center text-sm text-slate-600 dark:text-slate-400">
                   Seleccione un turno de la lista.
                 </p>
               ) : detailLoading && !metrics ? (
-                <div className="flex flex-1 items-center justify-center gap-2 text-sm text-slate-500">
+                <div className="flex flex-1 items-center justify-center gap-2 py-10 text-sm text-slate-500">
                   <Loader2 className="h-5 w-5 animate-spin" />
                   Calculando resumen…
                 </div>
@@ -782,6 +800,7 @@ export function CajaCierreReportesDialog({
                   sesion={selected}
                   metrics={metrics}
                   ventas={ventasDetalle}
+                  abonosCobros={abonosDetalle}
                   sucursalId={sucursalId}
                   sucursalLabel={sucursalLabel}
                   onSesionUpdated={() => void loadList()}

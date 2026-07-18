@@ -1,6 +1,6 @@
 import React, { useEffect, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { Layout, LoginForm, LoadingIndicator } from '@/components/ui-custom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Layout, LoginForm, LoadingIndicator, RouteErrorBoundary } from '@/components/ui-custom';
 import { useAuthStore, useSyncStore, subscribeSupabaseAuth } from '@/stores';
 import { initializeDemoData, syncServipartzSeedUsers } from '@/db/database';
 import { setAppEventActorResolver } from '@/lib/appEventContext';
@@ -114,152 +114,201 @@ function App() {
 
   return (
     <BrowserRouter>
-      <Routes>
-        {/* Ruta de Login */}
-        <Route
-          path="/login"
-          element={
-            <PublicRoute>
-              <LoginForm />
-            </PublicRoute>
-          }
-        />
-
-        {/* Rutas protegidas con Layout */}
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute>
-              <Layout />
-            </ProtectedRoute>
-          }
-        >
-          <Route
-            index
-            element={
-              <Suspense fallback={<PageFallback message="Cargando panel" />}>
-                <Dashboard />
-              </Suspense>
-            }
-          />
-          <Route
-            path="pos"
-            element={
-              <Suspense fallback={<PageFallback message="Cargando punto de venta" />}>
-                <POS />
-              </Suspense>
-            }
-          />
-          <Route
-            path="inventario"
-            element={
-              <Suspense fallback={<PageFallback message="Cargando inventario" />}>
-                <Inventario />
-              </Suspense>
-            }
-          />
-          <Route
-            path="inventario/recepcion-pedidos"
-            element={
-              <Suspense fallback={<PageFallback message="Cargando recepción" />}>
-                <RecepcionPedidos />
-              </Suspense>
-            }
-          />
-          <Route
-            path="inventario/salidas-mercancia"
-            element={
-              <Suspense fallback={<PageFallback message="Cargando salidas" />}>
-                <SalidasMercancia />
-              </Suspense>
-            }
-          />
-          <Route
-            path="etiquetas-productos"
-            element={
-              <Suspense fallback={<PageFallback message="Cargando etiquetas" />}>
-                <EtiquetasProductos />
-              </Suspense>
-            }
-          />
-          <Route
-            path="mision-inventario"
-            element={
-              <Suspense fallback={<PageFallback message="Cargando misión inventario" />}>
-                <MisionInventario />
-              </Suspense>
-            }
-          />
-          <Route
-            path="cotizaciones"
-            element={
-              <Suspense fallback={<PageFallback message="Cargando cotizaciones" />}>
-                <Cotizaciones />
-              </Suspense>
-            }
-          />
-          <Route
-            path="checador"
-            element={
-              <Suspense fallback={<PageFallback message="Cargando checador" />}>
-                <Checador />
-              </Suspense>
-            }
-          />
-          <Route
-            path="facturas"
-            element={
-              <Suspense fallback={<PageFallback message="Cargando facturas" />}>
-                <Facturas />
-              </Suspense>
-            }
-          />
-          <Route
-            path="nominas"
-            element={
-              <Suspense fallback={<PageFallback message="Cargando nóminas" />}>
-                <Nominas />
-              </Suspense>
-            }
-          />
-          <Route
-            path="clientes"
-            element={
-              <Suspense fallback={<PageFallback message="Cargando clientes" />}>
-                <Clientes />
-              </Suspense>
-            }
-          />
-          <Route
-            path="clientes/:clientId"
-            element={
-              <Suspense fallback={<PageFallback message="Cargando perfil" />}>
-                <ClientePerfil />
-              </Suspense>
-            }
-          />
-          <Route
-            path="cuentas-por-cobrar"
-            element={
-              <Suspense fallback={<PageFallback message="Cargando cuentas por cobrar" />}>
-                <CuentasPorCobrar />
-              </Suspense>
-            }
-          />
-          <Route
-            path="configuracion"
-            element={
-              <Suspense fallback={<PageFallback message="Cargando configuración" />}>
-                <Configuracion />
-              </Suspense>
-            }
-          />
-        </Route>
-
-        {/* Redirección por defecto */}
-        <Route path="*" element={<Navigate to="/" />} />
-      </Routes>
+      <AppRoutes />
     </BrowserRouter>
+  );
+}
+
+function AppRoutes() {
+  const location = useLocation();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
+  // Precarga en idle las pantallas para que el menú no dispare imports en frío.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const warm = () => {
+      void import('@/pages/Dashboard');
+      void import('@/pages/POS');
+      void import('@/pages/Inventario');
+      void import('@/pages/Clientes');
+      void import('@/pages/Cotizaciones');
+      void import('@/pages/Facturas');
+      void import('@/pages/CuentasPorCobrar');
+      void import('@/pages/Configuracion');
+      void import('@/pages/Checador');
+      void import('@/pages/RecepcionPedidos');
+      void import('@/pages/SalidasMercancia');
+      void import('@/pages/EtiquetasProductos');
+      void import('@/pages/MisionInventario');
+      void import('@/pages/Nominas');
+      void import('@/pages/ClientePerfil');
+    };
+    const ric = (
+      window as Window & {
+        requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      }
+    ).requestIdleCallback;
+    if (typeof ric === 'function') {
+      const id = ric(warm, { timeout: 4000 });
+      return () => {
+        const cic = (
+          window as Window & { cancelIdleCallback?: (id: number) => void }
+        ).cancelIdleCallback;
+        cic?.(id);
+      };
+    }
+    const t = window.setTimeout(warm, 1200);
+    return () => window.clearTimeout(t);
+  }, [isAuthenticated]);
+
+  return (
+    <RouteErrorBoundary routePath={location.pathname}>
+      <Routes>
+              {/* Ruta de Login */}
+              <Route
+                path="/login"
+                element={
+                  <PublicRoute>
+                    <LoginForm />
+                  </PublicRoute>
+                }
+              />
+      
+              {/* Rutas protegidas con Layout */}
+              <Route
+                path="/"
+                element={
+                  <ProtectedRoute>
+                    <Layout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route
+                  index
+                  element={
+                    <Suspense fallback={<PageFallback message="Cargando panel" />}>
+                      <Dashboard />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="pos"
+                  element={
+                    <Suspense fallback={<PageFallback message="Cargando punto de venta" />}>
+                      <POS />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="inventario"
+                  element={
+                    <Suspense fallback={<PageFallback message="Cargando inventario" />}>
+                      <Inventario />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="inventario/recepcion-pedidos"
+                  element={
+                    <Suspense fallback={<PageFallback message="Cargando recepción" />}>
+                      <RecepcionPedidos />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="inventario/salidas-mercancia"
+                  element={
+                    <Suspense fallback={<PageFallback message="Cargando salidas" />}>
+                      <SalidasMercancia />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="etiquetas-productos"
+                  element={
+                    <Suspense fallback={<PageFallback message="Cargando etiquetas" />}>
+                      <EtiquetasProductos />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="mision-inventario"
+                  element={
+                    <Suspense fallback={<PageFallback message="Cargando misión inventario" />}>
+                      <MisionInventario />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="cotizaciones"
+                  element={
+                    <Suspense fallback={<PageFallback message="Cargando cotizaciones" />}>
+                      <Cotizaciones />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="checador"
+                  element={
+                    <Suspense fallback={<PageFallback message="Cargando checador" />}>
+                      <Checador />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="facturas"
+                  element={
+                    <Suspense fallback={<PageFallback message="Cargando facturas" />}>
+                      <Facturas />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="nominas"
+                  element={
+                    <Suspense fallback={<PageFallback message="Cargando nóminas" />}>
+                      <Nominas />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="clientes"
+                  element={
+                    <Suspense fallback={<PageFallback message="Cargando clientes" />}>
+                      <Clientes />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="clientes/:clientId"
+                  element={
+                    <Suspense fallback={<PageFallback message="Cargando perfil" />}>
+                      <ClientePerfil />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="cuentas-por-cobrar"
+                  element={
+                    <Suspense fallback={<PageFallback message="Cargando cuentas por cobrar" />}>
+                      <CuentasPorCobrar />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="configuracion"
+                  element={
+                    <Suspense fallback={<PageFallback message="Cargando configuración" />}>
+                      <Configuracion />
+                    </Suspense>
+                  }
+                />
+              </Route>
+      
+              {/* Redirección por defecto */}
+              <Route path="*" element={<Navigate to="/" />} />
+            </Routes>
+    </RouteErrorBoundary>
   );
 }
 

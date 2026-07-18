@@ -9,5 +9,6 @@ export { Header } from './Header';
 export { ToastContainer } from './ToastContainer';
 export { LoginForm } from './LoginForm';
 export { LoadingIndicator } from './LoadingIndicator';
+export { RouteErrorBoundary } from './RouteErrorBoundary';
 export { UserManagement } from './UserManagement';
 export { PageShell } from './PageShell';

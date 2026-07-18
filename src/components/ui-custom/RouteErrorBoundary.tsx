@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
+import { LoadingIndicator } from '@/components/ui-custom/LoadingIndicator';
 import {
   clearChunkReloadFlag,
   isChunkLoadError,
@@ -17,8 +18,12 @@ type State = {
   routePath: string;
   /** Fuerza remount limpio de la ruta tras un fallo recuperable. */
   remountKey: number;
-  autoRetryUsed: boolean;
+  softRetries: number;
+  hardAutoRetries: number;
+  recovering: boolean;
 };
+
+const MAX_SOFT_RETRIES = 2;
 
 /** Fallos de reconciliación DOM (p. ej. portales + React 19) que no indican fallo lógico de la ruta. */
 function isTransientDomGlitch(error: unknown): boolean {
@@ -29,18 +34,21 @@ function isTransientDomGlitch(error: unknown): boolean {
   );
 }
 
-function isRecoverableRenderError(error: unknown): boolean {
-  return isChunkLoadError(error) || isTransientDomGlitch(error);
+function isLikelyTransientRouteError(error: unknown): boolean {
+  if (isChunkLoadError(error) || isTransientDomGlitch(error)) return true;
+  const msg = error instanceof Error ? error.message : String(error ?? '');
+  return /Minified React error/i.test(msg);
 }
 
 /**
  * Evita pantalla en blanco / roja si falla el árbol de una ruta.
- * - Chunks viejos tras deploy: recarga automática una vez.
- * - Glitches DOM: remount limpio sin pedir F5 al usuario.
- * Al cambiar `routePath`, se limpia el error en getDerivedStateFromProps.
+ * - Chunks viejos tras deploy: purga caché + recarga automática.
+ * - Glitches DOM / fallos momentáneos: remount limpio sin pedir F5.
+ * Solo muestra UI de error si agotó recuperaciones automáticas.
  */
 export class RouteErrorBoundary extends Component<Props, State> {
   private autoRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  private hardFailTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(props: Props) {
     super(props);
@@ -49,7 +57,9 @@ export class RouteErrorBoundary extends Component<Props, State> {
       error: null,
       routePath: props.routePath ?? '',
       remountKey: 0,
-      autoRetryUsed: false,
+      softRetries: 0,
+      hardAutoRetries: 0,
+      recovering: false,
     };
   }
 
@@ -60,104 +70,130 @@ export class RouteErrorBoundary extends Component<Props, State> {
         routePath: next,
         hasError: false,
         error: null,
-        autoRetryUsed: false,
+        softRetries: 0,
+        hardAutoRetries: 0,
+        recovering: false,
       };
     }
     return null;
   }
 
-  static getDerivedStateFromError(error: Error): Partial<State> | null {
-    if (isChunkLoadError(error)) {
-      // La recarga se dispara en componentDidCatch; aquí evitamos pintar rojo un frame.
-      return { hasError: false, error: null };
+  static getDerivedStateFromError(error: Error): Partial<State> {
+    // No pintar rojo de inmediato: componentDidCatch intenta recuperar.
+    if (isChunkLoadError(error) || isTransientDomGlitch(error) || isLikelyTransientRouteError(error)) {
+      return { hasError: false, error, recovering: true };
     }
-    if (isTransientDomGlitch(error)) {
-      return { hasError: false, error: null };
-    }
-    return { hasError: true, error };
+    return { hasError: false, error, recovering: true };
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     if (isChunkLoadError(error)) {
       if (reloadOnceForStaleAssets()) return;
-      // Ya se recargó una vez en esta pestaña: mostrar UI de reintento.
-      this.setState((s) => ({
-        hasError: true,
-        error,
-        remountKey: s.remountKey + 1,
-      }));
+      // Agotó recargas duras: remount suave y, si falla otra vez, UI mínima.
+      this.scheduleSoftRemount(true);
       return;
     }
 
-    if (isTransientDomGlitch(error)) {
-      // Remount limpio en el siguiente tick (evita quedar con el árbol a medias).
-      this.scheduleSoftRemount();
+    if (this.state.softRetries < MAX_SOFT_RETRIES) {
+      this.scheduleSoftRemount(true);
       return;
     }
 
     console.error('RouteErrorBoundary:', error, info.componentStack);
+    this.setState({ hasError: true, recovering: false, error });
+    // Último recurso: reintento automático limitado (sin pedir F5).
+    if (this.state.hardAutoRetries >= 2) return;
+    if (this.hardFailTimer) clearTimeout(this.hardFailTimer);
+    this.hardFailTimer = setTimeout(() => {
+      clearChunkReloadFlag();
+      this.setState((s) => ({
+        hasError: false,
+        error: null,
+        recovering: false,
+        softRetries: 0,
+        hardAutoRetries: s.hardAutoRetries + 1,
+        remountKey: s.remountKey + 1,
+      }));
+    }, 1600);
   }
 
   componentWillUnmount() {
     if (this.autoRetryTimer) clearTimeout(this.autoRetryTimer);
+    if (this.hardFailTimer) clearTimeout(this.hardFailTimer);
   }
 
-  private scheduleSoftRemount(markAutoRetry = false) {
+  private scheduleSoftRemount(countRetry = false) {
     if (this.autoRetryTimer) clearTimeout(this.autoRetryTimer);
     this.autoRetryTimer = setTimeout(() => {
       this.setState((s) => ({
         hasError: false,
         error: null,
+        recovering: false,
         remountKey: s.remountKey + 1,
-        autoRetryUsed: markAutoRetry ? true : s.autoRetryUsed,
+        softRetries: countRetry ? s.softRetries + 1 : s.softRetries,
       }));
-    }, 50);
+    }, 40);
   }
 
   private handleRetry = () => {
     clearChunkReloadFlag();
+    if (this.hardFailTimer) clearTimeout(this.hardFailTimer);
     this.setState((s) => ({
       hasError: false,
       error: null,
+      recovering: false,
       remountKey: s.remountKey + 1,
-      autoRetryUsed: false,
+      softRetries: 0,
+      hardAutoRetries: 0,
     }));
   };
 
   private handleReload = () => {
     clearChunkReloadFlag();
-    window.location.reload();
+    reloadOnceForStaleAssets();
+    // Si ya no puede recuperar con purge, fuerza reload simple.
+    window.setTimeout(() => window.location.reload(), 100);
   };
 
   render() {
-    if (this.state.hasError) {
-      const recoverable = isRecoverableRenderError(this.state.error);
+    if (this.state.recovering && !this.state.hasError) {
       return (
-        <div className="flex min-h-[12rem] flex-1 flex-col items-center justify-center gap-4 rounded-xl border border-red-500/30 bg-red-100/80 p-6 text-center dark:bg-red-950/20">
-          <p className="text-sm font-medium text-red-800 dark:text-red-200">
-            Algo salió mal al cargar esta pantalla.
+        <div className="flex min-h-[12rem] flex-1 flex-col items-center justify-center">
+          <LoadingIndicator inline message="Recuperando pantalla…" tone="onBrand" />
+        </div>
+      );
+    }
+
+    if (this.state.hasError) {
+      return (
+        <div className="flex min-h-[12rem] flex-1 flex-col items-center justify-center gap-4 rounded-xl border border-slate-200/80 bg-slate-50/90 p-6 text-center dark:border-slate-800/60 dark:bg-slate-900/50">
+          <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
+            Reintentando cargar esta pantalla…
           </p>
           {import.meta.env.DEV && this.state.error ? (
-            <p className="max-w-lg break-words rounded-md border border-red-500/20 bg-red-50/80 px-2 py-1.5 text-left font-mono text-[11px] text-red-900 dark:bg-red-950/40 dark:text-red-100">
+            <p className="max-w-lg break-words rounded-md border border-slate-200/80 bg-white/80 px-2 py-1.5 text-left font-mono text-[11px] text-slate-700 dark:border-slate-700 dark:bg-slate-950/40 dark:text-slate-200">
               {this.state.error.message}
             </p>
           ) : null}
-          <p className="max-w-md text-xs text-slate-600 dark:text-slate-500">
-            {recoverable
-              ? 'Hubo un fallo temporal al cargar. Prueba «Reintentar»; si no vuelve, recarga la página.'
-              : 'Puedes reintentar o usar el menú para ir a otra sección.'}
+          <p className="max-w-md text-xs text-slate-600 dark:text-slate-400">
+            Si tarda, usa Reintentar. No hace falta pulsar F5.
           </p>
           <div className="flex flex-wrap justify-center gap-2">
             <Button type="button" variant="secondary" onClick={this.handleRetry}>
               Reintentar
             </Button>
             <Button type="button" variant="outline" onClick={this.handleReload}>
-              Recargar página
+              Recargar limpio
             </Button>
           </div>
         </div>
       );
     }
-    return <div key={this.state.remountKey} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">{this.props.children}</div>;
+
+    return (
+      <div key={this.state.remountKey} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        {this.props.children}
+      </div>
+    );
   }
 }

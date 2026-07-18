@@ -203,6 +203,74 @@ export function totalAbonosCobros(
   return Math.round(abonos.reduce((s, a) => s + (Number(a.monto) || 0), 0) * 100) / 100;
 }
 
+function abonoFingerprint(a: {
+  monto: number;
+  formaPago: string;
+  clienteId?: string;
+  createdAt?: Date | string;
+}): string {
+  const cents = Math.round((Number(a.monto) || 0) * 100);
+  const day =
+    a.createdAt instanceof Date
+      ? a.createdAt.toISOString().slice(0, 10)
+      : typeof a.createdAt === 'string' && a.createdAt.length >= 10
+        ? a.createdAt.slice(0, 10)
+        : '';
+  return `${(a.clienteId ?? '').trim()}|${a.formaPago}|${cents}|${day}`;
+}
+
+/**
+ * Une abonos guardados en la sesión con los recuperables desde tickets (`esAbonoCxC`)
+ * o historial de clientes. Evita perder el corte si el RPC de caja falló tras guardar CxC.
+ */
+export function resolveAbonosCobrosSesion(
+  sesion: Pick<CajaSesion, 'id' | 'abonosCobros'>,
+  ventasPool?: Sale[] | null,
+  abonosExtra?: CajaAbonoCobro[] | null
+): CajaAbonoCobro[] {
+  const sid = sesion.id.trim();
+  const out: CajaAbonoCobro[] = [];
+  const ids = new Set<string>();
+  const fps = new Set<string>();
+
+  const push = (a: CajaAbonoCobro) => {
+    const monto = Math.round((Number(a.monto) || 0) * 100) / 100;
+    if (monto <= 0.005 || !a.formaPago) return;
+    const id = (a.id || '').trim();
+    const fp = abonoFingerprint({ ...a, monto });
+    if ((id && ids.has(id)) || fps.has(fp)) return;
+    if (id) ids.add(id);
+    fps.add(fp);
+    out.push({ ...a, monto });
+  };
+
+  for (const a of sesion.abonosCobros ?? []) push(a);
+
+  for (const sale of ventasPool ?? []) {
+    for (const p of sale.pagos ?? []) {
+      if (p.esAbonoCxC !== true) continue;
+      if (!pagoPerteneceASesion(sale, p, sid)) continue;
+      const monto = Math.round((Number(p.monto) || 0) * 100) / 100;
+      if (monto <= 0.005) continue;
+      push({
+        id: `pago:${sale.id}:${p.id}`,
+        monto,
+        formaPago: p.formaPago,
+        clienteId: sale.clienteId && sale.clienteId !== 'mostrador' ? sale.clienteId : undefined,
+        clienteNombre: sale.cliente?.nombre,
+        createdAt: sale.completedAt ?? sale.updatedAt ?? sale.createdAt,
+        usuarioId: sale.usuarioId || '',
+        usuarioNombre: sale.usuarioNombre?.trim() || 'Ticket',
+      });
+    }
+  }
+
+  for (const a of abonosExtra ?? []) push(a);
+
+  out.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  return out;
+}
+
 /**
  * Criterio de caja / cobrado del periodo:
  * pagos de ventas del periodo (sin abonos CxC) + abonos CxC cobrados en el periodo.
@@ -397,11 +465,13 @@ export function computeSesionCierreMetrics(
   >,
   ventas: Sale[],
   /** Pool amplio de ventas (p. ej. catálogo reciente) para cobrar abonos de tickets de otros turnos. */
-  ventasPoolCobros?: Sale[]
+  ventasPoolCobros?: Sale[],
+  /** Abonos recuperados del historial de clientes u otras fuentes. */
+  abonosExtra?: CajaAbonoCobro[] | null
 ): SesionCierreMetrics {
   const completadas = filterVentasCompletadasSesion(ventas);
-  const abonos = sesion.abonosCobros ?? [];
   const pool = ventasPoolCobros?.length ? ventasPoolCobros : ventas;
+  const abonos = resolveAbonosCobrosSesion(sesion, pool, abonosExtra);
   const { tickets, total } = resumenBrutoSesion(ventas);
   const cobrado = computeCobradoPeriodo(filterVentasCompletadasSesion(pool), abonos, sesion.id);
   const grupos = resumenGruposMedioPagoCierre(pool, abonos, sesion.id);

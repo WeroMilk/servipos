@@ -1,4 +1,4 @@
-import type { Client, ClientAbonoHistorialEntry, ClientCreditoHistorialEntry } from '@/types';
+import type { CajaAbonoCobro, Client, ClientAbonoHistorialEntry, ClientCreditoHistorialEntry, FormaPago } from '@/types';
 import { normalizeClientPriceListId } from '@/lib/clientPriceLists';
 import { createDebouncedAsyncFn } from '@/lib/debouncedAsync';
 import { getSupabase } from '@/lib/supabaseClient';
@@ -453,4 +453,57 @@ export async function deleteClientFirestore(sucursalId: string, id: string): Pro
   const supabase = getSupabase();
   const { error } = await supabase.from('clients').delete().eq('sucursal_id', sucursalId).eq('id', id);
   if (error) throw new Error(error.message);
+}
+
+/**
+ * Abonos CxC del historial de clientes etiquetados con esta sesión de caja.
+ * Sirve de respaldo cuando `caja_sesiones.abonosCobros` quedó vacío (RPC fallido, etc.).
+ * Si se pasa ventana de fechas, también incluye abonos sin `cajaSesionId` hechos en ese intervalo.
+ */
+export async function listAbonosHistorialByCajaSesionFirestore(
+  sucursalId: string,
+  sesionId: string,
+  ventana?: { from: Date; to: Date } | null
+): Promise<CajaAbonoCobro[]> {
+  const sid = sesionId.trim();
+  if (!sid) return [];
+  const supabase = getSupabase();
+  const { data, error } = await supabase.from('clients').select('id, doc').eq('sucursal_id', sucursalId);
+  if (error) throw new Error(error.message);
+
+  const fromMs = ventana?.from?.getTime() ?? null;
+  const toMs = ventana?.to?.getTime() ?? null;
+
+  const out: CajaAbonoCobro[] = [];
+  for (const row of data ?? []) {
+    const client = docToClient(sucursalId, row.id, (row.doc ?? {}) as Record<string, unknown>);
+    for (const h of client.abonosHistorial ?? []) {
+      const monto = Math.round((Number(h.monto) || 0) * 100) / 100;
+      if (monto <= 0.005) continue;
+      const at = h.at instanceof Date ? h.at : new Date(h.at);
+      const histSid = (h.cajaSesionId ?? '').trim();
+      const matchSesion = histSid === sid;
+      const matchVentana =
+        !histSid &&
+        fromMs != null &&
+        toMs != null &&
+        Number.isFinite(at.getTime()) &&
+        at.getTime() >= fromMs &&
+        at.getTime() <= toMs;
+      if (!matchSesion && !matchVentana) continue;
+      const formaPago = (h.formaPago?.trim() || '01') as FormaPago;
+      out.push({
+        id: `hist:${client.id}:${at.toISOString()}:${Math.round(monto * 100)}`,
+        monto,
+        formaPago,
+        clienteId: client.id,
+        clienteNombre: client.nombre,
+        createdAt: at,
+        usuarioId: '',
+        usuarioNombre: h.usuarioNombre?.trim() || '—',
+      });
+    }
+  }
+  out.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  return out;
 }

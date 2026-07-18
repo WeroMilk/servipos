@@ -47,6 +47,38 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         // Bundle principal > 2 MiB (límite por defecto de Workbox)
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        navigateFallback: "index.html",
+        // JS/CSS: preferir red para no servir chunks viejos tras un deploy.
+        runtimeCaching: [
+          {
+            urlPattern: ({ request }) =>
+              request.destination === "script" || request.destination === "style",
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "servipos-assets-runtime",
+              networkTimeoutSeconds: 4,
+              expiration: {
+                maxEntries: 80,
+                maxAgeSeconds: 60 * 60 * 24,
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
+          {
+            urlPattern: ({ request }) => request.mode === "navigate",
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "servipos-html-runtime",
+              networkTimeoutSeconds: 4,
+              expiration: {
+                maxEntries: 8,
+                maxAgeSeconds: 60 * 60 * 24,
+              },
+            },
+          },
+        ],
       },
     }),
   ],

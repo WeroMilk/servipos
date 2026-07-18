@@ -369,6 +369,42 @@ export async function fetchSalesByCajaSesion(sucursalId: string, sesionId: strin
   return list;
 }
 
+/**
+ * Pool amplio para recuperar cobros/abonos de tickets de otros turnos
+ * cuyos pagos quedaron etiquetados con esta sesión de caja.
+ */
+export async function fetchSalesPoolForCajaSesion(
+  sucursalId: string,
+  sesionId: string,
+  limit = 500
+): Promise<Sale[]> {
+  const sid = sesionId.trim();
+  if (!sid) return [];
+  const bySesion = await fetchSalesByCajaSesion(sucursalId, sid);
+  const byId = new Map(bySesion.map((s) => [s.id, s]));
+
+  const supabase = getSupabase();
+  const { data: rows } = await supabase
+    .from('sales')
+    .select('id, doc')
+    .eq('sucursal_id', sucursalId)
+    .order('updated_at', { ascending: false })
+    .limit(Math.max(50, Math.min(limit, 800)));
+
+  for (const r of rows ?? []) {
+    if (byId.has(r.id)) continue;
+    const sale = saleDataToSale(r.id, r.doc as Record<string, unknown>, sucursalId);
+    if (!sale) continue;
+    const touches = (sale.pagos ?? []).some((p) => {
+      const paySid = (p.cajaSesionId ?? '').trim();
+      return paySid === sid || (p.esAbonoCxC === true && !paySid && (sale.cajaSesionId ?? '').trim() === sid);
+    });
+    if (touches) byId.set(sale.id, sale);
+  }
+
+  return [...byId.values()];
+}
+
 export async function fetchSalesForMexicoDateKey(sucursalId: string, dateKey: string): Promise<Sale[]> {
   const start = startOfDayFromDateKey(dateKey);
   const end = new Date(start);

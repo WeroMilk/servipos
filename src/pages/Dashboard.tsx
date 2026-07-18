@@ -1069,10 +1069,11 @@ export function Dashboard() {
         </button>
       </div>
 
-      {/* Gráfica a ancho completo, altura flexible */}
+      {/* Gráfica a ancho completo. En móvil altura fija (evita que se comprima y solo asome el ícono sobre la barra inferior); en escritorio ocupa el alto disponible. */}
       <Card
         className={cn(
-          'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200/70 bg-white/80 shadow-sm backdrop-blur-sm',
+          'flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200/70 bg-white/80 shadow-sm backdrop-blur-sm',
+          'max-md:h-[20rem] max-md:shrink-0 md:flex-1',
           'dark:border-slate-800/60 dark:bg-slate-900/55'
         )}
       >
