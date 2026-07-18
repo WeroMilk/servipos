@@ -54,8 +54,11 @@ export function PageShell({
       <div
         className={cn(
           'flex min-h-0 min-w-0 flex-1 basis-0 flex-col',
-          'overflow-hidden',
-          'max-md:overflow-y-auto max-md:overflow-x-hidden max-md:overscroll-y-contain max-md:[-webkit-overflow-scrolling:touch]'
+          /* Escritorio: cada página gestiona su scroll interno. */
+          'md:overflow-hidden',
+          /* Móvil: este es el único scroll vertical de la página (evita pelear con overflow-hidden). */
+          'max-md:overflow-y-auto max-md:overflow-x-hidden max-md:overscroll-y-contain',
+          'max-md:[-webkit-overflow-scrolling:touch] max-md:[touch-action:pan-y]'
         )}
       >
         {children}

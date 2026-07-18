@@ -191,7 +191,7 @@ export class RouteErrorBoundary extends Component<Props, State> {
     }
 
     return (
-      <div key={this.state.remountKey} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <div key={this.state.remountKey} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden max-md:min-h-0">
         {this.props.children}
       </div>
     );

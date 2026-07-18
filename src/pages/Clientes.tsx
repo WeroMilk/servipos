@@ -346,7 +346,7 @@ export function Clientes() {
         </Button>
       }
     >
-      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden max-md:overflow-visible sm:gap-3">
+      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden max-md:flex-none max-md:min-h-min max-md:overflow-visible sm:gap-3">
       <div className="grid w-full min-w-0 shrink-0 grid-cols-2 gap-1.5 sm:gap-2 md:grid-cols-3 md:gap-2 lg:gap-3">
         <button
           type="button"
@@ -424,7 +424,7 @@ export function Clientes() {
         />
       </div>
 
-      <Card className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 max-md:min-h-[55dvh]">
+      <Card className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 max-md:flex-none max-md:overflow-visible">
         <CardHeader className="flex shrink-0 flex-row flex-wrap items-center justify-between gap-2 space-y-0 py-2">
           <CardTitle className="text-sm text-slate-900 dark:text-slate-100 sm:text-base">Lista</CardTitle>
           <Button
@@ -441,7 +441,7 @@ export function Clientes() {
             {sortMode === 'tickets' ? 'MÃ¡s compras primero' : 'Mejores clientes'}
           </Button>
         </CardHeader>
-        <CardContent className="min-h-0 flex-1 overflow-auto p-0">
+        <CardContent className="min-h-0 flex-1 overflow-auto p-0 max-md:flex-none max-md:overflow-visible">
           <div className="space-y-2 p-2 md:hidden">
             {loading ? (
               <div className="flex justify-center py-8">
