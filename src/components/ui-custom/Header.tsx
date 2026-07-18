@@ -45,7 +45,7 @@ import { useCajaPosHeaderStore } from '@/stores/cajaPosHeaderStore';
 import { useVentasAbiertasPosHeaderStore } from '@/stores/ventasAbiertasPosHeaderStore';
 import { useInventarioHeaderStore } from '@/stores/inventarioHeaderStore';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
-import { CajaCierreReportesHeaderButton } from '@/components/caja/CajaCierreReportesDialog';
+import { CajaCierreReportesDialog, CajaCierreReportesHeaderButton, CajaCierreReportesIcon } from '@/components/caja/CajaCierreReportesDialog';
 
 export function Header() {
   const navigate = useNavigate();
@@ -59,9 +59,11 @@ export function Header() {
   const resolvedDark = useAppStore((s) => getResolvedIsDark(s));
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileEventsOpen, setMobileEventsOpen] = useState(false);
+  const [mobileCierreReportesOpen, setMobileCierreReportesOpen] = useState(false);
   const firstMobileNavItemRef = useRef<HTMLButtonElement | null>(null);
   const swipeStartXRef = useRef<number | null>(null);
   const swipeStartYRef = useRef<number | null>(null);
+  const mobileCierreOpenTimerRef = useRef<number | null>(null);
 
   const handleLogout = async () => {
     setMobileMenuOpen(false);
@@ -93,6 +95,27 @@ export function Header() {
     if (mobileMenuOpen) return;
     setMobileEventsOpen(false);
   }, [mobileMenuOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (mobileCierreOpenTimerRef.current != null) {
+        window.clearTimeout(mobileCierreOpenTimerRef.current);
+      }
+    };
+  }, []);
+
+  const openMobileCierreReportes = () => {
+    setMobileMenuOpen(false);
+    if (mobileCierreOpenTimerRef.current != null) {
+      window.clearTimeout(mobileCierreOpenTimerRef.current);
+    }
+    // El Dialog vive fuera del Sheet: esperamos a que el menú se cierre para que
+    // Radix no lo desmonte ni lo trate como dismiss del mismo gesto.
+    mobileCierreOpenTimerRef.current = window.setTimeout(() => {
+      mobileCierreOpenTimerRef.current = null;
+      setMobileCierreReportesOpen(true);
+    }, 280);
+  };
 
   const handleSheetTouchStart = (event: TouchEvent<HTMLDivElement>) => {
     if (mobileEventsOpen) return;
@@ -522,12 +545,17 @@ export function Header() {
                 <span className="flex-1 text-xs font-medium text-slate-700 dark:text-slate-300">
                   Cierres de caja
                 </span>
-                <CajaCierreReportesHeaderButton
-                  sucursalId={effectiveSucursalId ?? null}
-                  onDialogOpenChange={(next) => {
-                    if (next) setMobileMenuOpen(false);
-                  }}
-                />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  className="h-9 w-9 shrink-0 border-slate-300 bg-white text-cyan-600 hover:bg-slate-100 hover:text-cyan-700 dark:border-slate-600 dark:bg-slate-800/80 dark:text-cyan-400 dark:hover:bg-slate-800 dark:hover:text-cyan-300"
+                  aria-label="Reportes de cierre de caja"
+                  title="Reportes de cierre de caja"
+                  onClick={openMobileCierreReportes}
+                >
+                  <CajaCierreReportesIcon />
+                </Button>
               </div>
             ) : null}
 
@@ -625,6 +653,14 @@ export function Header() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {showCierreReportesButton ? (
+        <CajaCierreReportesDialog
+          open={mobileCierreReportesOpen}
+          onOpenChange={setMobileCierreReportesOpen}
+          sucursalId={effectiveSucursalId ?? null}
+        />
+      ) : null}
     </>
   );
 }

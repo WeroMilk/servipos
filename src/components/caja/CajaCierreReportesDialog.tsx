@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { CircleDollarSign, Clock, Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -831,7 +831,18 @@ type CajaCierreReportesHeaderButtonProps = {
   sucursalId: string | null;
   sucursalLabel?: string;
   className?: string;
-  /** p. ej. cerrar el menú hamburguesa al abrir el popup en móvil */
+  /**
+   * Se llama al tocar el botón, antes de abrir el diálogo.
+   * Útil para cerrar el menú hamburguesa (Sheet) y evitar que el dismiss del Sheet
+   * cancele el Dialog en el mismo gesto.
+   */
+  onBeforeOpen?: () => void;
+  /**
+   * ms de espera tras `onBeforeOpen` antes de abrir el Dialog (p. ej. 280 en móvil
+   * para que termine de cerrarse el Sheet).
+   */
+  openDelayMs?: number;
+  /** @deprecated Preferir onBeforeOpen + openDelayMs */
   onDialogOpenChange?: (open: boolean) => void;
 };
 
@@ -840,13 +851,43 @@ export function CajaCierreReportesHeaderButton({
   sucursalId,
   sucursalLabel,
   className,
+  onBeforeOpen,
+  openDelayMs = 0,
   onDialogOpenChange,
 }: CajaCierreReportesHeaderButtonProps) {
   const [open, setOpen] = useState(false);
+  const openTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (openTimerRef.current != null) window.clearTimeout(openTimerRef.current);
+    };
+  }, []);
 
   const handleDialogOpenChange = (next: boolean) => {
+    if (openTimerRef.current != null) {
+      window.clearTimeout(openTimerRef.current);
+      openTimerRef.current = null;
+    }
     setOpen(next);
     onDialogOpenChange?.(next);
+  };
+
+  const handleOpenClick = () => {
+    onBeforeOpen?.();
+    // Compat: el Header móvil cerraba el Sheet en onDialogOpenChange(true); eso hace
+    // que Radix trate el Dialog como "dismiss" en el mismo gesto. Mejor: cerrar Sheet
+    // en onBeforeOpen y abrir el Dialog después del delay.
+    if (openDelayMs > 0) {
+      if (openTimerRef.current != null) window.clearTimeout(openTimerRef.current);
+      openTimerRef.current = window.setTimeout(() => {
+        openTimerRef.current = null;
+        setOpen(true);
+        onDialogOpenChange?.(true);
+      }, openDelayMs);
+      return;
+    }
+    handleDialogOpenChange(true);
   };
 
   return (
@@ -861,7 +902,7 @@ export function CajaCierreReportesHeaderButton({
         )}
         aria-label="Reportes de cierre de caja"
         title="Reportes de cierre de caja"
-        onClick={() => handleDialogOpenChange(true)}
+        onClick={handleOpenClick}
       >
         <CajaCierreReportesIcon />
       </Button>
