@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn, formatMoney } from '@/lib/utils';
 import { formatInAppTimezone } from '@/lib/appTimezone';
+import { getMexicoDateKey, startOfDayFromDateKey } from '@/lib/quincenaMx';
 import type { CajaAbonoCobro, CajaSesion, Sale } from '@/types';
 import {
   isValidCierreTerminalFolio,
@@ -372,7 +373,7 @@ function SesionDetallePanel({
             </ul>
           ) : (
             <p className="mt-1.5 rounded-md border border-slate-200/80 bg-white/60 px-2 py-1.5 text-[10px] text-slate-500 dark:border-slate-800/60 dark:bg-slate-900/30 dark:text-slate-400">
-              Sin abonos registrados en este turno. Si el abono fue de otro día, seleccione ese turno en la lista.
+              Sin abonos registrados en este turno. Si el abono se cobró en otro turno del mismo día, selecciónelo en la lista.
             </p>
           )}
         </div>
@@ -651,15 +652,22 @@ export function CajaCierreReportesDialog({
     void (async () => {
       try {
         const ventana = {
-          from: selected.openedAt,
+          from: startOfDayFromDateKey(getMexicoDateKey(selected.openedAt)),
           to: selected.closedAt ?? new Date(),
         };
         const [ventasSesion, ventasPool, abonosHistorial] = await Promise.all([
           fetchSalesByCajaSesion(sucursalId, selectedId),
           fetchSalesPoolForCajaSesion(sucursalId, selectedId),
-          listAbonosHistorialByCajaSesionFirestore(sucursalId, selectedId, ventana).catch(
-            () => [] as CajaAbonoCobro[]
-          ),
+          listAbonosHistorialByCajaSesionFirestore(sucursalId, selectedId, ventana, {
+            knownSesionIds: sesiones.map((s) => s.id),
+            emptyAbonosSesionIds: sesiones
+              .filter((s) => !(s.abonosCobros && s.abonosCobros.length > 0))
+              .map((s) => s.id),
+            recoverTaggedOnEmptySesion: !(selected.abonosCobros && selected.abonosCobros.length > 0),
+          }).catch((histErr) => {
+            console.error('Abonos historial (respaldo corte):', histErr);
+            return [] as CajaAbonoCobro[];
+          }),
         ]);
         if (cancelled) return;
         const abonos = resolveAbonosCobrosSesion(selected, ventasPool, abonosHistorial);
@@ -679,7 +687,7 @@ export function CajaCierreReportesDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, sucursalId, selectedId, selected]);
+  }, [open, sucursalId, selectedId, selected, sesiones]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

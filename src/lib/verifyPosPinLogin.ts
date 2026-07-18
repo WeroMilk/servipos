@@ -37,10 +37,29 @@ export async function syncAuthPasswordFromPosPin(email: string, pin: string): Pr
     } catch {
       /* cuerpo no JSON (p. ej. proxy HTML) */
     }
-    if (res.ok && parsed.ok === true) return { ok: true };
     const err = typeof parsed.error === 'string' ? parsed.error : undefined;
     const code = typeof parsed.code === 'string' ? parsed.code : undefined;
-    return { ok: false, status: res.status, error: err, code };
+    if (res.ok && parsed.ok === true) return { ok: true };
+    /**
+     * La Edge puede responder HTTP 200 + `{ ok: false }` en denegaciones esperadas
+     * (PIN incorrecto, sin perfil, etc.) para no llenar la consola del navegador con
+     * "Failed to load resource 401". Mapeamos a status lógico para el cliente.
+     */
+    const status =
+      res.ok && parsed.ok === false
+        ? code === 'ORIGIN_NOT_ALLOWED'
+          ? 403
+          : code === 'DUPLICATE_EMAIL'
+            ? 409
+            : code === 'MISSING_SUPABASE_ENV' ||
+                code === 'PROFILE_QUERY_FAILED' ||
+                code === 'AUTH_USER_NOT_RESOLVED' ||
+                code === 'AUTH_UPDATE_FAILED' ||
+                code === 'INTERNAL'
+              ? 500
+              : 401
+        : res.status;
+    return { ok: false, status, error: err, code };
   } catch {
     return { ok: false, status: 0 };
   }

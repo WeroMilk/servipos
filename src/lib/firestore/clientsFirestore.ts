@@ -1,4 +1,5 @@
 import type { CajaAbonoCobro, Client, ClientAbonoHistorialEntry, ClientCreditoHistorialEntry, FormaPago } from '@/types';
+import { getMexicoDateKey } from '@/lib/quincenaMx';
 import { normalizeClientPriceListId } from '@/lib/clientPriceLists';
 import { createDebouncedAsyncFn } from '@/lib/debouncedAsync';
 import { getSupabase } from '@/lib/supabaseClient';
@@ -458,12 +459,20 @@ export async function deleteClientFirestore(sucursalId: string, id: string): Pro
 /**
  * Abonos CxC del historial de clientes etiquetados con esta sesión de caja.
  * Sirve de respaldo cuando `caja_sesiones.abonosCobros` quedó vacío (RPC fallido, etc.).
- * Si se pasa ventana de fechas, también incluye abonos sin `cajaSesionId` hechos en ese intervalo.
+ * También incluye abonos sin `cajaSesionId` del mismo día (zona Hermosillo) que el turno,
+ * y el legado `ultimoAbono*` si no hay `abonosHistorial`.
  */
 export async function listAbonosHistorialByCajaSesionFirestore(
   sucursalId: string,
   sesionId: string,
-  ventana?: { from: Date; to: Date } | null
+  ventana?: { from: Date; to: Date } | null,
+  opts?: {
+    knownSesionIds?: Iterable<string> | null;
+    /** Sesiones cuyo doc.abonosCobros está vacío (RPC fallido): permite recuperar abonos etiquetados a ellas. */
+    emptyAbonosSesionIds?: Iterable<string> | null;
+    /** Si el turno actual tampoco tiene abonosCobros, incluir abonos del día etiquetados a sesiones vacías. */
+    recoverTaggedOnEmptySesion?: boolean;
+  }
 ): Promise<CajaAbonoCobro[]> {
   const sid = sesionId.trim();
   if (!sid) return [];
@@ -473,34 +482,102 @@ export async function listAbonosHistorialByCajaSesionFirestore(
 
   const fromMs = ventana?.from?.getTime() ?? null;
   const toMs = ventana?.to?.getTime() ?? null;
+  const dayKey =
+    ventana?.from && Number.isFinite(ventana.from.getTime())
+      ? getMexicoDateKey(ventana.from)
+      : null;
+  const knownSesionIdSet = new Set(
+    [...(opts?.knownSesionIds ?? [])].map((id) => String(id).trim()).filter(Boolean)
+  );
+  const emptyAbonosSesionIdSet = new Set(
+    [...(opts?.emptyAbonosSesionIds ?? [])].map((id) => String(id).trim()).filter(Boolean)
+  );
+  const recoverTagged = opts?.recoverTaggedOnEmptySesion === true;
 
   const out: CajaAbonoCobro[] = [];
+  const pushHist = (
+    client: Client,
+    h: {
+      at: Date;
+      monto: number;
+      formaPago?: FormaPago;
+      cajaSesionId?: string;
+      usuarioNombre?: string;
+    }
+  ) => {
+    const monto = Math.round((Number(h.monto) || 0) * 100) / 100;
+    if (monto <= 0.005) return;
+    const at = h.at instanceof Date ? h.at : new Date(h.at);
+    if (!Number.isFinite(at.getTime())) return;
+    const histSid = (h.cajaSesionId ?? '').trim();
+    const matchSesion = histSid === sid;
+    // Sin cajaSesionId: abonos del mismo día del turno (Hermosillo).
+    const matchMismoDia =
+      !histSid &&
+      dayKey != null &&
+      getMexicoDateKey(at) === dayKey &&
+      (toMs == null || at.getTime() <= toMs);
+    const matchVentana =
+      !histSid &&
+      fromMs != null &&
+      toMs != null &&
+      at.getTime() >= fromMs &&
+      at.getTime() <= toMs;
+    // Sesión etiquetada que ya no está en el historial de turnos: recuperar en el día.
+    const matchHuerfanoMismoDia =
+      Boolean(histSid) &&
+      histSid !== sid &&
+      dayKey != null &&
+      getMexicoDateKey(at) === dayKey &&
+      knownSesionIdSet.size > 0 &&
+      !knownSesionIdSet.has(histSid);
+    // Abono etiquetado a otro turno del mismo día cuyo corte también quedó sin abonosCobros
+    // (RPC falló): recuperarlo al ver este turno si también está vacío.
+    const matchTaggedEmptySameDay =
+      recoverTagged &&
+      Boolean(histSid) &&
+      histSid !== sid &&
+      dayKey != null &&
+      getMexicoDateKey(at) === dayKey &&
+      emptyAbonosSesionIdSet.has(histSid) &&
+      emptyAbonosSesionIdSet.has(sid);
+    if (
+      !matchSesion &&
+      !matchMismoDia &&
+      !matchVentana &&
+      !matchHuerfanoMismoDia &&
+      !matchTaggedEmptySameDay
+    ) {
+      return;
+    }
+    const formaPago = (h.formaPago?.trim() || '01') as FormaPago;
+    out.push({
+      id: `hist:${client.id}:${at.toISOString()}:${Math.round(monto * 100)}`,
+      monto,
+      formaPago,
+      clienteId: client.id,
+      clienteNombre: client.nombre,
+      createdAt: at,
+      usuarioId: '',
+      usuarioNombre: h.usuarioNombre?.trim() || '—',
+    });
+  };
+
   for (const row of data ?? []) {
     const client = docToClient(sucursalId, row.id, (row.doc ?? {}) as Record<string, unknown>);
-    for (const h of client.abonosHistorial ?? []) {
-      const monto = Math.round((Number(h.monto) || 0) * 100) / 100;
-      if (monto <= 0.005) continue;
-      const at = h.at instanceof Date ? h.at : new Date(h.at);
-      const histSid = (h.cajaSesionId ?? '').trim();
-      const matchSesion = histSid === sid;
-      const matchVentana =
-        !histSid &&
-        fromMs != null &&
-        toMs != null &&
-        Number.isFinite(at.getTime()) &&
-        at.getTime() >= fromMs &&
-        at.getTime() <= toMs;
-      if (!matchSesion && !matchVentana) continue;
-      const formaPago = (h.formaPago?.trim() || '01') as FormaPago;
-      out.push({
-        id: `hist:${client.id}:${at.toISOString()}:${Math.round(monto * 100)}`,
-        monto,
-        formaPago,
-        clienteId: client.id,
-        clienteNombre: client.nombre,
-        createdAt: at,
-        usuarioId: '',
-        usuarioNombre: h.usuarioNombre?.trim() || '—',
+    const hist = client.abonosHistorial ?? [];
+    if (hist.length > 0) {
+      for (const h of hist) pushHist(client, h);
+    } else if (client.ultimoAbonoAt != null && client.ultimoAbonoMonto != null) {
+      pushHist(client, {
+        at:
+          client.ultimoAbonoAt instanceof Date
+            ? client.ultimoAbonoAt
+            : new Date(client.ultimoAbonoAt),
+        monto: Number(client.ultimoAbonoMonto) || 0,
+        formaPago: undefined,
+        cajaSesionId: undefined,
+        usuarioNombre: client.ultimoAbonoUsuarioNombre,
       });
     }
   }

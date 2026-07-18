@@ -38,26 +38,39 @@ export const useAuthStore = create<AuthStore>((set) => ({
       const signInWith = (email: string, pwd: string) =>
         supabase.auth.signInWithPassword({ email, password: pwd });
 
-      // PIN numérico: Auth guarda `Pos-{pin}-Pin`; probar el PIN crudo devuelve 400 (mín. 6 chars).
+      // PIN numérico: Auth guarda `Pos-{pin}-Pin`. Primero alinear vía Edge; solo después signIn.
+      // Evita 400 previos en /auth/v1/token cuando el PIN es incorrecto o aún no estaba sincronizado.
       if (looksLikePosPin(password)) {
         const { authPasswordFromPosPin } = await import('@/lib/authPasswordFromPosPin');
         const derived = authPasswordFromPosPin(password);
-
-        for (const email of candidates) {
-          const { error } = await signInWith(email, derived);
-          if (!error) return { success: true };
-        }
+        const signInEmails =
+          opts?.pinSyncExactEmailOnly === true ? pinSyncEmails : candidates;
 
         let synced = false;
+        let pinDenied = false;
+        let sawInfraFailure = false;
         let pinSyncHint: string | undefined;
+        const fmt = (msg: string | undefined, code?: string) =>
+          code ? `[${code}] ${msg ?? ''}`.trim() : (msg ?? '');
+
         for (const email of pinSyncEmails) {
           const r = await syncAuthPasswordFromPosPin(email, password);
           if (r.ok) {
             synced = true;
             break;
           }
-          const fmt = (msg: string | undefined, code?: string) =>
-            code ? `[${code}] ${msg ?? ''}`.trim() : (msg ?? '');
+          // Sin perfil en este correo: probar alias. PIN/perfil inválido: cortar sin llamar a Auth.
+          if (r.status === 401 || r.status === 400 || r.status === 409) {
+            if (pinSyncHint === undefined) {
+              pinSyncHint = fmt(r.error ?? 'No autorizado', r.code);
+            }
+            if (r.code === 'NO_PROFILE_FOR_EMAIL') {
+              continue;
+            }
+            pinDenied = true;
+            break;
+          }
+          sawInfraFailure = true;
           if (r.status >= 500) {
             pinSyncHint = fmt(
               r.error ??
@@ -71,22 +84,29 @@ export const useAuthStore = create<AuthStore>((set) => ({
             );
           } else if (pinSyncHint === undefined && r.status === 0) {
             pinSyncHint = fmt('No se pudo contactar verify-pos-pin-login (red o bloqueo).', r.code);
-          } else if (pinSyncHint === undefined && r.error && r.status !== 401) {
+          } else if (pinSyncHint === undefined && r.error) {
             pinSyncHint = fmt(r.error, r.code);
-          } else if (pinSyncHint === undefined && r.status === 401 && r.code) {
-            pinSyncHint = fmt(r.error ?? 'No autorizado', r.code);
           }
         }
-        if (!synced) {
-          return {
-            success: false,
-            message: pinSyncHint,
-          };
+
+        // Solo NO_PROFILE en todos los correos: denegar sin /auth/token (evita 400 en consola).
+        if (!synced && !pinDenied && !sawInfraFailure) {
+          pinDenied = true;
         }
 
-        for (const email of candidates) {
+        if (pinDenied) {
+          return { success: false, message: pinSyncHint };
+        }
+
+        for (const email of signInEmails) {
           const { error } = await signInWith(email, derived);
           if (!error) return { success: true };
+        }
+
+        // Sync falló por infra (red/origen/5xx) pero Auth ya tenía la clave: el signIn de arriba pudo bastar.
+        // Si tampoco entró, devolver el hint del sync.
+        if (!synced) {
+          return { success: false, message: pinSyncHint };
         }
         return { success: false };
       }

@@ -257,15 +257,21 @@ export function CuentasPorCobrar() {
       }
 
       if (effectiveSucursalId && cajaSesionId) {
+        const payloadCaja = {
+          monto: m,
+          formaPago: abonoFormaPago,
+          clienteId: abonoCliente.id,
+          clienteNombre: abonoCliente.nombre,
+          usuarioId: user?.id ?? 'system',
+          usuarioNombre: cajeroNombre || 'Usuario',
+        };
         try {
-          await registrarAbonoCobroCajaFirestore(effectiveSucursalId, cajaSesionId, {
-            monto: m,
-            formaPago: abonoFormaPago,
-            clienteId: abonoCliente.id,
-            clienteNombre: abonoCliente.nombre,
-            usuarioId: user?.id ?? 'system',
-            usuarioNombre: cajeroNombre || 'Usuario',
-          });
+          try {
+            await registrarAbonoCobroCajaFirestore(effectiveSucursalId, cajaSesionId, payloadCaja);
+          } catch {
+            // reintento registro abono caja (RPC a veces falla a la primera)
+            await registrarAbonoCobroCajaFirestore(effectiveSucursalId, cajaSesionId, payloadCaja);
+          }
         } catch (cajaErr) {
           addToast({
             type: 'warning',

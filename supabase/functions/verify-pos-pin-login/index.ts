@@ -8,10 +8,12 @@ import { expandServipartzEmailAliases } from '../_shared/servipartzEmailCandidat
  * | ORIGIN_NOT_ALLOWED | 403 | Añadir origen a ADMIN_CREATE_USER_ALLOWED_ORIGINS (o localhost / *.vercel.app). |
  * | INVALID_JSON / INVALID_BODY | 400 | Cuerpo o email/PIN inválido. |
  * | PROFILE_QUERY_FAILED | 500 | Error al leer profiles (RPC security definer o REST). |
- * | NO_PROFILE_FOR_EMAIL | 401 | No hay fila profiles para ese email. |
- * | DUPLICATE_EMAIL | 409 | Más de un perfil con el mismo email. |
- * | PROFILE_INACTIVE_OR_NO_PIN | 401 | is_active false o pos_pin vacío. |
- * | BAD_PIN | 401 | PIN no coincide con pos_pin. |
+ * | NO_PROFILE_FOR_EMAIL | 200 + ok:false | No hay fila profiles para ese email. |
+ * | DUPLICATE_EMAIL | 200 + ok:false | Más de un perfil con el mismo email. |
+ * | PROFILE_INACTIVE_OR_NO_PIN | 200 + ok:false | is_active false o pos_pin vacío. |
+ * | BAD_PIN | 200 + ok:false | PIN no coincide con pos_pin. |
+ * (Denegaciones esperadas usan HTTP 200 para no ensuciar la consola del navegador;
+ * el cliente lee `ok`/`code`. Errores reales siguen en 4xx/5xx.) |
  * | AUTH_USER_NOT_RESOLVED | 500 | No se pudo obtener id de Auth para actualizar contraseña. |
  * | AUTH_UPDATE_FAILED | 500 | Sin éxito ni por SDK ni por REST admin (`PUT`/`PATCH` users). |
  * | MISSING_SUPABASE_ENV | 500 | Faltan SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY en el runtime. |
@@ -377,19 +379,19 @@ Deno.serve(async (req) => {
       return json(errPayload('PROFILE_QUERY_FAILED', selErr.message.slice(0, 500)), 500, ch);
     }
     if (!rows?.length) {
-      return json(errPayload('NO_PROFILE_FOR_EMAIL', 'No autorizado'), 401, ch);
+      return json({ ok: false, ...errPayload('NO_PROFILE_FOR_EMAIL', 'No autorizado') }, 200, ch);
     }
     if (rows.length > 1) {
-      return json(errPayload('DUPLICATE_EMAIL', 'Correo duplicado'), 409, ch);
+      return json({ ok: false, ...errPayload('DUPLICATE_EMAIL', 'Correo duplicado') }, 200, ch);
     }
 
     const row = rows[0]!;
     const storedPin = row.pos_pin != null ? String(row.pos_pin).trim() : '';
     if (!row.is_active || storedPin.length === 0) {
-      return json(errPayload('PROFILE_INACTIVE_OR_NO_PIN', 'No autorizado'), 401, ch);
+      return json({ ok: false, ...errPayload('PROFILE_INACTIVE_OR_NO_PIN', 'No autorizado') }, 200, ch);
     }
     if (!safeEqualStr(storedPin, pin)) {
-      return json(errPayload('BAD_PIN', 'No autorizado'), 401, ch);
+      return json({ ok: false, ...errPayload('BAD_PIN', 'No autorizado') }, 200, ch);
     }
 
     const profileEmail = typeof row.email === 'string' ? row.email.trim().toLowerCase() : '';
