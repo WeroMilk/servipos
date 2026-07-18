@@ -709,7 +709,7 @@ export function Cotizaciones() {
           </Button>
         }
       >
-        <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden sm:gap-3">
+        <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden max-md:overflow-visible sm:gap-3">
           <div className="flex w-full min-w-0 shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
             <div className="relative min-w-0 flex-1">
               <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-600 dark:text-slate-500 sm:left-3 sm:h-5 sm:w-5" />
@@ -792,7 +792,7 @@ export function Cotizaciones() {
             ))}
           </div>
 
-          <Card className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
+          <Card className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 max-md:min-h-[55dvh]">
             <CardHeader className="shrink-0 space-y-0 py-2">
               <CardTitle className="text-sm text-slate-900 dark:text-slate-100 sm:text-base">Lista</CardTitle>
             </CardHeader>

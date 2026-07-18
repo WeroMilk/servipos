@@ -327,44 +327,51 @@ function SesionDetallePanel({
         ) : null}
       </div>
 
-      {(sesion.abonosCobros?.length ?? 0) > 0 ? (
-        <div>
-          <SectionTitle>Abonos CxC en el turno</SectionTitle>
+      <div>
+          <SectionTitle>Abonos</SectionTitle>
           <div className="grid gap-1.5 sm:grid-cols-2">
             <MetricRow
               label="Total abonos"
               value={formatMoney(metrics.abonosCobrosTotal)}
+              hint="Sumado al total cobrado del día"
             />
             <MetricRow
               label="Efectivo de abonos"
               value={formatMoney(totalAbonosEfectivoSesion(sesion.abonosCobros))}
+              hint="Incluido en el efectivo esperado"
             />
           </div>
-          <ul className="mt-1.5 space-y-1 rounded-md border border-violet-500/30 bg-violet-500/[0.06] px-2 py-1.5 text-[10px] dark:border-violet-500/25 dark:bg-violet-950/30">
-            {[...(sesion.abonosCobros ?? [])]
-              .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-              .map((a) => (
-                <li
-                  key={a.id}
-                  className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 border-b border-violet-800/10 pb-1 last:border-0 last:pb-0 dark:border-violet-400/10"
-                >
-                  <span>
-                    <span className="font-semibold tabular-nums text-violet-950 dark:text-violet-50">
-                      +{formatMoney(a.monto)}
-                    </span>
-                    <span className="text-violet-900/80 dark:text-violet-200/80">
-                      {' '}
-                      · {labelFormaPagoCaja(a.formaPago)}
-                      {a.clienteNombre?.trim() ? ` · ${a.clienteNombre.trim()}` : ''}
+          {(sesion.abonosCobros?.length ?? 0) > 0 ? (
+            <ul className="mt-1.5 space-y-1 rounded-md border border-violet-500/30 bg-violet-500/[0.06] px-2 py-1.5 text-[10px] dark:border-violet-500/25 dark:bg-violet-950/30">
+              {[...(sesion.abonosCobros ?? [])]
+                .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+                .map((a) => (
+                  <li
+                    key={a.id}
+                    className="border-b border-violet-800/10 pb-1 last:border-0 last:pb-0 dark:border-violet-400/10"
+                  >
+                    <p className="font-semibold uppercase leading-snug text-violet-950 dark:text-violet-50">
+                      {a.clienteNombre?.trim() || 'Cliente'} abonó{' '}
+                      <span className="tabular-nums">+{formatMoney(a.monto)}</span> en{' '}
+                      {labelFormaPagoCaja(a.formaPago)}
+                    </p>
+                    <p className="mt-0.5 text-violet-900/75 dark:text-violet-200/75">
+                      {formatInAppTimezone(a.createdAt, {
+                        dateStyle: 'short',
+                        timeStyle: 'short',
+                      })}
                       {' · '}
-                      {formatInAppTimezone(a.createdAt, { timeStyle: 'short' })} · {a.usuarioNombre}
-                    </span>
-                  </span>
-                </li>
-              ))}
-          </ul>
+                      Registrado por {a.usuarioNombre}
+                    </p>
+                  </li>
+                ))}
+            </ul>
+          ) : (
+            <p className="mt-1.5 rounded-md border border-slate-200/80 bg-white/60 px-2 py-1.5 text-[10px] text-slate-500 dark:border-slate-800/60 dark:bg-slate-900/30 dark:text-slate-400">
+              Sin abonos registrados en este turno.
+            </p>
+          )}
         </div>
-      ) : null}
 
       <div>
         <SectionTitle>Cierres de terminal</SectionTitle>

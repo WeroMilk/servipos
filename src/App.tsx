@@ -1,36 +1,55 @@
-import React, { useEffect, lazy, Suspense } from 'react';
+import React, { useEffect, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout, LoginForm, LoadingIndicator } from '@/components/ui-custom';
 import { useAuthStore, useSyncStore, subscribeSupabaseAuth } from '@/stores';
 import { initializeDemoData, syncServipartzSeedUsers } from '@/db/database';
 import { setAppEventActorResolver } from '@/lib/appEventContext';
 import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
+import { lazyWithRetry } from '@/lib/lazyWithRetry';
 
-const Dashboard = lazy(() => import('@/pages/Dashboard').then((m) => ({ default: m.Dashboard })));
-const POS = lazy(() => import('@/pages/POS').then((m) => ({ default: m.POS })));
-const Inventario = lazy(() => import('@/pages/Inventario').then((m) => ({ default: m.Inventario })));
-const RecepcionPedidos = lazy(() =>
+const Dashboard = lazyWithRetry(() =>
+  import('@/pages/Dashboard').then((m) => ({ default: m.Dashboard }))
+);
+const POS = lazyWithRetry(() => import('@/pages/POS').then((m) => ({ default: m.POS })));
+const Inventario = lazyWithRetry(() =>
+  import('@/pages/Inventario').then((m) => ({ default: m.Inventario }))
+);
+const RecepcionPedidos = lazyWithRetry(() =>
   import('@/pages/RecepcionPedidos').then((m) => ({ default: m.RecepcionPedidos }))
 );
-const SalidasMercancia = lazy(() =>
+const SalidasMercancia = lazyWithRetry(() =>
   import('@/pages/SalidasMercancia').then((m) => ({ default: m.SalidasMercancia }))
 );
-const EtiquetasProductos = lazy(() =>
+const EtiquetasProductos = lazyWithRetry(() =>
   import('@/pages/EtiquetasProductos').then((m) => ({ default: m.EtiquetasProductos }))
 );
-const MisionInventario = lazy(() =>
+const MisionInventario = lazyWithRetry(() =>
   import('@/pages/MisionInventario').then((m) => ({ default: m.MisionInventario }))
 );
-const Cotizaciones = lazy(() => import('@/pages/Cotizaciones').then((m) => ({ default: m.Cotizaciones })));
-const Facturas = lazy(() => import('@/pages/Facturas').then((m) => ({ default: m.Facturas })));
-const Clientes = lazy(() => import('@/pages/Clientes').then((m) => ({ default: m.Clientes })));
-const ClientePerfil = lazy(() => import('@/pages/ClientePerfil').then((m) => ({ default: m.ClientePerfil })));
-const CuentasPorCobrar = lazy(() =>
+const Cotizaciones = lazyWithRetry(() =>
+  import('@/pages/Cotizaciones').then((m) => ({ default: m.Cotizaciones }))
+);
+const Facturas = lazyWithRetry(() =>
+  import('@/pages/Facturas').then((m) => ({ default: m.Facturas }))
+);
+const Clientes = lazyWithRetry(() =>
+  import('@/pages/Clientes').then((m) => ({ default: m.Clientes }))
+);
+const ClientePerfil = lazyWithRetry(() =>
+  import('@/pages/ClientePerfil').then((m) => ({ default: m.ClientePerfil }))
+);
+const CuentasPorCobrar = lazyWithRetry(() =>
   import('@/pages/CuentasPorCobrar').then((m) => ({ default: m.CuentasPorCobrar }))
 );
-const Nominas = lazy(() => import('@/pages/Nominas').then((m) => ({ default: m.Nominas })));
-const Configuracion = lazy(() => import('@/pages/Configuracion').then((m) => ({ default: m.Configuracion })));
-const Checador = lazy(() => import('@/pages/Checador').then((m) => ({ default: m.Checador })));
+const Nominas = lazyWithRetry(() =>
+  import('@/pages/Nominas').then((m) => ({ default: m.Nominas }))
+);
+const Configuracion = lazyWithRetry(() =>
+  import('@/pages/Configuracion').then((m) => ({ default: m.Configuracion }))
+);
+const Checador = lazyWithRetry(() =>
+  import('@/pages/Checador').then((m) => ({ default: m.Checador }))
+);
 
 function PageFallback({ message }: { message: string }) {
   return <LoadingIndicator inline message={message} tone="onBrand" />;

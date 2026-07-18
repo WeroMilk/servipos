@@ -3,6 +3,7 @@ import {
   endOfMonth,
   endOfWeek,
   format,
+  isSameDay,
   isWithinInterval,
   startOfDay,
   startOfMonth,
@@ -16,6 +17,22 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { cn } from '@/lib/utils';
 
 export type PeriodGranularity = 'day' | 'week' | 'month';
+
+/** Normaliza un ancla a rango completo según día / semana (lun–dom) / mes. */
+export function rangeForGranularity(g: PeriodGranularity, anchor: Date): DateRange {
+  const d = startOfDay(anchor);
+  if (g === 'day') return { from: d, to: d };
+  if (g === 'week') {
+    return {
+      from: startOfWeek(d, { weekStartsOn: 1 }),
+      to: startOfDay(endOfWeek(d, { weekStartsOn: 1 })),
+    };
+  }
+  return {
+    from: startOfMonth(d),
+    to: startOfDay(endOfMonth(d)),
+  };
+}
 
 type Props = {
   dateRange: DateRange | undefined;
@@ -31,16 +48,20 @@ type Props = {
 const calendarNavBtnClass =
   'inline-flex size-9 shrink-0 items-center justify-center rounded-full border-0 shadow-none outline-none bg-slate-600/45 text-slate-100 transition-colors hover:bg-slate-500/60 hover:text-white focus-visible:z-30 focus-visible:ring-2 focus-visible:ring-[#8ab4f8]/45 focus-visible:ring-offset-2 focus-visible:ring-offset-[#2d2d2d] disabled:pointer-events-none disabled:opacity-35 aria-disabled:pointer-events-none aria-disabled:opacity-35';
 
-function dayInSelectedSpan(day: Date, range: DateRange | undefined): boolean {
-  if (!range?.from || !range?.to) return false;
+function normalizedSpan(range: DateRange | undefined): { start: Date; end: Date } | null {
+  if (!range?.from) return null;
   const a = startOfDay(range.from);
-  const b = startOfDay(range.to);
-  const start = a <= b ? a : b;
-  const end = a <= b ? b : a;
-  const endInclusive = new Date(end);
+  const b = startOfDay(range.to ?? range.from);
+  return a <= b ? { start: a, end: b } : { start: b, end: a };
+}
+
+function dayInSelectedSpan(day: Date, range: DateRange | undefined): boolean {
+  const span = normalizedSpan(range);
+  if (!span) return false;
+  const endInclusive = new Date(span.end);
   endInclusive.setHours(23, 59, 59, 999);
   try {
-    return isWithinInterval(startOfDay(day), { start, end: endInclusive });
+    return isWithinInterval(startOfDay(day), { start: span.start, end: endInclusive });
   } catch {
     return false;
   }
@@ -48,7 +69,9 @@ function dayInSelectedSpan(day: Date, range: DateRange | undefined): boolean {
 
 /**
  * Calendario del panel: día / semana / mes.
- * Portales en `body` + sin `onOpenAutoFocus` bloqueado + layout por defecto del DayPicker = clics fiables.
+ * - Día: selección puntual.
+ * - Semana/mes: se resalta todo el rango (sin marcar solo el primer día).
+ * - En modo mes, las flechas del calendario cambian el mes analizado.
  */
 export function DashboardPeriodPopover({
   dateRange,
@@ -68,36 +91,34 @@ export function DashboardPeriodPopover({
     }
   }, [open, dateRange?.from]);
 
+  const span = useMemo(() => normalizedSpan(dateRange), [dateRange]);
+
   const modifiers = useMemo(
     () => ({
       in_span: (d: Date) => dayInSelectedSpan(d, dateRange),
+      span_start: (d: Date) => (span ? isSameDay(d, span.start) : false),
+      span_end: (d: Date) => (span ? isSameDay(d, span.end) : false),
     }),
-    [dateRange]
+    [dateRange, span]
   );
 
-  const selectedDay = dateRange?.from;
-
   const applySelection = (raw: Date) => {
-    const d = startOfDay(raw);
-    if (granularity === 'day') {
-      onDateRangeChange({ from: d, to: d });
-    } else if (granularity === 'week') {
-      onDateRangeChange({
-        from: startOfWeek(d, { weekStartsOn: 1 }),
-        to: endOfWeek(d, { weekStartsOn: 1 }),
-      });
-    } else {
-      onDateRangeChange({
-        from: startOfMonth(d),
-        to: endOfMonth(d),
-      });
+    onDateRangeChange(rangeForGranularity(granularity, raw));
+  };
+
+  const handleMonthChange = (next: Date) => {
+    const m = startOfMonth(next);
+    setMonth(m);
+    // En modo mes, navegar con flechas = cambiar el mes del resumen (sin exigir otro clic).
+    if (granularity === 'month') {
+      onDateRangeChange(rangeForGranularity('month', m));
     }
   };
 
   const hint = useMemo(() => {
-    if (granularity === 'day') return 'Toca un día para elegirlo';
-    if (granularity === 'week') return 'Toca un día: se selecciona la semana (lun–dom)';
-    return 'Toca un día del mes que quieras analizar';
+    if (granularity === 'day') return 'Toca un día para ver solo esa fecha';
+    if (granularity === 'week') return 'Toca cualquier día: se selecciona toda la semana (lun–dom)';
+    return 'Usa las flechas o toca un día para elegir el mes completo';
   }, [granularity]);
 
   return (
@@ -168,8 +189,9 @@ export function DashboardPeriodPopover({
             weekStartsOn={1}
             mode="single"
             month={month}
-            onMonthChange={setMonth}
-            selected={selectedDay}
+            onMonthChange={handleMonthChange}
+            /* En semana/mes no marcar solo el primer día: el rango va por modifiers. */
+            selected={granularity === 'day' ? dateRange?.from : undefined}
             onSelect={(date) => {
               if (!date) return;
               applySelection(date);
@@ -177,18 +199,27 @@ export function DashboardPeriodPopover({
             }}
             modifiers={modifiers}
             modifiersClassNames={{
-              in_span: 'bg-[#1a73e8]/35 text-slate-50 rounded-md',
+              in_span:
+                granularity === 'day'
+                  ? ''
+                  : 'bg-[#1a73e8]/40 text-slate-50 rounded-none [&:not([data-outside])]:opacity-100',
+              span_start:
+                granularity === 'day'
+                  ? ''
+                  : 'rounded-l-md !bg-[#1a73e8] !text-white font-semibold',
+              span_end:
+                granularity === 'day'
+                  ? ''
+                  : 'rounded-r-md !bg-[#1a73e8] !text-white font-semibold',
             }}
             captionLayout="label"
             className="w-full rounded-none border-0 bg-transparent p-2 text-slate-100 [--cell-size:2.35rem]"
             classNames={{
               root: 'w-full',
               month: 'flex w-full flex-col gap-3',
-              // Nav absoluto: reservamos espacio estable y botones equidistantes del centro.
               month_caption:
                 'relative z-0 flex h-10 w-full items-center justify-center px-11 text-center',
-              caption_label:
-                'text-center text-sm font-semibold capitalize text-slate-100',
+              caption_label: 'text-center text-sm font-semibold capitalize text-slate-100',
               nav: cn(
                 'pointer-events-none absolute inset-x-0 top-0 z-20 flex h-10 items-center justify-between px-2',
                 '[&>button]:pointer-events-auto [&>button]:relative'

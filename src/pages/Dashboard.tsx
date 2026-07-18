@@ -73,7 +73,11 @@ import { es } from 'date-fns/locale';
 import { getMexicoDateKey, startOfDayFromDateKey } from '@/lib/quincenaMx';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { FORMAS_PAGO, type Sale, type SaleItem } from '@/types';
-import { DashboardPeriodPopover, type PeriodGranularity } from '@/components/ui-custom/DashboardPeriodPopover';
+import {
+  DashboardPeriodPopover,
+  rangeForGranularity,
+  type PeriodGranularity,
+} from '@/components/ui-custom/DashboardPeriodPopover';
 import { useAuthStore, useAppStore, getResolvedIsDark } from '@/stores';
 import { cancelSale } from '@/db/database';
 import { saleListaCancelacionEtiqueta } from '@/lib/saleCancelacion';
@@ -103,8 +107,8 @@ const CHART_AREA_GRADIENT_ID = 'dashboardVentasAreaFill';
 
 const WEEKDAY_SHORT_ES = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'] as const;
 
-/** Altura fija del plot: evita que Recharts colapse en viewports bajos con flex sin alto explícito. */
-const CHART_PLOT_HEIGHT_PX = 260;
+/** Altura mínima del plot cuando el viewport es bajo; en pantallas normales se estira con flex. */
+const CHART_PLOT_MIN_HEIGHT_PX = 200;
 
 type StatAccent = 'emerald' | 'cyan' | 'blue' | 'violet';
 
@@ -323,6 +327,7 @@ export function Dashboard() {
   const [dateOpen, setDateOpen] = useState(false);
   const [periodGranularity, setPeriodGranularity] = useState<PeriodGranularity>('day');
   const [todaySalesOpen, setTodaySalesOpen] = useState(false);
+  const [stockDialogOpen, setStockDialogOpen] = useState(false);
   const [reprintSaleDetail, setReprintSaleDetail] = useState<Sale | null>(null);
   const [reprintAbonoDetail, setReprintAbonoDetail] = useState<CajaAbonoCobro | null>(null);
   const [reprintDayKey, setReprintDayKey] = useState(() => getMexicoDateKey());
@@ -364,10 +369,17 @@ export function Dashboard() {
     if (periodGranularity === 'month') {
       return { mode: 'monthDays', monthStart: startOfMonth(anchor) };
     }
-    const weekStart = startOfWeek(anchor, { weekStartsOn: 1 });
-    const weekEndExclusive = addDays(endOfWeek(weekStart, { weekStartsOn: 1 }), 1);
-    return { mode: 'week', weekStart, weekEndExclusive };
-  }, [periodGranularity, dateRange?.from]);
+    // Usa el rango ya normalizado (semana completa) cuando existe.
+    const weekStart =
+      periodGranularity === 'week' && dateRange?.from
+        ? startOfDay(dateRange.from)
+        : startOfWeek(anchor, { weekStartsOn: 1 });
+    const weekEndInclusive =
+      periodGranularity === 'week' && dateRange?.to
+        ? startOfDay(dateRange.to)
+        : startOfDay(endOfWeek(weekStart, { weekStartsOn: 1 }));
+    return { mode: 'week', weekStart, weekEndExclusive: addDays(weekEndInclusive, 1) };
+  }, [periodGranularity, dateRange?.from, dateRange?.to]);
 
   /** Cubre el periodo KPI, el rango del gráfico y el día de reimpresión de tickets. */
   const reprintDayStart = useMemo(() => startOfDayFromDateKey(reprintDayKey), [reprintDayKey]);
@@ -485,11 +497,6 @@ export function Dashboard() {
     };
   }, [kpiVentasParaTotales, kpiAbonos]);
 
-  const kpiMovimientosRecientes = useMemo(
-    () => buildHistorialCobrosMovimientos(kpiSales, kpiAbonos).slice(0, 12),
-    [kpiSales, kpiAbonos]
-  );
-
   /**
    * Por cada cliente (incl. mostrador), promedio de piezas por sus tickets; luego la media de esos promedios.
    * Así un cliente con muchas compras no domina el indicador frente a otros con pocas.
@@ -514,6 +521,10 @@ export function Dashboard() {
     return mediasPorCliente.reduce((a, b) => a + b, 0) / mediasPorCliente.length;
   }, [kpiVentasParaTotales]);
   const { products: lowStockProducts, loading: stockLoading } = useLowStockProducts();
+  const lowStockHasZero = useMemo(
+    () => lowStockProducts.some((p) => p.existencia === 0),
+    [lowStockProducts]
+  );
   const outgoingTransferPendingIds = useOutgoingPendingTransferIds();
 
   const reprintSalesRaw = useMemo(() => {
@@ -557,7 +568,14 @@ export function Dashboard() {
   const reprintTodayKey = getMexicoDateKey();
   const reprintCanGoNext = reprintDayKey < reprintTodayKey;
 
-  const goInventarioStock = () => navigate('/inventario?tab=stock');
+  const goInventarioStock = useCallback(() => {
+    setStockDialogOpen(false);
+    navigate('/inventario?tab=stock');
+  }, [navigate]);
+
+  const openStockDialog = useCallback(() => {
+    setStockDialogOpen(true);
+  }, []);
 
   const closeTodaySalesDialog = useCallback(() => {
     setTodaySalesOpen(false);
@@ -613,14 +631,14 @@ export function Dashboard() {
     }
   }, [saleToCancel, effectiveSucursalId, addToast]);
 
-  const stockCardKeyHandler = (e: React.KeyboardEvent) => {
+  const stockButtonKeyHandler = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      goInventarioStock();
+      openStockDialog();
     }
   };
 
-  const recentSalesCardKeyHandler = (e: React.KeyboardEvent) => {
+  const recentSalesButtonKeyHandler = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       openTodaySalesDialog();
@@ -633,12 +651,12 @@ export function Dashboard() {
     const to = startOfDay(dateRange.to ?? dateRange.from);
 
     if (periodGranularity === 'day') {
-      return `fecha ${format(from, 'd MMM yyyy', { locale: es })}`;
+      return format(from, 'd MMM yyyy', { locale: es });
     }
     if (periodGranularity === 'week') {
-      return `${format(from, 'dd/MM/yy')} - ${format(to, 'dd/MM/yy')}`;
+      return `${format(from, 'd MMM', { locale: es })} – ${format(to, 'd MMM yyyy', { locale: es })}`;
     }
-    const m = format(from, 'MMMM', { locale: es });
+    const m = format(from, 'MMMM yyyy', { locale: es });
     return m.charAt(0).toUpperCase() + m.slice(1);
   }, [dateRange, periodGranularity]);
 
@@ -806,48 +824,25 @@ export function Dashboard() {
         ? 'Semana seleccionada (lun–dom) · Toque un punto para filtrar las tarjetas a ese día; toque fuera del gráfico para volver'
         : 'Semana lun–dom que incluye el día elegido · Toque un punto para filtrar las tarjetas; toque fuera del gráfico para volver al periodo';
 
+  /** Cambia día/semana/mes conservando el ancla actual (no reinicia a “hoy”). */
   const handleGranularityChange = (g: PeriodGranularity) => {
     setPeriodGranularity(g);
     setDateRange((prev) => {
       const anchor = startOfDay(prev?.from ?? startOfDayFromDateKey(getMexicoDateKey()));
-      if (g === 'day') return { from: anchor, to: anchor };
-      if (g === 'week') {
-        return {
-          from: startOfWeek(anchor, { weekStartsOn: 1 }),
-          to: endOfWeek(anchor, { weekStartsOn: 1 }),
-        };
-      }
-      return {
-        from: startOfMonth(anchor),
-        to: endOfMonth(anchor),
-      };
+      return rangeForGranularity(g, anchor);
     });
   };
 
-  const setQuickDia = () => {
-    setPeriodGranularity('day');
-    const t = startOfDayFromDateKey(getMexicoDateKey());
-    setDateRange({ from: t, to: t });
-    setDateOpen(true);
-  };
-
-  const setQuickSemana = () => {
-    setPeriodGranularity('week');
-    const now = startOfDayFromDateKey(getMexicoDateKey());
-    setDateRange({
-      from: startOfWeek(now, { weekStartsOn: 1 }),
-      to: endOfWeek(now, { weekStartsOn: 1 }),
-    });
-    setDateOpen(true);
-  };
-
-  const setQuickMes = () => {
-    setPeriodGranularity('month');
-    const now = startOfDayFromDateKey(getMexicoDateKey());
-    setDateRange({
-      from: startOfMonth(now),
-      to: endOfMonth(now),
-    });
+  /**
+   * Botones del encabezado: si ya está activo ese modo, solo abre el calendario;
+   * si cambia de modo, convierte el periodo actual (sin saltar a la fecha de hoy).
+   */
+  const handleHeaderGranularityClick = (g: PeriodGranularity) => {
+    if (periodGranularity === g) {
+      setDateOpen(true);
+      return;
+    }
+    handleGranularityChange(g);
     setDateOpen(true);
   };
 
@@ -867,7 +862,7 @@ export function Dashboard() {
   return (
     <div
       className={cn(
-        'relative flex min-h-0 w-full min-w-0 max-w-[100vw] flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto sm:gap-3.5 lg:gap-4',
+        'relative flex h-full min-h-0 w-full min-w-0 max-w-[100vw] flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto sm:gap-3.5 lg:gap-4',
         'before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))]',
         'before:from-cyan-500/[0.06] before:via-transparent before:to-violet-500/[0.04]',
         'dark:before:from-cyan-400/[0.08] dark:before:via-transparent dark:before:to-violet-500/[0.06]'
@@ -891,17 +886,17 @@ export function Dashboard() {
           >
             {(
               [
-                { key: 'day' as const, label: 'Día', onClick: setQuickDia },
-                { key: 'week' as const, label: 'Semana', onClick: setQuickSemana },
-                { key: 'month' as const, label: 'Mes', onClick: setQuickMes },
+                { key: 'day' as const, label: 'Día' },
+                { key: 'week' as const, label: 'Semana' },
+                { key: 'month' as const, label: 'Mes' },
               ] as const
-            ).map(({ key, label, onClick }) => {
+            ).map(({ key, label }) => {
               const active = periodGranularity === key;
               return (
                 <button
                   key={key}
                   type="button"
-                  onClick={onClick}
+                  onClick={() => handleHeaderGranularityClick(key)}
                   className={cn(
                     'rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-200 sm:px-3.5 sm:text-sm',
                     active
@@ -992,207 +987,129 @@ export function Dashboard() {
         />
       </div>
 
-      {/* Móvil: stock + ventas recientes */}
-      <div className="flex min-h-0 min-w-0 flex-col gap-3 md:hidden">
-        <div className="grid min-h-0 min-w-0 grid-cols-2 gap-2.5">
-          <Card
-            role="button"
-            tabIndex={0}
-            onClick={goInventarioStock}
-            onKeyDown={stockCardKeyHandler}
-            className={cn(
-              'group flex min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200/70 bg-white/80 shadow-sm dark:border-slate-800/60 dark:bg-slate-900/55',
-              'cursor-pointer transition-all duration-200 active:scale-[0.99] hover:-translate-y-0.5 hover:border-amber-500/40 hover:shadow-md hover:shadow-amber-500/10',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40'
-            )}
-          >
-            <CardHeader className="shrink-0 space-y-0 px-2.5 py-2">
-              <CardTitle className="flex items-center justify-between gap-1 text-[11px] leading-tight text-slate-900 dark:text-slate-100">
-                <span className="flex min-w-0 items-center gap-1.5">
-                  <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
-                  <span className="truncate font-semibold">Stock bajo</span>
-                  {!stockLoading && lowStockProducts.length > 0 ? (
-                    <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold tabular-nums text-amber-700 dark:text-amber-300">
-                      {lowStockProducts.length}
-                    </span>
-                  ) : null}
-                </span>
-                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden />
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain px-2 pb-2.5 pt-0">
-              {stockLoading ? (
-                <div className="space-y-1.5">
-                  {[1, 2].map((i) => (
-                    <ListRowSkeleton key={i} />
-                  ))}
-                </div>
-              ) : lowStockProducts.length === 0 ? (
-                <EmptyStateBlock icon={Package} title="Sin alertas" hint="Inventario en orden" />
-              ) : (
-                <div className="space-y-1">
-                  {lowStockProducts.slice(0, 8).map((product) => (
-                    <div
-                      key={product.id}
-                      className="flex items-center justify-between gap-1.5 rounded-xl border border-transparent bg-slate-100/80 px-2 py-1.5 transition-colors hover:border-amber-500/20 hover:bg-amber-500/5 dark:bg-slate-800/40 dark:hover:bg-amber-500/10"
-                    >
-                      <div className="flex min-w-0 items-center gap-1.5">
-                        <span
-                          className={cn(
-                            'h-2 w-2 shrink-0 rounded-full',
-                            product.existencia === 0 ? 'bg-red-500' : 'bg-amber-400'
-                          )}
-                        />
-                        <div className="min-w-0">
-                          <p className="truncate text-[10px] font-medium text-slate-800 dark:text-slate-200">{product.nombre}</p>
-                          <p className="text-[9px] text-slate-500">{product.sku}</p>
-                        </div>
-                      </div>
-                      <p
-                        className={cn(
-                          'shrink-0 text-[10px] font-bold tabular-nums',
-                          product.existencia === 0 ? 'text-red-500' : 'text-amber-600 dark:text-amber-400'
-                        )}
-                      >
-                        {product.existencia}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card
-            role="button"
-            tabIndex={0}
-            data-preserve-kpi-drill
-            onClick={openTodaySalesDialog}
-            onKeyDown={recentSalesCardKeyHandler}
-            className={cn(
-              'group flex min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200/70 bg-white/80 shadow-sm dark:border-slate-800/60 dark:bg-slate-900/55',
-              'cursor-pointer transition-all duration-200 active:scale-[0.99] hover:-translate-y-0.5 hover:border-cyan-500/40 hover:shadow-md hover:shadow-cyan-500/10',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40'
-            )}
-          >
-            <CardHeader className="shrink-0 space-y-0 px-2.5 py-2">
-              <CardTitle className="flex items-center justify-between gap-1 text-[11px] leading-tight text-slate-900 dark:text-slate-100">
-                <span className="flex min-w-0 items-center gap-1.5">
-                  <ShoppingCart className="h-3.5 w-3.5 shrink-0 text-cyan-500" />
-                  <span className="truncate font-semibold">Ventas</span>
-                  {!salesLoading && !abonosLoading && kpiMovimientosRecientes.length > 0 ? (
-                    <span className="rounded-full bg-cyan-500/15 px-1.5 py-0.5 text-[9px] font-bold tabular-nums text-cyan-700 dark:text-cyan-300">
-                      {totals.count}
-                    </span>
-                  ) : null}
-                </span>
-                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden />
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain px-2 pb-2.5 pt-0">
-              {salesLoading || abonosLoading ? (
-                <div className="space-y-1.5">
-                  {[1, 2].map((i) => (
-                    <ListRowSkeleton key={i} />
-                  ))}
-                </div>
-              ) : kpiMovimientosRecientes.length === 0 ? (
-                <EmptyStateBlock icon={Receipt} title="Sin cobros" hint="Ventas o abonos del periodo" />
-              ) : (
-                <div className="space-y-1">
-                  {kpiMovimientosRecientes.slice(0, 8).map((mov) => {
-                    const isAbono = mov.kind === 'abono';
-                    const cliente = isAbono
-                      ? mov.abono.clienteNombre?.trim() || 'Cliente'
-                      : nombreClienteVenta(mov.sale);
-                    const label = isAbono ? 'Abono saldo' : mov.sale.folio;
-                    return (
-                      <div
-                        key={mov.id}
-                        className="flex items-center justify-between gap-1.5 rounded-xl border border-transparent bg-slate-100/80 px-2 py-1.5 transition-colors hover:border-cyan-500/20 hover:bg-cyan-500/5 dark:bg-slate-800/40 dark:hover:bg-cyan-500/10"
-                      >
-                        <div className="flex min-w-0 items-center gap-1.5">
-                          <span
-                            className={cn(
-                              'flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[9px] font-bold',
-                              isAbono
-                                ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
-                                : 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300'
-                            )}
-                          >
-                            {(cliente || 'V').trim().charAt(0).toUpperCase()}
-                          </span>
-                          <div className="min-w-0">
-                            <p className="truncate text-[10px] font-medium text-slate-800 dark:text-slate-200">{label}</p>
-                            <p className="text-[9px] text-slate-500">
-                              {formatInAppTimezone(mov.at, { hour: '2-digit', minute: '2-digit' })}
-                              {isAbono ? (
-                                <span className="text-amber-600 dark:text-amber-400"> · Abono</span>
-                              ) : null}
-                            </p>
-                          </div>
-                        </div>
-                        <p className="shrink-0 text-[10px] font-bold tabular-nums text-cyan-600 dark:text-cyan-400">
-                          {formatMoney(mov.monto)}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      {/* Escritorio / tablet: gráfica arriba y listas abajo; scroll vertical si el viewport es bajo */}
-      <div
-        className={cn(
-          'hidden min-w-0 flex-col gap-3 md:flex lg:gap-3.5',
-          'xl:grid xl:min-h-0 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)] xl:items-start xl:gap-3.5'
-        )}
-      >
-        <Card
+      {/* Accesos compactos: Stock bajo y Ventas recientes */}
+      <div className="grid shrink-0 grid-cols-2 gap-2.5 sm:gap-3">
+        <button
+          type="button"
+          onClick={openStockDialog}
+          onKeyDown={stockButtonKeyHandler}
           className={cn(
-            'flex min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200/70 bg-white/80 shadow-sm backdrop-blur-sm',
+            'group flex min-w-0 items-center gap-2.5 rounded-2xl border border-slate-200/70 bg-white/80 px-3 py-2.5 text-left shadow-sm backdrop-blur-sm',
             'dark:border-slate-800/60 dark:bg-slate-900/55',
-            'shrink-0'
+            'transition-all duration-200 hover:-translate-y-0.5 hover:border-amber-500/40 hover:shadow-md hover:shadow-amber-500/10',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40',
+            'active:scale-[0.99]'
           )}
         >
-          <CardHeader className="shrink-0 space-y-2 py-3 sm:py-3.5">
-            <CardTitle className="flex flex-col gap-1.5 text-sm text-slate-900 dark:text-slate-100 sm:text-base">
-              <span className="flex flex-wrap items-center gap-2">
-                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 shadow-md shadow-cyan-500/25">
-                  <TrendingUp className="h-4 w-4 text-white" />
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-md shadow-amber-500/25">
+            <AlertTriangle className="h-4 w-4 text-white" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-1.5">
+              <span className="truncate text-xs font-semibold text-slate-900 dark:text-slate-100 sm:text-sm">
+                Stock bajo
+              </span>
+              {!stockLoading && lowStockProducts.length > 0 ? (
+                <span
+                  className={cn(
+                    'rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums',
+                    lowStockHasZero
+                      ? 'bg-red-500/15 text-red-700 dark:text-red-300'
+                      : 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                  )}
+                >
+                  {lowStockProducts.length}
                 </span>
-                <span className="font-semibold tracking-tight">{chartCardTitle}</span>
-                {chartMonthPeak ? (
-                  <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-emerald-400/35 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-semibold tabular-nums text-emerald-700 dark:text-emerald-300 sm:text-[11px]">
-                    Pico · {formatMoney(chartMonthPeak.total)}
-                    <span className="hidden font-normal opacity-80 sm:inline">
-                      · día {chartMonthPeak.dayNum}
-                    </span>
+              ) : null}
+            </span>
+            <span className="mt-0.5 block truncate text-[10px] text-slate-500 dark:text-slate-400">
+              {stockLoading
+                ? 'Cargando…'
+                : lowStockProducts.length === 0
+                  ? 'Sin alertas'
+                  : 'Ver productos'}
+            </span>
+          </span>
+          <ChevronRight className="h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-amber-600 dark:group-hover:text-amber-300" aria-hidden />
+        </button>
+
+        <button
+          type="button"
+          data-preserve-kpi-drill
+          onPointerDownCapture={onVentasRecientesPointerDownCapture}
+          onClick={openTodaySalesDialog}
+          onKeyDown={recentSalesButtonKeyHandler}
+          className={cn(
+            'group flex min-w-0 items-center gap-2.5 rounded-2xl border border-slate-200/70 bg-white/80 px-3 py-2.5 text-left shadow-sm backdrop-blur-sm',
+            'dark:border-slate-800/60 dark:bg-slate-900/55',
+            'transition-all duration-200 hover:-translate-y-0.5 hover:border-cyan-500/40 hover:shadow-md hover:shadow-cyan-500/10',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40',
+            'active:scale-[0.99]'
+          )}
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 shadow-md shadow-cyan-500/25">
+            <ShoppingCart className="h-4 w-4 text-white" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-1.5">
+              <span className="truncate text-xs font-semibold text-slate-900 dark:text-slate-100 sm:text-sm">
+                Ventas recientes
+              </span>
+              {!salesLoading && !abonosLoading && totals.count > 0 ? (
+                <span className="rounded-full bg-cyan-500/15 px-2 py-0.5 text-[10px] font-bold tabular-nums text-cyan-700 dark:text-cyan-300">
+                  {totals.count}
+                </span>
+              ) : null}
+            </span>
+            <span className="mt-0.5 block truncate text-[10px] text-slate-500 dark:text-slate-400">
+              {salesLoading || abonosLoading ? 'Cargando…' : 'Historial del periodo'}
+            </span>
+          </span>
+          <ChevronRight className="h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-cyan-600 dark:group-hover:text-cyan-300" aria-hidden />
+        </button>
+      </div>
+
+      {/* Gráfica a ancho completo, altura flexible */}
+      <Card
+        className={cn(
+          'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200/70 bg-white/80 shadow-sm backdrop-blur-sm',
+          'dark:border-slate-800/60 dark:bg-slate-900/55'
+        )}
+      >
+        <CardHeader className="shrink-0 space-y-2 py-3 sm:py-3.5">
+          <CardTitle className="flex flex-col gap-1.5 text-sm text-slate-900 dark:text-slate-100 sm:text-base">
+            <span className="flex flex-wrap items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 shadow-md shadow-cyan-500/25">
+                <TrendingUp className="h-4 w-4 text-white" />
+              </span>
+              <span className="font-semibold tracking-tight">{chartCardTitle}</span>
+              {chartMonthPeak ? (
+                <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-emerald-400/35 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-semibold tabular-nums text-emerald-700 dark:text-emerald-300 sm:text-[11px]">
+                  Pico · {formatMoney(chartMonthPeak.total)}
+                  <span className="hidden font-normal opacity-80 sm:inline">
+                    · día {chartMonthPeak.dayNum}
                   </span>
-                ) : null}
-              </span>
-              <span className="line-clamp-2 pl-0 text-[10px] font-normal leading-snug text-slate-500 dark:text-slate-400 sm:pl-10 sm:text-xs xl:line-clamp-none">
-                {chartCardSubtitle}
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex min-w-0 shrink-0 flex-col p-2 pt-0 sm:p-3.5 sm:pt-0">
-            <div
-              ref={chartPanelRef}
-              className="w-full min-w-0 rounded-xl bg-slate-50/60 p-1 dark:bg-slate-950/30"
-              style={{ height: CHART_PLOT_HEIGHT_PX }}
-            >
-                {salesLoading ? (
-                  <div className="flex h-full flex-col items-center justify-center gap-2">
-                    <div className="h-8 w-8 animate-pulse rounded-full bg-cyan-500/20" />
-                    <p className="text-xs text-slate-500">Cargando ventas…</p>
-                  </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height={CHART_PLOT_HEIGHT_PX}>
+                </span>
+              ) : null}
+            </span>
+            <span className="line-clamp-2 pl-0 text-[10px] font-normal leading-snug text-slate-500 dark:text-slate-400 sm:pl-10 sm:text-xs xl:line-clamp-none">
+              {chartCardSubtitle}
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex min-h-0 min-w-0 flex-1 flex-col p-2 pt-0 sm:p-3.5 sm:pt-0">
+          <div
+            ref={chartPanelRef}
+            className="h-full min-h-[200px] w-full min-w-0 flex-1 rounded-xl bg-slate-50/60 p-1 dark:bg-slate-950/30"
+            style={{ minHeight: CHART_PLOT_MIN_HEIGHT_PX }}
+          >
+            {salesLoading ? (
+              <div className="flex h-full min-h-[200px] flex-col items-center justify-center gap-2">
+                <div className="h-8 w-8 animate-pulse rounded-full bg-cyan-500/20" />
+                <p className="text-xs text-slate-500">Cargando ventas…</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
                     <AreaChart
                       data={chartData}
                       margin={{
@@ -1357,195 +1274,108 @@ export function Dashboard() {
                     </AreaChart>
                   </ResponsiveContainer>
                 )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={stockDialogOpen} onOpenChange={setStockDialogOpen}>
+        <DialogContent className="flex w-full min-w-0 max-h-[92dvh] flex-col gap-0 overflow-hidden border-slate-200 bg-slate-100 p-0 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 md:max-w-[min(92vw,36rem)]">
+          <DialogHeader className="shrink-0 space-y-1 border-b border-slate-200 px-4 pb-3 pt-4 pr-14 text-left dark:border-slate-800/80">
+            <DialogTitle className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-md shadow-amber-500/25">
+                <AlertTriangle className="h-4 w-4 text-white" />
+              </span>
+              Stock bajo
+              {!stockLoading && lowStockProducts.length > 0 ? (
+                <span
+                  className={cn(
+                    'rounded-full px-2 py-0.5 text-xs font-bold tabular-nums',
+                    lowStockHasZero
+                      ? 'bg-red-500/15 text-red-700 dark:text-red-300'
+                      : 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                  )}
+                >
+                  {lowStockProducts.length}
+                </span>
+              ) : null}
+            </DialogTitle>
+            <p className="text-sm font-normal text-slate-600 dark:text-slate-500">
+              Productos en o por debajo del mínimo de existencia.
+            </p>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 py-3">
+            {stockLoading ? (
+              <div className="space-y-2">
+                {[1, 2, 3, 4].map((i) => (
+                  <ListRowSkeleton key={i} />
+                ))}
               </div>
-            </CardContent>
-        </Card>
-
-        <div
-          className={cn(
-            'grid min-w-0 shrink-0 gap-3 lg:gap-3.5',
-            'grid-cols-1 sm:grid-cols-2',
-            'xl:grid-cols-1 xl:grid-rows-[minmax(9rem,auto)_minmax(9rem,auto)]'
-          )}
-        >
-          <Card
-            role="button"
-            tabIndex={0}
-            onClick={goInventarioStock}
-            onKeyDown={stockCardKeyHandler}
-            className={cn(
-              'group flex min-h-[9.5rem] min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200/70 bg-white/80 shadow-sm',
-              'dark:border-slate-800/60 dark:bg-slate-900/55',
-              'cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:border-amber-500/40 hover:shadow-lg hover:shadow-amber-500/10',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40'
-            )}
-          >
-            <CardHeader className="shrink-0 py-3">
-              <CardTitle className="flex items-center justify-between gap-2 text-xs text-slate-900 dark:text-slate-100 sm:text-sm">
-                <span className="flex min-w-0 items-center gap-2">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-md shadow-amber-500/25">
-                    <AlertTriangle className="h-4 w-4 text-white" />
-                  </span>
-                  <span className="truncate font-semibold">Stock bajo</span>
-                  {!stockLoading && lowStockProducts.length > 0 ? (
-                    <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold tabular-nums text-amber-700 dark:text-amber-300">
-                      {lowStockProducts.length}
-                    </span>
-                  ) : null}
-                </span>
-                <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-400 transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-amber-600 dark:group-hover:text-amber-300">
-                  Abrir
-                  <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
-                </span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="min-h-0 min-w-0 max-h-[12rem] flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain px-3 pb-3 pt-0">
-                {stockLoading ? (
-                  <div className="space-y-2">
-                    {[1, 2, 3].map((i) => (
-                      <ListRowSkeleton key={i} />
-                    ))}
-                  </div>
-                ) : lowStockProducts.length === 0 ? (
-                  <EmptyStateBlock icon={Package} title="Sin alertas de stock" hint="Todo el inventario está por encima del mínimo" />
-                ) : (
-                  <div className="space-y-1.5">
-                    {lowStockProducts.slice(0, 12).map((product) => (
-                      <div
-                        key={product.id}
-                        className="flex items-center justify-between gap-2 rounded-xl border border-transparent bg-slate-100/80 px-2.5 py-2 transition-colors hover:border-amber-500/20 hover:bg-amber-500/5 dark:bg-slate-800/40 dark:hover:bg-amber-500/10"
-                      >
-                        <div className="flex min-w-0 items-center gap-2">
-                          <span
-                            className={cn(
-                              'h-2 w-2 shrink-0 rounded-full ring-2 ring-offset-1 ring-offset-transparent',
-                              product.existencia === 0
-                                ? 'bg-red-500 ring-red-500/30'
-                                : 'bg-amber-400 ring-amber-400/30'
-                            )}
-                          />
-                          <div className="min-w-0">
-                            <p className="truncate text-xs font-medium text-slate-800 dark:text-slate-200">{product.nombre}</p>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-500">{product.sku}</p>
-                          </div>
-                        </div>
-                        <div className="shrink-0 text-right">
-                          <p
-                            className={cn(
-                              'text-xs font-bold tabular-nums',
-                              product.existencia === 0
-                                ? 'text-red-500 dark:text-red-400'
-                                : 'text-amber-600 dark:text-amber-400'
-                            )}
-                          >
-                            {product.existencia}
-                          </p>
-                        </div>
+            ) : lowStockProducts.length === 0 ? (
+              <EmptyStateBlock
+                icon={Package}
+                title="Sin alertas de stock"
+                hint="Todo el inventario está por encima del mínimo"
+              />
+            ) : (
+              <div className="space-y-1.5">
+                {lowStockProducts.map((product) => (
+                  <div
+                    key={product.id}
+                    className="flex items-center justify-between gap-2 rounded-xl border border-transparent bg-white/80 px-2.5 py-2 dark:bg-slate-800/40"
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span
+                        className={cn(
+                          'h-2.5 w-2.5 shrink-0 rounded-full ring-2 ring-offset-1 ring-offset-transparent',
+                          product.existencia === 0
+                            ? 'bg-red-500 ring-red-500/30'
+                            : 'bg-amber-400 ring-amber-400/30'
+                        )}
+                      />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-200">
+                          {product.nombre}
+                        </p>
+                        <p className="text-[11px] text-slate-500">{product.sku}</p>
                       </div>
-                    ))}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <p
+                        className={cn(
+                          'text-sm font-bold tabular-nums',
+                          product.existencia === 0
+                            ? 'text-red-500 dark:text-red-400'
+                            : 'text-amber-600 dark:text-amber-400'
+                        )}
+                      >
+                        {product.existencia}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-2 text-[11px]"
+                        onClick={goInventarioStock}
+                      >
+                        Ver en inventario
+                      </Button>
+                    </div>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card
-              role="button"
-              tabIndex={0}
-              data-preserve-kpi-drill
-              onPointerDownCapture={onVentasRecientesPointerDownCapture}
-              onClick={openTodaySalesDialog}
-              onKeyDown={recentSalesCardKeyHandler}
-              className={cn(
-                'group flex min-h-[9.5rem] min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200/70 bg-white/80 shadow-sm',
-                'dark:border-slate-800/60 dark:bg-slate-900/55',
-                'cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:border-cyan-500/40 hover:shadow-lg hover:shadow-cyan-500/10',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40'
-              )}
-            >
-              <CardHeader className="shrink-0 py-3">
-                <CardTitle className="flex items-center justify-between gap-2 text-xs text-slate-900 dark:text-slate-100 sm:text-sm">
-                  <span className="flex min-w-0 items-center gap-2">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 shadow-md shadow-cyan-500/25">
-                      <ShoppingCart className="h-4 w-4 text-white" />
-                    </span>
-                    <span className="truncate font-semibold">Ventas recientes</span>
-                    {!salesLoading && !abonosLoading && kpiMovimientosRecientes.length > 0 ? (
-                      <span className="rounded-full bg-cyan-500/15 px-2 py-0.5 text-[10px] font-bold tabular-nums text-cyan-700 dark:text-cyan-300">
-                        {totals.count}
-                      </span>
-                    ) : null}
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-400 transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-cyan-600 dark:group-hover:text-cyan-300">
-                    Ver historial
-                    <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="min-h-0 min-w-0 max-h-[12rem] flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain px-3 pb-3 pt-0">
-                {salesLoading || abonosLoading ? (
-                  <div className="space-y-2">
-                    {[1, 2, 3].map((i) => (
-                      <ListRowSkeleton key={i} />
-                    ))}
-                  </div>
-                ) : kpiMovimientosRecientes.length === 0 ? (
-                  <EmptyStateBlock
-                    icon={Receipt}
-                    title="Sin cobros en el periodo"
-                    hint="Ventas cobradas o abonos de saldo pendiente"
-                  />
-                ) : (
-                  <div className="space-y-1.5">
-                    {kpiMovimientosRecientes.map((mov) => {
-                      const isAbono = mov.kind === 'abono';
-                      const cliente = isAbono
-                        ? mov.abono.clienteNombre?.trim() || 'Cliente'
-                        : nombreClienteVenta(mov.sale);
-                      return (
-                        <div
-                          key={mov.id}
-                          className="flex items-center justify-between gap-2 rounded-xl border border-transparent bg-slate-100/80 px-2.5 py-2 transition-colors hover:border-cyan-500/20 hover:bg-cyan-500/5 dark:bg-slate-800/40 dark:hover:bg-cyan-500/10"
-                        >
-                          <div className="flex min-w-0 items-center gap-2">
-                            <span
-                              className={cn(
-                                'flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-[11px] font-bold',
-                                isAbono
-                                  ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
-                                  : 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300'
-                              )}
-                            >
-                              {(cliente || 'V').trim().charAt(0).toUpperCase()}
-                            </span>
-                            <div className="min-w-0">
-                              <p className="truncate text-xs font-medium text-slate-800 dark:text-slate-200">
-                                {isAbono ? 'Abono de saldo pendiente' : mov.sale.folio}
-                              </p>
-                              <p className="text-[10px] text-slate-500 dark:text-slate-500">
-                                {formatInAppTimezone(mov.at, { hour: '2-digit', minute: '2-digit' })}
-                                {isAbono ? (
-                                  <span className="ml-1.5 text-amber-600 dark:text-amber-400">
-                                    · {labelFormaPagoCaja(mov.abono.formaPago)}
-                                  </span>
-                                ) : mov.sale.formaPago === 'TTS' &&
-                                  outgoingTransferPendingIds.has(mov.sale.id) ? (
-                                  <span className="ml-1.5 text-amber-500">· Traspaso pendiente</span>
-                                ) : null}
-                              </p>
-                            </div>
-                          </div>
-                          <p className="shrink-0 text-xs font-bold tabular-nums text-cyan-600 dark:text-cyan-400">
-                            {formatMoney(mov.monto)}
-                          </p>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-        </div>
-      </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter className="shrink-0 border-t border-slate-200 px-4 py-3 dark:border-slate-800/80 sm:justify-between">
+            <Button type="button" variant="ghost" onClick={() => setStockDialogOpen(false)}>
+              Cerrar
+            </Button>
+            <Button type="button" onClick={goInventarioStock} className="gap-1.5">
+              Abrir inventario
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={todaySalesOpen}

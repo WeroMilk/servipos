@@ -1892,7 +1892,7 @@ export function Inventario() {
         />
       </div>
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden max-md:overflow-visible">
         <div className="shrink-0 pb-1">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
@@ -1956,7 +1956,7 @@ export function Inventario() {
             </Button>
           </div>
         </div>
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800/70 bg-slate-50 dark:bg-slate-950/40 shadow-inner">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800/70 bg-slate-50 dark:bg-slate-950/40 shadow-inner max-md:min-h-[55dvh]">
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
             <div className="space-y-3 p-3 md:hidden">
               {isInventoryLoadingUi ? (

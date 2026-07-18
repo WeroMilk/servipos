@@ -14,6 +14,8 @@ type PageShellProps = {
 /**
  * Contenedor de página: ocupa todo el alto del main sin provocar scroll del documento.
  * Aprovecha el ancho (w-full) con paddings controlados desde Layout.
+ * En móvil el área de contenido scrollea verticalmente para que nada quede cortado;
+ * en escritorio cada página gestiona su scroll interno.
  */
 export function PageShell({
   title,
@@ -49,7 +51,15 @@ export function PageShell({
           </div>
         ) : null}
       </header>
-      <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">{children}</div>
+      <div
+        className={cn(
+          'flex min-h-0 min-w-0 flex-1 basis-0 flex-col',
+          'overflow-hidden',
+          'max-md:overflow-y-auto max-md:overflow-x-hidden max-md:overscroll-y-contain max-md:[-webkit-overflow-scrolling:touch]'
+        )}
+      >
+        {children}
+      </div>
     </div>
   );
 }

@@ -446,7 +446,7 @@ export function ClientePerfil() {
           <Loader2 className="h-8 w-8 animate-spin text-cyan-500" />
         </div>
       ) : client ? (
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-hidden">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-hidden max-md:flex-none max-md:overflow-y-visible">
           <div className="grid shrink-0 grid-cols-2 gap-2 md:grid-cols-4 md:gap-2 xl:grid-cols-7">
             <StatCard
               label="Compras"
@@ -496,7 +496,7 @@ export function ClientePerfil() {
           <Tabs
             value={activeTab}
             onValueChange={(v) => setTab(parseTab(v))}
-            className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden"
+            className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden max-md:flex-none max-md:overflow-visible"
           >
             <TabsList className="h-auto w-full shrink-0 flex-wrap justify-start bg-slate-100/90 p-1 dark:bg-slate-900/80">
               <TabsTrigger value="resumen" className="text-xs sm:text-sm">
@@ -519,7 +519,7 @@ export function ClientePerfil() {
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="resumen" className="mt-0 min-h-0 flex-1 overflow-auto">
+            <TabsContent value="resumen" className="mt-0 min-h-0 flex-1 overflow-auto max-md:flex-none max-md:overflow-visible">
               <div className="grid min-w-0 gap-3 md:grid-cols-2">
                 <Card className="border-slate-200/80 bg-slate-50/90 dark:border-slate-800/50 dark:bg-slate-900/50">
                   <CardHeader className="pb-2">
@@ -658,7 +658,7 @@ export function ClientePerfil() {
               ) : null}
             </TabsContent>
 
-            <TabsContent value="compras" className="mt-0 min-h-0 flex-1 overflow-hidden">
+            <TabsContent value="compras" className="mt-0 min-h-0 flex-1 overflow-hidden max-md:flex-none max-md:overflow-visible">
               <EntityListPanel
                 title="Compras"
                 loading={loadingSales}
@@ -696,7 +696,7 @@ export function ClientePerfil() {
               />
             </TabsContent>
 
-            <TabsContent value="facturas" className="mt-0 min-h-0 flex-1 overflow-auto">
+            <TabsContent value="facturas" className="mt-0 min-h-0 flex-1 overflow-auto max-md:flex-none max-md:overflow-visible">
               {loadingInvoices ? (
                 <LoadingBlock message="Cargando facturas…" />
               ) : clientInvoices.length === 0 ? (
@@ -759,7 +759,7 @@ export function ClientePerfil() {
               )}
             </TabsContent>
 
-            <TabsContent value="cotizaciones" className="mt-0 min-h-0 flex-1 overflow-auto">
+            <TabsContent value="cotizaciones" className="mt-0 min-h-0 flex-1 overflow-auto max-md:flex-none max-md:overflow-visible">
               {loadingQuotations ? (
                 <LoadingBlock message="Cargando cotizaciones…" />
               ) : clientQuotations.length === 0 ? (
@@ -828,7 +828,7 @@ export function ClientePerfil() {
               )}
             </TabsContent>
 
-            <TabsContent value="adeudos" className="mt-0 min-h-0 flex-1 overflow-hidden">
+            <TabsContent value="adeudos" className="mt-0 min-h-0 flex-1 overflow-hidden max-md:flex-none max-md:overflow-visible">
               <EntityListPanel
                 title="Adeudos y abonos"
                 loading={false}
@@ -932,7 +932,7 @@ export function ClientePerfil() {
               />
             </TabsContent>
 
-            <TabsContent value="credito" className="mt-0 min-h-0 flex-1 overflow-auto">
+            <TabsContent value="credito" className="mt-0 min-h-0 flex-1 overflow-auto max-md:flex-none max-md:overflow-visible">
               <Card className="border-slate-200/80 bg-slate-50/90 dark:border-slate-800/50 dark:bg-slate-900/50">
                 <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
                   <div>
@@ -1375,7 +1375,7 @@ function EntityListPanel<T>({
   backLabel: string;
 }) {
   return (
-    <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-slate-200/80 bg-slate-50/90 dark:border-slate-800/50 dark:bg-slate-900/50">
+    <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-slate-200/80 bg-slate-50/90 dark:border-slate-800/50 dark:bg-slate-900/50 max-md:flex-none max-md:overflow-visible">
       <CardHeader className="shrink-0 border-b border-slate-200/80 pb-3 dark:border-slate-800/60">
         {selected ? (
           <div className="flex items-start gap-2">
@@ -1394,7 +1394,7 @@ function EntityListPanel<T>({
           </div>
         )}
       </CardHeader>
-      <CardContent className="min-h-0 flex-1 overflow-y-auto p-4">
+      <CardContent className="min-h-0 flex-1 overflow-y-auto p-4 max-md:overflow-visible">
         {loading ? (
           <LoadingBlock />
         ) : selected ? (

@@ -593,7 +593,7 @@ export function Facturas() {
         </Button>
       }
     >
-      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden sm:gap-3">
+      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden max-md:overflow-visible sm:gap-3">
       {fiscalConfig?.modoPruebaFiscal ? (
         <div className="shrink-0 rounded-lg border border-amber-500/35 bg-amber-500/10 px-2.5 py-2 sm:px-3">
           <p className="text-[11px] leading-snug text-black sm:text-xs dark:text-amber-50">
@@ -642,7 +642,7 @@ export function Facturas() {
       </div>
       </div>
 
-      <Card className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
+      <Card className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 max-md:min-h-[55dvh]">
         <CardHeader className="shrink-0 space-y-0 py-2">
           <CardTitle className="text-sm text-slate-900 dark:text-slate-100 sm:text-base">Emitidas</CardTitle>
         </CardHeader>

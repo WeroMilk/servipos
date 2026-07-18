@@ -417,7 +417,7 @@ export function CuentasPorCobrar() {
 
   return (
     <PageShell title="Cuentas por cobrar">
-      <div className="flex min-h-0 min-w-0 w-full flex-1 basis-0 flex-col gap-3 overflow-hidden">
+      <div className="flex min-h-0 min-w-0 w-full flex-1 basis-0 flex-col gap-3 overflow-hidden max-md:flex-none max-md:basis-auto max-md:overflow-visible">
         <div className="flex shrink-0 flex-col gap-2 rounded-xl border border-slate-200/80 bg-slate-50/90 px-3 py-2.5 dark:border-slate-800/50 dark:bg-slate-900/50 sm:px-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
@@ -443,14 +443,14 @@ export function CuentasPorCobrar() {
           </p>
         </div>
 
-        <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-col gap-4 overflow-hidden">
-          <div className="flex max-h-[min(40dvh,300px)] min-h-0 shrink-0 flex-col overflow-hidden rounded-xl border border-slate-200/80 dark:border-slate-800/50">
+        <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-col gap-4 overflow-hidden max-md:flex-none max-md:basis-auto max-md:overflow-visible lg:flex-row lg:items-stretch">
+          <div className="flex max-h-[min(40dvh,300px)] min-h-0 shrink-0 flex-col overflow-hidden rounded-xl border border-slate-200/80 dark:border-slate-800/50 max-md:max-h-none max-md:overflow-visible lg:max-h-none lg:min-w-0 lg:flex-1 lg:basis-0 lg:shrink">
             <div className="shrink-0 border-b border-slate-200/80 px-3 py-2 dark:border-slate-800/50 sm:px-4">
               <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
                 Tickets con saldo pendiente
               </p>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain max-md:overflow-visible">
             {loading ? (
               <p className="p-6 text-center text-sm text-slate-600 dark:text-slate-400">Cargando…</p>
             ) : ticketsConSaldo.length === 0 ? (
@@ -523,7 +523,7 @@ export function CuentasPorCobrar() {
             </div>
           </div>
 
-          <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-xl border border-slate-200/80 dark:border-slate-800/50">
+          <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-xl border border-slate-200/80 dark:border-slate-800/50 max-md:flex-none max-md:basis-auto max-md:overflow-visible lg:shrink">
             <div className="shrink-0 border-b border-slate-200/80 px-3 py-2 dark:border-slate-800/50 sm:px-4">
               <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
                 Saldo por cliente y abonos
@@ -532,7 +532,7 @@ export function CuentasPorCobrar() {
                 Historial de abonos con fecha e importe; también puede cobrar por ticket desde «Abrir venta» en el POS.
               </p>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2 max-md:overflow-visible">
             {loadingClients ? (
               <p className="p-6 text-center text-sm text-slate-600 dark:text-slate-400">Cargando…</p>
             ) : deudores.length === 0 ? (
