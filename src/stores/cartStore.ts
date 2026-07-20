@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Product, CartItem, Client } from '@/types';
+import type { Product, CartItem, Client, Promotion } from '@/types';
 import { normalizeClientPriceListIdWithExtras, getClientPriceListCatalogFromStore } from '@/lib/clientPriceListCatalog';
 import type { ClientPriceListId } from '@/lib/clientPriceLists';
 import { useInventoryListsStore } from '@/stores';
@@ -8,11 +8,16 @@ import {
   getProductUnitSinIvaForClienteList,
 } from '@/lib/productListPricing';
 import { snapCantidadLineaVenta } from '@/lib/satCatalog';
+import { applyPromotionsToCartItems } from '@/lib/promotions/applyPromotions';
+import { getPromotionsCatalogSnapshot } from '@/lib/firestore/promotionsFirestore';
 
 // ============================================
 // STORE DEL CARRITO DE COMPRAS (POS)
 // ============================================
 
+function applyCartPromos(items: CartItem[], promotions?: Promotion[]): CartItem[] {
+  return applyPromotionsToCartItems(items, promotions ?? getPromotionsCatalogSnapshot());
+}
 function lineUnitNet(item: CartItem, listaId: ClientPriceListId): number {
   const u = getCartLineUnitSinIvaBase(item, listaId);
   const discPct = Number(item.discount) || 0;
@@ -70,6 +75,8 @@ interface CartState {
   replaceCartDraft: (draft: Partial<CartDraftSnapshot> | null | undefined) => void;
   /** Sincroniza `product` embebido con el catálogo actual (Realtime); no toca overrides ni descuentos de línea. */
   reconcileCartProductsFromCatalog: (catalog: Product[]) => void;
+  /** Recalcula descuentos automáticos de promoción (no pisa `discountManual`). */
+  reapplyPromotions: (promotions?: Promotion[]) => void;
 
   // Cálculos (Number() evita NaN → formatMoney muestra $0.00)
   getSubtotal: () => number;
@@ -186,15 +193,17 @@ export const useCartStore = create<CartState>((set, get) => ({
 
     if (existingItem) {
       set({
-        items: items.map((item) =>
-          item.product.id === product.id
-            ? { ...item, quantity: snapCantidadLineaVenta(product.unidadMedida, item.quantity + qty) }
-            : item
+        items: applyCartPromos(
+          items.map((item) =>
+            item.product.id === product.id
+              ? { ...item, quantity: snapCantidadLineaVenta(product.unidadMedida, item.quantity + qty) }
+              : item
+          )
         ),
       });
     } else {
       set({
-        items: [...items, { product, quantity: qty, discount: 0 }],
+        items: applyCartPromos([...items, { product, quantity: qty, discount: 0 }]),
       });
     }
   },
@@ -217,8 +226,10 @@ export const useCartStore = create<CartState>((set, get) => ({
     if (!line) return;
     const next = snapCantidadLineaVenta(line.product.unidadMedida, quantity);
     set({
-      items: get().items.map((item) =>
-        item.product.id === productId ? { ...item, quantity: next } : item
+      items: applyCartPromos(
+        get().items.map((item) =>
+          item.product.id === productId ? { ...item, quantity: next } : item
+        )
       ),
     });
   },
@@ -226,7 +237,15 @@ export const useCartStore = create<CartState>((set, get) => ({
   updateDiscount: (productId: string, discount: number) => {
     set({
       items: get().items.map((item) =>
-        item.product.id === productId ? { ...item, discount } : item
+        item.product.id === productId
+          ? {
+              ...item,
+              discount,
+              discountManual: true,
+              promoId: undefined,
+              promoLabel: undefined,
+            }
+          : item
       ),
     });
   },
@@ -305,7 +324,7 @@ export const useCartStore = create<CartState>((set, get) => ({
 
   replaceCartForOpenSaleResume: (params) => {
     set({
-      items: params.items,
+      items: applyCartPromos(params.items),
       client: params.client,
       discount: params.globalDiscount,
       precioClienteListaId: params.precioClienteListaId,
@@ -318,7 +337,8 @@ export const useCartStore = create<CartState>((set, get) => ({
   },
 
   replaceCartDraft: (draft) => {
-    set(sanitizeCartDraft(draft));
+    const sanitized = sanitizeCartDraft(draft);
+    set({ ...sanitized, items: applyCartPromos(sanitized.items) });
   },
 
   reconcileCartProductsFromCatalog: (catalog) => {
@@ -335,9 +355,12 @@ export const useCartStore = create<CartState>((set, get) => ({
       changed = true;
       return { ...item, product: fresh };
     });
-    if (changed) set({ items: next });
+    if (changed) set({ items: applyCartPromos(next) });
   },
 
+  reapplyPromotions: (promotions) => {
+    set({ items: applyCartPromos(get().items, promotions) });
+  },
   getSubtotal: () => subtotalAfterLineDiscounts(get().items, get().precioClienteListaId),
 
   getImpuestos: () => {

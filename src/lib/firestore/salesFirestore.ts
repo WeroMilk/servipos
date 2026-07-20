@@ -73,6 +73,12 @@ function saleItemProductoNombreFromRaw(raw: Record<string, unknown>): string | u
 }
 
 function mapSaleItem(raw: Record<string, unknown>): SaleItem {
+  const promoId =
+    typeof raw.promoId === 'string' && raw.promoId.trim() ? raw.promoId.trim() : undefined;
+  const promoLabel =
+    typeof raw.promoLabel === 'string' && raw.promoLabel.trim()
+      ? raw.promoLabel.trim()
+      : undefined;
   return {
     id: String(raw.id ?? ''),
     productId: String(raw.productId ?? ''),
@@ -83,6 +89,28 @@ function mapSaleItem(raw: Record<string, unknown>): SaleItem {
     impuesto: Number(raw.impuesto) || 0,
     subtotal: Number(raw.subtotal) || 0,
     total: Number(raw.total) || 0,
+    ...(promoId ? { promoId, ...(promoLabel ? { promoLabel } : {}) } : {}),
+  };
+}
+
+function saleItemToDoc(p: SaleItem): Record<string, unknown> {
+  const nombre =
+    typeof p.productoNombre === 'string' && p.productoNombre.trim()
+      ? p.productoNombre.trim()
+      : p.producto?.nombre?.trim();
+  return {
+    id: p.id,
+    productId: p.productId,
+    ...(nombre ? { productoNombre: nombre } : {}),
+    cantidad: p.cantidad,
+    precioUnitario: p.precioUnitario,
+    descuento: p.descuento,
+    impuesto: p.impuesto,
+    subtotal: p.subtotal,
+    total: p.total,
+    ...(p.promoId
+      ? { promoId: p.promoId, ...(p.promoLabel ? { promoLabel: p.promoLabel } : {}) }
+      : {}),
   };
 }
 
@@ -219,23 +247,7 @@ function saleToRpcPayload(
   return {
     clienteId: sale.clienteId,
     cliente: clientSnapshotToFirestorePayload(sale.cliente ?? null),
-    productos: sale.productos.map((p) => {
-      const nombre =
-        typeof p.productoNombre === 'string' && p.productoNombre.trim()
-          ? p.productoNombre.trim()
-          : p.producto?.nombre?.trim();
-      return {
-        id: p.id,
-        productId: p.productId,
-        ...(nombre ? { productoNombre: nombre } : {}),
-        cantidad: p.cantidad,
-        precioUnitario: p.precioUnitario,
-        descuento: p.descuento,
-        impuesto: p.impuesto,
-        subtotal: p.subtotal,
-        total: p.total,
-      };
-    }),
+    productos: sale.productos.map((p) => saleItemToDoc(p)),
     subtotal: sale.subtotal,
     descuento: sale.descuento,
     impuestos: sale.impuestos,
@@ -317,23 +329,7 @@ export async function partialReturnSaleFirestore(
   }
 ): Promise<void> {
   const supabase = getSupabase();
-  const productos = patch.productos.map((p) => {
-    const nombre =
-      typeof p.productoNombre === 'string' && p.productoNombre.trim()
-        ? p.productoNombre.trim()
-        : p.producto?.nombre?.trim();
-    return {
-      id: p.id,
-      productId: p.productId,
-      ...(nombre ? { productoNombre: nombre } : {}),
-      cantidad: p.cantidad,
-      precioUnitario: p.precioUnitario,
-      descuento: p.descuento,
-      impuesto: p.impuesto,
-      subtotal: p.subtotal,
-      total: p.total,
-    };
-  });
+  const productos = patch.productos.map((p) => saleItemToDoc(p));
   const p_patch: Record<string, unknown> = {
     productos,
     subtotal: patch.subtotal,
@@ -476,23 +472,7 @@ export async function updatePendingOpenSaleFirestore(
   const sid = saleId.trim();
   if (!sid) throw new Error('Venta inválida');
   const supabase = getSupabase();
-  const productosFs = patch.productos.map((p) => {
-    const nombre =
-      typeof p.productoNombre === 'string' && p.productoNombre.trim()
-        ? p.productoNombre.trim()
-        : p.producto?.nombre?.trim();
-    return {
-      id: p.id,
-      productId: p.productId,
-      ...(nombre ? { productoNombre: nombre } : {}),
-      cantidad: p.cantidad,
-      precioUnitario: p.precioUnitario,
-      descuento: p.descuento,
-      impuesto: p.impuesto,
-      subtotal: p.subtotal,
-      total: p.total,
-    };
-  });
+  const productosFs = patch.productos.map((p) => saleItemToDoc(p));
   const p_patch = {
     productos: productosFs,
     subtotal: patch.subtotal,

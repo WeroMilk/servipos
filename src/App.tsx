@@ -44,6 +44,9 @@ const CuentasPorCobrar = lazyWithRetry(() =>
 const Nominas = lazyWithRetry(() =>
   import('@/pages/Nominas').then((m) => ({ default: m.Nominas }))
 );
+const Promociones = lazyWithRetry(() =>
+  import('@/pages/Promociones').then((m) => ({ default: m.Promociones }))
+);
 const Configuracion = lazyWithRetry(() =>
   import('@/pages/Configuracion').then((m) => ({ default: m.Configuracion }))
 );
@@ -141,6 +144,7 @@ function AppRoutes() {
       void import('@/pages/EtiquetasProductos');
       void import('@/pages/MisionInventario');
       void import('@/pages/Nominas');
+      void import('@/pages/Promociones');
       void import('@/pages/ClientePerfil');
     };
     const ric = (
@@ -268,6 +272,14 @@ function AppRoutes() {
                   element={
                     <Suspense fallback={<PageFallback message="Cargando nóminas" />}>
                       <Nominas />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="promociones"
+                  element={
+                    <Suspense fallback={<PageFallback message="Cargando promociones" />}>
+                      <Promociones />
                     </Suspense>
                   }
                 />

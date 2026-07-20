@@ -91,6 +91,7 @@ import { getSaleByIdFirestore } from '@/lib/firestore/salesFirestore';
 import { registrarAbonoCobroCajaFirestore } from '@/lib/firestore/cajaFirestore';
 import { getProductCatalogSnapshot, updateProductFirestore } from '@/lib/firestore/productsFirestore';
 import { commitEmptyPosCartDraft } from '@/lib/firestore/posCartDraftFirestore';
+import { subscribePromotionsCatalog } from '@/lib/firestore/promotionsFirestore';
 import { effectiveListaPreciosIncluyenIva } from '@/lib/catalogPricingFlags';
 import { parsePrecioNumberFromFirestore, resolvePrecioVentaSinIvaForDoc } from '@/lib/precioListaNorm';
 import {
@@ -552,6 +553,7 @@ export function POS() {
       setClient: s.setClient,
       clearCart: s.clearCart,
       replaceCartForOpenSaleResume: s.replaceCartForOpenSaleResume,
+      reapplyPromotions: s.reapplyPromotions,
       getSubtotal: s.getSubtotal,
       getImpuestos: s.getImpuestos,
       getDescuento: s.getDescuento,
@@ -587,8 +589,17 @@ export function POS() {
     setClient,
     clearCart,
     replaceCartForOpenSaleResume,
+    reapplyPromotions,
     getCambio,
   } = cart;
+
+  useEffect(() => {
+    const sid = effectiveSucursalId?.trim();
+    if (!sid) return;
+    return subscribePromotionsCatalog(sid, (rows) => {
+      reapplyPromotions(rows);
+    });
+  }, [effectiveSucursalId, reapplyPromotions]);
 
   const ventasAbiertas = useMemo(
     () =>
@@ -1396,6 +1407,7 @@ export function POS() {
     : (unitPriceDialogLine?.precioListaId ?? precioClienteListaId);
 
   const openCheckoutDialog = () => {
+    reapplyPromotions();
     const nombreInicial =
       client && !client.isMostrador && client.id !== 'mostrador'
         ? client.nombre
@@ -2049,6 +2061,9 @@ export function POS() {
             impuesto: item.product.impuesto,
             subtotal: sub,
             total: sub * (1 + item.product.impuesto / 100),
+            ...(item.promoId
+              ? { promoId: item.promoId, promoLabel: item.promoLabel }
+              : {}),
           };
         }),
         subtotal: subtotalCobro,
@@ -2116,6 +2131,9 @@ export function POS() {
           quantity: line.cantidad,
           discount: line.descuento,
           precioUnitarioOverride: line.precioUnitario,
+          promoId: line.promoId,
+          promoLabel: line.promoLabel,
+          discountManual: !line.promoId && Number(line.descuento) > 0,
         });
       }
       let clientePos = clientFromSaleForPos(sale);
@@ -2343,6 +2361,8 @@ export function POS() {
           quantity: line.cantidad,
           discount: line.descuento,
           precioUnitarioOverride: line.precioUnitario,
+          /** Mantener descuento de cotización; no pisar con promo automática. */
+          discountManual: Number(line.descuento) > 0,
         });
       }
       let clientePos = clientFromQuotationForPos(q);
@@ -2875,6 +2895,9 @@ export function POS() {
             impuesto: item.product.impuesto,
             subtotal: sub,
             total: sub * (1 + item.product.impuesto / 100),
+            ...(item.promoId
+              ? { promoId: item.promoId, promoLabel: item.promoLabel }
+              : {}),
           };
         }),
         subtotal: subtotalCobro,
@@ -3418,6 +3441,14 @@ export function POS() {
                             <p className="min-w-0 flex-1 truncate font-medium text-slate-800 dark:text-slate-200">
                               {item.product.nombre}
                             </p>
+                            {item.promoLabel ? (
+                              <span
+                                className="mt-0.5 shrink-0 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300"
+                                title={item.promoLabel}
+                              >
+                                {item.promoLabel}
+                              </span>
+                            ) : null}
                             <button
                               type="button"
                               onClick={() => setProductDescriptionDialog(item.product)}

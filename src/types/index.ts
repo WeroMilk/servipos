@@ -35,7 +35,8 @@ export type Permission =
   | 'usuarios:gestionar'
   | 'sucursales:gestionar'
   | 'checador:registrar'
-  | 'checador:reporte';
+  | 'checador:reporte'
+  | 'promociones:gestionar';
 
 export interface User {
   id: string;
@@ -543,6 +544,9 @@ export interface SaleItem {
   impuesto: number;
   subtotal: number;
   total: number;
+  /** Promoción automática aplicada en POS (auditoría). */
+  promoId?: string;
+  promoLabel?: string;
 }
 
 export interface Payment {
@@ -1054,6 +1058,34 @@ export interface CartItem {
    * Ignorada si hay `precioUnitarioOverride`.
    */
   precioListaId?: ClientPriceListId;
+  /** Promoción automática vigente (no pisar si `discountManual`). */
+  promoId?: string;
+  promoLabel?: string;
+  /** true si el cajero editó el % de descuento a mano. */
+  discountManual?: boolean;
+}
+
+/** Tipos de promoción POS (por sucursal). */
+export type PromoKind = 'percent' | 'nxm' | 'nth_half';
+
+export interface Promotion {
+  id: string;
+  nombre: string;
+  kind: PromoKind;
+  /** Descuento % (kind=percent). */
+  percent?: number;
+  /** nxm: comprar N pagar M (2x1 => buy 2 pay 1). */
+  buyQty?: number;
+  payQty?: number;
+  /** nth_half: cada N-ésima unidad a mitad (2 = segundo a mitad). */
+  everyNth?: number;
+  fechaInicio: string;
+  fechaFin: string;
+  productIds: string[];
+  activa: boolean;
+  sucursalId?: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export type ThemePreference = 'system' | 'light' | 'dark';

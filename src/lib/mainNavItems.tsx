@@ -12,6 +12,7 @@ import {
   Target,
   Tag,
   Banknote,
+  Percent,
 } from 'lucide-react';
 import type { Permission } from '@/types';
 
@@ -75,6 +76,14 @@ export const MAIN_NAV_ITEMS: MainNavItem[] = [
   },
   { to: '/facturas', icon: Receipt, label: 'Facturación', shortLabel: 'Fact.', permission: 'facturas:ver' },
   { to: '/nominas', icon: Banknote, label: 'Nómina', shortLabel: 'Nóm.', permission: 'nominas:ver' },
+  {
+    to: '/promociones',
+    icon: Percent,
+    label: 'Promociones',
+    shortLabel: 'Promo',
+    permission: 'promociones:gestionar',
+    desktopOnly: true,
+  },
   { to: '/clientes', icon: Users, label: 'Clientes', shortLabel: 'Cli.', permission: 'ventas:ver' },
   {
     to: '/cuentas-por-cobrar',

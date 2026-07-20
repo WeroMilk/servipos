@@ -32,6 +32,9 @@ export function buildPendingSaleLineItemsFromCart(
       impuesto: item.product.impuesto,
       subtotal: sub,
       total: sub * (1 + item.product.impuesto / 100),
+      ...(item.promoId
+        ? { promoId: item.promoId, promoLabel: item.promoLabel }
+        : {}),
     };
   });
 }

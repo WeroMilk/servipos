@@ -15,3 +15,4 @@ export { useCajaSesion } from './useCajaSesion';
 export { usePendingIncomingTransfers, useOutgoingPendingTransferIds } from './useStoreTransfers';
 export { useInventoryMovementsHistory } from './useInventoryMovementsHistory';
 export { useDesktopWheelScrollEnhancer } from './useDesktopWheelScrollEnhancer';
+export { usePromotions } from './usePromotions';
