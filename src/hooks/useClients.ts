@@ -303,17 +303,21 @@ export function useClients() {
       monto: number,
       options?: {
         usuarioNombre?: string;
+        usuarioId?: string;
         motivo?: string;
         referencia?: string;
         notas?: string;
+        cajaSesionId?: string;
       }
     ) => {
       const result = await emitirCreditoTiendaCliente(clienteId, monto, {
         sucursalId: effectiveSucursalId ?? undefined,
         usuarioNombre: options?.usuarioNombre,
+        usuarioId: options?.usuarioId,
         motivo: options?.motivo,
         referencia: options?.referencia,
         notas: options?.notas,
+        cajaSesionId: options?.cajaSesionId,
       });
       await refresh();
       return result;

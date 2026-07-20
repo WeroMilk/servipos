@@ -344,6 +344,21 @@ export interface ClientCreditoHistorialEntry {
   referencia?: string;
   usuarioNombre?: string;
   notas?: string;
+  /** Sesión de caja en la que se emitió/usó (para el corte). */
+  cajaSesionId?: string;
+}
+
+/** Emisión de crédito de tienda registrada en la sesión de caja (corte). */
+export interface CajaCreditoTiendaEmitido {
+  id: string;
+  monto: number;
+  createdAt: Date;
+  clienteId?: string;
+  clienteNombre?: string;
+  referencia?: string;
+  motivo?: string;
+  usuarioId: string;
+  usuarioNombre: string;
 }
 
 // ============================================
@@ -510,6 +525,8 @@ export interface CajaSesion {
   retirosEfectivo?: CajaRetiroEfectivo[];
   /** Abonos CxC cobrados en esta sesión (efectivo/tarjeta/etc. para el corte). */
   abonosCobros?: CajaAbonoCobro[];
+  /** Créditos de tienda emitidos en esta sesión (devolución sin efectivo, altas manuales). */
+  creditosTiendaEmitidos?: CajaCreditoTiendaEmitido[];
   closedAt?: Date;
   closedByUserId?: string;
   closedByNombre?: string;
@@ -994,6 +1011,7 @@ export const FORMAS_PAGO: CatalogoSAT[] = [
   { clave: 'DEV', descripcion: 'Devolución' },
   { clave: 'COT', descripcion: 'Cotización' },
   { clave: 'PPC', descripcion: 'Pendiente de pago' },
+  { clave: 'STC', descripcion: 'Crédito de tienda' },
 ];
 
 /** Opciones mostradas en POS y facturación (el catálogo completo sigue en FORMAS_PAGO para tickets e históricos). */

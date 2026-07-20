@@ -281,7 +281,15 @@ export const useCartStore = create<CartState>((set, get) => ({
   },
 
   setClient: (client: Client | null) => {
-    set({ client });
+    if (!client) {
+      set({ client: null, precioClienteListaId: 'regular' });
+      return;
+    }
+    const listaId = normalizeClientPriceListIdWithExtras(
+      client.listaPreciosId,
+      useInventoryListsStore.getState().listasPrecioExtra
+    );
+    set({ client, precioClienteListaId: listaId });
   },
 
   setGlobalDiscount: (discount: number) => {

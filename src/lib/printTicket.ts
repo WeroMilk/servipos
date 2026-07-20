@@ -29,6 +29,7 @@ import {
   computeCobradoPeriodo,
   labelFormaPagoCaja,
   resumenGruposMedioPagoCierre,
+  sumCreditoTiendaUsadoSesion,
   totalesPorFormaPago,
 } from '@/lib/cajaResumen';
 import { openCfdiLetterPrint } from '@/lib/openLetterPrint';
@@ -1421,6 +1422,10 @@ export function printThermalCajaCierre(input: {
   abonosCobros?: CajaAbonoCobro[];
   /** Si se indica, los cobros de tickets se atribuyen a esta sesión (día del pago). */
   cajaSesionId?: string;
+  /** Cliente pagó con crédito de tienda (STC). */
+  creditoTiendaUsado?: number;
+  /** Tienda otorgó crédito en el turno. */
+  creditoTiendaEmitido?: number;
   tarjetasEsperadas?: number;
   conteoTarjetasDeclarado?: number;
   diferenciaTarjetas?: number;
@@ -1432,6 +1437,11 @@ export function printThermalCajaCierre(input: {
   const sid = input.cajaSesionId?.trim() || undefined;
   const grupos = resumenGruposMedioPagoCierre(input.ventas, abonos, sid);
   const porForma = totalesPorFormaPago(input.ventas, abonos, sid);
+  const creditoUsado =
+    input.creditoTiendaUsado != null
+      ? Number(input.creditoTiendaUsado) || 0
+      : sumCreditoTiendaUsadoSesion(input.ventas, sid);
+  const creditoEmitido = Number(input.creditoTiendaEmitido) || 0;
   const formaRows = Object.entries(porForma)
     .filter(([, m]) => (Number(m) || 0) > 0)
     .sort(([a], [b]) => a.localeCompare(b))
@@ -1549,6 +1559,15 @@ export function printThermalCajaCierre(input: {
     <div>Tarjetas: ${formatMoney(grupos.tarjetas)}</div>
     <div>Otros: ${formatMoney(grupos.otros)}</div>
   </div>
+  ${
+    creditoUsado > 0.005 || creditoEmitido > 0.005
+      ? `<div class="tot" style="border-top:none;padding-top:4px;">
+    <div><strong>Crédito de tienda</strong></div>
+    <div>Usado (pago STC): ${formatMoney(creditoUsado)}</div>
+    <div>Emitido (dimos crédito): ${formatMoney(creditoEmitido)}</div>
+  </div>`
+      : ''
+  }
   <p class="ticket-section-title">Cobros por forma de pago</p>
   <table>${formaRows || '<tr><td>Sin cobros registrados</td></tr>'}</table>
   <div class="tot">

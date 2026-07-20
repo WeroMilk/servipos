@@ -2,6 +2,7 @@ import type {
   CajaAbonoCobro,
   CajaAporteEfectivo,
   CajaCierreTerminal,
+  CajaCreditoTiendaEmitido,
   CajaRetiroEfectivo,
   CajaSesion,
   FormaPago,
@@ -105,6 +106,34 @@ function parseAbonosCobrosFirestore(raw: unknown): CajaAbonoCobro[] | undefined 
   return out.length > 0 ? out : undefined;
 }
 
+function parseCreditosTiendaEmitidosFirestore(raw: unknown): CajaCreditoTiendaEmitido[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  const out: CajaCreditoTiendaEmitido[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== 'object') continue;
+    const o = row as Record<string, unknown>;
+    const id = String(o.id ?? '');
+    const monto = Number(o.monto) || 0;
+    if (!id || monto <= 0) continue;
+    out.push({
+      id,
+      monto,
+      createdAt: firestoreTimestampToDate(o.createdAt),
+      clienteId: o.clienteId != null && String(o.clienteId).trim() ? String(o.clienteId).trim() : undefined,
+      clienteNombre:
+        o.clienteNombre != null && String(o.clienteNombre).trim()
+          ? String(o.clienteNombre).trim()
+          : undefined,
+      referencia:
+        o.referencia != null && String(o.referencia).trim() ? String(o.referencia).trim() : undefined,
+      motivo: o.motivo != null && String(o.motivo).trim() ? String(o.motivo).trim() : undefined,
+      usuarioId: String(o.usuarioId ?? ''),
+      usuarioNombre: String(o.usuarioNombre ?? ''),
+    });
+  }
+  return out.length > 0 ? out : undefined;
+}
+
 /** Folio del voucher de corte de terminal: exactamente 5 dígitos. */
 export function isValidCierreTerminalFolio(folio: string): boolean {
   return /^\d{5}$/.test(folio.trim());
@@ -122,6 +151,7 @@ function mapCajaSesionDoc(sucursalId: string, sesionId: string, d: Record<string
       d.retirosEfectivoTotal != null ? Number(d.retirosEfectivoTotal) || 0 : undefined,
     retirosEfectivo: parseMovimientosEfectivoFirestore<CajaRetiroEfectivo>(d.retirosEfectivo),
     abonosCobros: parseAbonosCobrosFirestore(d.abonosCobros),
+    creditosTiendaEmitidos: parseCreditosTiendaEmitidosFirestore(d.creditosTiendaEmitidos),
     openedAt: firestoreTimestampToDate(d.openedAt),
     openedByUserId: String(d.openedByUserId ?? ''),
     openedByNombre: String(d.openedByNombre ?? ''),
@@ -511,6 +541,39 @@ export async function registrarAbonoCobroCajaFirestore(
     p_forma_pago: input.formaPago,
     p_cliente_id: input.clienteId ?? null,
     p_cliente_nombre: input.clienteNombre ?? null,
+    p_usuario_id: input.usuarioId,
+    p_usuario_nombre: input.usuarioNombre,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/** Registra una emisión de crédito de tienda en la sesión abierta (corte). */
+export async function registrarCreditoTiendaEmitidoCajaFirestore(
+  sucursalId: string,
+  sesionId: string,
+  input: {
+    monto: number;
+    clienteId?: string;
+    clienteNombre?: string;
+    referencia?: string;
+    motivo?: string;
+    usuarioId: string;
+    usuarioNombre: string;
+  }
+): Promise<void> {
+  const monto = Number(input.monto);
+  if (!Number.isFinite(monto) || monto <= 0) {
+    throw new Error('Indique un monto de crédito válido');
+  }
+  const supabase = getSupabase();
+  const { error } = await supabase.rpc('rpc_registrar_credito_tienda_emitido_caja', {
+    p_sucursal_id: sucursalId,
+    p_sesion_id: sesionId.trim(),
+    p_monto: Math.round(monto * 100) / 100,
+    p_cliente_id: input.clienteId ?? null,
+    p_cliente_nombre: input.clienteNombre ?? null,
+    p_referencia: input.referencia ?? null,
+    p_motivo: input.motivo ?? null,
     p_usuario_id: input.usuarioId,
     p_usuario_nombre: input.usuarioNombre,
   });

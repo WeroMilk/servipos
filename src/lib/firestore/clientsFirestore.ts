@@ -83,6 +83,10 @@ function parseCreditoHistorialDoc(raw: unknown): ClientCreditoHistorialEntry[] |
           ? String(o.usuarioNombre).trim()
           : undefined,
       notas: o.notas != null && String(o.notas).trim() !== '' ? String(o.notas) : undefined,
+      cajaSesionId:
+        o.cajaSesionId != null && String(o.cajaSesionId).trim()
+          ? String(o.cajaSesionId).trim()
+          : undefined,
     });
   }
   return out.length ? out : undefined;
@@ -434,6 +438,7 @@ export async function updateClientFirestore(
           referencia: e.referencia?.trim() ? e.referencia.trim() : null,
           usuarioNombre: e.usuarioNombre?.trim() ? e.usuarioNombre.trim() : null,
           notas: e.notas?.trim() ? e.notas.trim() : null,
+          cajaSesionId: e.cajaSesionId?.trim() ? e.cajaSesionId.trim() : null,
         }))
       : null;
   }

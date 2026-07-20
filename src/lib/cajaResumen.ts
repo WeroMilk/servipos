@@ -53,6 +53,7 @@ export function pagosParaResumenCaja(
   if (sumaMontosPagosRegistrados(registrados) > 0.01) {
     return registrados
       .filter((p) => p.esAbonoCxC !== true)
+      .filter((p) => p.formaPago !== 'STC')
       .filter((p) => {
         if (sid) return pagoPerteneceASesion(sale, p, sid);
         // Sin sesión: no arrastrar a la venta cobros hechos en otro turno.
@@ -450,7 +451,7 @@ export function totalesPorFormaPago(
   for (const a of abonosCobros ?? []) {
     const k = a.formaPago;
     const m = Number(a.monto) || 0;
-    if (!k || m <= 0) continue;
+    if (!k || m <= 0 || k === 'STC') continue;
     out[k] = (out[k] || 0) + m;
   }
   return out;
@@ -474,7 +475,7 @@ export function lineasMediosPagoSesion(
     .map(([clave, m]) => ({ clave, label: labelFormaPagoCaja(clave), monto: Number(m) || 0 }));
 }
 
-/** Agrupación típica de POS: efectivo, tarjetas SAT 04/28/29, resto de formas. */
+/** Agrupación típica de POS: efectivo, tarjetas SAT 04/28/29, resto de formas (sin STC). */
 export function resumenGruposMedioPagoCierre(
   ventas: Sale[],
   abonosCobros?: { formaPago: FormaPago; monto: number }[] | null,
@@ -488,12 +489,42 @@ export function resumenGruposMedioPagoCierre(
   const num = (clave: string) => Number(por[clave as FormaPago]) || 0;
   const efectivoCobros = num('01');
   const tarjetas = num('04') + num('28') + num('29');
-  const yaEnResumen = new Set(['01', '04', '28', '29']);
+  const yaEnResumen = new Set(['01', '04', '28', '29', 'STC']);
   let otros = 0;
   for (const [k, v] of Object.entries(por)) {
     if (!yaEnResumen.has(k)) otros += Number(v) || 0;
   }
   return { efectivoCobros, tarjetas, otros };
+}
+
+/** Pagos STC del turno (cliente usó crédito de tienda). */
+export function sumCreditoTiendaUsadoSesion(ventas: Sale[], sesionId?: string): number {
+  const sid = sesionId?.trim() || '';
+  let sum = 0;
+  for (const s of filterVentasCompletadasSesion(ventas)) {
+    for (const p of s.pagos ?? []) {
+      if (p.formaPago !== 'STC') continue;
+      if (p.esAbonoCxC === true) continue;
+      const m = Number(p.monto) || 0;
+      if (m <= 0) continue;
+      if (sid) {
+        if (!pagoPerteneceASesion(s, p, sid)) continue;
+      } else {
+        const paySid = (p.cajaSesionId ?? '').trim();
+        const saleSid = (s.cajaSesionId ?? '').trim();
+        if (paySid && saleSid && paySid !== saleSid) continue;
+      }
+      sum += m;
+    }
+  }
+  return Math.round(sum * 100) / 100;
+}
+
+export function totalCreditosTiendaEmitidosSesion(
+  emitidos: CajaSesion['creditosTiendaEmitidos'] | null | undefined
+): number {
+  const t = (emitidos ?? []).reduce((s, e) => s + (Number(e.monto) || 0), 0);
+  return Math.round(t * 100) / 100;
 }
 
 export type SesionCierreMetrics = {
@@ -510,6 +541,10 @@ export type SesionCierreMetrics = {
   cambioEntregado: number;
   efectivoNetoVentas: number;
   abonosCobrosTotal: number;
+  /** Cliente pagó con saldo a favor (STC). */
+  creditoTiendaUsado: number;
+  /** Tienda otorgó crédito (devolución sin efectivo / emisión manual). */
+  creditoTiendaEmitido: number;
   lineasMedio: { clave: string; label: string; monto: number }[];
 };
 
@@ -517,7 +552,12 @@ export type SesionCierreMetrics = {
 export function computeSesionCierreMetrics(
   sesion: Pick<
     CajaSesion,
-    'id' | 'fondoInicial' | 'aportesEfectivoTotal' | 'retirosEfectivoTotal' | 'abonosCobros'
+    | 'id'
+    | 'fondoInicial'
+    | 'aportesEfectivoTotal'
+    | 'retirosEfectivoTotal'
+    | 'abonosCobros'
+    | 'creditosTiendaEmitidos'
   >,
   ventas: Sale[],
   /** Pool amplio de ventas (p. ej. catálogo reciente) para cobrar abonos de tickets de otros turnos. */
@@ -554,6 +594,8 @@ export function computeSesionCierreMetrics(
     cambioEntregado,
     efectivoNetoVentas: Math.round((efectivoCobrado - cambioEntregado) * 100) / 100,
     abonosCobrosTotal,
+    creditoTiendaUsado: sumCreditoTiendaUsadoSesion(pool, sesion.id),
+    creditoTiendaEmitido: totalCreditosTiendaEmitidosSesion(sesion.creditosTiendaEmitidos),
     lineasMedio: lineasMediosPagoSesion(pool, abonos, sesion.id),
   };
 }

@@ -43,6 +43,7 @@ import {
 import {
   useClients,
   useClientDetails,
+  useCajaSesion,
   useEffectiveSucursalId,
   useInvoices,
   useQuotations,
@@ -163,6 +164,7 @@ export function ClientePerfil() {
   const { quotations, loading: loadingQuotations } = useQuotations();
   const { invoices, loading: loadingInvoices } = useInvoices();
   const { effectiveSucursalId } = useEffectiveSucursalId();
+  const cajaSesion = useCajaSesion({ sucursalId: effectiveSucursalId });
   const { addToast } = useAppStore();
   const user = useAuthStore((s) => s.user);
   const priceListCatalog = useClientPriceListCatalog();
@@ -321,9 +323,11 @@ export function ClientePerfil() {
         user?.name?.trim() || user?.username?.trim() || user?.email?.trim() || undefined;
       const { saldoAnterior, saldoNuevo } = await emitirCreditoTienda(client.id, m, {
         usuarioNombre: cajero,
+        usuarioId: user?.id,
         motivo: creditoMotivo,
         referencia: creditoReferencia.trim() || undefined,
         notas: creditoNotas.trim() || undefined,
+        cajaSesionId: cajaSesion.activa?.id,
       });
       const fechaLabel = formatInAppTimezone(new Date(), {
         dateStyle: 'medium',

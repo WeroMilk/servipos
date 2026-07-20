@@ -33,7 +33,9 @@ import {
   lineasMediosPagoSesion,
   resumenBrutoSesion,
   resumenGruposMedioPagoCierre,
+  sumCreditoTiendaUsadoSesion,
   totalAbonosEfectivoSesion,
+  totalCreditosTiendaEmitidosSesion,
 } from '@/lib/cajaResumen';
 import { useCajaLocalStore } from '@/stores/cajaLocalStore';
 import type { ModificarSaldoKind } from '@/stores/cajaPosHeaderStore';
@@ -134,6 +136,8 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
     const { tickets, total } = resumenBrutoSesion(ventasSesion);
     /** Efectivo que quedó en caja por ventas (cobros en 01 menos vueltos); mismo valor que (esperadoBruto − fondo). */
     const efectivoNetoVentas = Math.round((efectivoCobrado - cambioEntregado) * 100) / 100;
+    const creditoTiendaUsado = sumCreditoTiendaUsadoSesion(poolCobros, activa.id);
+    const creditoTiendaEmitido = totalCreditosTiendaEmitidosSesion(activa.creditosTiendaEmitidos);
     return {
       esperadoEnCaja,
       esperadoBruto,
@@ -143,6 +147,8 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
       efectivoNetoVentas,
       tickets,
       total,
+      creditoTiendaUsado,
+      creditoTiendaEmitido,
     };
   }, [activa, ventasSesion, sales]);
 
@@ -550,6 +556,8 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
         retirosEfectivo: activa.retirosEfectivo?.length ? activa.retirosEfectivo : undefined,
         abonosCobros: activa.abonosCobros?.length ? activa.abonosCobros : undefined,
         cajaSesionId: activa.id,
+        creditoTiendaUsado: sumCreditoTiendaUsadoSesion(ventasPrint, activa.id),
+        creditoTiendaEmitido: totalCreditosTiendaEmitidosSesion(activa.creditosTiendaEmitidos),
         tarjetasEsperadas: tarjetasPos,
         conteoTarjetasDeclarado: conteoTarjetas,
         diferenciaTarjetas: Math.round((conteoTarjetas - tarjetasPos) * 100) / 100,
@@ -625,6 +633,8 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
       retirosEfectivo: activa.retirosEfectivo?.length ? activa.retirosEfectivo : undefined,
       abonosCobros: activa.abonosCobros?.length ? activa.abonosCobros : undefined,
       cajaSesionId: activa.id,
+      creditoTiendaUsado: sumCreditoTiendaUsadoSesion(sales, activa.id),
+      creditoTiendaEmitido: totalCreditosTiendaEmitidosSesion(activa.creditosTiendaEmitidos),
       ticketKind: 'arqueo_previo',
     });
     printThermalDailySalesReport({
@@ -775,6 +785,24 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
                     Otros medios (transferencia, etc.): {formatMoney(gruposPagoPreview.otros)}
                   </p>
                 ) : null}
+                {previewCierre.creditoTiendaUsado > 0.005 ||
+                previewCierre.creditoTiendaEmitido > 0.005 ? (
+                  <div className="mt-2 space-y-0.5 border-t border-slate-200 pt-2 text-xs dark:border-slate-600">
+                    <p className="font-medium text-slate-700 dark:text-slate-300">Crédito de tienda</p>
+                    <p className="flex justify-between gap-2 text-slate-600 dark:text-slate-400">
+                      <span>Usado (pago)</span>
+                      <span className="tabular-nums font-medium text-slate-800 dark:text-slate-200">
+                        {formatMoney(previewCierre.creditoTiendaUsado)}
+                      </span>
+                    </p>
+                    <p className="flex justify-between gap-2 text-slate-600 dark:text-slate-400">
+                      <span>Emitido (dimos crédito)</span>
+                      <span className="tabular-nums font-medium text-slate-800 dark:text-slate-200">
+                        {formatMoney(previewCierre.creditoTiendaEmitido)}
+                      </span>
+                    </p>
+                  </div>
+                ) : null}
                 {lineasPagoPreview.length > 0 ? (
                   <ul className="mt-2 space-y-1 border-t border-slate-200 pt-2 text-xs text-slate-600 dark:border-slate-600 dark:text-slate-400">
                     {lineasPagoPreview.map((row) => (
@@ -905,6 +933,24 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
                   <p className="mt-2 text-xs font-medium text-slate-700 dark:text-slate-300 lg:mt-1">
                     Otros medios (transferencia, etc.): {formatMoney(gruposPagoPreview.otros)}
                   </p>
+                ) : null}
+                {previewCierre.creditoTiendaUsado > 0.005 ||
+                previewCierre.creditoTiendaEmitido > 0.005 ? (
+                  <div className="mt-2 space-y-0.5 border-t border-slate-200 pt-2 text-xs dark:border-slate-600 lg:mt-1.5 lg:pt-1.5">
+                    <p className="font-medium text-slate-700 dark:text-slate-300">Crédito de tienda</p>
+                    <p className="flex justify-between gap-2 text-slate-600 dark:text-slate-400">
+                      <span>Usado (pago)</span>
+                      <span className="shrink-0 tabular-nums font-medium text-slate-800 dark:text-slate-200">
+                        {formatMoney(previewCierre.creditoTiendaUsado)}
+                      </span>
+                    </p>
+                    <p className="flex justify-between gap-2 text-slate-600 dark:text-slate-400">
+                      <span>Emitido (dimos crédito)</span>
+                      <span className="shrink-0 tabular-nums font-medium text-slate-800 dark:text-slate-200">
+                        {formatMoney(previewCierre.creditoTiendaEmitido)}
+                      </span>
+                    </p>
+                  </div>
                 ) : null}
                 {lineasPagoPreview.length > 0 ? (
                   <ul className="mt-2 space-y-1 border-t border-slate-200 pt-2 text-xs text-slate-600 dark:border-slate-600 dark:text-slate-400 lg:mt-1.5 lg:pt-1.5">

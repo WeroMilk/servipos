@@ -50,7 +50,7 @@ import {
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { useShallow } from 'zustand/react/shallow';
-import { useCartStore, useAppStore, useAuthStore } from '@/stores';
+import { useCartStore, useAppStore, useAuthStore, useInventoryListsStore } from '@/stores';
 import {
   setCajaPosHeaderBridge,
   clearCajaPosHeaderBridge,
@@ -106,6 +106,7 @@ import {
 } from '@/lib/clientPriceLists';
 import {
   getClientPriceListCatalogFromStore,
+  normalizeClientPriceListIdWithExtras,
 } from '@/lib/clientPriceListCatalog';
 import { useClientPriceListCatalog } from '@/hooks/useClientPriceListCatalog';
 import { subscribeSucursales } from '@/lib/firestore/sucursalesMetaFirestore';
@@ -2357,7 +2358,10 @@ export function POS() {
         items: cartItems,
         client: clientePos,
         globalDiscount: 0,
-        precioClienteListaId: 'regular',
+        precioClienteListaId: normalizeClientPriceListIdWithExtras(
+          clientePos?.listaPreciosId,
+          useInventoryListsStore.getState().listasPrecioExtra
+        ),
       });
       setSaleFromQuotationId(q.id);
       setQuotationLoadedFolio(q.folio);
@@ -2425,9 +2429,11 @@ export function POS() {
         if (acreditar && devolucionClienteIdAcreditable) {
           const credito = await emitirCreditoTienda(devolucionClienteIdAcreditable, monto, {
             usuarioNombre: cajeroNombre,
+            usuarioId: user?.id,
             motivo: 'devolucion_sin_reembolso',
             referencia: devolucionSaleResuelta.folio,
             notas: out.kind === 'partial' ? 'Devolución parcial en POS' : 'Devolución total en POS',
+            cajaSesionId: cajaSesion.activa?.id,
           });
           saldoCreditoNuevo = credito.saldoNuevo;
           const fechaLabel = formatInAppTimezone(new Date(), {
@@ -4820,20 +4826,25 @@ export function POS() {
               type="button"
               onClick={() => {
                 setClient(null);
-                setPrecioClienteLista('regular');
                 setShowClientDialog(false);
               }}
               className="w-full rounded-lg border border-slate-300 dark:border-slate-700/80 bg-slate-200 dark:bg-slate-800/80 p-3 text-left transition-colors hover:bg-slate-200 dark:bg-slate-800"
             >
               <p className="font-medium text-slate-900 dark:text-slate-100">{POS_GENERIC_CLIENT_LABEL}</p>
-              <p className="text-xs text-slate-600 dark:text-slate-500">Sin cliente registrado</p>
+              <p className="text-xs text-slate-600 dark:text-slate-500">Sin cliente registrado · lista Regular</p>
             </button>
             {clientesFiltradosVenta.length === 0 ? (
               <p className="py-4 text-center text-sm text-slate-600 dark:text-slate-400">
                 Ningún cliente coincide. Registre clientes en Clientes o ajuste la búsqueda.
               </p>
             ) : (
-              clientesFiltradosVenta.map((c) => (
+              clientesFiltradosVenta.map((c) => {
+                const listaId = normalizeClientPriceListIdWithExtras(
+                  c.listaPreciosId,
+                  useInventoryListsStore.getState().listasPrecioExtra
+                );
+                const listaLabel = priceListCatalog.labels[listaId] ?? listaId;
+                return (
                 <button
                   key={c.id}
                   type="button"
@@ -4844,9 +4855,13 @@ export function POS() {
                   className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-200/80 dark:bg-slate-800/50 p-3 text-left transition-colors hover:bg-slate-200 dark:bg-slate-800"
                 >
                   <p className="font-medium text-slate-800 dark:text-slate-200">{c.nombre}</p>
-                  {c.rfc ? <p className="text-xs text-slate-600 dark:text-slate-500">RFC: {c.rfc}</p> : null}
+                  <p className="text-xs text-slate-600 dark:text-slate-500">
+                    Lista: {listaLabel}
+                    {c.rfc ? ` · RFC: ${c.rfc}` : ''}
+                  </p>
                 </button>
-              ))
+                );
+              })
             )}
           </div>
         </DialogContent>

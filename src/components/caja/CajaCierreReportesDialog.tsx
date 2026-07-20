@@ -210,6 +210,8 @@ function SesionDetallePanel({
       retirosEfectivo: sesion.retirosEfectivo,
       abonosCobros,
       cajaSesionId: sesion.id,
+      creditoTiendaUsado: metrics.creditoTiendaUsado,
+      creditoTiendaEmitido: metrics.creditoTiendaEmitido,
       tarjetasEsperadas: tarjetasEsperadasShow,
       conteoTarjetasDeclarado: conteoTarjetasShow ?? undefined,
       diferenciaTarjetas: diferenciaTarjetasShow ?? undefined,
@@ -338,6 +340,22 @@ function SesionDetallePanel({
           {metrics.ventasCanceladas > 0 ? (
             <MetricRow label="Ventas canceladas" value={String(metrics.ventasCanceladas)} />
           ) : null}
+        </div>
+      </div>
+
+      <div>
+        <SectionTitle>Crédito de tienda</SectionTitle>
+        <div className="grid gap-1.5 sm:grid-cols-2">
+          <MetricRow
+            label="Usado (pago STC)"
+            value={formatMoney(metrics.creditoTiendaUsado)}
+            hint="Cliente pagó con saldo a favor"
+          />
+          <MetricRow
+            label="Emitido (dimos crédito)"
+            value={formatMoney(metrics.creditoTiendaEmitido)}
+            hint="Devolución sin efectivo u otorgamiento"
+          />
         </div>
       </div>
 

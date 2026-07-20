@@ -1928,6 +1928,7 @@ function normalizeCreditoHistorialEntry(e: ClientCreditoHistorialEntry): ClientC
     referencia: e.referencia?.trim() || undefined,
     usuarioNombre: e.usuarioNombre?.trim() || undefined,
     notas: e.notas?.trim() || undefined,
+    cajaSesionId: e.cajaSesionId?.trim() || undefined,
   };
 }
 
@@ -1946,9 +1947,11 @@ export async function emitirCreditoTiendaCliente(
   options?: {
     sucursalId?: string;
     usuarioNombre?: string;
+    usuarioId?: string;
     motivo?: string;
     referencia?: string;
     notas?: string;
+    cajaSesionId?: string;
   }
 ): Promise<{ saldoAnterior: number; saldoNuevo: number }> {
   const m = Math.round(Number(monto) * 100) / 100;
@@ -1964,6 +1967,7 @@ export async function emitirCreditoTiendaCliente(
   const now = new Date();
   const usuarioNombre = options?.usuarioNombre?.trim();
   const motivo = options?.motivo?.trim() || 'devolucion_sin_reembolso';
+  const cajaSesionId = options?.cajaSesionId?.trim() || undefined;
   const entrada: ClientCreditoHistorialEntry = {
     at: now,
     monto: m,
@@ -1974,6 +1978,7 @@ export async function emitirCreditoTiendaCliente(
     referencia: options?.referencia?.trim() || undefined,
     usuarioNombre: usuarioNombre || undefined,
     notas: options?.notas?.trim() || undefined,
+    ...(cajaSesionId ? { cajaSesionId } : {}),
   };
   const creditoHistorial = appendCreditoHistorial(row.creditoHistorial, entrada);
 
@@ -1997,6 +2002,25 @@ export async function emitirCreditoTiendaCliente(
     updatedAt: now,
     syncStatus: sid ? 'synced' : 'pending',
   });
+
+  if (sid && cajaSesionId) {
+    try {
+      const { registrarCreditoTiendaEmitidoCajaFirestore } = await import(
+        '@/lib/firestore/cajaFirestore'
+      );
+      await registrarCreditoTiendaEmitidoCajaFirestore(sid, cajaSesionId, {
+        monto: m,
+        clienteId,
+        clienteNombre: row.nombre?.trim() || undefined,
+        referencia: options?.referencia?.trim() || undefined,
+        motivo,
+        usuarioId: options?.usuarioId?.trim() || 'system',
+        usuarioNombre: usuarioNombre || 'Usuario',
+      });
+    } catch (cajaErr) {
+      console.error('registrarCreditoTiendaEmitidoCajaFirestore:', cajaErr);
+    }
+  }
 
   return { saldoAnterior: current, saldoNuevo: next };
 }
