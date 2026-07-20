@@ -254,15 +254,14 @@ export function Promociones() {
     <PageShell
       title="Promociones"
       subtitle="Descuentos por sucursal que se aplican solos en el punto de venta."
-      actionsClassName="w-full justify-center"
-      actions={
-        <Button type="button" onClick={openCreate} className="gap-1.5">
-          <Plus className="h-4 w-4" />
-          Nueva promoción
-        </Button>
-      }
     >
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-1">
+        <div className="flex shrink-0 justify-center">
+          <Button type="button" onClick={openCreate} className="gap-1.5">
+            <Plus className="h-4 w-4" />
+            Nueva promoción
+          </Button>
+        </div>
         <Card className="border-slate-200/80 dark:border-slate-800/50">
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
