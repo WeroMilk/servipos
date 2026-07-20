@@ -254,6 +254,7 @@ export function Promociones() {
     <PageShell
       title="Promociones"
       subtitle="Descuentos por sucursal que se aplican solos en el punto de venta."
+      actionsClassName="w-full justify-center"
       actions={
         <Button type="button" onClick={openCreate} className="gap-1.5">
           <Plus className="h-4 w-4" />
