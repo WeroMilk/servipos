@@ -2570,20 +2570,27 @@ export function POS() {
     } else if (!esTraspasoTienda) {
       const permiteDeuda = puedeVentaConSaldoPendiente || formaPago === 'PPC';
       const totalPagadoTrasAbono = useCartStore.getState().getTotalPagado();
-      if (!permiteDeuda && totalPagadoTrasAbono + 0.004 < cobroReferencia) {
-        if (
-          pagoAgregadoEnEstaInvocacion &&
-          (metodoPago === 'PPD' || metodoPago === 'PUE')
-        ) {
-          const restante = Math.max(0, cobroReferencia - totalPagadoTrasAbono);
-          if (metodoPago === 'PUE') setMetodoPago('PPD');
-          addToast({
-            type: 'success',
-            message: `Abono registrado. Falta ${formatMoney(restante)}`,
-            logToAppEvents: true,
-          });
-          return;
-        }
+      const incompleto = totalPagadoTrasAbono + 0.004 < cobroReferencia;
+      /**
+       * Abono parcial en esta invocación (Enter/Completar con monto): siempre quedar en el diálogo
+       * para permitir pago mixto (efectivo + tarjeta). Cerrar con saldo CxC solo si Completar
+       * sin monto nuevo en el campo (`!pagoAgregadoEnEstaInvocacion` + permiteDeuda).
+       */
+      if (
+        incompleto &&
+        pagoAgregadoEnEstaInvocacion &&
+        (metodoPago === 'PPD' || metodoPago === 'PUE')
+      ) {
+        const restante = Math.max(0, cobroReferencia - totalPagadoTrasAbono);
+        if (metodoPago === 'PUE') setMetodoPago('PPD');
+        addToast({
+          type: 'success',
+          message: `Abono registrado. Falta ${formatMoney(restante)}`,
+          logToAppEvents: true,
+        });
+        return;
+      }
+      if (incompleto && !permiteDeuda) {
         addToast({ type: 'error', message: 'El pago es insuficiente' });
         return;
       }
@@ -4586,8 +4593,9 @@ export function POS() {
                         </Select>
                         <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-500 sm:text-xs">
                           Parcialidades: registre cada cobro (varias tarjetas, efectivo + tarjeta, etc.).
+                          Enter o Completar con un monto solo agrega ese abono y deja el diálogo abierto.
                           {puedeVentaConSaldoPendiente ?
-                            ' Con cliente registrado puede dejar saldo pendiente (menos del total o sin pago).'
+                            ' Para cerrar dejando saldo en cuenta, vacíe el monto y pulse «Completar dejando saldo».'
                           : ' El total abonado debe cubrir el importe mostrado arriba.'}
                         </p>
                       </div>
@@ -4620,8 +4628,11 @@ export function POS() {
                     </div>
                     {esFormaEfectivo(formaPagoAbono) ? (
                       <p className="text-center text-[11px] leading-snug text-slate-600 dark:text-slate-500 sm:text-xs">
-                        Puede escribir el monto exacto y pulsar <strong>Completar venta</strong>: se registrará
-                        automáticamente sin usar «Agregar» ni los billetes rápidos.
+                        Escriba el monto y pulse Enter o <strong>Agregar</strong> para registrar el abono.
+                        Si falta cobro, puede cambiar el medio (p. ej. a tarjeta) y seguir abonando.
+                        {puedeVentaConSaldoPendiente ?
+                          ' Solo con el monto vacío, «Completar dejando saldo» cierra e imprime con adeudo.'
+                        : ' Cuando el total esté cubierto, pulse Completar venta.'}
                       </p>
                     ) : null}
                   </div>
@@ -4720,7 +4731,13 @@ export function POS() {
                   ) : (
                     <Check className="mr-2 h-5 w-5" />
                   )}
-                  {checkoutDevolucionListo ? 'Confirmar devolución' : 'Completar venta'}
+                  {checkoutDevolucionListo
+                    ? 'Confirmar devolución'
+                    : puedeVentaConSaldoPendiente &&
+                        !hayCampoMontoParaAbonoValido &&
+                        totalPagadoIncluyeCampoMonto + 0.004 < cobroReferencia
+                      ? 'Completar dejando saldo'
+                      : 'Completar venta'}
                 </Button>
               </DialogFooter>
             </>
