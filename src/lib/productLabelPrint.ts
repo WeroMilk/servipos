@@ -259,11 +259,12 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       gap: 0.35mm;
     }
     .label-dk1209 {
-      padding: 0.75mm 0.3mm 0.45mm 0;
+      padding: 0.75mm 0.3mm 0.45mm 0.35mm;
     }
     /* Margen interno extra (además del hueco de página en @media print para dk1201). */
     .label-dk1201 {
-      padding: 1.1mm 0.65mm 0.45mm 0;
+      padding: 1.1mm 0.65mm 0.45mm 0.45mm;
+      overflow: visible;
     }
     .label-dk1209 .logo-wrap {
       flex-shrink: 0;
@@ -271,7 +272,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       display: flex;
       align-items: center;
       justify-content: flex-start;
-      margin-left: 0;
+      overflow: visible;
     }
     .label-dk1201 .logo-wrap {
       flex-shrink: 0;
@@ -279,7 +280,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       display: flex;
       align-items: center;
       justify-content: flex-start;
-      margin-left: 0;
+      overflow: visible;
     }
     .label-dk1209 .logo-img {
       max-width: 19mm;
@@ -288,16 +289,17 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       height: auto;
       object-fit: contain;
       object-position: left center;
+      display: block;
     }
     .label-dk1201 .logo-img {
-      max-width: 12.5mm;
+      max-width: 12mm;
       max-height: 22mm;
       width: auto;
       height: auto;
       object-fit: contain;
       object-position: left center;
-      /* Acerca el cuadrado azul al borde imprimible (compensa margen @page + aire del SVG). */
-      margin-left: -0.8mm;
+      display: block;
+      margin-left: 0;
     }
     .label-dk1209 .col-main {
       flex: 1 1 0;
@@ -431,33 +433,35 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
    * Brother QL suele no imprimir o recortar los primeros mm arriba/izquierda.
    * El hueco debe ir en @page margin (se repite en cada hoja). Si usamos padding en body,
    * Chromium suele aplicarlo solo al primer fragmento impreso y las etiquetas 2..N suben.
-   * Margen izquierdo reducido (~1.6 mm) para acercar el logo al borde sin perder tanto aire.
+   * Izquierda ~2.45 mm: logo completo (sin corte) y más cerca del borde que el margen original 3.25 mm.
    */
   const dk1201PageInsetCss =
     preset === 'dk1201'
       ? `
-  /* Rectángulo útil: 1.6+0.55 en X, 3.25+0.4 en Y → etiqueta calc(W-2.15) × calc(H-3.65). */
+  /* Rectángulo útil: 2.45+0.55 en X, 3.25+0.4 en Y → etiqueta calc(W-3) × calc(H-3.65). */
   body.labels-dk1201 .label.label-dk1201 {
-    width: calc(${f.pageW} - 2.15mm);
+    width: calc(${f.pageW} - 3mm);
     min-width: 0;
-    max-width: calc(${f.pageW} - 2.15mm);
+    max-width: calc(${f.pageW} - 3mm);
     height: calc(${f.pageH} - 3.65mm);
     margin: 0 auto;
+    overflow: visible;
   }
   @media print {
     body.labels-dk1201 .label.label-dk1201 {
-      width: calc(${f.pageW} - 2.15mm) !important;
+      width: calc(${f.pageW} - 3mm) !important;
       min-width: 0 !important;
-      max-width: calc(${f.pageW} - 2.15mm) !important;
+      max-width: calc(${f.pageW} - 3mm) !important;
       height: calc(${f.pageH} - 3.65mm) !important;
       margin: 0 auto !important;
+      overflow: visible !important;
     }
   }`
       : '';
 
   const pageAtRule =
     preset === 'dk1201'
-      ? `@page { size: ${f.pageW} ${f.pageH}; margin: 3.25mm 0.55mm 0.4mm 1.6mm; }`
+      ? `@page { size: ${f.pageW} ${f.pageH}; margin: 3.25mm 0.55mm 0.4mm 2.45mm; }`
       : `@page { size: ${f.pageW} ${f.pageH}; margin: 0; }`;
 
   const printHint =
