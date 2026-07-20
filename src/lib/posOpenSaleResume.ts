@@ -1,7 +1,16 @@
-import type { CartItem, Client, Sale, SaleItem } from '@/types';
+import type { CartItem, Client, Product, Sale, SaleItem } from '@/types';
 import { normalizeClientPriceListIdWithExtras } from '@/lib/clientPriceListCatalog';
 import type { ClientPriceListId } from '@/lib/clientPriceLists';
 import { getCartLineUnitSinIvaBase } from '@/lib/productListPricing';
+
+/** Snapshot de costo unitario sin IVA para persistir en la línea de venta. */
+export function snapshotPrecioCompraFromProduct(
+  product: Pick<Product, 'precioCompra'> | null | undefined
+): number | undefined {
+  const n = Number(product?.precioCompra);
+  if (!Number.isFinite(n) || n < 0) return undefined;
+  return n;
+}
 
 /** Cantidades agregadas por `productId` (varias líneas del mismo SKU se suman). */
 export function saleItemsQtyByProductId(lines: SaleItem[]): Map<string, number> {
@@ -22,6 +31,7 @@ export function buildPendingSaleLineItemsFromCart(
   return items.map((item) => {
     const unitBase = getCartLineUnitSinIvaBase(item, listaId);
     const sub = unitBase * item.quantity * (1 - (Number(item.discount) || 0) / 100);
+    const precioCompra = snapshotPrecioCompraFromProduct(item.product);
     return {
       id: crypto.randomUUID(),
       productId: item.product.id,
@@ -35,6 +45,7 @@ export function buildPendingSaleLineItemsFromCart(
       ...(item.promoId
         ? { promoId: item.promoId, promoLabel: item.promoLabel }
         : {}),
+      ...(precioCompra != null ? { precioCompra } : {}),
     };
   });
 }

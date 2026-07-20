@@ -2048,24 +2048,7 @@ export function POS() {
       const saleData = {
         clienteId: client?.id || 'mostrador',
         ...(client ? { cliente: client } : {}),
-        productos: items.map((item) => {
-          const unitBase = getCartLineUnitSinIvaBase(item, precioClienteListaId);
-          const sub = unitBase * item.quantity * (1 - item.discount / 100);
-          return {
-            id: crypto.randomUUID(),
-            productId: item.product.id,
-            productoNombre: item.product.nombre?.trim() || undefined,
-            cantidad: item.quantity,
-            precioUnitario: unitBase,
-            descuento: item.discount,
-            impuesto: item.product.impuesto,
-            subtotal: sub,
-            total: sub * (1 + item.product.impuesto / 100),
-            ...(item.promoId
-              ? { promoId: item.promoId, promoLabel: item.promoLabel }
-              : {}),
-          };
-        }),
+        productos: buildPendingSaleLineItemsFromCart(items, precioClienteListaId),
         subtotal: subtotalCobro,
         descuento: descuentoCobro,
         impuestos: impuestosCobro,
@@ -2881,25 +2864,7 @@ export function POS() {
       const saleData = {
         clienteId: clienteVentaSnapshot.clienteId,
         ...(clienteVentaSnapshot.cliente ? { cliente: clienteVentaSnapshot.cliente } : {}),
-        productos: items.map((item) => {
-          const unitBase = getCartLineUnitSinIvaBase(item, precioClienteListaId);
-          const sub =
-            unitBase * item.quantity * (1 - item.discount / 100);
-          return {
-            id: crypto.randomUUID(),
-            productId: item.product.id,
-            productoNombre: item.product.nombre?.trim() || undefined,
-            cantidad: item.quantity,
-            precioUnitario: unitBase,
-            descuento: item.discount,
-            impuesto: item.product.impuesto,
-            subtotal: sub,
-            total: sub * (1 + item.product.impuesto / 100),
-            ...(item.promoId
-              ? { promoId: item.promoId, promoLabel: item.promoLabel }
-              : {}),
-          };
-        }),
+        productos: buildPendingSaleLineItemsFromCart(items, precioClienteListaId),
         subtotal: subtotalCobro,
         descuento: descuentoCobro,
         impuestos: impuestosCobro,

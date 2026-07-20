@@ -547,6 +547,8 @@ export interface SaleItem {
   /** Promoción automática aplicada en POS (auditoría). */
   promoId?: string;
   promoLabel?: string;
+  /** Costo unitario sin IVA al momento de la venta (snapshot de `Product.precioCompra`). */
+  precioCompra?: number;
 }
 
 export interface Payment {

@@ -79,6 +79,9 @@ function mapSaleItem(raw: Record<string, unknown>): SaleItem {
     typeof raw.promoLabel === 'string' && raw.promoLabel.trim()
       ? raw.promoLabel.trim()
       : undefined;
+  const pcRaw = raw.precioCompra;
+  const pcNum = pcRaw != null ? Number(pcRaw) : NaN;
+  const precioCompra = Number.isFinite(pcNum) && pcNum >= 0 ? pcNum : undefined;
   return {
     id: String(raw.id ?? ''),
     productId: String(raw.productId ?? ''),
@@ -90,6 +93,7 @@ function mapSaleItem(raw: Record<string, unknown>): SaleItem {
     subtotal: Number(raw.subtotal) || 0,
     total: Number(raw.total) || 0,
     ...(promoId ? { promoId, ...(promoLabel ? { promoLabel } : {}) } : {}),
+    ...(precioCompra != null ? { precioCompra } : {}),
   };
 }
 
@@ -98,6 +102,7 @@ function saleItemToDoc(p: SaleItem): Record<string, unknown> {
     typeof p.productoNombre === 'string' && p.productoNombre.trim()
       ? p.productoNombre.trim()
       : p.producto?.nombre?.trim();
+  const pc = p.precioCompra != null ? Number(p.precioCompra) : NaN;
   return {
     id: p.id,
     productId: p.productId,
@@ -111,6 +116,7 @@ function saleItemToDoc(p: SaleItem): Record<string, unknown> {
     ...(p.promoId
       ? { promoId: p.promoId, ...(p.promoLabel ? { promoLabel: p.promoLabel } : {}) }
       : {}),
+    ...(Number.isFinite(pc) && pc >= 0 ? { precioCompra: pc } : {}),
   };
 }
 

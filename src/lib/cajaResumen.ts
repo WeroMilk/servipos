@@ -190,6 +190,62 @@ export function resumenBrutoSesion(ventas: Sale[]): { tickets: number; total: nu
   };
 }
 
+export type GananciaSesionResult = {
+  /** Suma (subtotal línea − costo × cantidad) sin IVA. */
+  ganancia: number;
+  /** Líneas de tickets del turno sin costo en línea ni en catálogo. */
+  lineasSinCosto: number;
+  lineas: number;
+};
+
+/**
+ * Ganancia bruta del turno: venta neta de líneas (subtotal) menos costo de compra.
+ * `costByProductId` = catálogo actual; si la línea trae `precioCompra` se usa ese snapshot.
+ */
+export function computeGananciaSesion(
+  ventas: Sale[],
+  costByProductId?: Map<string, number> | Record<string, number> | null
+): GananciaSesionResult {
+  const lookup = (productId: string): number | undefined => {
+    if (!costByProductId) return undefined;
+    if (costByProductId instanceof Map) {
+      const v = costByProductId.get(productId);
+      return v != null && Number.isFinite(v) && v >= 0 ? v : undefined;
+    }
+    const v = costByProductId[productId];
+    return v != null && Number.isFinite(Number(v)) && Number(v) >= 0 ? Number(v) : undefined;
+  };
+
+  let ganancia = 0;
+  let lineasSinCosto = 0;
+  let lineas = 0;
+
+  for (const sale of filterVentasCompletadasSesion(ventas)) {
+    for (const line of sale.productos ?? []) {
+      lineas += 1;
+      const qty = Number(line.cantidad) || 0;
+      const sub = Number(line.subtotal);
+      const ingreso = Number.isFinite(sub)
+        ? sub
+        : (Number(line.precioUnitario) || 0) * qty * (1 - (Number(line.descuento) || 0) / 100);
+
+      const snap = line.precioCompra != null ? Number(line.precioCompra) : NaN;
+      const fromLine = Number.isFinite(snap) && snap >= 0 ? snap : undefined;
+      const fromCat = lookup(String(line.productId ?? '').trim());
+      const costoUnit = fromLine ?? fromCat;
+      if (costoUnit == null) lineasSinCosto += 1;
+      const costo = (costoUnit ?? 0) * qty;
+      ganancia += ingreso - costo;
+    }
+  }
+
+  return {
+    ganancia: Math.round(ganancia * 100) / 100,
+    lineasSinCosto,
+    lineas,
+  };
+}
+
 /** Importe cobrado de una venta (excluye `esAbonoCxC`; esos van por `abonosCobros`). */
 export function cobradoEnVenta(sale: Sale, sesionId?: string): number {
   const t = pagosParaResumenCaja(sale, sesionId).reduce((s, p) => s + (Number(p.monto) || 0), 0);

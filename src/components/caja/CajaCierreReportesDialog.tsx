@@ -24,6 +24,7 @@ import { fetchSalesByCajaSesion, fetchSalesPoolForCajaSesion } from '@/lib/fires
 import { listAbonosHistorialByCajaSesionFirestore } from '@/lib/firestore/clientsFirestore';
 import {
   computeCajaEfectivoEsperado,
+  computeGananciaSesion,
   computeSesionCierreMetrics,
   efectivoEsperadoCajaSesion,
   filterVentasCompletadasSesion,
@@ -32,6 +33,7 @@ import {
   totalAbonosEfectivoSesion,
   type SesionCierreMetrics,
 } from '@/lib/cajaResumen';
+import { getProductCatalogSnapshot } from '@/lib/firestore/productsFirestore';
 import { printThermalCajaCierre } from '@/lib/printTicket';
 import { useAuthStore } from '@/stores';
 import { useAppStore } from '@/stores';
@@ -158,6 +160,15 @@ function SesionDetallePanel({
   const esperadoStored = sesion.efectivoEsperado;
   const diferencia = sesion.diferencia;
   const declarado = sesion.conteoDeclarado;
+
+  const gananciaInfo = useMemo(() => {
+    const costByProductId = new Map<string, number>();
+    for (const p of getProductCatalogSnapshot()) {
+      const c = Number(p.precioCompra);
+      if (Number.isFinite(c) && c >= 0) costByProductId.set(p.id, c);
+    }
+    return computeGananciaSesion(ventas, costByProductId);
+  }, [ventas]);
 
   const cierresTerminal = sesion.cierresTerminal ?? [];
   const sumaCierres = Math.round(
@@ -294,6 +305,20 @@ function SesionDetallePanel({
             label="Total cobrado"
             value={formatMoney(metrics.totalCobrado)}
             hint="Ventas cobradas + abonos CxC del turno"
+          />
+          <MetricRow
+            label="Ganancia"
+            value={formatMoney(gananciaInfo.ganancia)}
+            valueClassName={
+              gananciaInfo.ganancia >= 0
+                ? 'text-emerald-700 dark:text-emerald-400'
+                : 'text-red-600 dark:text-red-400'
+            }
+            hint={
+              gananciaInfo.lineasSinCosto > 0
+                ? `Venta − costo (sin IVA) · ${gananciaInfo.lineasSinCosto} línea(s) sin costo`
+                : 'Venta − costo (sin IVA)'
+            }
           />
           <MetricRow
             label="Saldo pendiente (CxC)"
