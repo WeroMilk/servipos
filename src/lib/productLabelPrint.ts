@@ -259,11 +259,11 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       gap: 0.35mm;
     }
     .label-dk1209 {
-      padding: 0.75mm 0.3mm 0.45mm 0.12mm;
+      padding: 0.75mm 0.3mm 0.45mm 0;
     }
     /* Margen interno extra (además del hueco de página en @media print para dk1201). */
     .label-dk1201 {
-      padding: 1.1mm 0.65mm 0.45mm 0.35mm;
+      padding: 1.1mm 0.65mm 0.45mm 0;
     }
     .label-dk1209 .logo-wrap {
       flex-shrink: 0;
@@ -271,7 +271,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       display: flex;
       align-items: center;
       justify-content: flex-start;
-      margin-left: -0.15mm;
+      margin-left: 0;
     }
     .label-dk1201 .logo-wrap {
       flex-shrink: 0;
@@ -279,7 +279,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       display: flex;
       align-items: center;
       justify-content: flex-start;
-      margin-left: -0.2mm;
+      margin-left: 0;
     }
     .label-dk1209 .logo-img {
       max-width: 19mm;
@@ -290,12 +290,14 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       object-position: left center;
     }
     .label-dk1201 .logo-img {
-      max-width: 12mm;
+      max-width: 12.5mm;
       max-height: 22mm;
       width: auto;
       height: auto;
       object-fit: contain;
       object-position: left center;
+      /* Acerca el cuadrado azul al borde imprimible (compensa margen @page + aire del SVG). */
+      margin-left: -0.8mm;
     }
     .label-dk1209 .col-main {
       flex: 1 1 0;
@@ -429,23 +431,24 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
    * Brother QL suele no imprimir o recortar los primeros mm arriba/izquierda.
    * El hueco debe ir en @page margin (se repite en cada hoja). Si usamos padding en body,
    * Chromium suele aplicarlo solo al primer fragmento impreso y las etiquetas 2..N suben.
+   * Margen izquierdo reducido (~1.6 mm) para acercar el logo al borde sin perder tanto aire.
    */
   const dk1201PageInsetCss =
     preset === 'dk1201'
       ? `
-  /* Mismo rectángulo útil que antes: 3.25+0.55 en X, 3.25+0.4 en Y → etiqueta calc(W-3.8) × calc(H-3.65). */
+  /* Rectángulo útil: 1.6+0.55 en X, 3.25+0.4 en Y → etiqueta calc(W-2.15) × calc(H-3.65). */
   body.labels-dk1201 .label.label-dk1201 {
-    width: calc(${f.pageW} - 3.8mm);
+    width: calc(${f.pageW} - 2.15mm);
     min-width: 0;
-    max-width: calc(${f.pageW} - 3.8mm);
+    max-width: calc(${f.pageW} - 2.15mm);
     height: calc(${f.pageH} - 3.65mm);
     margin: 0 auto;
   }
   @media print {
     body.labels-dk1201 .label.label-dk1201 {
-      width: calc(${f.pageW} - 3.8mm) !important;
+      width: calc(${f.pageW} - 2.15mm) !important;
       min-width: 0 !important;
-      max-width: calc(${f.pageW} - 3.8mm) !important;
+      max-width: calc(${f.pageW} - 2.15mm) !important;
       height: calc(${f.pageH} - 3.65mm) !important;
       margin: 0 auto !important;
     }
@@ -454,7 +457,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
 
   const pageAtRule =
     preset === 'dk1201'
-      ? `@page { size: ${f.pageW} ${f.pageH}; margin: 3.25mm 0.55mm 0.4mm 3.25mm; }`
+      ? `@page { size: ${f.pageW} ${f.pageH}; margin: 3.25mm 0.55mm 0.4mm 1.6mm; }`
       : `@page { size: ${f.pageW} ${f.pageH}; margin: 0; }`;
 
   const printHint =
@@ -462,7 +465,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       ? `<p class="print-hint-screen" style="margin:0 0 8px;padding:8px 10px;font:12px/1.35 system-ui,sans-serif;color:#e5e5e5;background:#404040;border-radius:6px;max-width:60mm">
   <strong>Brother QL (cinta 29&nbsp;mm):</strong> en impresión elija tamaño de etiqueta
   <strong>60&nbsp;mm de largo</strong> (suele figurar como <strong>29&nbsp;×&nbsp;60&nbsp;mm</strong> o similar), no solo «29&nbsp;mm» ni 29&nbsp;×&nbsp;90&nbsp;mm.
-  <strong>Escala 100&nbsp;%</strong> (sin «ajustar a página»). En vista previa verá un margen blanco arriba/izquierda: compensa la zona que la QL suele no imprimir.
+  <strong>Escala 100&nbsp;%</strong> (sin «ajustar a página»).
 </p>`
       : '';
 
