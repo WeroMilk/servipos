@@ -259,11 +259,11 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       gap: 0.35mm;
     }
     .label-dk1209 {
-      padding: 0.75mm 0.3mm 0.45mm 0.5mm;
+      padding: 0.75mm 0.3mm 0.45mm 0.12mm;
     }
     /* Margen interno extra (además del hueco de página en @media print para dk1201). */
     .label-dk1201 {
-      padding: 1.1mm 0.65mm 0.45mm 1mm;
+      padding: 1.1mm 0.65mm 0.45mm 0.35mm;
     }
     .label-dk1209 .logo-wrap {
       flex-shrink: 0;
@@ -271,13 +271,15 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       display: flex;
       align-items: center;
       justify-content: flex-start;
+      margin-left: -0.15mm;
     }
     .label-dk1201 .logo-wrap {
       flex-shrink: 0;
       width: 12mm;
       display: flex;
       align-items: center;
-      justify-content: center;
+      justify-content: flex-start;
+      margin-left: -0.2mm;
     }
     .label-dk1209 .logo-img {
       max-width: 19mm;
@@ -293,7 +295,7 @@ export function printProductLabels(products: Product[], preset: LabelFormatPrese
       width: auto;
       height: auto;
       object-fit: contain;
-      object-position: center center;
+      object-position: left center;
     }
     .label-dk1209 .col-main {
       flex: 1 1 0;
