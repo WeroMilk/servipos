@@ -64,6 +64,10 @@ import {
 import { useProductSearch, useSales, useClients, useEffectiveSucursalId, useCajaSesion } from '@/hooks';
 import { usePosCartCloudSync } from '@/hooks/usePosCartCloudSync';
 import { CajaPosToolbar, type CajaPosToolbarHandle } from '@/components/caja/CajaPosToolbar';
+import {
+  UbicacionFisicaContent,
+  UbicacionFisicaNombre,
+} from '@/components/products/UbicacionFisicaNombre';
 import type {
   Client,
   Product,
@@ -3515,9 +3519,13 @@ export function POS() {
                       >
                         <div className="min-w-0">
                           <div className="flex items-start gap-1">
-                            <p className="min-w-0 flex-1 truncate font-medium text-slate-800 dark:text-slate-200">
-                              {item.product.nombre}
-                            </p>
+                            <UbicacionFisicaNombre
+                              product={item.product}
+                              variant="popover"
+                              className="min-w-0 max-w-full flex-1 rounded-md px-0.5 py-0.5 text-left transition-colors hover:bg-slate-200/70 dark:hover:bg-slate-800/60"
+                              nameClassName="block truncate font-medium text-slate-800 underline-offset-2 hover:underline dark:text-slate-200"
+                              pinClassName="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand dark:text-brand"
+                            />
                             {item.promoLabel ? (
                               <span
                                 className="mt-0.5 shrink-0 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300"
@@ -5359,6 +5367,11 @@ export function POS() {
                 : 'Solo lectura. Se requiere permiso de edición de inventario para guardar cambios en el catálogo.'}
             </DialogDescription>
           </DialogHeader>
+          {productDescriptionDialog ? (
+            <div className="rounded-lg border border-slate-200/80 bg-white/80 p-3 dark:border-slate-700 dark:bg-slate-950/50">
+              <UbicacionFisicaContent product={productDescriptionDialog} />
+            </div>
+          ) : null}
           <div className="space-y-2">
             <Label htmlFor="pos-product-descripcion" className="text-slate-700 dark:text-slate-300">
               Descripción
