@@ -1489,7 +1489,10 @@ export function POS() {
   }, [client]);
 
   const creditoTiendaYaEnPagos = useMemo(
-    () => sumCreditoTiendaEnPagosParcial(pagos),
+    () =>
+      sumCreditoTiendaEnPagosParcial(
+        pagos as { formaPago: FormaPago; monto: number }[]
+      ),
     [pagos]
   );
 

@@ -1987,7 +1987,7 @@ export async function anularAbonoCxC(input: AnularAbonoCxCInput): Promise<void> 
           ultimoAbonoSaldoAnterior: null,
           ultimoAbonoSaldoNuevo: null,
           ultimoAbonoUsuarioNombre: null,
-        } as Partial<Client>)
+        } as unknown as Partial<Client>)
       : null;
   if (abonosHistorial.length > 0) {
     const last = abonosHistorial[0];
