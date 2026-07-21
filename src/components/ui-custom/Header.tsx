@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type TouchEvent } from 'react';
+import { useEffect, useRef, useState, type MouseEvent, type TouchEvent } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   LogOut,
@@ -41,6 +41,7 @@ import { BRAND_LOGO_SRCSET, BRAND_LOGO_URL } from '@/lib/branding';
 import { ROLE_LABELS, userCanSeeInventoryMissions, userCanSeeMissionProgressOnly } from '@/lib/userPermissions';
 import { MAIN_NAV_ITEMS } from '@/lib/mainNavItems';
 import { SHOW_CHECADOR_NAV } from '@/lib/featureFlags';
+import { isGabrielUser, registerLogoEasterEggClick } from '@/lib/gabrielEasterEgg';
 import { useCajaPosHeaderStore } from '@/stores/cajaPosHeaderStore';
 import { useVentasAbiertasPosHeaderStore } from '@/stores/ventasAbiertasPosHeaderStore';
 import { useInventarioHeaderStore } from '@/stores/inventarioHeaderStore';
@@ -304,16 +305,17 @@ export function Header() {
     </>
   ) : null;
 
-  const normalizedUsername = (user?.username ?? '').trim().toLowerCase();
-  const normalizedName = (user?.name ?? '').trim().toLowerCase();
-  const emailLocalPart = (user?.email ?? '').split('@')[0]?.trim().toLowerCase() ?? '';
-  const hideProfileButton =
-    user?.role === 'cashier' &&
-    (normalizedUsername === 'gabriel' ||
-      normalizedName === 'gabriel' ||
-      emailLocalPart === 'gabriel');
+  const hideProfileButton = user?.role === 'cashier' && isGabrielUser(user);
 
   const showCierreReportesButton = hasPermission('ventas:ver');
+
+  const handleBrandLogoClick = (e: MouseEvent) => {
+    if (!isGabrielUser(user)) return;
+    if (registerLogoEasterEggClick()) {
+      e.preventDefault();
+      navigate('/buscaminas');
+    }
+  };
 
   const mobileNavItems = MAIN_NAV_ITEMS.filter((item) => {
     if (item.to === '/checador' && !SHOW_CHECADOR_NAV) return false;
@@ -336,6 +338,7 @@ export function Header() {
         <div className="flex w-full min-w-0 items-center gap-1 sm:gap-1.5 lg:hidden">
           <Link
             to="/"
+            onClick={handleBrandLogoClick}
             className="flex shrink-0 items-center rounded-lg p-1 outline-none ring-brand/40 focus-visible:ring-2"
             aria-label="Ir a inicio"
           >
@@ -388,6 +391,7 @@ export function Header() {
           <div className="flex shrink-0 items-center px-0.5">
             <Link
               to="/"
+              onClick={handleBrandLogoClick}
               className="flex shrink-0 items-center rounded-lg p-1 outline-none ring-brand/40 focus-visible:ring-2 sm:hidden"
               aria-label="Ir a inicio"
             >

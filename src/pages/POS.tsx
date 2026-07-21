@@ -21,6 +21,7 @@ import {
   Eye,
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
+import { scheduleBarcodeScannerAutofocus } from '@/lib/scannerCameraFocus';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -1889,6 +1890,7 @@ export function POS() {
     }
 
     let cancelled = false;
+    let cancelAutofocus: (() => void) | null = null;
     setMobileScannerBusy(true);
     mobileScannerScanHandledRef.current = false;
 
@@ -1928,7 +1930,7 @@ export function POS() {
         };
 
         const scannerConfig = {
-          fps: 10,
+          fps: 15,
           qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
             const w = Math.max(180, Math.min(320, Math.floor(viewfinderWidth * 0.9)));
             const h = Math.max(90, Math.min(180, Math.floor(viewfinderHeight * 0.45)));
@@ -1962,10 +1964,18 @@ export function POS() {
 
         for (const cameraConfig of attempts) {
           if (cancelled) return;
-          const scanner = new Html5Qrcode(mobileScannerElementIdRef.current);
+          const scanner = new Html5Qrcode(mobileScannerElementIdRef.current, {
+            verbose: false,
+            useBarCodeDetectorIfSupported: true,
+          });
           try {
             await scanner.start(cameraConfig, scannerConfig, onScanSuccess, onScanError);
             mobileScannerRef.current = scanner;
+            cancelAutofocus = scheduleBarcodeScannerAutofocus(scanner);
+            if (cancelled) {
+              cancelAutofocus();
+              cancelAutofocus = null;
+            }
             started = true;
             break;
           } catch (err) {
@@ -2019,6 +2029,7 @@ export function POS() {
 
     return () => {
       cancelled = true;
+      cancelAutofocus?.();
       void stopMobileScanner();
     };
   }, [mobileScannerOpen, stopMobileScanner, searchByBarcode, handleAddProduct, addToast, playScannerFeedback]);

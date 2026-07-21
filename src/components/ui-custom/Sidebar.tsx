@@ -12,6 +12,8 @@ import {
   userCanSeeInventoryMissions,
   userCanSeeMissionProgressOnly,
 } from '@/lib/userPermissions';
+import { isGabrielUser, registerLogoEasterEggClick } from '@/lib/gabrielEasterEgg';
+
 interface NavItemProps {
   to: string;
   icon: LucideIcon;
@@ -70,7 +72,13 @@ export function Sidebar() {
     >
       <button
         type="button"
-        onClick={() => navigate('/')}
+        onClick={() => {
+          if (isGabrielUser(user) && registerLogoEasterEggClick()) {
+            navigate('/buscaminas');
+            return;
+          }
+          navigate('/');
+        }}
         className={cn(
           'flex h-14 w-full shrink-0 cursor-pointer items-center justify-center gap-0 border-b border-slate-200/80 bg-transparent px-2 text-left transition-colors dark:border-slate-800/50 sm:h-16 xl:justify-start xl:gap-3 xl:px-3',
           'hover:bg-slate-100/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 dark:hover:bg-slate-800/30'
