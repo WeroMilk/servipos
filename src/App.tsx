@@ -51,6 +51,9 @@ const Configuracion = lazyWithRetry(() =>
 const Checador = lazyWithRetry(() =>
   import('@/pages/Checador').then((m) => ({ default: m.Checador }))
 );
+const Buscaminas = lazyWithRetry(() =>
+  import('@/pages/Buscaminas').then((m) => ({ default: m.Buscaminas }))
+);
 
 function PageFallback({ message }: { message: string }) {
   return <LoadingIndicator inline message={message} tone="onBrand" />;
@@ -243,6 +246,14 @@ function AppRoutes() {
                   element={
                     <Suspense fallback={<PageFallback message="Cargando checador" />}>
                       <Checador />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="buscaminas"
+                  element={
+                    <Suspense fallback={<PageFallback message="Cargando buscaminas" />}>
+                      <Buscaminas />
                     </Suspense>
                   }
                 />
