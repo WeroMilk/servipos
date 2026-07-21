@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
-type IncludeMode = 'all' | 'family' | 'pick';
+type IncludeMode = 'all' | 'family' | 'pick' | 'paste';
 
 type QueueLine = {
   key: string;
@@ -36,6 +36,45 @@ function mergeIntoQueue(prev: QueueLine[], products: Product[], addCopies: numbe
     else map.set(p.id, { key: crypto.randomUUID(), productId: p.id, product: p, copies: addCopies });
   }
   return Array.from(map.values());
+}
+
+/** Une productos con copias distintas por línea (p. ej. pegado de SKUs con repeticiones). */
+function mergeIntoQueueWithCopies(
+  prev: QueueLine[],
+  entries: { product: Product; copies: number }[]
+): QueueLine[] {
+  const map = new Map(prev.map((l) => [l.productId, { ...l }]));
+  for (const { product, copies } of entries) {
+    const add = Math.max(1, Math.floor(copies) || 1);
+    const cur = map.get(product.id);
+    if (cur) cur.copies += add;
+    else
+      map.set(product.id, {
+        key: crypto.randomUUID(),
+        productId: product.id,
+        product,
+        copies: add,
+      });
+  }
+  return Array.from(map.values());
+}
+
+function parseSkuPasteTokens(raw: string): string[] {
+  return raw
+    .split(/[\n,;\t]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function findProductBySkuOrBarcode(
+  products: readonly Product[],
+  code: string
+): Product | undefined {
+  const key = code.trim().toLowerCase();
+  if (!key) return undefined;
+  const bySku = products.find((p) => p.sku.trim().toLowerCase() === key);
+  if (bySku) return bySku;
+  return products.find((p) => (p.codigoBarras ?? '').trim().toLowerCase() === key);
 }
 
 function expandForPrint(queue: QueueLine[]): Product[] {
@@ -88,6 +127,7 @@ export function EtiquetasProductos() {
   const [queue, setQueue] = useState<QueueLine[]>([]);
   const [familyPick, setFamilyPick] = useState<Record<string, boolean>>({});
   const [search, setSearch] = useState('');
+  const [skuPaste, setSkuPaste] = useState('');
   const [includeMode, setIncludeMode] = useState<IncludeMode>('all');
   const [labelEditProductId, setLabelEditProductId] = useState<string | null>(null);
   const [labelEditPriceInput, setLabelEditPriceInput] = useState('');
@@ -145,6 +185,60 @@ export function EtiquetasProductos() {
     setFamilyPick({});
     addToast({ type: 'success', message: `Añadidos ${subset.length} artículo(s) por familia.` });
   }, [activeProducts, familyPick, addToast]);
+
+  const addByPastedSkus = useCallback(() => {
+    const tokens = parseSkuPasteTokens(skuPaste);
+    if (tokens.length === 0) {
+      addToast({
+        type: 'warning',
+        message: 'Pegue SKUs o códigos de barras (uno por línea).',
+      });
+      return;
+    }
+
+    const copiesByProductId = new Map<string, { product: Product; copies: number }>();
+    const missing: string[] = [];
+    const seenMissing = new Set<string>();
+
+    for (const token of tokens) {
+      const product = findProductBySkuOrBarcode(activeProducts, token);
+      if (!product) {
+        const key = token.toLowerCase();
+        if (!seenMissing.has(key)) {
+          seenMissing.add(key);
+          missing.push(token);
+        }
+        continue;
+      }
+      const cur = copiesByProductId.get(product.id);
+      if (cur) cur.copies += 1;
+      else copiesByProductId.set(product.id, { product, copies: 1 });
+    }
+
+    const entries = [...copiesByProductId.values()];
+    if (entries.length === 0) {
+      addToast({
+        type: 'error',
+        message: `Ningún código coincidió con productos activos. Ej.: ${missing.slice(0, 5).join(', ')}`,
+      });
+      return;
+    }
+
+    setQueue((prev) => mergeIntoQueueWithCopies(prev, entries));
+    const etiquetas = entries.reduce((s, e) => s + e.copies, 0);
+    if (missing.length > 0) {
+      addToast({
+        type: 'warning',
+        message: `Añadidos ${entries.length} artículo(s) (${etiquetas} etiqueta(s)). No encontrados: ${missing.slice(0, 8).join(', ')}${missing.length > 8 ? '…' : ''}`,
+      });
+    } else {
+      addToast({
+        type: 'success',
+        message: `Añadidos ${entries.length} artículo(s) (${etiquetas} etiqueta(s)).`,
+      });
+    }
+    setSkuPaste('');
+  }, [activeProducts, skuPaste, addToast]);
 
   /** Modo individual: marcar fila añade/quita en la cola de impresión al momento. */
   const togglePickProductInQueue = useCallback((p: Product) => {
@@ -327,7 +421,7 @@ export function EtiquetasProductos() {
                     <div className="min-w-0">
                       <h2 className="text-sm font-semibold leading-tight">Qué incluir en la lista</h2>
                       <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                        Todos, por familia de producto o artículos sueltos
+                        Todos, por familia, individual o pegar lista de SKUs
                       </p>
                     </div>
                   </div>
@@ -337,13 +431,14 @@ export function EtiquetasProductos() {
                   <div
                     role="tablist"
                     aria-label="Cómo elegir productos"
-                    className="grid min-w-0 grid-cols-1 gap-1 rounded-lg bg-slate-100/90 p-1 sm:grid-cols-3 dark:bg-slate-900/80"
+                    className="grid min-w-0 grid-cols-2 gap-1 rounded-lg bg-slate-100/90 p-1 sm:grid-cols-4 dark:bg-slate-900/80"
                   >
                     {(
                       [
                         { id: 'all' as const, label: 'Todos' },
                         { id: 'family' as const, label: 'Por familia' },
                         { id: 'pick' as const, label: 'Individual' },
+                        { id: 'paste' as const, label: 'Pegar SKUs' },
                       ] as const
                     ).map(({ id, label }) => (
                       <button
@@ -507,6 +602,43 @@ export function EtiquetasProductos() {
                           </tbody>
                         </table>
                       </div>
+                    </div>
+                  ) : null}
+
+                  {includeMode === 'paste' ? (
+                    <div className="flex min-w-0 flex-col gap-3 pt-1 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
+                      <p className="text-xs text-slate-600 dark:text-slate-400">
+                        Pegue SKUs o códigos de barras (uno por línea). Cada línea suma una etiqueta; si
+                        repite un código, suma otra copia.
+                      </p>
+                      <Label
+                        htmlFor="pegar-skus-etiq"
+                        className="text-xs font-medium text-slate-700 dark:text-slate-300"
+                      >
+                        Lista de códigos
+                      </Label>
+                      <textarea
+                        id="pegar-skus-etiq"
+                        value={skuPaste}
+                        onChange={(e) => setSkuPaste(e.target.value)}
+                        placeholder={'80\n81\n82\n7503026414804\n…'}
+                        spellCheck={false}
+                        className={cn(
+                          'min-h-[14rem] w-full min-w-0 flex-1 resize-y rounded-lg border border-slate-200/90 bg-white/80 px-3 py-2',
+                          'font-mono text-xs leading-relaxed text-slate-900 placeholder:text-slate-400',
+                          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40',
+                          'dark:border-slate-800/80 dark:bg-slate-950/40 dark:text-slate-100 dark:placeholder:text-slate-500'
+                        )}
+                      />
+                      <Button
+                        type="button"
+                        size="default"
+                        className="w-full gap-2 sm:w-auto sm:self-end"
+                        onClick={addByPastedSkus}
+                      >
+                        <Package className="h-4 w-4" />
+                        Añadir a la lista
+                      </Button>
                     </div>
                   ) : null}
                 </div>
