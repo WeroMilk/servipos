@@ -64,7 +64,7 @@ import { ModificarPreciosPedidoDialog } from '@/components/inventario/ModificarP
 
 const ESTADO_BADGE: Record<PurchaseOrderEstado, string> = {
   esperando_mercancia: 'bg-amber-500/15 text-amber-900 border-amber-500/35 dark:text-amber-100',
-  parcial: 'bg-cyan-500/15 text-cyan-900 border-cyan-500/35 dark:text-cyan-100',
+  parcial: 'bg-brand/15 text-brand-to border-brand/35 dark:text-brand',
   completado: 'bg-emerald-500/15 text-emerald-800 border-emerald-500/35 dark:text-emerald-200',
   cancelada: 'bg-slate-500/15 text-slate-600 border-slate-500/30 dark:text-slate-400',
 };
@@ -370,7 +370,7 @@ export function RecepcionPedidos() {
               Modificar precios
             </Button>
             <Button
-              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+              className="bg-brand-gradient text-white"
               onClick={() => {
                 resetCreateForm();
                 setShowCreate(true);
@@ -390,7 +390,7 @@ export function RecepcionPedidos() {
             type="button"
             size="sm"
             variant={filtro === f ? 'default' : 'outline'}
-            className={filtro === f ? 'bg-cyan-600 text-white' : ''}
+            className={filtro === f ? 'bg-brand-from text-white' : ''}
             onClick={() => setFiltro(f)}
           >
             {f === 'activos' ? 'Pendientes' : f === 'completados' ? 'Cerrados' : 'Todos'}
@@ -647,7 +647,7 @@ export function RecepcionPedidos() {
                 <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
                   Total factura (s/IVA)
                 </span>
-                <span className="text-base font-semibold tabular-nums text-cyan-600 dark:text-cyan-400">
+                <span className="text-base font-semibold tabular-nums text-brand dark:text-brand">
                   {formatMoney(draftLinesTotal)}
                 </span>
               </div>
@@ -668,7 +668,7 @@ export function RecepcionPedidos() {
         <DialogContent className="max-h-[92dvh] overflow-y-auto border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <PackageCheck className="h-5 w-5 text-cyan-500" />
+              <PackageCheck className="h-5 w-5 text-brand" />
               Recibir mercancía — {receiveOrder?.folio}
             </DialogTitle>
           </DialogHeader>
@@ -790,7 +790,7 @@ export function RecepcionPedidos() {
                 </Button>
                 <Button
                   type="button"
-                  className="bg-cyan-600 text-white"
+                  className="bg-brand-from text-white"
                   disabled={receiving}
                   onClick={() => void handleReceive()}
                 >

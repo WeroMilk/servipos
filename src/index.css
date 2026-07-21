@@ -12,6 +12,9 @@
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+  .bg-brand-gradient {
+    @apply bg-gradient-to-r from-brand-from to-brand-to;
+  }
 }
 
 @layer base {
@@ -53,7 +56,12 @@
     --sidebar-accent: 240 4.8% 95.9%;
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-ring: var(--brand);
+    /* Marca: cyan-500 → blue-600 (default) */
+    --brand: 217 91% 60%;
+    --brand-from: 187 92% 43%;
+    --brand-to: 221 83% 53%;
+    --brand-foreground: 0 0% 100%;
   }
 
   .dark {
@@ -78,12 +86,74 @@
     --ring: 240 4.9% 83.9%;
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary: var(--brand-to);
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 240 3.7% 15.9%;
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-ring: var(--brand);
+  }
+
+  /* Paletas de color de marca (data-accent en <html>) */
+  [data-accent='blue'] {
+    --brand: 217 91% 60%;
+    --brand-from: 187 92% 43%;
+    --brand-to: 221 83% 53%;
+  }
+  [data-accent='sky'] {
+    --brand: 199 89% 48%;
+    --brand-from: 189 94% 43%;
+    --brand-to: 200 98% 39%;
+  }
+  [data-accent='teal'] {
+    --brand: 173 80% 40%;
+    --brand-from: 175 84% 32%;
+    --brand-to: 175 77% 26%;
+  }
+  [data-accent='emerald'] {
+    --brand: 160 84% 39%;
+    --brand-from: 158 64% 52%;
+    --brand-to: 161 94% 30%;
+  }
+  [data-accent='green'] {
+    --brand: 142 71% 45%;
+    --brand-from: 142 76% 36%;
+    --brand-to: 142 72% 29%;
+  }
+  [data-accent='lime'] {
+    --brand: 84 81% 44%;
+    --brand-from: 84 81% 44%;
+    --brand-to: 85 85% 35%;
+  }
+  [data-accent='amber'] {
+    --brand: 38 92% 50%;
+    --brand-from: 43 96% 56%;
+    --brand-to: 32 95% 44%;
+  }
+  [data-accent='orange'] {
+    --brand: 25 95% 53%;
+    --brand-from: 27 96% 61%;
+    --brand-to: 21 90% 48%;
+  }
+  [data-accent='rose'] {
+    --brand: 350 89% 60%;
+    --brand-from: 349 89% 60%;
+    --brand-to: 347 77% 50%;
+  }
+  [data-accent='pink'] {
+    --brand: 330 81% 60%;
+    --brand-from: 330 81% 60%;
+    --brand-to: 333 71% 51%;
+  }
+  [data-accent='violet'] {
+    --brand: 258 90% 66%;
+    --brand-from: 255 92% 76%;
+    --brand-to: 262 83% 58%;
+  }
+  [data-accent='indigo'] {
+    --brand: 239 84% 67%;
+    --brand-from: 234 89% 74%;
+    --brand-to: 243 75% 59%;
   }
 }
 
@@ -123,7 +193,7 @@
   }
 
   input[type='checkbox'] {
-    @apply accent-blue-600;
+    accent-color: hsl(var(--brand-to));
   }
 
   /* iOS Safari: zoom al enfocar si font-size computado < 16px (inputs/select/textarea). */
@@ -176,10 +246,10 @@
 
 @keyframes pulse-glow {
   0%, 100% {
-    box-shadow: 0 0 20px rgba(6, 182, 212, 0.3);
+    box-shadow: 0 0 20px hsl(var(--brand-from) / 0.3);
   }
   50% {
-    box-shadow: 0 0 40px rgba(6, 182, 212, 0.6);
+    box-shadow: 0 0 40px hsl(var(--brand-from) / 0.6);
   }
 }
 
@@ -321,7 +391,7 @@
 /* Input focus effects */
 input:focus, select:focus, textarea:focus {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.3);
+  box-shadow: 0 0 0 2px hsl(var(--brand-from) / 0.3);
 }
 
 /* Card hover effects */
@@ -340,7 +410,7 @@ input:focus, select:focus, textarea:focus {
 
 /* Gradient text */
 .gradient-text {
-  background: linear-gradient(135deg, #06b6d4, #3b82f6);
+  background: linear-gradient(135deg, hsl(var(--brand-from)), hsl(var(--brand)));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;

@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import type { AuthState, Permission, User } from '@/types';
 import { mapProfileRowToUser, userFromAuthOnly } from '@/lib/mapFirestoreUser';
 import { useSucursalContextStore } from '@/stores/sucursalContextStore';
-import { reportAppEvent } from '@/lib/appEventLog';
 import { userHasPermission } from '@/lib/userPermissions';
 import type { Session } from '@supabase/supabase-js';
 import { getSupabase } from '@/lib/supabaseClient';
@@ -203,17 +202,7 @@ async function applyAuthSession(session: Session | null, event?: string): Promis
         return;
       }
     }
-    const prev = useAuthStore.getState().user;
     useSucursalContextStore.getState().setActiveSucursalId(null);
-    if (prev) {
-      reportAppEvent({
-        kind: 'info',
-        source: 'auth',
-        title: 'Sesión finalizada',
-        detail: prev.email,
-        meta: { userId: prev.id, role: prev.role },
-      });
-    }
     useAuthStore.setState({
       user: null,
       isAuthenticated: false,

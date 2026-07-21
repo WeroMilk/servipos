@@ -218,7 +218,7 @@ export function Checador() {
         <Card className="w-full shrink-0 border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 xl:max-w-xl xl:shrink-0 xl:self-start">
           <CardHeader className="space-y-1 pb-2">
             <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-slate-100">
-              <Clock className="h-5 w-5 text-cyan-400" />
+              <Clock className="h-5 w-5 text-brand" />
               Mi jornada hoy
             </CardTitle>
             <p className="text-xs text-slate-600 dark:text-slate-500">
@@ -263,7 +263,7 @@ export function Checador() {
                       size="lg"
                       variant="outline"
                       disabled={busy !== null}
-                      className="h-12 w-full border-cyan-500/40 text-cyan-900 hover:bg-cyan-500/10 dark:text-cyan-300"
+                      className="h-12 w-full border-brand/40 text-brand-to hover:bg-brand/10 dark:text-brand"
                       onClick={async () => {
                         if (!user) return;
                         setBusy('reinicio');

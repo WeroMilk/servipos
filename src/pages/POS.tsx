@@ -1132,14 +1132,12 @@ export function POS() {
         addToast({
           type: 'success',
           message: `Venta ${resumed.sale.folio} cancelada; el inventario se reintegró y ya no aparece en pendientes.`,
-          logToAppEvents: true,
         });
         resetPuntoVenta();
       } catch (e: unknown) {
         addToast({
           type: 'error',
           message: e instanceof Error ? e.message : 'No se pudo cancelar la venta abierta',
-          logToAppEvents: true,
         });
       } finally {
         setVentaResetBusy(false);
@@ -1292,7 +1290,6 @@ export function POS() {
       addToast({
         type: 'success',
         message: 'Precios por lista guardados en el catálogo',
-        logToAppEvents: true,
       });
       setListasPrecioCatalogDialogOpen(false);
       closeUnitPriceDialog();
@@ -1300,7 +1297,6 @@ export function POS() {
       addToast({
         type: 'error',
         message: e instanceof Error ? e.message : 'No se pudieron guardar los precios',
-        logToAppEvents: true,
       });
     } finally {
       setListasPrecioCatalogSaving(false);
@@ -1348,14 +1344,12 @@ export function POS() {
       addToast({
         type: 'success',
         message: 'Descripción guardada en el catálogo.',
-        logToAppEvents: true,
       });
       setProductDescriptionDialog(null);
     } catch (e: unknown) {
       addToast({
         type: 'error',
         message: e instanceof Error ? e.message : 'No se pudo guardar la descripción.',
-        logToAppEvents: true,
       });
     } finally {
       setProductDescriptionSaving(false);
@@ -1392,7 +1386,7 @@ export function POS() {
     }
     const sinIva = precioConIvaToUnitBaseSinIva(v, it.product.impuesto);
     updateLineUnitPrice(unitPriceEditProductId, sinIva);
-    addToast({ type: 'success', message: 'Precio manual guardado en la línea', logToAppEvents: true });
+    addToast({ type: 'success', message: 'Precio manual guardado en la línea'});
     closeUnitPriceDialog();
   };
 
@@ -2584,13 +2578,11 @@ export function POS() {
           message: acreditar
             ? `Devolución registrada. Crédito de tienda: ${formatMoney(monto)}${saldoCreditoNuevo != null ? ` (saldo ${formatMoney(saldoCreditoNuevo)})` : ''}`
             : `Devolución registrada. Reembolso al cliente: ${formatMoney(monto)}`,
-          logToAppEvents: true,
         });
       } catch (error: unknown) {
         addToast({
           type: 'error',
           message: error instanceof Error ? error.message : 'Error al procesar la devolución',
-          logToAppEvents: true,
         });
       } finally {
         setProcessingSale(false);
@@ -2704,7 +2696,6 @@ export function POS() {
         addToast({
           type: 'success',
           message: `Abono registrado. Falta ${formatMoney(restante)}`,
-          logToAppEvents: true,
         });
         return;
       }
@@ -2847,7 +2838,6 @@ export function POS() {
                     cajaErr instanceof Error
                       ? `Cobro guardado, pero no se reflejó en caja: ${cajaErr.message}`
                       : 'Cobro guardado; no se pudo registrar en el corte de caja',
-                  logToAppEvents: true,
                 });
               }
             }
@@ -2895,7 +2885,6 @@ export function POS() {
               adeudoTicket > 0.005
                 ? `Cobro registrado. Saldo restante del ticket: ${formatMoney(adeudoTicket)}.`
                 : 'Cobro registrado. Saldo del ticket liquidado.',
-            logToAppEvents: true,
           });
           return;
         }
@@ -2966,7 +2955,6 @@ export function POS() {
             adeudoTicket > 0.005
               ? `Cobro registrado. Saldo pendiente del cliente: ${formatMoney(adeudoTicket)} (ver Cuentas por cobrar).`
               : 'Cobro registrado. Venta completada.',
-          logToAppEvents: true,
         });
         return;
       }
@@ -3077,13 +3065,11 @@ export function POS() {
           adeudoTicket > 0.005
             ? `Venta completada. Saldo a cuenta del cliente: ${formatMoney(adeudoTicket)}. Consulte Cuentas por cobrar.`
             : 'Venta completada exitosamente',
-        logToAppEvents: true,
       });
     } catch (error: unknown) {
       addToast({
         type: 'error',
         message: error instanceof Error ? error.message : 'Error al procesar la venta',
-        logToAppEvents: true,
       });
     } finally {
       setProcessingSale(false);
@@ -3344,7 +3330,7 @@ export function POS() {
           className={cn(
             'flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-colors',
             mobileTab === 'cart'
-              ? 'bg-cyan-500/15 text-cyan-900 dark:bg-cyan-500/20 dark:text-cyan-300'
+              ? 'bg-brand/15 text-brand-to dark:bg-brand/20 dark:text-brand'
               : 'text-slate-600 dark:text-slate-500 hover:bg-slate-200/80 dark:bg-slate-800/50 hover:text-slate-700 dark:text-slate-300'
           )}
         >
@@ -3362,7 +3348,7 @@ export function POS() {
           className={cn(
             'flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-colors',
             mobileTab === 'checkout'
-              ? 'bg-cyan-500/15 text-cyan-900 dark:bg-cyan-500/20 dark:text-cyan-300'
+              ? 'bg-brand/15 text-brand-to dark:bg-brand/20 dark:text-brand'
               : 'text-slate-600 dark:text-slate-500 hover:bg-slate-200/80 dark:bg-slate-800/50 hover:text-slate-700 dark:text-slate-300'
           )}
         >
@@ -3395,7 +3381,7 @@ export function POS() {
                     onKeyDown={onPosSearchInputKeyDown}
                     onFocus={() => setShowProductSearch(true)}
                     placeholder="Escanear · cant*p. ej. 10* · F2 · ↑↓ · Enter"
-                    className="h-10 border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 pl-9 text-base text-slate-900 dark:text-slate-100 placeholder:text-slate-600 focus:border-cyan-500/50 sm:h-11 sm:pl-10 md:text-sm"
+                    className="h-10 border-slate-300 dark:border-slate-700 bg-slate-200/80 dark:bg-slate-800/50 pl-9 text-base text-slate-900 dark:text-slate-100 placeholder:text-slate-600 focus:border-brand/50 sm:h-11 sm:pl-10 md:text-sm"
                   />
                 </div>
                 <Button
@@ -3438,7 +3424,7 @@ export function POS() {
                         className={cn(
                           'flex w-full items-center justify-between gap-2 border-b border-slate-200/80 dark:border-slate-800/50 p-2.5 text-left transition-colors last:border-0 sm:p-3',
                           posSearchHighlightIdx === idx
-                            ? 'bg-cyan-500/15 dark:bg-cyan-500/10'
+                            ? 'bg-brand/15 dark:bg-brand/10'
                             : 'hover:bg-slate-200/80 dark:hover:bg-slate-800/50'
                         )}
                       >
@@ -3447,7 +3433,7 @@ export function POS() {
                           <p className="text-xs text-slate-600 dark:text-slate-500">SKU: {product.sku}</p>
                         </div>
                         <div className="shrink-0 text-right">
-                          <p className="font-bold text-cyan-400">
+                          <p className="font-bold text-brand">
                             {formatMoney(getProductUnitConIvaForClienteList(product, precioClienteListaId))}
                           </p>
                           <p className="text-[10px] text-slate-500 dark:text-slate-400">con IVA</p>
@@ -3492,7 +3478,7 @@ export function POS() {
           >
             <CardHeader className="shrink-0 space-y-0 border-b border-slate-200/80 dark:border-slate-800/50 py-2 sm:py-3">
               <CardTitle className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100 sm:text-base">
-                <ShoppingCart className="h-4 w-4 text-cyan-400 sm:h-5 sm:w-5" />
+                <ShoppingCart className="h-4 w-4 text-brand sm:h-5 sm:w-5" />
                 <span className="truncate">Carrito</span>
                 <span className="ml-auto text-xs font-normal text-slate-600 dark:text-slate-500 sm:text-sm">
                   {items.length} ít.
@@ -3532,7 +3518,7 @@ export function POS() {
                             <button
                               type="button"
                               onClick={() => setProductDescriptionDialog(item.product)}
-                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-blue-600 transition-colors hover:bg-blue-500/15 dark:text-blue-400 dark:hover:bg-blue-500/15"
+                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-brand-to transition-colors hover:bg-brand-to/15 dark:text-brand dark:hover:bg-brand-to/15"
                               aria-label="Ver descripción del producto"
                               title="Descripción"
                             >
@@ -3542,7 +3528,7 @@ export function POS() {
                           <p className="text-xs text-slate-600 dark:text-slate-500">
                             <CartLineSkuStockText product={item.product} />
                           </p>
-                          <p className="text-xs text-cyan-400/90 sm:text-sm">
+                          <p className="text-xs text-brand/90 sm:text-sm">
                             {formatMoney(
                               cartLineUnitSinIva(item, precioClienteListaId) *
                                 (1 + (Number(item.product.impuesto) || 16) / 100)
@@ -3787,13 +3773,13 @@ export function POS() {
                   ? 'Saldo a cobrar'
                   : 'Total'}
               </p>
-              <p className="truncate text-lg font-bold text-cyan-400">{formatMoney(cobroReferencia)}</p>
+              <p className="truncate text-lg font-bold text-brand">{formatMoney(cobroReferencia)}</p>
             </div>
             <Button
               type="button"
               disabled={items.length === 0}
               onClick={() => setMobileTab('checkout')}
-              className="h-10 shrink-0 bg-gradient-to-r from-cyan-500 to-blue-600 px-4 text-sm font-semibold text-white shadow-lg shadow-cyan-500/20 disabled:opacity-50"
+              className="h-10 shrink-0 bg-brand-gradient px-4 text-sm font-semibold text-white shadow-lg shadow-brand/20 disabled:opacity-50"
             >
               Cobrar
             </Button>
@@ -3817,8 +3803,8 @@ export function POS() {
               'flex w-full shrink-0 items-center justify-between gap-2 p-2 text-left sm:gap-3 sm:p-3 lg:gap-2 lg:p-2',
               panelClass,
               'cursor-pointer transition-colors',
-              'hover:border-cyan-500/40 hover:bg-slate-100/95 dark:hover:border-cyan-500/35 dark:hover:bg-slate-800/70',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40'
+              'hover:border-brand/40 hover:bg-slate-100/95 dark:hover:border-brand/35 dark:hover:bg-slate-800/70',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40'
             )}
             onClick={() => {
               void refreshClients();
@@ -3827,8 +3813,8 @@ export function POS() {
             aria-label={`Cliente: ${posClienteDisplayNombre(client)}. Cambiar cliente`}
           >
             <div className="flex min-w-0 items-center gap-2 sm:gap-3 lg:gap-2">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-500/20 sm:h-10 sm:w-10 lg:h-8 lg:w-8">
-                <User className="h-4 w-4 text-cyan-400 sm:h-5 sm:w-5 lg:h-4 lg:w-4" />
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand/20 sm:h-10 sm:w-10 lg:h-8 lg:w-8">
+                <User className="h-4 w-4 text-brand sm:h-5 sm:w-5 lg:h-4 lg:w-4" />
               </div>
               <div className="min-w-0">
                 <p className="text-[10px] uppercase tracking-wide text-slate-600 dark:text-slate-500 sm:text-xs lg:text-[9px]">
@@ -3839,7 +3825,7 @@ export function POS() {
                 </p>
               </div>
             </div>
-            <span className="shrink-0 text-xs font-medium text-cyan-700 sm:text-sm dark:text-cyan-400 lg:text-xs">
+            <span className="shrink-0 text-xs font-medium text-brand-to sm:text-sm dark:text-brand lg:text-xs">
               Cambiar
             </span>
           </button>
@@ -3864,7 +3850,7 @@ export function POS() {
                         ? 'Saldo a cobrar'
                         : 'Total'}
                     </span>
-                    <span className="text-xl font-bold tabular-nums text-cyan-400 sm:text-2xl lg:text-2xl">
+                    <span className="text-xl font-bold tabular-nums text-brand sm:text-2xl lg:text-2xl">
                       {formatMoney(cobroReferencia)}
                     </span>
                   </div>
@@ -3883,7 +3869,7 @@ export function POS() {
                   </p>
                 ) : null}
                 {esTraspasoTienda ? (
-                  <p className="text-[10px] text-cyan-500/90 sm:text-xs">
+                  <p className="text-[10px] text-brand/90 sm:text-xs">
                     Traspaso entre tiendas: cobro $0 (solo administrador). El stock se descuenta en esta
                     sucursal.
                   </p>
@@ -3894,7 +3880,7 @@ export function POS() {
                   </p>
                 ) : null}
                 {esFormaCotizacion ? (
-                  <p className="text-[10px] text-cyan-700 dark:text-cyan-400/90 sm:text-xs">
+                  <p className="text-[10px] text-brand-to dark:text-brand/90 sm:text-xs">
                     Cotización: últimos 4 dígitos del folio (ej. 0007), Buscar, luego elija efectivo u otra forma y
                     Cobrar. Al cobrar la cotización pasa a «Ya cobrada».
                   </p>
@@ -3986,7 +3972,7 @@ export function POS() {
                         </p>
                         <p>
                           Total original:{' '}
-                          <span className="font-semibold text-cyan-600 dark:text-cyan-400">
+                          <span className="font-semibold text-brand dark:text-brand">
                             {formatMoney(Number(devolucionSaleResuelta.total) || 0)}
                           </span>
                         </p>
@@ -4079,7 +4065,7 @@ export function POS() {
                             </ul>
                             {previewDevolucion && previewDevolucion.reembolso > 0 ? (
                               <>
-                                <p className="text-[11px] font-medium text-cyan-600 dark:text-cyan-400">
+                                <p className="text-[11px] font-medium text-brand dark:text-brand">
                                   {devolucionAcreditarCuenta && puedeAcreditarDevolucion
                                     ? 'Crédito estimado'
                                     : 'Reembolso estimado'}
@@ -4137,7 +4123,7 @@ export function POS() {
                 ) : null}
 
                 {esFormaCotizacion ? (
-                  <div className="space-y-2 rounded-lg border border-cyan-500/25 bg-cyan-500/5 p-2.5 sm:p-3">
+                  <div className="space-y-2 rounded-lg border border-brand/25 bg-brand/5 p-2.5 sm:p-3">
                     <Label className="text-[10px] text-slate-600 dark:text-slate-400 sm:text-xs">
                       Últimos 4 dígitos del folio de cotización
                     </Label>
@@ -4333,7 +4319,7 @@ export function POS() {
                     (formaPago === 'PPC' &&
                       (!client || client.id === 'mostrador' || client.isMostrador))
               }
-              className="h-11 w-full min-w-0 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-base font-bold text-white shadow-lg shadow-cyan-500/25 sm:h-12 md:h-14 md:text-lg"
+              className="h-11 w-full min-w-0 rounded-xl bg-brand-gradient text-base font-bold text-white shadow-lg shadow-brand/25 sm:h-12 md:h-14 md:text-lg"
             >
               Cobrar
             </Button>
@@ -4411,7 +4397,7 @@ export function POS() {
                       disabled={filaBusy}
                       onClick={() => void resumeOpenSale(vs)}
                       className={cn(
-                        'flex w-full flex-col gap-0.5 rounded-xl border border-slate-200/90 bg-slate-200/60 px-3 py-2.5 text-left transition-colors hover:border-cyan-500/45 hover:bg-slate-200/90 dark:border-slate-700/90 dark:bg-slate-800/60 dark:hover:border-cyan-500/40 dark:hover:bg-slate-800/90',
+                        'flex w-full flex-col gap-0.5 rounded-xl border border-slate-200/90 bg-slate-200/60 px-3 py-2.5 text-left transition-colors hover:border-brand/45 hover:bg-slate-200/90 dark:border-slate-700/90 dark:bg-slate-800/60 dark:hover:border-brand/40 dark:hover:bg-slate-800/90',
                         filaBusy && 'pointer-events-none opacity-50'
                       )}
                     >
@@ -4421,7 +4407,7 @@ export function POS() {
                       <span className="truncate text-xs text-slate-600 dark:text-slate-400">
                         {vs.cliente?.nombre?.trim() || vs.clienteId || 'Cliente'}
                       </span>
-                      <span className="text-sm font-semibold tabular-nums text-cyan-600 dark:text-cyan-400">
+                      <span className="text-sm font-semibold tabular-nums text-brand dark:text-brand">
                         {formatMoney(Number(vs.total) || 0)}
                       </span>
                       <span className="text-[11px] text-slate-500 dark:text-slate-500">
@@ -4558,7 +4544,7 @@ export function POS() {
             <>
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
-                  <Receipt className="h-5 w-5 text-cyan-400 sm:h-6 sm:w-6" />
+                  <Receipt className="h-5 w-5 text-brand sm:h-6 sm:w-6" />
                   {checkoutDevolucionListo ? 'Confirmar devolución' : formaPago === 'PPC' ? 'Pendiente de pago' : 'Procesar pago'}
                 </DialogTitle>
               </DialogHeader>
@@ -4568,7 +4554,7 @@ export function POS() {
                   <p className="mb-1 text-xs text-slate-600 dark:text-slate-400 sm:text-sm">
                     {etiquetaImporteCobroDialogo}
                   </p>
-                  <p className="text-2xl font-bold text-cyan-400 sm:text-4xl">
+                  <p className="text-2xl font-bold text-brand sm:text-4xl">
                     {formatMoney(importeDestacadoCobroDialogo)}
                   </p>
                   {cobroDialogoMuestraFalta && totalPagadoVenta > 0.005 ? (
@@ -4846,7 +4832,7 @@ export function POS() {
                           : totalPagadoIncluyeCampoMonto + 0.004 < cobroReferencia &&
                             !puedeRegistrarAbonoParcialMixto)
                   }
-                  className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white sm:w-auto"
+                  className="w-full bg-brand-gradient text-white sm:w-auto"
                 >
                   {processingSale ? (
                     <div className="mr-2 h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
@@ -4889,7 +4875,7 @@ export function POS() {
                 <p className="mb-1 text-sm text-slate-600 dark:text-slate-400 sm:mb-2">
                   {ticketSnapshot?.modoDevolucion ? 'Monto devuelto al cliente' : 'Total'}
                 </p>
-                <p className="mb-3 text-3xl font-bold text-cyan-400 sm:mb-4 sm:text-4xl">
+                <p className="mb-3 text-3xl font-bold text-brand sm:mb-4 sm:text-4xl">
                   {formatMoney(ticketSnapshot?.total ?? 0)}
                 </p>
                 {ticketSnapshot?.modoDevolucion ? null : (
@@ -4917,7 +4903,7 @@ export function POS() {
                 </Button>
                 <Button
                   onClick={handleFinishSale}
-                  className="flex-1 bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+                  className="flex-1 bg-brand-gradient text-white"
                 >
                   <Check className="mr-2 h-4 w-4" />
                   Nueva venta
@@ -5043,7 +5029,7 @@ export function POS() {
             <Button
               type="button"
               disabled={ventaResetBusy}
-              className="bg-cyan-600 text-white hover:bg-cyan-700"
+              className="bg-brand-from text-white hover:bg-brand-to"
               onClick={() => void confirmVentaReset()}
             >
               {ventaResetBusy
@@ -5150,7 +5136,7 @@ export function POS() {
                       className={cn(
                         'h-9 shrink-0 text-xs sm:text-sm',
                         unitPriceLineListaActiva === lid &&
-                          'bg-cyan-600 text-white hover:bg-cyan-700 dark:bg-cyan-600 dark:hover:bg-cyan-700'
+                          'bg-brand-from text-white hover:bg-brand-to dark:bg-brand-from dark:hover:bg-brand-to'
                       )}
                       disabled={!unitPriceEditProductId}
                       onClick={() => {
@@ -5291,8 +5277,8 @@ export function POS() {
             Al cambiar de modo se recalculan los importes ya escritos usando el IVA del artículo (
             {unitPriceDialogLine?.product?.impuesto ?? 16}%).
           </p>
-          <div className="mb-4 space-y-3 rounded-lg border border-cyan-500/25 bg-cyan-500/10 p-3 dark:border-cyan-500/30 dark:bg-cyan-500/10">
-            <p className="text-xs font-semibold uppercase tracking-wide text-cyan-800 dark:text-cyan-200">
+          <div className="mb-4 space-y-3 rounded-lg border border-brand/25 bg-brand/10 p-3 dark:border-brand/30 dark:bg-brand/10">
+            <p className="text-xs font-semibold uppercase tracking-wide text-brand-to dark:text-brand">
               Precio de compra (sin IVA)
             </p>
             <p className="text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100">
@@ -5377,7 +5363,7 @@ export function POS() {
                 'w-full resize-y rounded-md border px-3 py-2 text-sm leading-relaxed outline-none',
                 'border-slate-200/80 bg-white/90 text-slate-800 dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-200',
                 'min-h-[10rem] max-h-[min(50vh,22rem)]',
-                'focus-visible:border-sky-500 focus-visible:ring-2 focus-visible:ring-sky-500/25',
+                'focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/25',
                 !canEditCatalogListasDesdePos && 'cursor-not-allowed opacity-80'
               )}
             />

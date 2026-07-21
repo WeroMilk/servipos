@@ -61,7 +61,7 @@ export function SendEmailDialog({
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         <p className="text-xs text-slate-600 dark:text-slate-500">
-          Remitente previsto: <span className="text-cyan-400/90">{SERVIPARTZ_SENDER_EMAIL}</span> — inicie sesión en Outlook
+          Remitente previsto: <span className="text-brand/90">{SERVIPARTZ_SENDER_EMAIL}</span> — inicie sesión en Outlook
           con esa cuenta en el navegador para que el envío salga desde ella.
         </p>
         <div className="space-y-2 py-2">
@@ -82,7 +82,7 @@ export function SendEmailDialog({
           </Button>
           <Button
             type="button"
-            className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+            className="bg-brand-gradient text-white"
             onClick={handleSend}
           >
             <Send className="mr-2 h-4 w-4" />

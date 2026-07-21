@@ -47,7 +47,7 @@ export function MobileBottomNav() {
                 'flex min-w-0 flex-1 cursor-pointer flex-col items-center justify-center gap-px rounded-lg border border-transparent bg-transparent px-px py-0.5 transition-colors',
                 'active:scale-[0.98]',
                 isActive
-                  ? 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300'
+                  ? 'bg-brand/15 text-brand-to dark:text-brand'
                   : 'text-slate-500 hover:bg-slate-200/80 hover:text-slate-800 dark:hover:bg-slate-800/60 dark:hover:text-slate-200'
               )}
               aria-current={isActive ? 'page' : undefined}
@@ -55,7 +55,7 @@ export function MobileBottomNav() {
               <Icon
                 className={cn(
                   'h-[1.05rem] w-[1.05rem] shrink-0 sm:h-4 sm:w-4',
-                  isActive ? 'text-cyan-600 dark:text-cyan-400' : 'text-slate-400 dark:text-slate-400'
+                  isActive ? 'text-brand dark:text-brand' : 'text-slate-400 dark:text-slate-400'
                 )}
                 strokeWidth={isActive ? 2.25 : 2}
                 aria-hidden
@@ -63,7 +63,7 @@ export function MobileBottomNav() {
               <span
                 className={cn(
                   'w-full max-w-full truncate px-px text-center text-[7px] font-medium leading-none tracking-tight sm:text-[8px]',
-                  isActive ? 'text-cyan-800/95 dark:text-cyan-200/95' : 'text-slate-500'
+                  isActive ? 'text-brand-to/95 dark:text-brand/95' : 'text-slate-500'
                 )}
               >
                 {item.shortLabel}

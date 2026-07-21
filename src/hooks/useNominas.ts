@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Employee, NominaRecibo } from '@/types';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
-import { reportHookFailure } from '@/lib/appEventLog';
 import {
   createEmployeeFirestore,
   deleteEmployeeFirestore,
@@ -214,5 +213,5 @@ export function useNominaRecibos() {
 }
 
 export function reportNominaHookError(scope: string, err: unknown) {
-  reportHookFailure('hook:nominas', scope, err);
+  console.error(`[nominas] ${scope}`, err);
 }

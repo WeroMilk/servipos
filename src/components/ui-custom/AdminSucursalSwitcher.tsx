@@ -178,7 +178,7 @@ export function AdminSucursalSwitcher() {
   return (
     <>
       <div className="flex min-w-0 max-w-full flex-1 items-center gap-0.5 sm:max-w-[20rem] sm:flex-none sm:gap-1 md:max-w-[min(24rem,100%)]">
-        <MapPin className="hidden h-4 w-4 shrink-0 text-cyan-500/90 sm:block" aria-hidden />
+        <MapPin className="hidden h-4 w-4 shrink-0 text-brand/90 sm:block" aria-hidden />
         <Select value={selectValue} onValueChange={(v) => v !== '__empty__' && setActiveSucursalId(v)}>
           <SelectTrigger
             className={cn(
@@ -222,7 +222,7 @@ export function AdminSucursalSwitcher() {
           type="button"
           size="icon"
           variant="outline"
-          className="h-9 w-9 shrink-0 border-slate-300 bg-white text-cyan-600 hover:bg-slate-100 hover:text-cyan-700 dark:border-slate-600 dark:bg-slate-800/80 dark:text-cyan-400 dark:hover:bg-slate-800 dark:hover:text-cyan-300"
+          className="h-9 w-9 shrink-0 border-slate-300 bg-white text-brand hover:bg-slate-100 hover:text-brand-to dark:border-slate-600 dark:bg-slate-800/80 dark:text-brand dark:hover:bg-slate-800 dark:hover:text-brand"
           aria-label="Nueva tienda"
           title="Nueva tienda"
           onClick={openCreateDialog}
@@ -296,7 +296,7 @@ export function AdminSucursalSwitcher() {
             </Button>
             <Button
               type="button"
-              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+              className="bg-brand-gradient text-white"
               onClick={() => void handleCreateSucursal()}
               disabled={saving}
             >

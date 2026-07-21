@@ -97,12 +97,11 @@ import {
 } from '@/lib/satCatalog';
 import { PageShell } from '@/components/ui-custom/PageShell';
 import { printThermalLowStockReport } from '@/lib/printTicket';
-import { reportAppEvent } from '@/lib/appEventLog';
 import { tipoMovimientoLabel } from '@/lib/inventoryMovementLabels';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { isMovimientoLlegadaMercancia } from '@/lib/inventoryAbasto';
 import { downloadInventarioCompleto, downloadInventarioStockBajo } from '@/lib/inventoryExport';
-import { getUbicacionesProducto } from '@/data/ubicacionesMuebleA';
+import { getUbicacionesProducto, MUEBLE_SLOTS, resolveUbicacionesProducto } from '@/data/ubicacionesMuebleA';
 import { buildProductSearchIndex, searchProductIndex } from '@/lib/productSearchIndex';
 import { effectiveListaPreciosIncluyenIva, defaultListaPreciosIncluyenIva } from '@/lib/catalogPricingFlags';
 import {
@@ -138,7 +137,7 @@ function InventorySortLabelButton({
       className={cn(
         '-mx-0.5 flex w-fit max-w-full items-center gap-0.5 rounded px-0.5 py-0.5 text-left text-[10px] uppercase tracking-wide transition-colors',
         inventorySort.key === sortKey
-          ? 'font-semibold text-cyan-600 dark:text-cyan-400'
+          ? 'font-semibold text-brand dark:text-brand'
           : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
       )}
       aria-pressed={inventorySort.key === sortKey}
@@ -584,7 +583,6 @@ export function Inventario() {
           addToast({
             type: 'success',
             message: `Se eliminaron ${n} productos de servicios del catálogo.`,
-            logToAppEvents: true,
           });
         }
       } catch (err) {
@@ -592,7 +590,6 @@ export function Inventario() {
         addToast({
           type: 'error',
           message: err instanceof Error ? err.message : 'No se pudieron eliminar los servicios',
-          logToAppEvents: true,
         });
       }
     })();
@@ -614,13 +611,11 @@ export function Inventario() {
         addToast({
           type: 'success',
           message: 'Traspaso recibido; el stock de esta tienda se actualizó.',
-          logToAppEvents: true,
         });
       } catch (err) {
         addToast({
           type: 'error',
           message: err instanceof Error ? err.message : 'No se pudo confirmar el traspaso',
-          logToAppEvents: true,
         });
       } finally {
         setConfirmingTransferId(null);
@@ -642,7 +637,7 @@ export function Inventario() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const ubicacionDialogSlots = useMemo(() => {
     if (!ubicacionDialogProduct) return [] as string[];
-    return getUbicacionesProducto(ubicacionDialogProduct.sku, ubicacionDialogProduct.codigoBarras);
+    return resolveUbicacionesProducto(ubicacionDialogProduct);
   }, [ubicacionDialogProduct]);
   const [stockAdjustment, setStockAdjustment] = useState({
     tipo: 'entrada',
@@ -771,6 +766,7 @@ export function Inventario() {
     proveedor: '',
     unidadMedida: 'H87',
     claveProdServ: '',
+    ubicacionFisica: '',
   });
 
   const [preciosListaStr, setPreciosListaStr] = useState(emptyPreciosListaStr);
@@ -1004,6 +1000,7 @@ export function Inventario() {
           proveedor: proveedorParaSiguiente,
           unidadMedida: 'H87',
           claveProdServ: '',
+          ubicacionFisica: '',
         });
         setPreciosListaStr(emptyPreciosListaStr());
         setListasPrecioMainDraft({});
@@ -1011,25 +1008,18 @@ export function Inventario() {
           existencia: false,
           existenciaMinima: false,
         });
-        reportAppEvent({
-          kind: 'success',
-          source: 'inventario:producto',
-          title: `Producto nuevo · ${nombre}`,
-          detail: `SKU ${skuFinal}`,
-        });
         addToast({
           type: 'success',
           message: 'Producto agregado. El proveedor se mantuvo; capture el siguiente artículo.',
-          logToAppEvents: false,
         });
         requestAnimationFrame(() => addCodigoBarrasRef.current?.focus());
       } else {
         setShowAddDialog(false);
         resetForm();
-        addToast({ type: 'success', message: 'Producto agregado exitosamente', logToAppEvents: true });
+        addToast({ type: 'success', message: 'Producto agregado exitosamente'});
       }
     } catch (error: any) {
-      addToast({ type: 'error', message: error.message, logToAppEvents: true });
+      addToast({ type: 'error', message: error.message});
     }
   };
 
@@ -1064,21 +1054,16 @@ export function Inventario() {
         unidadMedida: normalizeClaveUnidadSat(formData.unidadMedida),
         claveProdServ: cpsEdit,
         preciosPorListaCliente: preciosPorListaCliente ?? {},
+        ubicacionFisica: (formData.ubicacionFisica ?? '').trim(),
       });
       setShowEditDialog(false);
       setSelectedProduct(null);
       setListasPrecioMainDraft({});
       const nombreEdit = upperTxt(formData.nombre.trim());
       const skuEdit = upperTxt((formData.sku ?? '').trim());
-      reportAppEvent({
-        kind: 'success',
-        source: 'inventario:producto',
-        title: `Producto actualizado · ${nombreEdit}`,
-        detail: `SKU ${skuEdit}`,
-      });
-      addToast({ type: 'success', message: 'Producto actualizado exitosamente', logToAppEvents: false });
+      addToast({ type: 'success', message: 'Producto actualizado exitosamente'});
     } catch (error: any) {
-      addToast({ type: 'error', message: error.message, logToAppEvents: true });
+      addToast({ type: 'error', message: error.message});
     }
   };
 
@@ -1091,16 +1076,10 @@ export function Inventario() {
     setDeletingProduct(true);
     try {
       await removeProduct(deleteProductTarget.id);
-      reportAppEvent({
-        kind: 'warning',
-        source: 'inventario:producto',
-        title: `Producto dado de baja · ${deleteProductTarget.nombre}`,
-        detail: `SKU ${deleteProductTarget.sku}`,
-      });
-      addToast({ type: 'success', message: 'Producto eliminado exitosamente', logToAppEvents: false });
+      addToast({ type: 'success', message: 'Producto eliminado exitosamente'});
       setDeleteProductTarget(null);
     } catch (error: any) {
-      addToast({ type: 'error', message: error.message, logToAppEvents: true });
+      addToast({ type: 'error', message: error.message});
     } finally {
       setDeletingProduct(false);
     }
@@ -1144,15 +1123,9 @@ export function Inventario() {
       });
       setStockQtyFocus(false);
       const tipoLbl = tipoMovimientoLabel(stockAdjustment.tipo as InventoryMovement['tipo']);
-      reportAppEvent({
-        kind: 'success',
-        source: 'inventario:stock',
-        title: `Stock · ${tipoLbl} · ${selectedProduct.nombre}`,
-        detail: `${stockAdjustment.cantidad} u · ${motivoMov || '—'} · SKU ${selectedProduct.sku}`,
-      });
-      addToast({ type: 'success', message: 'Stock ajustado exitosamente', logToAppEvents: false });
+      addToast({ type: 'success', message: 'Stock ajustado exitosamente'});
     } catch (error: any) {
-      addToast({ type: 'error', message: error.message, logToAppEvents: true });
+      addToast({ type: 'error', message: error.message});
     }
   };
 
@@ -1164,20 +1137,13 @@ export function Inventario() {
       } else {
         await clearAllInventoryMovementsLocal();
       }
-      reportAppEvent({
-        kind: 'warning',
-        source: 'inventario:movimientos',
-        title: 'Historial de movimientos vaciado',
-        detail: effectiveSucursalId ? `Sucursal ${effectiveSucursalId}` : 'Almacenamiento local',
-      });
-      addToast({ type: 'success', message: 'Historial de movimientos vaciado.', logToAppEvents: false });
+      addToast({ type: 'success', message: 'Historial de movimientos vaciado.'});
       setClearMovementsConfirmOpen(false);
       if (!effectiveSucursalId) await refreshInventoryMovementsLocal();
     } catch (err) {
       addToast({
         type: 'error',
         message: err instanceof Error ? err.message : 'No se pudo vaciar el historial',
-        logToAppEvents: true,
       });
     } finally {
       setClearingMovements(false);
@@ -1203,6 +1169,8 @@ export function Inventario() {
         proveedor: normalizeProveedorNombreGuardado(p.proveedor || ''),
         unidadMedida: normalizeClaveUnidadSat(p.unidadMedida),
         claveProdServ: p.claveProdServ ?? '',
+        ubicacionFisica:
+          (p.ubicacionFisica ?? '').trim() || getUbicacionesProducto(p.sku, p.codigoBarras)[0] || '',
       });
       const pl = emptyPreciosListaStr();
       for (const id of priceListCatalog.ids) {
@@ -1256,6 +1224,10 @@ export function Inventario() {
       proveedor: normalizeProveedorNombreGuardado(product.proveedor || ''),
       unidadMedida: normalizeClaveUnidadSat(product.unidadMedida),
       claveProdServ: product.claveProdServ ?? '',
+      ubicacionFisica:
+        (product.ubicacionFisica ?? '').trim() ||
+        getUbicacionesProducto(product.sku, product.codigoBarras)[0] ||
+        '',
     });
     const pl = emptyPreciosListaStr();
     for (const id of priceListCatalog.ids) {
@@ -1334,7 +1306,7 @@ export function Inventario() {
       await editProduct(fresh.id, {
         preciosPorListaCliente: preciosPorListaCliente ?? {},
       });
-      addToast({ type: 'success', message: 'Precios por lista actualizados', logToAppEvents: true });
+      addToast({ type: 'success', message: 'Precios por lista actualizados'});
       setPreciosDialogOpen(false);
       setPreciosDialogProduct(null);
       setListasPrecioDialogDraft({});
@@ -1342,7 +1314,6 @@ export function Inventario() {
       addToast({
         type: 'error',
         message: err instanceof Error ? err.message : 'No se pudieron guardar los precios',
-        logToAppEvents: true,
       });
     } finally {
       setPreciosDialogSaving(false);
@@ -1487,12 +1458,11 @@ export function Inventario() {
       }
       try {
         await editProduct(product.id, { sku: raw });
-        addToast({ type: 'success', message: 'SKU actualizado', logToAppEvents: true });
+        addToast({ type: 'success', message: 'SKU actualizado'});
       } catch (e: unknown) {
         addToast({
           type: 'error',
           message: e instanceof Error ? e.message : 'No se pudo guardar el SKU',
-          logToAppEvents: true,
         });
         setSkuDrafts((prev) => ({ ...prev, [product.id]: product.sku }));
       }
@@ -1530,6 +1500,7 @@ export function Inventario() {
       proveedor: '',
       unidadMedida: 'H87',
       claveProdServ: '',
+      ubicacionFisica: '',
     });
     setPreciosListaStr(emptyPreciosListaStr());
     setListasPrecioMainDraft({});
@@ -1546,13 +1517,11 @@ export function Inventario() {
       addToast({
         type: 'success',
         message: 'Archivo CSV descargado. Ábralo en Excel o LibreOffice; desde ahí puede imprimir o guardar como Excel.',
-        logToAppEvents: true,
       });
     } catch (e) {
       addToast({
         type: 'error',
         message: e instanceof Error ? e.message : 'No se pudo generar el archivo.',
-        logToAppEvents: true,
       });
     } finally {
       setExportingInventario(false);
@@ -1581,13 +1550,11 @@ export function Inventario() {
       addToast({
         type: 'success',
         message: `Archivo CSV descargado (${items.length} artículos). Ábralo en Excel o guárdelo como .xlsx.`,
-        logToAppEvents: true,
       });
     } catch (e) {
       addToast({
         type: 'error',
         message: e instanceof Error ? e.message : 'No se pudo generar el archivo.',
-        logToAppEvents: true,
       });
     } finally {
       setExportingInventario(false);
@@ -1657,13 +1624,13 @@ export function Inventario() {
               : 'Suma de existencias (físicos, sin servicios). Puede incluir decimales por artículos vendidos por metro o centímetro (MTR/CMT); el número mostrado está redondeado al entero más cercano.'
           }
         >
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-500/20 sm:h-9 sm:w-9">
-            <Layers className="h-4 w-4 text-sky-400 sm:h-5 sm:w-5" />
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand/20 sm:h-9 sm:w-9">
+            <Layers className="h-4 w-4 text-brand sm:h-5 sm:w-5" />
           </div>
           <div className="min-w-0 text-right">
             <p className="text-base font-bold tabular-nums text-slate-900 dark:text-slate-100 sm:text-lg">
               {isInventoryLoadingUi ? (
-                <span className="inline-flex h-5 w-5 animate-spin rounded-full border-2 border-sky-500/30 border-t-sky-500 align-middle sm:h-6 sm:w-6" />
+                <span className="inline-flex h-5 w-5 animate-spin rounded-full border-2 border-brand/30 border-t-brand align-middle sm:h-6 sm:w-6" />
               ) : (
                 new Intl.NumberFormat('es-MX', { maximumFractionDigits: 0 }).format(
                   totalUnidadesStockDisplay
@@ -1682,18 +1649,18 @@ export function Inventario() {
           className={cn(
             'rounded-xl border text-left transition-all',
             inventoryMode === 'productos'
-              ? 'border-cyan-500/50 bg-slate-100/90 dark:bg-slate-900/80 ring-2 ring-cyan-500/25'
+              ? 'border-brand/50 bg-slate-100/90 dark:bg-slate-900/80 ring-2 ring-brand/25'
               : 'border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 hover:border-slate-300 dark:border-slate-700/60'
           )}
         >
           <CardContent className="flex items-center gap-2 p-2 sm:gap-3 sm:p-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-500/20 sm:h-10 sm:w-10">
-              <Package className="h-4 w-4 text-cyan-400 sm:h-5 sm:w-5" />
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand/20 sm:h-10 sm:w-10">
+              <Package className="h-4 w-4 text-brand sm:h-5 sm:w-5" />
             </div>
             <div className="min-w-0">
               <p className="text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl">
                 {isInventoryLoadingUi ? (
-                  <span className="inline-flex h-5 w-5 animate-spin rounded-full border-2 border-cyan-500/30 border-t-cyan-500 align-middle sm:h-6 sm:w-6" />
+                  <span className="inline-flex h-5 w-5 animate-spin rounded-full border-2 border-brand/30 border-t-brand align-middle sm:h-6 sm:w-6" />
                 ) : (
                   products.length
                 )}
@@ -1708,7 +1675,7 @@ export function Inventario() {
           className={cn(
             'rounded-xl border text-left transition-all',
             inventoryMode === 'stock'
-              ? 'border-cyan-500/50 bg-slate-100/90 dark:bg-slate-900/80 ring-2 ring-cyan-500/25'
+              ? 'border-brand/50 bg-slate-100/90 dark:bg-slate-900/80 ring-2 ring-brand/25'
               : 'border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 hover:border-slate-300 dark:border-slate-700/60'
           )}
         >
@@ -1734,7 +1701,7 @@ export function Inventario() {
           className={cn(
             'rounded-xl border text-left transition-all',
             inventoryMode === 'valor'
-              ? 'border-cyan-500/50 bg-slate-100/90 dark:bg-slate-900/80 ring-2 ring-cyan-500/25'
+              ? 'border-brand/50 bg-slate-100/90 dark:bg-slate-900/80 ring-2 ring-brand/25'
               : 'border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 hover:border-slate-300 dark:border-slate-700/60'
           )}
         >
@@ -1763,7 +1730,7 @@ export function Inventario() {
           className={cn(
             'rounded-xl border text-left transition-all',
             inventoryMode === 'codigos'
-              ? 'border-cyan-500/50 bg-slate-100/90 dark:bg-slate-900/80 ring-2 ring-cyan-500/25'
+              ? 'border-brand/50 bg-slate-100/90 dark:bg-slate-900/80 ring-2 ring-brand/25'
               : 'border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 hover:border-slate-300 dark:border-slate-700/60'
           )}
         >
@@ -1811,7 +1778,7 @@ export function Inventario() {
                       <div className="min-w-0 space-y-1">
                         <p className="font-medium text-slate-900 dark:text-slate-100">
                           Desde {nombreSucursal(t.origenSucursalId)} ·{' '}
-                          <span className="font-mono text-cyan-400/90">{t.origenFolio}</span>
+                          <span className="font-mono text-brand/90">{t.origenFolio}</span>
                         </p>
                         <p className="text-[11px] text-slate-600 dark:text-slate-500">
                           {t.items.length} partida(s) ·{' '}
@@ -1845,7 +1812,7 @@ export function Inventario() {
         </div>
       ) : null}
 
-      <div className="mt-3 shrink-0 rounded-xl border border-cyan-500/30 bg-cyan-500/5 p-3 sm:mt-4 sm:p-4">
+      <div className="mt-3 shrink-0 rounded-xl border border-brand/30 bg-brand/5 p-3 sm:mt-4 sm:p-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
@@ -1968,7 +1935,7 @@ export function Inventario() {
             <div className="space-y-3 p-3 md:hidden">
               {isInventoryLoadingUi ? (
                 <div className="flex flex-col items-center justify-center gap-2 py-12">
-                  <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-cyan-500/30 border-t-cyan-500" />
+                  <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-brand/30 border-t-brand" />
                   <p className="text-xs text-slate-600 dark:text-slate-500">Cargando tu inventario…</p>
                 </div>
               ) : displayProducts.length === 0 ? (
@@ -1996,7 +1963,7 @@ export function Inventario() {
                           <span className="text-sm font-semibold leading-snug text-slate-900 underline-offset-2 hover:underline dark:text-slate-100">
                             {product.nombre}
                           </span>
-                          <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-600 dark:text-cyan-400" aria-hidden />
+                          <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand dark:text-brand" aria-hidden />
                         </span>
                       </button>
                       <InventoryProductActions
@@ -2055,7 +2022,7 @@ export function Inventario() {
                             <span className="text-sm font-semibold leading-snug text-slate-900 underline-offset-2 hover:underline dark:text-slate-100">
                               {product.nombre}
                             </span>
-                            <MapPin className="h-3.5 w-3.5 shrink-0 text-cyan-600 dark:text-cyan-400" aria-hidden />
+                            <MapPin className="h-3.5 w-3.5 shrink-0 text-brand dark:text-brand" aria-hidden />
                           </span>
                         </button>
                         {hasInventoryDescripcionVisible(product.descripcion) ? (
@@ -2087,7 +2054,7 @@ export function Inventario() {
                           inventorySort={inventorySort}
                           onSort={handleInventorySortClick}
                         />
-                        <p className="text-sm font-medium tabular-nums text-cyan-400">
+                        <p className="text-sm font-medium tabular-nums text-brand">
                           {formatMoney(getProductPrecioPublicoRegular(product))}
                         </p>
                       </div>
@@ -2349,7 +2316,7 @@ export function Inventario() {
                         className="py-8 text-center"
                       >
                         <div className="mx-auto flex flex-col items-center gap-2">
-                          <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500/30 border-t-cyan-500" />
+                          <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand/30 border-t-brand" />
                           <p className="text-xs text-slate-600 dark:text-slate-500">Cargando tu inventario…</p>
                         </div>
                       </TableCell>
@@ -2378,7 +2345,7 @@ export function Inventario() {
                             title="Ver ubicación física"
                           >
                             <span className="min-w-0 break-words">{product.nombre}</span>
-                            <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-600 dark:text-cyan-400" aria-hidden />
+                            <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand dark:text-brand" aria-hidden />
                           </button>
                         </TableCell>
                         <TableCell className="align-top">
@@ -2420,7 +2387,7 @@ export function Inventario() {
                               title="Ver ubicación física"
                             >
                               <span className="min-w-0 break-words">{product.nombre}</span>
-                              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-600 dark:text-cyan-400" aria-hidden />
+                              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand dark:text-brand" aria-hidden />
                             </button>
                             {hasInventoryDescripcionVisible(product.descripcion) ? (
                               <p className="text-xs text-slate-600 dark:text-slate-500">{product.descripcion}</p>
@@ -2428,7 +2395,7 @@ export function Inventario() {
                           </div>
                         </TableCell>
                         <TableCell className="font-mono text-sm text-slate-600 dark:text-slate-400">{product.sku}</TableCell>
-                        <TableCell className="font-medium tabular-nums text-cyan-400">
+                        <TableCell className="font-medium tabular-nums text-brand">
                           {formatMoney(getProductPrecioPublicoRegular(product))}
                         </TableCell>
                         <TableCell>
@@ -2540,7 +2507,7 @@ export function Inventario() {
           </DialogHeader>
 
           <div className="grid grid-cols-2 gap-3 py-2 sm:gap-3 lg:grid-cols-4 lg:gap-x-4 lg:gap-y-2 lg:py-2">
-            <div className="col-span-2 space-y-1.5 rounded-lg border border-cyan-500/25 bg-cyan-500/[0.08] p-2.5 dark:border-cyan-500/30 dark:bg-cyan-950/25 lg:col-span-2 lg:space-y-1 lg:p-2">
+            <div className="col-span-2 space-y-1.5 rounded-lg border border-brand/25 bg-brand/[0.08] p-2.5 dark:border-brand/30 dark:bg-brand-to/25 lg:col-span-2 lg:space-y-1 lg:p-2">
               <Label>Copiar desde producto existente</Label>
               {addFormTemplateId !== '__none__' ? (
                 <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-300 bg-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-800">
@@ -2931,7 +2898,7 @@ export function Inventario() {
             <Button
               type="button"
               onClick={() => void handleAddProduct(false)}
-              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+              className="bg-brand-gradient text-white"
             >
               Guardar y cerrar
             </Button>
@@ -3006,7 +2973,7 @@ export function Inventario() {
                 </Button>
                 <Button
                   type="button"
-                  className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+                  className="bg-brand-gradient text-white"
                   onClick={() => confirmAddTemplateLlegada()}
                 >
                   Aplicar plantilla
@@ -3060,9 +3027,9 @@ export function Inventario() {
               </TableBody>
             </Table>
           </div>
-          <div className="rounded-lg border border-cyan-500/25 bg-cyan-500/10 px-3 py-2.5">
+          <div className="rounded-lg border border-brand/25 bg-brand/10 px-3 py-2.5">
             <p className="text-xs text-slate-600 dark:text-slate-400">Total compra (sin IVA)</p>
-            <p className="text-xl font-bold tabular-nums text-cyan-700 dark:text-cyan-300">
+            <p className="text-xl font-bold tabular-nums text-brand-to dark:text-brand">
               {formatMoney(
                 roundMoney2(addSessionSummaryLines.reduce((s, r) => s + r.subtotalSinIva, 0))
               )}
@@ -3072,7 +3039,7 @@ export function Inventario() {
             <Button
               type="button"
               onClick={() => setAddSessionSummaryOpen(false)}
-              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+              className="bg-brand-gradient text-white"
             >
               Entendido
             </Button>
@@ -3080,7 +3047,7 @@ export function Inventario() {
         </DialogContent>
       </Dialog>
 
-      {/* Ubicación física (prueba mueble A) */}
+      {/* Ubicación física */}
       <Dialog
         open={ubicacionDialogProduct != null}
         onOpenChange={(open) => {
@@ -3090,11 +3057,11 @@ export function Inventario() {
         <DialogContent className="bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 pr-6">
-              <MapPin className="h-5 w-5 shrink-0 text-cyan-600 dark:text-cyan-400" aria-hidden />
+              <MapPin className="h-5 w-5 shrink-0 text-brand dark:text-brand" aria-hidden />
               <span className="min-w-0 break-words">{ubicacionDialogProduct?.nombre ?? 'Ubicación'}</span>
             </DialogTitle>
             <DialogDescription className="text-left text-slate-600 dark:text-slate-400">
-              Mueble A (prueba)
+              Ubicación física
             </DialogDescription>
           </DialogHeader>
           {ubicacionDialogProduct ? (
@@ -3104,7 +3071,7 @@ export function Inventario() {
               </p>
               {ubicacionDialogSlots.length === 0 ? (
                 <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-400">
-                  Este producto aún no tiene ubicación física en el mapa de prueba.
+                  Este producto aún no tiene ubicación física registrada.
                 </p>
               ) : (
                 <div className="space-y-2">
@@ -3115,7 +3082,7 @@ export function Inventario() {
                     {ubicacionDialogSlots.map((slot) => (
                       <Badge
                         key={slot}
-                        className="bg-cyan-500/15 px-3 py-1 text-base font-semibold tabular-nums text-cyan-700 dark:text-cyan-300"
+                        className="bg-brand/15 px-3 py-1 text-base font-semibold tabular-nums text-brand-to dark:text-brand"
                       >
                         {slot}
                       </Badge>
@@ -3129,7 +3096,7 @@ export function Inventario() {
             <Button
               type="button"
               onClick={() => setUbicacionDialogProduct(null)}
-              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+              className="bg-brand-gradient text-white"
             >
               Entendido
             </Button>
@@ -3375,6 +3342,40 @@ export function Inventario() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Ubicación física (mueble)</Label>
+              <Select
+                value={formData.ubicacionFisica || '__none__'}
+                onValueChange={(v) =>
+                  setFormData({ ...formData, ubicacionFisica: v === '__none__' ? '' : v })
+                }
+              >
+                <SelectTrigger className="h-10 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+                  <SelectValue placeholder="Sin ubicación" />
+                </SelectTrigger>
+                <SelectContent
+                  position="popper"
+                  className="z-[300] max-h-[min(50dvh,18rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
+                >
+                  <SelectItem value="__none__" className="text-slate-900 dark:text-slate-100">
+                    Sin ubicación
+                  </SelectItem>
+                  {(() => {
+                    const slots = [...MUEBLE_SLOTS];
+                    const cur = (formData.ubicacionFisica ?? '').trim();
+                    if (cur && !slots.includes(cur)) slots.unshift(cur);
+                    return slots.map((slot) => (
+                      <SelectItem key={slot} value={slot} className="text-slate-900 dark:text-slate-100">
+                        Mueble {slot}
+                      </SelectItem>
+                    ));
+                  })()}
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] leading-snug text-slate-500 dark:text-slate-400">
+                Indica en qué anaquel/mueble está el producto físicamente (A–C).
+              </p>
             </div>
             <div className="space-y-2">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
@@ -3689,7 +3690,7 @@ export function Inventario() {
             <Button
               type="button"
               onClick={() => void handleEditProduct()}
-              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+              className="bg-brand-gradient text-white"
             >
               Actualizar Producto
             </Button>
@@ -3817,8 +3818,8 @@ export function Inventario() {
               </div>
             </div>
 
-            <div className="mb-4 space-y-3 rounded-lg border border-cyan-500/25 bg-cyan-500/10 p-3 dark:border-cyan-500/30 dark:bg-cyan-500/10">
-              <p className="text-xs font-semibold uppercase tracking-wide text-cyan-800 dark:text-cyan-200">
+            <div className="mb-4 space-y-3 rounded-lg border border-brand/25 bg-brand/10 p-3 dark:border-brand/30 dark:bg-brand/10">
+              <p className="text-xs font-semibold uppercase tracking-wide text-brand-to dark:text-brand">
                 Precio de compra
               </p>
               <p className="text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100">
@@ -3899,7 +3900,7 @@ export function Inventario() {
                             <TableCell className="whitespace-nowrap text-xs text-slate-700 dark:text-slate-300">
                               {formatInAppTimezone(when, { dateStyle: 'short', timeStyle: 'short' })}
                             </TableCell>
-                            <TableCell className="text-right text-sm font-medium tabular-nums text-cyan-600 dark:text-cyan-400">
+                            <TableCell className="text-right text-sm font-medium tabular-nums text-brand dark:text-brand">
                               +{mov.cantidad}
                             </TableCell>
                             <TableCell className="text-right text-xs tabular-nums text-slate-700 dark:text-slate-300">
@@ -3945,7 +3946,7 @@ export function Inventario() {
               type="button"
               disabled={!preciosDialogProduct || preciosDialogSaving}
               onClick={() => void handleSavePreciosDialog()}
-              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+              className="bg-brand-gradient text-white"
             >
               {preciosDialogSaving ? 'Guardando…' : 'Guardar precios'}
             </Button>
@@ -4027,7 +4028,7 @@ export function Inventario() {
                           <TableCell className="whitespace-nowrap text-right tabular-nums text-slate-800 dark:text-slate-200">
                             {cat ? '—' : mov.cantidadAnterior}
                           </TableCell>
-                          <TableCell className="whitespace-nowrap text-right tabular-nums font-medium text-cyan-600 dark:text-cyan-400">
+                          <TableCell className="whitespace-nowrap text-right tabular-nums font-medium text-brand dark:text-brand">
                             {cat ? '—' : mov.cantidadNueva}
                           </TableCell>
                           <TableCell className="whitespace-nowrap text-xs text-slate-700 dark:text-slate-300">

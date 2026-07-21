@@ -13,7 +13,6 @@ import {
 } from '@/db/database';
 import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
-import { reportHookFailure } from '@/lib/appEventLog';
 import {
   createQuotationFirestore,
   deleteQuotationFirestore,
@@ -137,7 +136,6 @@ export function useQuotations() {
       await loadQuotations();
       return (await getQuotationById(id)) ?? undefined;
     } catch (err) {
-      reportHookFailure('hook:useQuotations', 'Crear cotización', err);
       setError('Error al crear cotización');
       throw err;
     }
@@ -152,7 +150,6 @@ export function useQuotations() {
       await updateQuotation(id, updates);
       await loadQuotations();
     } catch (err) {
-      reportHookFailure('hook:useQuotations', 'Actualizar cotización', err);
       setError('Error al actualizar cotización');
       throw err;
     }
@@ -213,7 +210,6 @@ export function useQuotations() {
       await loadQuotations();
       return saleId;
     } catch (err) {
-      reportHookFailure('hook:useQuotations', 'Convertir cotización a venta', err);
       setError('Error al convertir cotización');
       throw err;
     }
@@ -228,7 +224,6 @@ export function useQuotations() {
       await deleteQuotation(id);
       await loadQuotations();
     } catch (err) {
-      reportHookFailure('hook:useQuotations', 'Eliminar cotización', err);
       setError('Error al eliminar cotización');
       throw err;
     }
@@ -246,7 +241,6 @@ export function useQuotations() {
       await revertQuotationToPending(quotationId);
       await loadQuotations();
     } catch (err) {
-      reportHookFailure('hook:useQuotations', 'Revertir cotización a pendiente', err);
       setError('Error al actualizar cotización');
       throw err;
     }
@@ -281,7 +275,6 @@ export function useQuotationDetails(quotationId: string | null) {
         const data = await getQuotationById(quotationId);
         setQuotation(data || null);
       } catch (err) {
-        reportHookFailure('hook:useQuotationDetails', 'Cargar cotización', err);
         console.error('Error al cargar cotización:', err);
       } finally {
         setLoading(false);

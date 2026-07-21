@@ -223,7 +223,7 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
                 embedded && 'text-sm sm:text-base'
               )}
             >
-              <Store className={cn('text-cyan-400', embedded ? 'h-4 w-4 sm:h-5 sm:w-5' : 'h-5 w-5')} />
+              <Store className={cn('text-brand', embedded ? 'h-4 w-4 sm:h-5 sm:w-5' : 'h-5 w-5')} />
               Sucursales
             </CardTitle>
             <div className="flex flex-wrap items-center gap-2">
@@ -241,7 +241,7 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
                 type="button"
                 size={embedded ? 'sm' : 'default'}
                 onClick={openCreate}
-                className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+                className="bg-brand-gradient text-white"
               >
                 <Plus className="mr-2 h-4 w-4" />
                 Nueva sucursal
@@ -298,7 +298,7 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
                               type="button"
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-slate-600 dark:text-slate-400 hover:text-cyan-400"
+                              className="h-8 w-8 text-slate-600 dark:text-slate-400 hover:text-brand"
                               onClick={() => openEdit(s)}
                               aria-label="Editar"
                             >
@@ -426,7 +426,7 @@ export function SucursalManagement({ embedded = false }: SucursalManagementProps
               type="button"
               disabled={saving}
               onClick={() => void handleSave()}
-              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+              className="bg-brand-gradient text-white"
             >
               {saving ? 'Procesando…' : 'Guardar'}
             </Button>

@@ -182,14 +182,12 @@ export function Nominas() {
       addToast({
         type: 'success',
         message: `Nómina timbrada. UUID: ${stamped.uuid}`,
-        logToAppEvents: true,
       });
     } catch (e) {
       reportNominaHookError('timbrar', e);
       addToast({
         type: 'error',
         message: e instanceof Error ? e.message : 'No se pudo timbrar',
-        logToAppEvents: true,
       });
     } finally {
       setBusy(false);
@@ -201,13 +199,12 @@ export function Nominas() {
     setBusy(true);
     try {
       await cancelar(cancelId, '02');
-      addToast({ type: 'success', message: 'Nómina cancelada ante el SAT', logToAppEvents: true });
+      addToast({ type: 'success', message: 'Nómina cancelada ante el SAT'});
       setCancelId(null);
     } catch (e) {
       addToast({
         type: 'error',
         message: e instanceof Error ? e.message : 'No se pudo cancelar',
-        logToAppEvents: true,
       });
     } finally {
       setBusy(false);
@@ -237,7 +234,7 @@ export function Nominas() {
               </Button>
               <Button
                 type="button"
-                className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+                className="bg-brand-gradient text-white"
                 onClick={() => setReciboOpen(true)}
                 disabled={!fiscalConfig || !!fiscalConfig.modoPruebaFiscal}
               >

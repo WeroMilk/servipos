@@ -198,6 +198,10 @@ export function docToProduct(row: { id: string; doc: Record<string, unknown> }):
       return raw.length === 8 ? raw : undefined;
     })(),
     esServicio: d.esServicio === true,
+    ubicacionFisica: (() => {
+      const u = d.ubicacionFisica != null ? String(d.ubicacionFisica).trim() : '';
+      return u || undefined;
+    })(),
     activo: d.activo !== false,
     createdAt: firestoreTimestampToDate(d.createdAt),
     updatedAt: firestoreTimestampToDate(d.updatedAt),
@@ -232,6 +236,7 @@ function productToDocPayload(
         ? normalizeClaveProdServ(product.claveProdServ)
         : null,
     esServicio: product.esServicio === true ? true : null,
+    ubicacionFisica: product.ubicacionFisica?.trim() ? product.ubicacionFisica.trim() : null,
     activo: product.activo,
   };
 }
@@ -459,6 +464,10 @@ export async function updateProductFirestore(
   if ('claveProdServ' in updates) {
     const n = normalizeClaveProdServ(updates.claveProdServ);
     doc.claveProdServ = n.length === 8 ? n : null;
+  }
+  if ('ubicacionFisica' in updates) {
+    const u = updates.ubicacionFisica?.trim() ?? '';
+    doc.ubicacionFisica = u || null;
   }
   if ('preciosPorListaCliente' in updates && updates.preciosPorListaCliente !== undefined) {
     const m = updates.preciosPorListaCliente;

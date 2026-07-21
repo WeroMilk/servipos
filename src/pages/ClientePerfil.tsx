@@ -447,7 +447,7 @@ export function ClientePerfil() {
             type="button"
             size="sm"
             disabled={!client}
-            className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+            className="bg-brand-gradient text-white"
             onClick={() =>
               navigate('/clientes', { state: { editClientId: client?.id } })
             }
@@ -460,7 +460,7 @@ export function ClientePerfil() {
     >
       {loading ? (
         <div className="flex flex-1 items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-cyan-500" />
+          <Loader2 className="h-8 w-8 animate-spin text-brand" />
         </div>
       ) : client ? (
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-hidden max-md:flex-none max-md:overflow-y-visible">
@@ -474,7 +474,7 @@ export function ClientePerfil() {
             <StatCard
               label="Total gastado"
               value={formatMoney(totalGastado)}
-              icon={<Receipt className="h-4 w-4 text-cyan-500" />}
+              icon={<Receipt className="h-4 w-4 text-brand" />}
             />
             <StatCard
               label="Saldo pendiente"
@@ -505,7 +505,7 @@ export function ClientePerfil() {
             <StatCard
               label="Abonos"
               value={formatMoney(totalAbonado)}
-              icon={<BadgeCheck className="h-4 w-4 text-blue-500" />}
+              icon={<BadgeCheck className="h-4 w-4 text-brand" />}
               onClick={() => setTab('adeudos')}
             />
           </div>
@@ -588,7 +588,7 @@ export function ClientePerfil() {
                   <CardContent className="space-y-3 text-sm">
                     <div className="flex items-center justify-between rounded-lg border border-slate-200/80 px-3 py-2 dark:border-slate-700/60">
                       <span className="text-slate-600 dark:text-slate-400">Total gastado</span>
-                      <span className="font-semibold tabular-nums text-cyan-600 dark:text-cyan-400">
+                      <span className="font-semibold tabular-nums text-brand dark:text-brand">
                         {formatMoney(totalGastado)}
                       </span>
                     </div>
@@ -1198,14 +1198,12 @@ export function ClientePerfil() {
                     addToast({
                       type: 'success',
                       message: `Abono de ${formatMoney(abonoCancelEntry.monto)} anulado.`,
-                      logToAppEvents: true,
                     });
                     setAbonoCancelEntry(null);
                   } catch (err) {
                     addToast({
                       type: 'error',
                       message: err instanceof Error ? err.message : 'No se pudo anular el abono',
-                      logToAppEvents: true,
                     });
                   } finally {
                     setAbonoCancelBusy(false);
@@ -1261,7 +1259,7 @@ function StatCard({
       <button
         type="button"
         onClick={onClick}
-        className="rounded-xl border border-slate-200/80 bg-slate-50/90 text-left transition-colors hover:border-cyan-500/40 hover:bg-slate-100 dark:border-slate-800/50 dark:bg-slate-900/50 dark:hover:bg-slate-900/80"
+        className="rounded-xl border border-slate-200/80 bg-slate-50/90 text-left transition-colors hover:border-brand/40 hover:bg-slate-100 dark:border-slate-800/50 dark:bg-slate-900/50 dark:hover:bg-slate-900/80"
       >
         {inner}
       </button>
@@ -1296,7 +1294,7 @@ function SaleListRow({ sale }: { sale: Sale }) {
           )}
           <span className="truncate">{sale.folio}</span>
         </span>
-        <span className="shrink-0 font-semibold tabular-nums text-cyan-600 dark:text-cyan-400">
+        <span className="shrink-0 font-semibold tabular-nums text-brand dark:text-brand">
           {formatMoney(sale.total)}
         </span>
       </div>
@@ -1378,7 +1376,7 @@ function SaleDetailPanel({ sale, onPrint }: { sale: Sale; onPrint: () => void })
         </div>
         <div className="sm:col-span-2">
           <dt className="text-slate-600 dark:text-slate-500">Total</dt>
-          <dd className="text-lg font-semibold tabular-nums text-cyan-600 dark:text-cyan-400">
+          <dd className="text-lg font-semibold tabular-nums text-brand dark:text-brand">
             {formatMoney(sale.total)}
           </dd>
         </div>
@@ -1402,7 +1400,7 @@ function SaleDetailPanel({ sale, onPrint }: { sale: Sale; onPrint: () => void })
           )}
         </ul>
       </div>
-      <Button type="button" className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white" onClick={onPrint}>
+      <Button type="button" className="bg-brand-gradient text-white" onClick={onPrint}>
         <Printer className="mr-2 h-4 w-4" />
         Reimprimir ticket
       </Button>
@@ -1442,7 +1440,7 @@ function AdeudoDetailPanel({ row, onPrint }: { row: AdeudoTicketRow; onPrint: ()
           <span className="tabular-nums">{formatMoney(adeudo)}</span>
         </div>
       </div>
-      <Button type="button" className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white" onClick={onPrint}>
+      <Button type="button" className="bg-brand-gradient text-white" onClick={onPrint}>
         <Printer className="mr-2 h-4 w-4" />
         Reimprimir ticket
       </Button>
@@ -1512,7 +1510,7 @@ function EntityListPanel<T>({
 function LoadingBlock({ message = 'Cargando…' }: { message?: string }) {
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-12 text-slate-600 dark:text-slate-500">
-      <Loader2 className="h-8 w-8 animate-spin text-cyan-500" />
+      <Loader2 className="h-8 w-8 animate-spin text-brand" />
       <p className="text-sm">{message}</p>
     </div>
   );

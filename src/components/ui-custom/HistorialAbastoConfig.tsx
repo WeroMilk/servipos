@@ -122,7 +122,7 @@ export function HistorialAbastoConfig({ enabled }: Props) {
               type="button"
               size="sm"
               variant={filtro === f.id ? 'default' : 'outline'}
-              className={filtro === f.id ? 'bg-cyan-600 text-white hover:bg-cyan-700' : ''}
+              className={filtro === f.id ? 'bg-brand-from text-white hover:bg-brand-to' : ''}
               onClick={() => setFiltro(f.id)}
             >
               {f.label}
@@ -240,7 +240,7 @@ function AbastoHistorialRow({
             'border text-[10px] font-medium',
             cat
               ? 'border-violet-500/40 bg-violet-500/10 text-violet-900 dark:text-violet-200'
-              : 'border-cyan-500/40 bg-cyan-500/10 text-cyan-900 dark:text-cyan-200'
+              : 'border-brand/40 bg-brand/10 text-brand-to dark:text-brand'
           )}
         >
           {tipoMovimientoLabel(mov.tipo)}
@@ -264,7 +264,7 @@ function AbastoHistorialRow({
       <TableCell className="whitespace-nowrap text-right text-sm text-slate-800 dark:text-slate-200">
         {llegada && pu != null && Number.isFinite(pu) ? formatMoney(pu) : '—'}
       </TableCell>
-      <TableCell className="whitespace-nowrap text-right text-sm font-medium text-cyan-700 dark:text-cyan-400">
+      <TableCell className="whitespace-nowrap text-right text-sm font-medium text-brand-to dark:text-brand">
         {sub != null ? formatMoney(sub) : '—'}
       </TableCell>
       <TableCell className="max-w-[16rem] text-xs text-slate-800 dark:text-slate-200">

@@ -183,7 +183,7 @@ export function UserPermissionsEditor({ embedded = false }: UserPermissionsEdito
       >
         <CardHeader className="shrink-0 space-y-1 px-3 py-2 sm:px-4">
           <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-slate-100 sm:text-base">
-            <Shield className="h-4 w-4 shrink-0 text-cyan-500 sm:h-5 sm:w-5" />
+            <Shield className="h-4 w-4 shrink-0 text-brand sm:h-5 sm:w-5" />
             Permisos por usuario
           </CardTitle>
         </CardHeader>
@@ -333,7 +333,7 @@ export function UserPermissionsEditor({ embedded = false }: UserPermissionsEdito
                             aria-label={PERMISSION_LABELS[p]}
                           />
                           <div className="min-w-0">
-                            <p className="font-mono text-[11px] text-cyan-700 dark:text-cyan-400">{p}</p>
+                            <p className="font-mono text-[11px] text-brand-to dark:text-brand">{p}</p>
                             <p className="text-sm text-slate-800 dark:text-slate-200">{PERMISSION_LABELS[p]}</p>
                           </div>
                         </li>
@@ -351,7 +351,7 @@ export function UserPermissionsEditor({ embedded = false }: UserPermissionsEdito
                 <Button
                   type="button"
                   disabled={saving}
-                  className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+                  className="bg-brand-gradient text-white"
                   onClick={() => void handleSave()}
                 >
                   {saving ? (

@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import type { FiscalConfig } from '@/types';
 import { setCatalogListaPreciosIncluyenIvaFromFiscal } from '@/lib/catalogPricingFlags';
 import { getFiscalConfig, saveFiscalConfig } from '@/db/database';
-import { reportHookFailure } from '@/lib/appEventLog';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 
 // ============================================
@@ -81,7 +80,6 @@ export function useFiscalConfig() {
       }
       return id;
     } catch (err) {
-      reportHookFailure('hook:useFiscalConfig', 'Guardar configuración fiscal', err);
       setError('Error al guardar configuración fiscal');
       throw err;
     }
@@ -98,7 +96,6 @@ export function useFiscalConfig() {
       }
       return id;
     } catch (err) {
-      reportHookFailure('hook:useFiscalConfig', 'Actualizar configuración fiscal', err);
       setError('Error al actualizar configuración fiscal');
       throw err;
     }

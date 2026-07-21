@@ -1,14 +1,34 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { AppState, ThemePreference, Toast } from '@/types';
-import { reportAppEvent } from '@/lib/appEventLog';
+import type { AccentColor, AppState, ThemePreference, Toast } from '@/types';
 
 // ============================================
 // STORE DE APLICACIÓN (UI/UX)
 // ============================================
 
 const STORAGE_KEY = 'pos-app-storage';
-const PERSIST_VERSION = 2;
+const PERSIST_VERSION = 3;
+
+export const ACCENT_COLORS: readonly AccentColor[] = [
+  'blue',
+  'sky',
+  'teal',
+  'emerald',
+  'green',
+  'lime',
+  'amber',
+  'orange',
+  'rose',
+  'pink',
+  'violet',
+  'indigo',
+] as const;
+
+const ACCENT_SET = new Set<string>(ACCENT_COLORS);
+
+export function isAccentColor(value: unknown): value is AccentColor {
+  return typeof value === 'string' && ACCENT_SET.has(value);
+}
 
 function getSystemPrefersDark(): boolean {
   if (typeof window === 'undefined') return true;
@@ -30,20 +50,30 @@ export function applyDomTheme(isDark: boolean): void {
   }
 }
 
-function migratePersisted(persisted: unknown): Pick<AppState, 'themePreference' | 'sidebarCollapsed'> {
+export function applyDomAccent(color: AccentColor): void {
+  if (typeof document === 'undefined') return;
+  document.documentElement.setAttribute('data-accent', color);
+}
+
+function migratePersisted(
+  persisted: unknown
+): Pick<AppState, 'themePreference' | 'sidebarCollapsed' | 'accentColor'> {
   const p = persisted as {
     themePreference?: ThemePreference;
     isDarkMode?: boolean;
     sidebarCollapsed?: boolean;
+    accentColor?: unknown;
   } | null;
   const sidebarCollapsed = Boolean(p?.sidebarCollapsed);
+  const accentColor: AccentColor = isAccentColor(p?.accentColor) ? p.accentColor : 'blue';
+
   if (p?.themePreference === 'system' || p?.themePreference === 'light' || p?.themePreference === 'dark') {
-    return { themePreference: p.themePreference, sidebarCollapsed };
+    return { themePreference: p.themePreference, sidebarCollapsed, accentColor };
   }
   if (typeof p?.isDarkMode === 'boolean') {
-    return { themePreference: p.isDarkMode ? 'dark' : 'light', sidebarCollapsed };
+    return { themePreference: p.isDarkMode ? 'dark' : 'light', sidebarCollapsed, accentColor };
   }
-  return { themePreference: 'system', sidebarCollapsed };
+  return { themePreference: 'system', sidebarCollapsed, accentColor };
 }
 
 export const useAppStore = create<AppState>()(
@@ -51,6 +81,7 @@ export const useAppStore = create<AppState>()(
     (set, get) => ({
       themePreference: 'system',
       systemPrefersDark: getSystemPrefersDark(),
+      accentColor: 'blue',
       sidebarCollapsed: false,
       toasts: [],
       isLoading: false,
@@ -61,29 +92,24 @@ export const useAppStore = create<AppState>()(
         applyDomTheme(!dark);
       },
 
+      setAccentColor: (color: AccentColor) => {
+        set({ accentColor: color });
+        applyDomAccent(color);
+      },
+
       toggleSidebar: () => {
         set({ sidebarCollapsed: !get().sidebarCollapsed });
       },
 
-      addToast: (toast: Omit<Toast, 'id'> & { logToAppEvents?: boolean }) => {
-        const { logToAppEvents, ...rest } = toast;
+      addToast: (toast: Omit<Toast, 'id'>) => {
         const id = Math.random().toString(36).substring(2, 9);
         const newToast: Toast = {
-          ...rest,
+          ...toast,
           id,
-          duration: rest.duration || 3000,
+          duration: toast.duration || 3000,
         };
 
         set({ toasts: [...get().toasts, newToast] });
-
-        if (logToAppEvents) {
-          reportAppEvent({
-            kind: rest.type,
-            source: 'toast',
-            title: rest.message.slice(0, 500),
-            meta: { toastType: rest.type },
-          });
-        }
 
         setTimeout(() => {
           get().removeToast(id);
@@ -108,12 +134,14 @@ export const useAppStore = create<AppState>()(
       partialize: (state) => ({
         themePreference: state.themePreference,
         sidebarCollapsed: state.sidebarCollapsed,
+        accentColor: state.accentColor,
       }),
       onRehydrateStorage: () => (state, error) => {
         if (error || !state) return;
         const sys = getSystemPrefersDark();
         useAppStore.setState({ systemPrefersDark: sys });
         applyDomTheme(getResolvedIsDark({ ...state, systemPrefersDark: sys }));
+        applyDomAccent(isAccentColor(state.accentColor) ? state.accentColor : 'blue');
       },
     }
   )
@@ -136,6 +164,7 @@ if (typeof window !== 'undefined') {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) {
         applyDomTheme(getResolvedIsDark(useAppStore.getState()));
+        applyDomAccent(useAppStore.getState().accentColor);
         return;
       }
       const parsed = JSON.parse(raw) as { state?: unknown; version?: number };
@@ -143,8 +172,10 @@ if (typeof window !== 'undefined') {
       const sys = getSystemPrefersDark();
       const dark = getResolvedIsDark({ ...migrated, systemPrefersDark: sys });
       applyDomTheme(dark);
+      applyDomAccent(migrated.accentColor);
     } catch {
       applyDomTheme(getResolvedIsDark(useAppStore.getState()));
+      applyDomAccent(useAppStore.getState().accentColor);
     }
   };
   syncFromStorageEarly();

@@ -3,8 +3,6 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { Layout, LoginForm, LoadingIndicator, RouteErrorBoundary } from '@/components/ui-custom';
 import { useAuthStore, useSyncStore, subscribeSupabaseAuth } from '@/stores';
 import { initializeDemoData, syncServipartzSeedUsers } from '@/db/database';
-import { setAppEventActorResolver } from '@/lib/appEventContext';
-import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
 import { lazyWithRetry } from '@/lib/lazyWithRetry';
 
 const Dashboard = lazyWithRetry(() =>
@@ -57,17 +55,6 @@ const Checador = lazyWithRetry(() =>
 function PageFallback({ message }: { message: string }) {
   return <LoadingIndicator inline message={message} tone="onBrand" />;
 }
-
-setAppEventActorResolver(() => {
-  const u = useAuthStore.getState().user;
-  return {
-    userId: u?.id ?? null,
-    name: u?.name ?? 'Invitado',
-    email: u?.email ?? '',
-    role: u?.role ?? 'guest',
-    sucursalId: getEffectiveSucursalId(),
-  };
-});
 
 // ============================================
 // COMPONENTE PRINCIPAL DE LA APLICACIÓN

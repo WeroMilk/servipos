@@ -100,9 +100,9 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
-const LINE_STROKE = '#0891b2';
-const LINE_DOT_FILL = '#06b6d4';
-const LINE_DOT_STROKE = '#164e63';
+const LINE_STROKE = 'hsl(var(--brand-from))';
+const LINE_DOT_FILL = 'hsl(var(--brand-from))';
+const LINE_DOT_STROKE = 'hsl(var(--brand-to))';
 const CHART_AREA_GRADIENT_ID = 'dashboardVentasAreaFill';
 
 const WEEKDAY_SHORT_ES = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'] as const;
@@ -123,16 +123,16 @@ const STAT_ACCENT: Record<
     iconShadow: 'shadow-emerald-500/30',
   },
   cyan: {
-    ring: 'from-cyan-500/80 via-cyan-400/40 to-transparent',
-    glow: 'hover:shadow-cyan-500/15 dark:hover:shadow-cyan-400/10',
-    wash: 'from-cyan-500/[0.07] via-transparent to-transparent dark:from-cyan-400/[0.12]',
-    iconShadow: 'shadow-cyan-500/30',
+    ring: 'from-brand-from/80 via-brand/40 to-transparent',
+    glow: 'hover:shadow-brand/15 dark:hover:shadow-brand/10',
+    wash: 'from-brand-from/[0.07] via-transparent to-transparent dark:from-brand/[0.12]',
+    iconShadow: 'shadow-brand/30',
   },
   blue: {
-    ring: 'from-blue-500/80 via-blue-400/40 to-transparent',
-    glow: 'hover:shadow-blue-500/15 dark:hover:shadow-blue-400/10',
-    wash: 'from-blue-500/[0.07] via-transparent to-transparent dark:from-blue-400/[0.12]',
-    iconShadow: 'shadow-blue-500/30',
+    ring: 'from-brand/80 via-brand/40 to-transparent',
+    glow: 'hover:shadow-brand/15 dark:hover:shadow-brand/10',
+    wash: 'from-brand/[0.07] via-transparent to-transparent dark:from-brand/[0.12]',
+    iconShadow: 'shadow-brand/30',
   },
   violet: {
     ring: 'from-violet-500/80 via-violet-400/40 to-transparent',
@@ -619,7 +619,6 @@ export function Dashboard() {
       addToast({
         type: 'success',
         message: `Venta cancelada. Inventario reintegrado.${efDev > 0.005 ? ` Devolución en efectivo: ${formatMoney(efDev)}.` : ''} El ticket ya no cuenta en totales.`,
-        logToAppEvents: true,
       });
       setSaleCancelOpen(false);
       setSaleToCancel(null);
@@ -627,7 +626,6 @@ export function Dashboard() {
       addToast({
         type: 'error',
         message: err instanceof Error ? err.message : 'No se pudo cancelar la venta',
-        logToAppEvents: true,
       });
     } finally {
       setSaleCancelBusy(false);
@@ -663,7 +661,6 @@ export function Dashboard() {
       addToast({
         type: 'success',
         message: `Abono de ${formatMoney(abonoToCancel.monto)} anulado. El saldo pendiente del cliente se restauró.`,
-        logToAppEvents: true,
       });
       setAbonoCancelOpen(false);
       setAbonoToCancel(null);
@@ -671,7 +668,6 @@ export function Dashboard() {
       addToast({
         type: 'error',
         message: err instanceof Error ? err.message : 'No se pudo anular el abono',
-        logToAppEvents: true,
       });
     } finally {
       setAbonoCancelBusy(false);
@@ -911,8 +907,8 @@ export function Dashboard() {
       className={cn(
         'relative flex h-full min-h-0 w-full min-w-0 max-w-[100vw] flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto sm:gap-3.5 lg:gap-4',
         'before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))]',
-        'before:from-cyan-500/[0.06] before:via-transparent before:to-violet-500/[0.04]',
-        'dark:before:from-cyan-400/[0.08] dark:before:via-transparent dark:before:to-violet-500/[0.06]'
+        'before:from-brand-from/[0.06] before:via-transparent before:to-violet-500/[0.04]',
+        'dark:before:from-brand/[0.08] dark:before:via-transparent dark:before:to-violet-500/[0.06]'
       )}
     >
       <header className="flex shrink-0 flex-col gap-3 rounded-2xl border border-slate-200/70 bg-white/70 p-3 shadow-sm backdrop-blur-md dark:border-slate-800/60 dark:bg-slate-900/50 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:p-4">
@@ -947,7 +943,7 @@ export function Dashboard() {
                   className={cn(
                     'rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-200 sm:px-3.5 sm:text-sm',
                     active
-                      ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-md shadow-cyan-500/25'
+                      ? 'bg-brand-gradient text-white shadow-md shadow-brand/25'
                       : 'text-slate-600 hover:bg-white/80 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/80 dark:hover:text-slate-100'
                   )}
                 >
@@ -968,9 +964,9 @@ export function Dashboard() {
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-9 rounded-full border-cyan-500/35 bg-cyan-500/10 px-3.5 text-slate-900 shadow-sm hover:bg-cyan-500/15 dark:border-cyan-400/30 dark:bg-cyan-400/10 dark:text-slate-100 dark:hover:bg-cyan-400/15"
+                className="h-9 rounded-full border-brand/35 bg-brand/10 px-3.5 text-slate-900 shadow-sm hover:bg-brand/15 dark:border-brand/30 dark:bg-brand/10 dark:text-slate-100 dark:hover:bg-brand/15"
               >
-                <CalendarDays className="mr-2 h-4 w-4 shrink-0 text-cyan-600 dark:text-cyan-300" />
+                <CalendarDays className="mr-2 h-4 w-4 shrink-0 text-brand dark:text-brand" />
                 <span className="max-w-[10rem] truncate font-medium sm:max-w-none">{rangeLabel}</span>
               </Button>
             }
@@ -1001,7 +997,7 @@ export function Dashboard() {
           icon={ShoppingCart}
           trend="neutral"
           trendValue="En el periodo"
-          iconGradient="bg-gradient-to-br from-cyan-500 to-cyan-600"
+          iconGradient="bg-gradient-to-br from-brand-from to-brand-to"
           accent="cyan"
           drillChip={kpiDrillHint}
         />
@@ -1014,7 +1010,7 @@ export function Dashboard() {
           icon={Package}
           trend="neutral"
           trendValue="En el periodo"
-          iconGradient="bg-gradient-to-br from-blue-500 to-blue-600"
+          iconGradient="bg-gradient-to-br from-brand to-brand-to"
           accent="blue"
           drillChip={kpiDrillHint}
         />
@@ -1089,12 +1085,12 @@ export function Dashboard() {
           className={cn(
             'group flex min-w-0 items-center gap-2.5 rounded-2xl border border-slate-200/70 bg-white/80 px-3 py-2.5 text-left shadow-sm backdrop-blur-sm',
             'dark:border-slate-800/60 dark:bg-slate-900/55',
-            'transition-all duration-200 hover:-translate-y-0.5 hover:border-cyan-500/40 hover:shadow-md hover:shadow-cyan-500/10',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40',
+            'transition-all duration-200 hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-md hover:shadow-brand/10',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40',
             'active:scale-[0.99]'
           )}
         >
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 shadow-md shadow-cyan-500/25">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-from to-brand-to shadow-md shadow-brand/25">
             <ShoppingCart className="h-4 w-4 text-white" />
           </span>
           <span className="min-w-0 flex-1">
@@ -1103,7 +1099,7 @@ export function Dashboard() {
                 Ventas recientes
               </span>
               {!salesLoading && !abonosLoading && totals.count > 0 ? (
-                <span className="rounded-full bg-cyan-500/15 px-2 py-0.5 text-[10px] font-bold tabular-nums text-cyan-700 dark:text-cyan-300">
+                <span className="rounded-full bg-brand/15 px-2 py-0.5 text-[10px] font-bold tabular-nums text-brand-to dark:text-brand">
                   {totals.count}
                 </span>
               ) : null}
@@ -1112,7 +1108,7 @@ export function Dashboard() {
               {salesLoading || abonosLoading ? 'Cargando…' : 'Historial del periodo'}
             </span>
           </span>
-          <ChevronRight className="h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-cyan-600 dark:group-hover:text-cyan-300" aria-hidden />
+          <ChevronRight className="h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-brand dark:group-hover:text-brand" aria-hidden />
         </button>
       </div>
 
@@ -1127,7 +1123,7 @@ export function Dashboard() {
         <CardHeader className="shrink-0 space-y-2 py-3 sm:py-3.5">
           <CardTitle className="flex flex-col gap-1.5 text-sm text-slate-900 dark:text-slate-100 sm:text-base">
             <span className="flex flex-wrap items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 shadow-md shadow-cyan-500/25">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-brand-from to-brand-to shadow-md shadow-brand/25">
                 <TrendingUp className="h-4 w-4 text-white" />
               </span>
               <span className="font-semibold tracking-tight">{chartCardTitle}</span>
@@ -1153,7 +1149,7 @@ export function Dashboard() {
           >
             {salesLoading ? (
               <div className="flex h-full min-h-[200px] flex-col items-center justify-center gap-2">
-                <div className="h-8 w-8 animate-pulse rounded-full bg-cyan-500/20" />
+                <div className="h-8 w-8 animate-pulse rounded-full bg-brand/20" />
                 <p className="text-xs text-slate-500">Cargando ventas…</p>
               </div>
             ) : (
@@ -1170,9 +1166,9 @@ export function Dashboard() {
                     >
                       <defs>
                         <linearGradient id={CHART_AREA_GRADIENT_ID} x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#06b6d4" stopOpacity={isDark ? 0.35 : 0.28} />
-                          <stop offset="70%" stopColor="#0891b2" stopOpacity={isDark ? 0.08 : 0.06} />
-                          <stop offset="100%" stopColor="#0891b2" stopOpacity={0} />
+                          <stop offset="0%" stopColor="hsl(var(--brand-from))" stopOpacity={isDark ? 0.35 : 0.28} />
+                          <stop offset="70%" stopColor="hsl(var(--brand-from))" stopOpacity={isDark ? 0.08 : 0.06} />
+                          <stop offset="100%" stopColor="hsl(var(--brand-from))" stopOpacity={0} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke={chartGridStroke} vertical={false} />
@@ -1537,8 +1533,8 @@ export function Dashboard() {
                     className={cn(
                       'text-slate-600 dark:text-slate-400',
                       reprintSearchMode
-                        ? 'bg-cyan-500/15 text-cyan-700 hover:bg-cyan-500/25 dark:text-cyan-300'
-                        : 'hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-cyan-400'
+                        ? 'bg-brand/15 text-brand-to hover:bg-brand/25 dark:text-brand'
+                        : 'hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-brand'
                     )}
                     title={reprintSearchMode ? 'Volver al listado por día' : 'Buscar en historial de tickets'}
                     aria-label={reprintSearchMode ? 'Volver al listado por día' : 'Buscar en historial de tickets'}
@@ -1554,7 +1550,7 @@ export function Dashboard() {
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:bg-slate-800 hover:text-cyan-400"
+                      className="text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:bg-slate-800 hover:text-brand"
                       title="Reporte de ventas del día (térmica)"
                       aria-label="Imprimir reporte térmico del día seleccionado"
                       disabled={
@@ -1620,7 +1616,7 @@ export function Dashboard() {
                   </div>
                   <div className="sm:col-span-2">
                     <dt className="text-slate-600 dark:text-slate-500">Monto cobrado</dt>
-                    <dd className="text-lg font-bold tabular-nums text-cyan-600 dark:text-cyan-400">
+                    <dd className="text-lg font-bold tabular-nums text-brand dark:text-brand">
                       {formatMoney(reprintAbonoDetail.monto)}
                     </dd>
                   </div>
@@ -1728,7 +1724,7 @@ export function Dashboard() {
                     <span>IVA</span>
                     <span className="tabular-nums">{formatMoney(Number(reprintSaleDetail.impuestos) || 0)}</span>
                   </div>
-                  <div className="flex justify-between gap-2 font-semibold text-cyan-600 dark:text-cyan-400">
+                  <div className="flex justify-between gap-2 font-semibold text-brand dark:text-brand">
                     <span>Total</span>
                     <span className="tabular-nums">{formatMoney(reprintSaleDetail.total)}</span>
                   </div>
@@ -1767,7 +1763,7 @@ export function Dashboard() {
                 ) : null}
                 <Button
                   type="button"
-                  className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white sm:w-auto"
+                  className="w-full bg-brand-gradient text-white sm:w-auto"
                   onClick={() => void printThermalTicketFromSale(reprintSaleDetail)}
                 >
                   <Printer className="mr-2 h-4 w-4" />
@@ -1831,7 +1827,7 @@ export function Dashboard() {
                               </span>
                             ) : null}
                           </p>
-                          <p className="text-sm font-semibold tabular-nums text-cyan-500 dark:text-cyan-400">
+                          <p className="text-sm font-semibold tabular-nums text-brand dark:text-brand">
                             {formatMoney(mov.monto)}
                           </p>
                         </div>
@@ -1923,7 +1919,7 @@ export function Dashboard() {
                         </p>
                         <p
                           className={cn(
-                            'text-sm font-semibold tabular-nums text-cyan-400',
+                            'text-sm font-semibold tabular-nums text-brand',
                             sale.estado === 'cancelada' &&
                               'text-slate-500 line-through decoration-slate-500/60'
                           )}

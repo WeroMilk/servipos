@@ -265,7 +265,7 @@ export function Promociones() {
         <Card className="border-slate-200/80 dark:border-slate-800/50">
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
-              <Percent className="h-4 w-4 text-cyan-500" />
+              <Percent className="h-4 w-4 text-brand" />
               Listado ({promotions.length})
             </CardTitle>
           </CardHeader>
@@ -390,7 +390,7 @@ export function Promociones() {
                     className={cn(
                       'rounded-lg border px-3 py-1.5 text-sm transition-colors',
                       form.template === opt.id
-                        ? 'border-cyan-500 bg-cyan-500/15 text-cyan-800 dark:text-cyan-200'
+                        ? 'border-brand bg-brand/15 text-brand-to dark:text-brand'
                         : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-800'
                     )}
                   >
@@ -493,13 +493,13 @@ export function Promociones() {
                         return (
                           <tr
                             key={p.id}
-                            className="cursor-pointer hover:bg-cyan-500/[0.04]"
+                            className="cursor-pointer hover:bg-brand/[0.04]"
                             onClick={() => toggleProduct(p, !checked)}
                           >
                             <td className="px-2 py-1.5">
                               <input
                                 type="checkbox"
-                                className="size-4 rounded border-slate-400 accent-blue-600"
+                                className="size-4 rounded border-slate-400 accent-brand"
                                 checked={checked}
                                 onClick={(e) => e.stopPropagation()}
                                 onChange={(e) => toggleProduct(p, e.target.checked)}

@@ -448,7 +448,7 @@ export function EtiquetasProductos() {
                         aria-selected={includeMode === id}
                         className={cn(
                           'min-h-[2.75rem] w-full min-w-0 rounded-md px-2 py-2 text-center text-xs font-medium transition-[box-shadow,background-color]',
-                          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40',
+                          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40',
                           includeMode === id
                             ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-slate-100'
                             : 'text-slate-600 hover:bg-slate-200/40 dark:text-slate-400 dark:hover:bg-slate-800/50'
@@ -510,7 +510,7 @@ export function EtiquetasProductos() {
                               >
                                 <input
                                   type="checkbox"
-                                  className="size-4 shrink-0 rounded border-slate-400 accent-blue-600 focus:ring-blue-500/40"
+                                  className="size-4 shrink-0 rounded border-slate-400 accent-brand focus:ring-brand/40"
                                   checked={Boolean(familyPick[cat])}
                                   onChange={(e) =>
                                     setFamilyPick((prev) => ({ ...prev, [cat]: e.target.checked }))
@@ -571,13 +571,13 @@ export function EtiquetasProductos() {
                               return (
                               <tr
                                 key={p.id}
-                                className="cursor-pointer bg-white/50 transition-colors hover:bg-cyan-500/[0.04] dark:bg-transparent dark:hover:bg-slate-800/30"
+                                className="cursor-pointer bg-white/50 transition-colors hover:bg-brand/[0.04] dark:bg-transparent dark:hover:bg-slate-800/30"
                                 onClick={() => togglePickProductInQueue(p)}
                               >
                                 <td className="px-3 py-2 align-top">
                                   <input
                                     type="checkbox"
-                                    className="mt-0.5 size-4 rounded border-slate-400 accent-blue-600 focus:ring-blue-500/40"
+                                    className="mt-0.5 size-4 rounded border-slate-400 accent-brand focus:ring-brand/40"
                                     checked={inPrintQueue}
                                     onClick={(e) => e.stopPropagation()}
                                     onChange={(e) => setPickProductInQueue(p, e.target.checked)}
@@ -626,7 +626,7 @@ export function EtiquetasProductos() {
                         className={cn(
                           'min-h-[14rem] w-full min-w-0 flex-1 resize-y rounded-lg border border-slate-200/90 bg-white/80 px-3 py-2',
                           'font-mono text-xs leading-relaxed text-slate-900 placeholder:text-slate-400',
-                          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40',
+                          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40',
                           'dark:border-slate-800/80 dark:bg-slate-950/40 dark:text-slate-100 dark:placeholder:text-slate-500'
                         )}
                       />
@@ -722,7 +722,7 @@ export function EtiquetasProductos() {
                           type="button"
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 shrink-0 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                          className="h-8 w-8 shrink-0 text-brand-to hover:text-brand-to dark:text-brand dark:hover:text-brand"
                           onClick={() => openLabelEdit(line)}
                           aria-label="Editar etiqueta"
                           title="Editar nombre, precio y código de barras de la etiqueta"

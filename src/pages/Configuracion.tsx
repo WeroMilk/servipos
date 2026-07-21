@@ -445,9 +445,9 @@ export function Configuracion() {
   const configuracionTabTriggerClass = cn(
     'h-auto min-h-11 shrink-0 flex-none justify-center rounded-none border-0 border-b-2 border-transparent bg-transparent px-2.5 py-2.5 text-center text-sm leading-snug text-slate-600 shadow-none ring-offset-0 sm:min-h-11 sm:px-3',
     'whitespace-normal [text-wrap:balance]',
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/35 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-100 dark:focus-visible:ring-offset-slate-950',
-    'data-[state=active]:border-cyan-500 data-[state=active]:bg-transparent data-[state=active]:text-cyan-700 data-[state=active]:shadow-none',
-    'dark:text-slate-400 dark:data-[state=active]:text-cyan-400 xl:w-full xl:flex-1'
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/35 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-100 dark:focus-visible:ring-offset-slate-950',
+    'data-[state=active]:border-brand data-[state=active]:bg-transparent data-[state=active]:text-brand-to data-[state=active]:shadow-none',
+    'dark:text-slate-400 dark:data-[state=active]:text-brand xl:w-full xl:flex-1'
   );
 
   /** Un solo scroll vertical por pestaña para que en escritorio se vea todo el formulario (incl. datos fiscales). */
@@ -575,7 +575,7 @@ export function Configuracion() {
           <Card className="w-full min-w-0 shrink-0 border-slate-200/80 bg-slate-50/90 dark:border-slate-800/50 dark:bg-slate-900/50">
             <CardHeader className="shrink-0 space-y-1 px-3 py-2 sm:px-4 lg:px-3 lg:py-1.5">
               <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-slate-100 sm:text-base lg:text-sm">
-                <Receipt className="h-4 w-4 shrink-0 text-cyan-400 sm:h-5 sm:w-5 lg:h-4 lg:w-4" />
+                <Receipt className="h-4 w-4 shrink-0 text-brand sm:h-5 sm:w-5 lg:h-4 lg:w-4" />
                 Datos fiscales CFDI 4.0
               </CardTitle>
             </CardHeader>
@@ -849,7 +849,7 @@ export function Configuracion() {
                   onClick={handleSaveFiscal}
                   disabled={!isFormValid()}
                   className={cn(
-                    'bg-gradient-to-r from-cyan-500 to-blue-600 text-white',
+                    'bg-brand-gradient text-white',
                     !isFormValid() && 'cursor-not-allowed opacity-50'
                   )}
                 >
@@ -865,7 +865,7 @@ export function Configuracion() {
           <Card className="w-full shrink-0 border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
             <CardHeader className="shrink-0 space-y-0 border-b border-slate-200/70 px-3 py-2.5 dark:border-slate-800/50 sm:px-4">
               <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-slate-100 sm:text-base">
-                <Building2 className="h-4 w-4 shrink-0 text-cyan-400 sm:h-5 sm:w-5" />
+                <Building2 className="h-4 w-4 shrink-0 text-brand sm:h-5 sm:w-5" />
                 Información de la empresa
               </CardTitle>
             </CardHeader>
@@ -919,7 +919,7 @@ export function Configuracion() {
                   type="button"
                   size="sm"
                   onClick={handleSaveFiscal}
-                  className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+                  className="bg-brand-gradient text-white"
                 >
                   <Save className="mr-2 h-4 w-4" />
                   Guardar
@@ -934,13 +934,13 @@ export function Configuracion() {
             <Card className="w-full shrink-0 border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 xl:min-h-0 xl:shrink xl:flex xl:flex-col xl:overflow-hidden">
               <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
                 <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-slate-100 sm:text-base">
-                  <FileKey className="h-4 w-4 text-cyan-400 sm:h-5 sm:w-5" />
+                  <FileKey className="h-4 w-4 text-brand sm:h-5 sm:w-5" />
                   CSD en Facturama (API Web)
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-2 p-3 sm:p-4 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:overscroll-y-contain">
-                <div className="flex gap-2.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 p-3">
-                  <Lock className="mt-0.5 h-4 w-4 shrink-0 text-cyan-700 dark:text-cyan-400 sm:h-5 sm:w-5" />
+                <div className="flex gap-2.5 rounded-lg border border-brand/30 bg-brand/10 p-3">
+                  <Lock className="mt-0.5 h-4 w-4 shrink-0 text-brand-to dark:text-brand sm:h-5 sm:w-5" />
                   <p className="text-sm leading-snug text-slate-800 dark:text-slate-200 sm:text-xs">
                     El CSD (.cer / .key) se carga en el panel de Facturama (perfil fiscal). El POS no almacena la
                     llave privada: Facturama sella y timbra con su cuenta API Web de un solo RFC.
@@ -956,7 +956,7 @@ export function Configuracion() {
                     type="button"
                     size="sm"
                     disabled={facturamaBusy}
-                    className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+                    className="bg-brand-gradient text-white"
                     onClick={() => {
                       setFacturamaBusy(true);
                       setFacturamaStatusMsg(null);
@@ -989,7 +989,7 @@ export function Configuracion() {
             <Card className="w-full shrink-0 border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 xl:min-h-0 xl:shrink xl:flex xl:flex-col xl:overflow-hidden">
               <CardHeader className="shrink-0 space-y-0 px-3 py-2 sm:px-4">
                 <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-slate-100 sm:text-base">
-                  <Key className="h-4 w-4 text-cyan-400 sm:h-5 sm:w-5" />
+                  <Key className="h-4 w-4 text-brand sm:h-5 sm:w-5" />
                   Modo prueba vs producción
                 </CardTitle>
               </CardHeader>
@@ -1017,13 +1017,13 @@ export function Configuracion() {
             <Card className="w-full min-w-0 shrink-0 gap-0 border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 xl:min-h-0 xl:max-h-[min(100dvh-9.5rem,920px)] xl:overflow-hidden xl:flex xl:flex-col">
               <CardHeader className="shrink-0 space-y-0 px-3 py-1.5 sm:px-4 lg:py-1">
                 <CardTitle className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100 sm:text-base lg:text-sm">
-                  <Wallet className="h-4 w-4 shrink-0 text-cyan-400 sm:h-5 sm:w-5 lg:h-4 lg:w-4" />
+                  <Wallet className="h-4 w-4 shrink-0 text-brand sm:h-5 sm:w-5 lg:h-4 lg:w-4" />
                   Nómina electrónica (CFDI)
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-2 p-2.5 sm:p-3 lg:gap-1.5 lg:p-2 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:overscroll-y-contain">
-                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-cyan-500/25 bg-cyan-500/10 p-2">
-                  <p className="flex-1 text-[11px] leading-snug text-cyan-900 dark:text-cyan-100 sm:text-xs">
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-brand/25 bg-brand/10 p-2">
+                  <p className="flex-1 text-[11px] leading-snug text-brand-to dark:text-brand sm:text-xs">
                     El flujo productivo de nómina timbrada está en el módulo{' '}
                     <Link to="/nominas" className="font-semibold underline-offset-2 hover:underline">
                       Nómina
@@ -1052,7 +1052,7 @@ export function Configuracion() {
                       <Button
                         type="button"
                         size="sm"
-                        className="h-7 bg-gradient-to-r from-cyan-500 to-blue-600 px-2.5 text-[11px] text-white lg:h-6"
+                        className="h-7 bg-brand-gradient px-2.5 text-[11px] text-white lg:h-6"
                         onClick={() => void handlePrintNominaPrueba()}
                       >
                         <Printer className="mr-1 h-3 w-3" />
@@ -1557,7 +1557,7 @@ export function Configuracion() {
                   <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-400">
                     <span className="font-medium text-slate-700 dark:text-slate-300">Impresión de prueba:</span> serie
                     PRUEBA-N y folio local (siguiente:{' '}
-                    <span className="font-mono text-cyan-600 dark:text-cyan-400">
+                    <span className="font-mono text-brand dark:text-brand">
                       {config?.folioPruebaNomina ?? 1}
                     </span>
                     ). No consume el folio de nómina SAT de la derecha.
@@ -1565,7 +1565,7 @@ export function Configuracion() {
                   <Button
                     type="button"
                     size="sm"
-                    className="mt-2 h-8 bg-gradient-to-r from-cyan-500 to-blue-600 text-white lg:mt-1.5 lg:h-7 lg:text-xs"
+                    className="mt-2 h-8 bg-brand-gradient text-white lg:mt-1.5 lg:h-7 lg:text-xs"
                     onClick={() => void handlePrintNominaPrueba()}
                   >
                     <Printer className="mr-2 h-3.5 w-3.5" />
@@ -1579,7 +1579,7 @@ export function Configuracion() {
               <Card className="w-full gap-0 border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50">
                 <CardHeader className="space-y-0 px-3 py-1.5 sm:px-4 lg:py-1">
                   <CardTitle className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100 sm:text-base lg:text-sm">
-                    <Receipt className="h-4 w-4 shrink-0 text-cyan-400 lg:h-4 lg:w-4" />
+                    <Receipt className="h-4 w-4 shrink-0 text-brand lg:h-4 lg:w-4" />
                     Folios de nómina
                   </CardTitle>
                 </CardHeader>
@@ -1630,7 +1630,7 @@ export function Configuracion() {
                     onClick={() => void handleSaveNominaFolios()}
                     disabled={!fiscalForm.serieNomina?.trim() || !fiscalForm.folioNominaActual}
                     className={cn(
-                      'h-8 w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white sm:w-auto sm:self-end lg:h-7 lg:text-xs',
+                      'h-8 w-full bg-brand-gradient text-white sm:w-auto sm:self-end lg:h-7 lg:text-xs',
                       (!fiscalForm.serieNomina?.trim() || !fiscalForm.folioNominaActual) &&
                         'cursor-not-allowed opacity-50'
                     )}
@@ -1654,15 +1654,15 @@ export function Configuracion() {
                   </p>
                   <ul className="space-y-1.5 text-[11px] text-slate-700 dark:text-slate-300 lg:space-y-1">
                     <li className="flex gap-1.5">
-                      <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-400" />
+                      <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" />
                       Datos fiscales del emisor (pestaña Datos fiscales).
                     </li>
                     <li className="flex gap-1.5">
-                      <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-400" />
+                      <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" />
                       .cer y .key en Certificados.
                     </li>
                     <li className="flex gap-1.5">
-                      <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-400" />
+                      <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" />
                       PAC con timbrado de nómina (Soporte).
                     </li>
                   </ul>
@@ -1763,7 +1763,7 @@ export function Configuracion() {
                   <Button
                     type="button"
                     onClick={handleSaveInventarioListas}
-                    className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+                    className="bg-brand-gradient text-white"
                   >
                     <Save className="mr-2 h-4 w-4" />
                     Guardar listas

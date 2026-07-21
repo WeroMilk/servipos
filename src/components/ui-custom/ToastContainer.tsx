@@ -19,7 +19,7 @@ const colorMap = {
   error: 'bg-red-500/10 border-red-500/30 text-red-400',
   warning:
     'bg-amber-500/10 border-amber-500/30 text-black dark:border-amber-500/40 dark:text-amber-100',
-  info: 'bg-cyan-500/10 border-cyan-500/30 text-cyan-800 dark:text-cyan-400',
+  info: 'bg-brand/10 border-brand/30 text-brand-to dark:text-brand',
 };
 
 export function ToastContainer() {

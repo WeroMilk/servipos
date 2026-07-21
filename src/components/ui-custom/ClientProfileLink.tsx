@@ -37,7 +37,7 @@ export function ClientProfileLink({
     <Link
       to={to}
       className={cn(
-        'truncate font-medium text-cyan-800 hover:underline dark:text-cyan-300/90',
+        'truncate font-medium text-brand-to hover:underline dark:text-brand/90',
         className
       )}
       onClick={(e) => {

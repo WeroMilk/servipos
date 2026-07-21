@@ -34,23 +34,23 @@ function NavItem({ to, icon: Icon, label }: NavItemProps) {
       aria-current={isActive ? 'page' : undefined}
       className={cn(
         'group relative flex w-full cursor-pointer items-center justify-center gap-0 rounded-xl border border-transparent bg-transparent px-2 py-3 text-left transition-all duration-200 xl:justify-start xl:gap-3 xl:px-4',
-        'hover:bg-slate-200/80 hover:shadow-lg hover:shadow-cyan-500/10 dark:hover:bg-slate-800/50',
+        'hover:bg-slate-200/80 hover:shadow-lg hover:shadow-brand/10 dark:hover:bg-slate-800/50',
         isActive
-          ? 'border-cyan-500/30 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-cyan-700 shadow-lg shadow-cyan-500/15 dark:text-cyan-400 dark:shadow-cyan-500/20'
+          ? 'border-brand/30 bg-gradient-to-r from-brand-from/20 to-brand-to/20 text-brand-to shadow-lg shadow-brand/15 dark:text-brand dark:shadow-brand/20'
           : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
       )}
     >
       <Icon
         className={cn(
           'h-5 w-5 shrink-0 transition-all duration-200',
-          isActive ? 'text-cyan-600 dark:text-cyan-400' : 'group-hover:text-cyan-600 dark:group-hover:text-cyan-300'
+          isActive ? 'text-brand dark:text-brand' : 'group-hover:text-brand dark:group-hover:text-brand'
         )}
       />
 
       <span className="hidden text-sm font-medium xl:inline">{label}</span>
 
       {isActive ? (
-        <div className="absolute right-1 hidden h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-500 dark:bg-cyan-400 xl:right-2 xl:block" />
+        <div className="absolute right-1 hidden h-1.5 w-1.5 animate-pulse rounded-full bg-brand dark:bg-brand xl:right-2 xl:block" />
       ) : null}
     </button>
   );
@@ -73,7 +73,7 @@ export function Sidebar() {
         onClick={() => navigate('/')}
         className={cn(
           'flex h-14 w-full shrink-0 cursor-pointer items-center justify-center gap-0 border-b border-slate-200/80 bg-transparent px-2 text-left transition-colors dark:border-slate-800/50 sm:h-16 xl:justify-start xl:gap-3 xl:px-3',
-          'hover:bg-slate-100/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 dark:hover:bg-slate-800/30'
+          'hover:bg-slate-100/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 dark:hover:bg-slate-800/30'
         )}
         aria-label="Ir al panel de inicio"
       >
@@ -149,8 +149,8 @@ export function Sidebar() {
         </div>
 
         {pendingCount > 0 ? (
-          <div className="mt-2 hidden items-center gap-2 rounded-lg bg-cyan-500/10 px-3 py-2 text-xs text-cyan-800 dark:text-cyan-400 xl:flex">
-            <div className="h-2 w-2 animate-pulse rounded-full bg-cyan-600 dark:bg-cyan-400" />
+          <div className="mt-2 hidden items-center gap-2 rounded-lg bg-brand/10 px-3 py-2 text-xs text-brand-to dark:text-brand xl:flex">
+            <div className="h-2 w-2 animate-pulse rounded-full bg-brand-from dark:bg-brand" />
             <span>
               {pendingCount} pendiente{pendingCount > 1 ? 's' : ''}
             </span>
@@ -159,7 +159,7 @@ export function Sidebar() {
 
         {pendingCount > 0 ? (
           <div className="mt-2 flex justify-center xl:hidden">
-            <div className="h-2 w-2 animate-pulse rounded-full bg-cyan-600 dark:bg-cyan-400" />
+            <div className="h-2 w-2 animate-pulse rounded-full bg-brand-from dark:bg-brand" />
           </div>
         ) : null}
 

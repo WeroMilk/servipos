@@ -339,7 +339,7 @@ export function Clientes() {
             setShowAddDialog(true);
           }}
           size="lg"
-          className="h-11 bg-gradient-to-r from-cyan-500 to-blue-600 px-6 text-base font-semibold text-white shadow-sm sm:h-12 sm:px-8 sm:text-lg"
+          className="h-11 bg-brand-gradient px-6 text-base font-semibold text-white shadow-sm sm:h-12 sm:px-8 sm:text-lg"
         >
           <Plus className="mr-2 h-5 w-5 shrink-0 sm:h-6 sm:w-6" />
           Nuevo
@@ -354,13 +354,13 @@ export function Clientes() {
           className={cn(
             'rounded-xl border text-left transition-all',
             sortMode === 'nombre'
-              ? 'border-cyan-500/50 bg-slate-100/90 dark:bg-slate-900/80 ring-2 ring-cyan-500/25'
+              ? 'border-brand/50 bg-slate-100/90 dark:bg-slate-900/80 ring-2 ring-brand/25'
               : 'border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 hover:border-slate-300 dark:border-slate-700/60'
           )}
         >
           <CardContent className="flex flex-col items-center justify-center gap-0.5 px-1 py-2 sm:flex-row sm:items-center sm:gap-3 sm:p-3 sm:text-left">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-cyan-500/20 sm:h-10 sm:w-10">
-              <User className="h-3.5 w-3.5 text-cyan-400 sm:h-5 sm:w-5" />
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand/20 sm:h-10 sm:w-10">
+              <User className="h-3.5 w-3.5 text-brand sm:h-5 sm:w-5" />
             </div>
             <div className="min-w-0 text-center sm:text-left">
               <p className="text-sm font-bold tabular-nums text-slate-900 dark:text-slate-100 sm:text-xl">{countRegistrados}</p>
@@ -376,7 +376,7 @@ export function Clientes() {
           className={cn(
             'rounded-xl border text-left transition-all',
             sortMode === 'rfc'
-              ? 'border-cyan-500/50 bg-slate-100/90 dark:bg-slate-900/80 ring-2 ring-cyan-500/25'
+              ? 'border-brand/50 bg-slate-100/90 dark:bg-slate-900/80 ring-2 ring-brand/25'
               : 'border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 hover:border-slate-300 dark:border-slate-700/60'
           )}
         >
@@ -396,7 +396,7 @@ export function Clientes() {
           className={cn(
             'rounded-xl border text-left transition-all',
             sortMode === 'email'
-              ? 'border-cyan-500/50 bg-slate-100/90 dark:bg-slate-900/80 ring-2 ring-cyan-500/25'
+              ? 'border-brand/50 bg-slate-100/90 dark:bg-slate-900/80 ring-2 ring-brand/25'
               : 'border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 hover:border-slate-300 dark:border-slate-700/60'
           )}
         >
@@ -432,8 +432,8 @@ export function Clientes() {
             variant="ghost"
             size="sm"
             className={cn(
-              'h-8 shrink-0 text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:bg-slate-800 hover:text-cyan-400',
-              sortMode === 'tickets' && 'text-cyan-400'
+              'h-8 shrink-0 text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:bg-slate-800 hover:text-brand',
+              sortMode === 'tickets' && 'text-brand'
             )}
             onClick={() => setSortMode((m) => (m === 'tickets' ? 'nombre' : 'tickets'))}
           >
@@ -445,7 +445,7 @@ export function Clientes() {
           <div className="space-y-2 p-2 md:hidden">
             {loading ? (
               <div className="flex justify-center py-8">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500/30 border-t-cyan-500" />
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand/30 border-t-brand" />
               </div>
             ) : displayClients.length === 0 ? (
               <p className="py-8 text-center text-slate-600 dark:text-slate-500">No se encontraron clientes</p>
@@ -458,7 +458,7 @@ export function Clientes() {
                   <div className="min-w-0 space-y-1">
                     <button
                       type="button"
-                      className="text-left text-sm font-medium leading-snug text-cyan-800 hover:underline dark:text-cyan-300/90"
+                      className="text-left text-sm font-medium leading-snug text-brand-to hover:underline dark:text-brand/90"
                       onClick={() => openClientProfile(client)}
                     >
                       {client.nombre}
@@ -553,7 +553,7 @@ export function Clientes() {
                 {loading ? (
                   <TableRow>
                     <TableCell colSpan={7} className="py-8 text-center">
-                      <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-cyan-500/30 border-t-cyan-500" />
+                      <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-brand/30 border-t-brand" />
                     </TableCell>
                   </TableRow>
                 ) : displayClients.length === 0 ? (
@@ -571,7 +571,7 @@ export function Clientes() {
                           className="w-full text-left"
                           onClick={() => openClientProfile(client)}
                         >
-                          <p className="truncate font-medium text-cyan-800 hover:underline dark:text-cyan-300/90">{client.nombre}</p>
+                          <p className="truncate font-medium text-brand-to hover:underline dark:text-brand/90">{client.nombre}</p>
                           {client.razonSocial ? (
                             <p className="truncate text-xs text-slate-600 dark:text-slate-500">{client.razonSocial}</p>
                           ) : null}
@@ -828,7 +828,7 @@ export function Clientes() {
             <Button
               type="submit"
               disabled={!formData.nombre.trim() || addClientSubmitting}
-              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+              className="bg-brand-gradient text-white"
             >
               {addClientSubmitting ? 'Guardandoâ€¦' : 'Guardar Cliente'}
             </Button>
@@ -965,7 +965,7 @@ export function Clientes() {
             </Button>
             <Button 
               onClick={handleEditClient}
-              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+              className="bg-brand-gradient text-white"
             >
               Actualizar Cliente
             </Button>

@@ -42,7 +42,6 @@ import type { GoodsExit, GoodsExitMotivo, Product } from '@/types';
 import { cn } from '@/lib/utils';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { productEsServicio } from '@/lib/productServicio';
-import { reportAppEvent } from '@/lib/appEventLog';
 
 type DraftLine = {
   lineId: string;
@@ -157,12 +156,6 @@ export function SalidasMercancia() {
       const piezas = goodsExitTotalPiezas(
         draftLines.map((l) => ({ ...l, productId: l.product.id, cantidad: l.cantidad, lineId: l.lineId }))
       );
-      reportAppEvent({
-        kind: 'success',
-        source: 'inventario:salida_mercancia',
-        title: `Salida ${created?.folio ?? ''}`,
-        detail: `${piezas} pzs · ${GOODS_EXIT_MOTIVO_LABELS[motivo]}`,
-      });
       addToast({
         type: 'success',
         message: `Salida registrada (${created?.folio ?? 'ok'}). Inventario actualizado.`,

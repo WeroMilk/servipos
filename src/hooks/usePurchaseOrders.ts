@@ -8,7 +8,6 @@ import {
   generatePurchaseOrderFolio,
 } from '@/db/database';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
-import { reportHookFailure } from '@/lib/appEventLog';
 import {
   applyPurchaseOrderReceive,
   cancelPurchaseOrderPendingLine,
@@ -79,7 +78,6 @@ export function usePurchaseOrders() {
       await loadLocal();
       return (await getPurchaseOrders(effectiveSucursalId)).find((o) => o.id === id);
     } catch (err) {
-      reportHookFailure('hook:usePurchaseOrders', 'Registrar pedido', err);
       throw err;
     }
   };
@@ -106,7 +104,6 @@ export function usePurchaseOrders() {
         await loadLocal();
       }
     } catch (err) {
-      reportHookFailure('hook:usePurchaseOrders', 'Actualizar pedido tras recepción', err);
       throw err;
     }
   };
@@ -123,7 +120,6 @@ export function usePurchaseOrders() {
       }
       return { ...order, ...updates, updatedAt: new Date() };
     } catch (err) {
-      reportHookFailure('hook:usePurchaseOrders', 'Cancelar pendiente de línea', err);
       throw err;
     }
   };
@@ -137,7 +133,6 @@ export function usePurchaseOrders() {
         await loadLocal();
       }
     } catch (err) {
-      reportHookFailure('hook:usePurchaseOrders', 'Cancelar pedido', err);
       throw err;
     }
   };
@@ -151,7 +146,6 @@ export function usePurchaseOrders() {
         await loadLocal();
       }
     } catch (err) {
-      reportHookFailure('hook:usePurchaseOrders', 'Eliminar pedido', err);
       throw err;
     }
   };

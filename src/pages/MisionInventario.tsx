@@ -342,7 +342,6 @@ export function MisionInventario() {
             addToast({
               type: 'success',
               message: `¡Listo! Completaste esta misión (${totalEnMision} artículos).`,
-              logToAppEvents: true,
             });
             setTimeout(() => setMissionCompleteDialogOpen(true), 500);
           });
@@ -543,13 +542,13 @@ export function MisionInventario() {
           ) : null}
 
           {!progressOnly ? (
-            <Card className="border-cyan-500/20 bg-gradient-to-br from-cyan-500/5 to-blue-500/5 dark:from-cyan-500/10 dark:to-blue-500/5">
+            <Card className="border-brand/20 bg-gradient-to-br from-brand-from/5 to-brand-to/5 dark:from-brand-from/10 dark:to-brand-to/5">
               <CardHeader className="px-4 pb-1 pt-3">
                 <CardTitle className="text-base text-slate-900 dark:text-slate-100">Misión actual</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 px-4 pb-3">
                 <div className="flex items-end justify-between gap-2">
-                  <p className="text-2xl font-bold tabular-nums text-cyan-700 dark:text-cyan-300">
+                  <p className="text-2xl font-bold tabular-nums text-brand-to dark:text-brand">
                     {hechos}
                     <span className="text-base font-semibold text-slate-500 dark:text-slate-500">/{total}</span>
                   </p>
@@ -557,7 +556,7 @@ export function MisionInventario() {
                 </div>
                 <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 transition-[width] duration-300"
+                    className="h-full rounded-full bg-brand-gradient transition-[width] duration-300"
                     style={{ width: `${pct}%` }}
                   />
                 </div>
@@ -573,7 +572,7 @@ export function MisionInventario() {
           <Button
             type="button"
             variant="outline"
-            className="w-full border-cyan-600/40 bg-white text-slate-800 hover:bg-cyan-50 dark:border-cyan-500/30 dark:bg-slate-900/60 dark:text-slate-100 dark:hover:bg-slate-800"
+            className="w-full border-brand/40 bg-white text-slate-800 hover:bg-brand/10 dark:border-brand/30 dark:bg-slate-900/60 dark:text-slate-100 dark:hover:bg-slate-800"
             disabled={!user?.id || misionList.length === 0}
             onClick={printDailyMissionTicket}
           >
@@ -642,7 +641,7 @@ export function MisionInventario() {
                       <span className="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-500">
                         En sistema
                       </span>
-                      <span className="text-lg font-semibold tabular-nums text-cyan-700 dark:text-cyan-300">
+                      <span className="text-lg font-semibold tabular-nums text-brand-to dark:text-brand">
                         {p.existencia}
                       </span>
                     </span>

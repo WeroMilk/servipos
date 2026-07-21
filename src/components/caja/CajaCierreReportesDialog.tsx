@@ -222,7 +222,7 @@ function SesionDetallePanel({
   const handleAddCierreTerminal = async () => {
     const total = parseFloat(terminalTotalInput.replace(',', '.'));
     if (!Number.isFinite(total) || total < 0) {
-      addToast({ type: 'error', message: 'Indique el total del corte de terminal', logToAppEvents: true });
+      addToast({ type: 'error', message: 'Indique el total del corte de terminal'});
       return;
     }
     const folio = terminalFolioInput.trim();
@@ -230,7 +230,6 @@ function SesionDetallePanel({
       addToast({
         type: 'error',
         message: 'Indique el folio del voucher de terminal (5 dígitos)',
-        logToAppEvents: true,
       });
       return;
     }
@@ -246,13 +245,12 @@ function SesionDetallePanel({
       });
       setTerminalTotalInput('');
       setTerminalFolioInput('');
-      addToast({ type: 'success', message: 'Cierre de terminal registrado', logToAppEvents: true });
+      addToast({ type: 'success', message: 'Cierre de terminal registrado'});
       onSesionUpdated?.();
     } catch (e: unknown) {
       addToast({
         type: 'error',
         message: e instanceof Error ? e.message : 'No se pudo registrar el cierre de terminal',
-        logToAppEvents: true,
       });
     } finally {
       setTerminalBusy(false);
@@ -473,22 +471,22 @@ function SesionDetallePanel({
       {(sesion.aportesEfectivo?.length ?? 0) > 0 || (sesion.retirosEfectivo?.length ?? 0) > 0 ? (
         <div className="grid gap-1.5 lg:grid-cols-2">
           {(sesion.aportesEfectivo?.length ?? 0) > 0 ? (
-            <div className="rounded-md border border-sky-500/30 bg-sky-500/[0.06] px-2 py-1.5 dark:border-sky-500/25 dark:bg-sky-950/30">
+            <div className="rounded-md border border-brand/30 bg-brand/[0.06] px-2 py-1.5 dark:border-brand/25 dark:bg-brand-to/30">
               <SectionTitle>Detalle aportes</SectionTitle>
-              <ul className="space-y-0.5 text-[10px] leading-snug text-sky-950/90 dark:text-sky-100/90">
+              <ul className="space-y-0.5 text-[10px] leading-snug text-brand-to/90 dark:text-brand/90">
                 {[...(sesion.aportesEfectivo ?? [])]
                   .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
                   .map((r) => (
-                    <li key={r.id} className="border-b border-sky-800/10 pb-1 last:border-0 dark:border-sky-400/10">
+                    <li key={r.id} className="border-b border-brand-to/10 pb-1 last:border-0 dark:border-brand/10">
                       <div>
                         <span className="font-semibold tabular-nums">+{formatMoney(r.monto)}</span>
-                        <span className="text-sky-900/80 dark:text-sky-200/80">
+                        <span className="text-brand-to/80 dark:text-brand/80">
                           {' '}
                           · {formatInAppTimezone(r.createdAt, { timeStyle: 'short' })} · {r.usuarioNombre}
                         </span>
                       </div>
                       {r.notas?.trim() ? (
-                        <p className="mt-0.5 font-medium text-sky-950 dark:text-sky-50">{r.notas.trim()}</p>
+                        <p className="mt-0.5 font-medium text-brand-to dark:text-brand-foreground">{r.notas.trim()}</p>
                       ) : null}
                     </li>
                   ))}
@@ -545,25 +543,25 @@ function SesionDetallePanel({
           />
         </div>
         {cierresTerminal.length > 0 ? (
-          <ul className="mt-1.5 space-y-1 rounded-md border border-cyan-500/30 bg-cyan-500/[0.06] px-2 py-1.5 text-[10px] dark:border-cyan-500/25 dark:bg-cyan-950/30">
+          <ul className="mt-1.5 space-y-1 rounded-md border border-brand/30 bg-brand/[0.06] px-2 py-1.5 text-[10px] dark:border-brand/25 dark:bg-brand-to/30">
             {[...cierresTerminal]
               .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
               .map((c) => (
                 <li
                   key={c.id}
-                  className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 border-b border-cyan-800/10 pb-1 last:border-0 last:pb-0 dark:border-cyan-400/10"
+                  className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 border-b border-brand-to/10 pb-1 last:border-0 last:pb-0 dark:border-brand/10"
                 >
                   <span>
-                    <span className="font-mono font-semibold tracking-wider text-cyan-950 dark:text-cyan-50">
+                    <span className="font-mono font-semibold tracking-wider text-brand-to dark:text-brand-foreground">
                       Folio {c.folio}
                     </span>
-                    <span className="text-cyan-900/80 dark:text-cyan-200/80">
+                    <span className="text-brand-to/80 dark:text-brand/80">
                       {' '}
                       · {formatInAppTimezone(c.createdAt, { dateStyle: 'short', timeStyle: 'short' })} ·{' '}
                       {c.usuarioNombre}
                     </span>
                   </span>
-                  <span className="shrink-0 tabular-nums font-semibold text-cyan-950 dark:text-cyan-50">
+                  <span className="shrink-0 tabular-nums font-semibold text-brand-to dark:text-brand-foreground">
                     {formatMoney(c.total)}
                   </span>
                 </li>
@@ -574,8 +572,8 @@ function SesionDetallePanel({
             Sin cierres de terminal registrados en este turno.
           </p>
         )}
-        <div className="mt-2 space-y-1.5 rounded-md border border-cyan-500/35 bg-white/70 p-2 dark:border-cyan-500/25 dark:bg-slate-900/40">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-cyan-900 dark:text-cyan-300">
+        <div className="mt-2 space-y-1.5 rounded-md border border-brand/35 bg-white/70 p-2 dark:border-brand/25 dark:bg-slate-900/40">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-brand-to dark:text-brand">
             Agregar cierre de terminal
           </p>
           <div className="grid gap-1.5 sm:grid-cols-2">
@@ -590,7 +588,7 @@ function SesionDetallePanel({
                 value={terminalTotalInput}
                 onChange={(e) => setTerminalTotalInput(e.target.value)}
                 placeholder="0.00"
-                className="h-8 border-cyan-600/25 text-xs dark:border-cyan-500/30 dark:bg-slate-800"
+                className="h-8 border-brand/25 text-xs dark:border-brand/30 dark:bg-slate-800"
               />
             </div>
             <div className="space-y-1">
@@ -605,7 +603,7 @@ function SesionDetallePanel({
                 value={terminalFolioInput}
                 onChange={(e) => setTerminalFolioInput(e.target.value.replace(/\D/g, '').slice(0, 5))}
                 placeholder="00000"
-                className="h-8 border-cyan-600/25 font-mono tracking-widest text-xs dark:border-cyan-500/30 dark:bg-slate-800"
+                className="h-8 border-brand/25 font-mono tracking-widest text-xs dark:border-brand/30 dark:bg-slate-800"
               />
             </div>
           </div>
@@ -816,7 +814,7 @@ export function CajaCierreReportesDialog({
                       className={cn(
                         'w-full rounded-lg border px-2.5 py-2 text-left transition-colors',
                         active
-                          ? 'border-cyan-500/50 bg-cyan-500/10 dark:border-cyan-500/40 dark:bg-cyan-500/15'
+                          ? 'border-brand/50 bg-brand/10 dark:border-brand/40 dark:bg-brand/15'
                           : 'border-slate-200/80 bg-white/70 hover:bg-slate-200/60 dark:border-slate-800/60 dark:bg-slate-900/50 dark:hover:bg-slate-800/80'
                       )}
                     >
@@ -838,7 +836,7 @@ export function CajaCierreReportesDialog({
                           {s.estado === 'abierta' ? 'Abierta' : 'Cerrada'}
                         </span>
                         {s.totalVentasBruto != null && s.totalVentasBruto > 0 ? (
-                          <span className="text-[10px] tabular-nums text-cyan-700 dark:text-cyan-400">
+                          <span className="text-[10px] tabular-nums text-brand-to dark:text-brand">
                             {formatMoney(s.totalVentasBruto)}
                           </span>
                         ) : null}
@@ -1012,7 +1010,7 @@ export function CajaCierreReportesHeaderButton({
         size="icon"
         variant="outline"
         className={cn(
-          'h-9 w-9 shrink-0 border-slate-300 bg-white text-cyan-600 hover:bg-slate-100 hover:text-cyan-700 dark:border-slate-600 dark:bg-slate-800/80 dark:text-cyan-400 dark:hover:bg-slate-800 dark:hover:text-cyan-300',
+          'h-9 w-9 shrink-0 border-slate-300 bg-white text-brand hover:bg-slate-100 hover:text-brand-to dark:border-slate-600 dark:bg-slate-800/80 dark:text-brand dark:hover:bg-slate-800 dark:hover:text-brand',
           className
         )}
         aria-label="Reportes de cierre de caja"

@@ -166,7 +166,6 @@ export function CuentasPorCobrar() {
       addToast({
         type: 'error',
         message: 'Abra la caja para registrar el abono y que cuente en el corte.',
-        logToAppEvents: true,
       });
       return;
     }
@@ -207,7 +206,6 @@ export function CuentasPorCobrar() {
             ticketErr instanceof Error
               ? `Abono guardado, pero no se aplicó a tickets: ${ticketErr.message}`
               : 'Abono guardado; no se pudo aplicar a las ventas',
-          logToAppEvents: true,
         });
       }
 
@@ -234,7 +232,6 @@ export function CuentasPorCobrar() {
               cajaErr instanceof Error
                 ? `Abono guardado, pero no se reflejó en caja: ${cajaErr.message}`
                 : 'Abono guardado; no se pudo registrar en el corte de caja',
-            logToAppEvents: true,
           });
         }
       }
@@ -256,7 +253,6 @@ export function CuentasPorCobrar() {
             addToast({
               type: 'success',
               message: `Abono + complemento CFDI (${complement.uuid.slice(0, 8)}…)`,
-              logToAppEvents: true,
             });
           } catch (cfdiErr) {
             addToast({
@@ -265,7 +261,6 @@ export function CuentasPorCobrar() {
                 cfdiErr instanceof Error
                   ? `Abono guardado, pero el complemento falló: ${cfdiErr.message}`
                   : 'Abono guardado; falló el complemento de pago',
-              logToAppEvents: true,
             });
           }
         }
@@ -276,7 +271,6 @@ export function CuentasPorCobrar() {
             ticketsAplicados > 0
               ? `Abono de ${formatMoney(m)} en ${labelFormaPago(abonoFormaPago)} registrado y aplicado a ${ticketsAplicados} ticket(s).`
               : `Abono de ${formatMoney(m)} en ${labelFormaPago(abonoFormaPago)} registrado.`,
-          logToAppEvents: true,
         });
       }
 
@@ -288,7 +282,6 @@ export function CuentasPorCobrar() {
       addToast({
         type: 'error',
         message: e instanceof Error ? e.message : 'No se pudo registrar el abono',
-        logToAppEvents: true,
       });
     } finally {
       setAbonoBusy(false);
@@ -308,14 +301,12 @@ export function CuentasPorCobrar() {
       addToast({
         type: 'success',
         message: `Cuenta por cobrar de ${cli.nombre} eliminada: ${formatMoney(montoCondonado)} en ${ticketsAfectados} ticket(s).`,
-        logToAppEvents: true,
       });
       setEliminarClienteTarget(null);
     } catch (e: unknown) {
       addToast({
         type: 'error',
         message: e instanceof Error ? e.message : 'No se pudo eliminar la cuenta por cobrar',
-        logToAppEvents: true,
       });
     } finally {
       setEliminarClienteBusy(false);
@@ -331,7 +322,7 @@ export function CuentasPorCobrar() {
               <Wallet className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
               <div>
                 <p className="text-xs text-slate-600 dark:text-slate-400">Total por cobrar</p>
-                <p className="text-lg font-bold tabular-nums text-cyan-600 dark:text-cyan-400">
+                <p className="text-lg font-bold tabular-nums text-brand dark:text-brand">
                   {formatMoney(totalSaldoPendiente)}
                 </p>
               </div>
@@ -385,7 +376,7 @@ export function CuentasPorCobrar() {
                           </span>
                         ) : null}
                         {ultimoAbonoBadgeLabel(c) ? (
-                          <span className="mt-1 inline-flex rounded-full border border-cyan-500/35 bg-cyan-500/10 px-2 py-0.5 text-[11px] font-medium text-cyan-700 dark:border-cyan-500/30 dark:bg-cyan-500/15 dark:text-cyan-300">
+                          <span className="mt-1 inline-flex rounded-full border border-brand/35 bg-brand/10 px-2 py-0.5 text-[11px] font-medium text-brand-to dark:border-brand/30 dark:bg-brand/15 dark:text-brand">
                             {ultimoAbonoBadgeLabel(c)}
                           </span>
                         ) : null}
@@ -425,7 +416,7 @@ export function CuentasPorCobrar() {
                               type="button"
                               variant="outline"
                               size="sm"
-                              className="whitespace-nowrap border-cyan-500/40 text-cyan-700 hover:bg-cyan-500/10 dark:border-cyan-500/35 dark:text-cyan-300 dark:hover:bg-cyan-500/15"
+                              className="whitespace-nowrap border-brand/40 text-brand-to hover:bg-brand/10 dark:border-brand/35 dark:text-brand dark:hover:bg-brand/15"
                               onClick={() => {
                                 const ultimo = listaAbonosCxCMostrable(c)[0];
                                 printThermalClientAbonoReceipt({
@@ -583,7 +574,7 @@ export function CuentasPorCobrar() {
             </Button>
             <Button
               type="button"
-              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+              className="bg-brand-gradient text-white"
               disabled={abonoBusy}
               onClick={() => void confirmarAbono()}
             >
@@ -611,7 +602,7 @@ export function CuentasPorCobrar() {
           <AlertDialogFooter>
             <AlertDialogCancel>No, gracias</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700"
+              className="bg-brand-gradient hover:from-brand-from hover:to-brand-to"
               onClick={(e) => {
                 e.preventDefault();
                 if (copiaClientePayload) {
@@ -693,7 +684,7 @@ export function CuentasPorCobrar() {
                         <TableCell className="whitespace-nowrap text-xs text-slate-800 dark:text-slate-200">
                           {formatInAppTimezone(row.at, { dateStyle: 'short', timeStyle: 'short' })}
                         </TableCell>
-                        <TableCell className="text-right text-sm font-semibold tabular-nums text-cyan-700 dark:text-cyan-400">
+                        <TableCell className="text-right text-sm font-semibold tabular-nums text-brand-to dark:text-brand">
                           {formatMoney(row.monto)}
                         </TableCell>
                         <TableCell className="text-xs text-slate-700 dark:text-slate-300">
@@ -781,7 +772,6 @@ export function CuentasPorCobrar() {
                     addToast({
                       type: 'success',
                       message: `Abono de ${formatMoney(entry.monto)} anulado.`,
-                      logToAppEvents: true,
                     });
                     setAbonoHistCancelTarget(null);
                     setHistorialCliente(null);
@@ -789,7 +779,6 @@ export function CuentasPorCobrar() {
                     addToast({
                       type: 'error',
                       message: err instanceof Error ? err.message : 'No se pudo anular el abono',
-                      logToAppEvents: true,
                     });
                   } finally {
                     setAbonoHistCancelBusy(false);

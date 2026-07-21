@@ -190,6 +190,11 @@ export interface Product {
   claveProdServ?: string;
   /** Si es true (o categoría SERVICIOS), el POS y los RPC no mueven existencias por ventas ni ajustes manuales en DB (ver `productServicio`). */
   esServicio?: boolean;
+  /**
+   * Slot de ubicación física en mueble (A, A1, B2, C3, …).
+   * Si falta, la UI puede inferir desde el mapa estático por SKU.
+   */
+  ubicacionFisica?: string;
   activo: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -1050,25 +1055,6 @@ export interface Toast {
   duration?: number;
 }
 
-/** Eventos globales del sistema (panel de notificaciones / auditoría). */
-export type AppEventKind = 'info' | 'success' | 'warning' | 'error';
-
-export interface AppEventLogRecord {
-  id: string;
-  createdAt: Date;
-  kind: AppEventKind;
-  source: string;
-  title: string;
-  detail?: string;
-  actorUserId: string | null;
-  actorName: string;
-  actorEmail: string;
-  actorRole: string;
-  sucursalId?: string;
-  route?: string;
-  meta?: Record<string, unknown>;
-}
-
 export interface CartItem {
   product: Product;
   quantity: number;
@@ -1112,6 +1098,20 @@ export interface Promotion {
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 
+export type AccentColor =
+  | 'blue'
+  | 'sky'
+  | 'teal'
+  | 'emerald'
+  | 'green'
+  | 'lime'
+  | 'amber'
+  | 'orange'
+  | 'rose'
+  | 'pink'
+  | 'violet'
+  | 'indigo';
+
 export interface AppState {
   /** Preferencia guardada; `system` sigue a `prefers-color-scheme`. */
   themePreference: ThemePreference;
@@ -1119,14 +1119,17 @@ export interface AppState {
   systemPrefersDark: boolean;
   toggleTheme: () => void;
 
+  /** Color de marca (paleta CSS data-accent). */
+  accentColor: AccentColor;
+  setAccentColor: (color: AccentColor) => void;
+
   // Sidebar
   sidebarCollapsed: boolean;
   toggleSidebar: () => void;
   
   // Toast notifications
   toasts: Toast[];
-  /** `logToAppEvents`: solo si true se guarda en `public.app_events` (panel de eventos). Por defecto no se registra. */
-  addToast: (toast: Omit<Toast, 'id'> & { logToAppEvents?: boolean }) => void;
+  addToast: (toast: Omit<Toast, 'id'>) => void;
   removeToast: (id: string) => void;
   
   // Loading states

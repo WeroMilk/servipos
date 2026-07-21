@@ -207,15 +207,15 @@ function SortableTableHead({
         type="button"
         onClick={() => onSort(column)}
         className={cn(
-          'inline-flex max-w-full items-center gap-1 rounded px-0.5 py-0.5 text-left font-medium outline-none transition-colors hover:text-cyan-700 dark:hover:text-cyan-300 focus-visible:ring-2 focus-visible:ring-cyan-500/40',
+          'inline-flex max-w-full items-center gap-1 rounded px-0.5 py-0.5 text-left font-medium outline-none transition-colors hover:text-brand-to dark:hover:text-brand focus-visible:ring-2 focus-visible:ring-brand/40',
           alignRight && 'ml-auto flex-row-reverse text-right'
         )}
       >
         <span className="truncate">{label}</span>
         {active ?
           sort.dir === 'asc' ?
-            <ArrowUp className="h-3.5 w-3.5 shrink-0 text-cyan-600 dark:text-cyan-400" aria-hidden />
-          : <ArrowDown className="h-3.5 w-3.5 shrink-0 text-cyan-600 dark:text-cyan-400" aria-hidden />
+            <ArrowUp className="h-3.5 w-3.5 shrink-0 text-brand dark:text-brand" aria-hidden />
+          : <ArrowDown className="h-3.5 w-3.5 shrink-0 text-brand dark:text-brand" aria-hidden />
         : <ArrowUpDown className="h-3.5 w-3.5 shrink-0 opacity-35" aria-hidden />}
       </button>
     </TableHead>
@@ -414,12 +414,11 @@ export function Cotizaciones() {
     setQuotationPdfBusyId(q.id);
     try {
       await exportQuotationLetterToPdf(q, effectiveSucursalId);
-      addToast({ type: 'success', message: 'PDF descargado (formato carta)', logToAppEvents: true });
+      addToast({ type: 'success', message: 'PDF descargado (formato carta)'});
     } catch (e) {
       addToast({
         type: 'error',
         message: e instanceof Error ? e.message : 'No se pudo generar el PDF',
-        logToAppEvents: true,
       });
     } finally {
       setQuotationPdfBusyId(null);
@@ -702,7 +701,7 @@ export function Cotizaciones() {
           <Button
             onClick={() => setShowAddDialog(true)}
             size="lg"
-            className="h-11 bg-gradient-to-r from-cyan-500 to-blue-600 px-6 text-base font-semibold text-white shadow-sm sm:h-12 sm:px-8 sm:text-lg"
+            className="h-11 bg-brand-gradient px-6 text-base font-semibold text-white shadow-sm sm:h-12 sm:px-8 sm:text-lg"
           >
             <Plus className="mr-2 h-5 w-5 shrink-0 sm:h-6 sm:w-6" />
             Nueva
@@ -751,7 +750,7 @@ export function Cotizaciones() {
                     className={cn(
                       'text-slate-700 dark:text-slate-300',
                       sortMatches(cotizacionSort, presetSort) &&
-                        'bg-cyan-500/15 text-cyan-800 dark:text-cyan-200'
+                        'bg-brand/15 text-brand-to dark:text-brand'
                     )}
                   >
                     {label}
@@ -783,7 +782,7 @@ export function Cotizaciones() {
                 className={cn(
                   'shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm',
                   filtroEstado === id
-                    ? 'border-cyan-500/50 bg-cyan-500/15 text-cyan-800 dark:border-cyan-500/40 dark:bg-cyan-500/20 dark:text-cyan-200'
+                    ? 'border-brand/50 bg-brand/15 text-brand-to dark:border-brand/40 dark:bg-brand/20 dark:text-brand'
                     : 'border-slate-200 bg-slate-100/80 text-slate-600 hover:border-slate-300 hover:bg-slate-200/80 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-400 dark:hover:border-slate-600 dark:hover:bg-slate-800'
                 )}
               >
@@ -801,7 +800,7 @@ export function Cotizaciones() {
               <div className="space-y-2 p-2 md:hidden">
                 {loading ? (
                   <div className="flex justify-center py-8">
-                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500/30 border-t-cyan-500" />
+                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand/30 border-t-brand" />
                   </div>
                 ) : displayQuotations.length === 0 ? (
                   <p className="px-2 py-8 text-center text-sm text-slate-600 dark:text-slate-500">
@@ -822,7 +821,7 @@ export function Cotizaciones() {
                       >
                         <div className="flex items-start justify-between gap-2">
                           <p className="min-w-0 truncate font-medium text-slate-900 dark:text-slate-100">{q.folio}</p>
-                          <span className="shrink-0 text-sm font-semibold text-cyan-400">
+                          <span className="shrink-0 text-sm font-semibold text-brand">
                             {formatMoney(q.total)}
                           </span>
                         </div>
@@ -841,7 +840,7 @@ export function Cotizaciones() {
                             {statusLabels[q.estado]}
                           </Badge>
                         </div>
-                        <p className="mt-2 text-center text-xs text-cyan-500/80">Ver detalle…</p>
+                        <p className="mt-2 text-center text-xs text-brand/80">Ver detalle…</p>
                       </button>
                       <div className="flex shrink-0 flex-col gap-1 self-start">
                         {q.estado === 'convertida' ? (
@@ -927,7 +926,7 @@ export function Cotizaciones() {
                     {loading ? (
                       <TableRow>
                         <TableCell colSpan={7} className="py-8 text-center">
-                          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-cyan-500/30 border-t-cyan-500" />
+                          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-brand/30 border-t-brand" />
                         </TableCell>
                       </TableRow>
                     ) : displayQuotations.length === 0 ? (
@@ -955,7 +954,7 @@ export function Cotizaciones() {
                           <TableCell className="whitespace-nowrap text-slate-600 dark:text-slate-400">
                             {new Date(quotation.fechaVigencia).toLocaleDateString('es-MX')}
                           </TableCell>
-                          <TableCell className="whitespace-nowrap font-medium text-cyan-400">
+                          <TableCell className="whitespace-nowrap font-medium text-brand">
                             {formatMoney(quotation.total)}
                           </TableCell>
                           <TableCell>
@@ -1091,7 +1090,7 @@ export function Cotizaciones() {
                       <p className="truncate text-sm text-slate-800 dark:text-slate-200">{product.nombre}</p>
                       <p className="text-xs text-slate-600 dark:text-slate-500">{product.sku}</p>
                     </div>
-                    <p className="shrink-0 text-sm text-cyan-400">
+                    <p className="shrink-0 text-sm text-brand">
                       {formatMoney(precioSinIvaToConIva(product.precioVenta, product.impuesto))}
                     </p>
                   </button>
@@ -1109,7 +1108,7 @@ export function Cotizaciones() {
                   {showCustomForm ? 'Ocultar artículo manual' : 'Artículo manual (no inventario)'}
                 </Button>
                 {showCustomForm ? (
-                  <div className="space-y-2 rounded-lg border border-dashed border-cyan-500/40 bg-cyan-500/5 p-3">
+                  <div className="space-y-2 rounded-lg border border-dashed border-brand/40 bg-brand/5 p-3">
                     <p className="text-xs text-slate-600 dark:text-slate-400">
                       Solo para esta cotización e impresión. No se guarda en el catálogo.
                     </p>
@@ -1129,7 +1128,7 @@ export function Cotizaciones() {
                     <Button
                       type="button"
                       size="sm"
-                      className="w-full bg-cyan-600 text-white hover:bg-cyan-700"
+                      className="w-full bg-brand-from text-white hover:bg-brand-to"
                       onClick={handleAddCustomItem}
                     >
                       <Plus className="mr-2 h-4 w-4" />
@@ -1171,7 +1170,7 @@ export function Cotizaciones() {
                               </p>
                             )}
                             {item.isCustom ? (
-                              <p className="mt-0.5 text-xs text-cyan-600/90 dark:text-cyan-400/80">
+                              <p className="mt-0.5 text-xs text-brand/90 dark:text-brand/80">
                                 Manual · no inventario
                               </p>
                             ) : null}
@@ -1216,9 +1215,9 @@ export function Cotizaciones() {
                                 }))
                               }
                               onBlur={() => commitLinePriceDraft(item.lineId)}
-                              className="h-8 w-full max-w-[7.5rem] border-cyan-500/40 bg-slate-200 text-right tabular-nums text-cyan-700 dark:bg-slate-800 dark:text-cyan-300"
+                              className="h-8 w-full max-w-[7.5rem] border-brand/40 bg-slate-200 text-right tabular-nums text-brand-to dark:bg-slate-800 dark:text-brand"
                             />
-                            <p className="text-xs tabular-nums text-cyan-400">
+                            <p className="text-xs tabular-nums text-brand">
                               Línea: {formatMoney(lineTotalConIva)}
                             </p>
                           </div>
@@ -1291,7 +1290,7 @@ export function Cotizaciones() {
                 </div>
                 <div className="flex justify-between text-lg font-bold text-slate-900 dark:text-slate-100">
                   <span>Total</span>
-                  <span className="text-cyan-400">{formatMoney(calculateTotals().total)}</span>
+                  <span className="text-brand">{formatMoney(calculateTotals().total)}</span>
                 </div>
               </div>
             </div>
@@ -1308,7 +1307,7 @@ export function Cotizaciones() {
             <Button
               onClick={() => void handleSaveQuotation()}
               disabled={quotationItems.length === 0}
-              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+              className="bg-brand-gradient text-white"
             >
               <Check className="mr-2 h-4 w-4" />
               Guardar Cotización
@@ -1339,7 +1338,7 @@ export function Cotizaciones() {
           <div className="flex flex-col gap-2">
             <Button
               type="button"
-              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+              className="bg-brand-gradient text-white"
               onClick={() => {
                 if (postSaveQuotation) {
                   printQuotationLetter(postSaveQuotation, effectiveSucursalId);
@@ -1461,7 +1460,7 @@ export function Cotizaciones() {
                         <td className="p-3 text-right text-slate-600 dark:text-slate-400">
                           {formatMoney(item.precioUnitario)}
                         </td>
-                        <td className="p-3 text-right text-cyan-400">{formatMoney(item.total)}</td>
+                        <td className="p-3 text-right text-brand">{formatMoney(item.total)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1474,7 +1473,7 @@ export function Cotizaciones() {
                 </Badge>
                 <div className="w-full min-w-0 text-left sm:w-auto sm:text-right">
                   <p className="text-slate-600 dark:text-slate-500">Total</p>
-                  <p className="text-2xl font-bold tabular-nums text-cyan-400 break-all sm:break-normal">
+                  <p className="text-2xl font-bold tabular-nums text-brand break-all sm:break-normal">
                     {formatMoney(selectedQuotation.total)}
                   </p>
                 </div>

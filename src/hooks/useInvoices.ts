@@ -14,7 +14,6 @@ import {
 } from '@/db/database';
 import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
-import { reportHookFailure } from '@/lib/appEventLog';
 import { buildCfdi40XmlString } from '@/lib/cfdiXmlString';
 import {
   createInvoiceFirestore,
@@ -49,7 +48,6 @@ export function useInvoices() {
       setInvoices(data);
       setError(null);
     } catch (err) {
-      reportHookFailure('hook:useInvoices', 'Cargar facturas', err);
       setError('Error al cargar facturas');
       console.error(err);
     } finally {
@@ -146,7 +144,6 @@ export function useInvoices() {
       await cancelInvoice(id, motivo, { sucursalId });
       await loadInvoices();
     } catch (err) {
-      reportHookFailure('hook:useInvoices', 'Cancelar factura', err);
       setError('Error al cancelar factura');
       throw err;
     }
@@ -166,7 +163,6 @@ export function useInvoices() {
       await deleteInvoiceRecord(id);
       await loadInvoices();
     } catch (err) {
-      reportHookFailure('hook:useInvoices', 'Eliminar factura', err);
       setError('Error al eliminar factura');
       throw err;
     }
@@ -195,7 +191,7 @@ export function useInvoices() {
         await loadInvoices();
       }
     } catch (err) {
-      reportHookFailure('hook:useInvoices', 'Marcar factura enviada', err);
+      console.error(err);
     }
   };
 
@@ -227,7 +223,6 @@ export function useInvoiceDetails(invoiceId: string | null) {
         const data = await getInvoiceById(invoiceId);
         setInvoice(data || null);
       } catch (err) {
-        reportHookFailure('hook:useInvoiceDetails', 'Cargar factura', err);
         console.error('Error al cargar factura:', err);
       } finally {
         setLoading(false);
@@ -251,7 +246,6 @@ export function useNextFolio() {
       const folio = await getNextInvoiceFolio();
       setNextFolio(folio);
     } catch (err) {
-      reportHookFailure('hook:useNextFolio', 'Obtener folio de factura', err);
       console.error('Error al obtener siguiente folio:', err);
     } finally {
       setLoading(false);

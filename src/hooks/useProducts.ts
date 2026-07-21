@@ -31,7 +31,6 @@ import {
   formatProductBajaMotivo,
 } from '@/lib/inventoryCatalogAudit';
 import { productCatalogConflictMessage } from '@/lib/productCatalogUniqueness';
-import { reportHookFailure } from '@/lib/appEventLog';
 import { useAuthStore, useCartStore } from '@/stores';
 import { isRemotePermissionDenied, SUPABASE_PERMISSION_HINT } from '@/lib/remotePermissionError';
 
@@ -54,7 +53,6 @@ export function useProducts() {
   const [error, setError] = useState<string | null>(null);
 
   const onCatalogFirestoreError = useCallback((err: unknown) => {
-    reportHookFailure('hook:useProducts', 'Catálogo remoto (products)', err);
     if (isRemotePermissionDenied(err)) {
       setError(
         `Sin permiso para leer el inventario de esta sucursal. ${SUPABASE_PERMISSION_HINT}`
@@ -77,7 +75,6 @@ export function useProducts() {
       setProducts(coerceProductList(data));
       setError(null);
     } catch (err) {
-      reportHookFailure('hook:useProducts', 'Cargar productos (local)', err);
       setError('Error al cargar productos');
       console.error(err);
     } finally {
@@ -117,7 +114,6 @@ export function useProducts() {
         }
       } catch (err) {
         if (!cancelled) {
-          reportHookFailure('hook:useProducts', 'Cargar productos', err);
           setError('Error al cargar productos');
           console.error(err);
         }
@@ -177,7 +173,7 @@ export function useProducts() {
             skuRegistro: product.sku,
           });
         } catch (auditErr) {
-          reportHookFailure('hook:useProducts', 'Auditoría catálogo (alta)', auditErr);
+          console.error(auditErr);
         }
         return newId;
       } catch (err) {
@@ -231,11 +227,10 @@ export function useProducts() {
               skuRegistro: prev.sku,
             });
           } catch (auditErr) {
-            reportHookFailure('hook:useProducts', 'Auditoría catálogo (edición)', auditErr);
+            console.error(auditErr);
           }
         }
       } catch (err) {
-        reportHookFailure('hook:useProducts', 'Actualizar producto', err);
         setError('Error al actualizar producto');
         throw err;
       }
@@ -264,7 +259,7 @@ export function useProducts() {
               skuRegistro: prev.sku,
             });
           } catch (auditErr) {
-            reportHookFailure('hook:useProducts', 'Auditoría catálogo (baja)', auditErr);
+            console.error(auditErr);
           }
         }
       } catch (err) {
@@ -285,7 +280,7 @@ export function useProducts() {
         await removeProduct(p.id);
         removed += 1;
       } catch (err) {
-        reportHookFailure('hook:useProducts', 'Baja masiva de servicios', err);
+        console.error(err);
       }
     }
     return removed;
@@ -315,7 +310,6 @@ export function useProducts() {
         await loadProductsLocal();
       }
     } catch (err) {
-      reportHookFailure('hook:useProducts', 'Ajustar stock', err);
       setError('Error al ajustar stock');
       throw err;
     }
@@ -417,7 +411,6 @@ export function useProductSearch(options?: { maxResults?: number }) {
         setResults(list);
         return list;
       } catch (err) {
-        reportHookFailure('hook:useProductSearch', 'Búsqueda de productos', err);
         console.error('Error en búsqueda:', err);
         if (gen === searchGenRef.current) setResults([]);
         return [];
@@ -439,7 +432,6 @@ export function useProductSearch(options?: { maxResults?: number }) {
         const product = await getProductByBarcode(barcode);
         return product || null;
       } catch (err) {
-        reportHookFailure('hook:useProductSearch', 'Búsqueda por código de barras', err);
         console.error('Error al buscar por código:', err);
         return null;
       } finally {
@@ -472,7 +464,6 @@ export function useLowStockProducts() {
       const data = await getLowStockProducts();
       setProducts(coerceProductList(data));
     } catch (err) {
-      reportHookFailure('hook:useLowStockProducts', 'Cargar stock bajo', err);
       console.error('Error al cargar productos con bajo stock:', err);
     } finally {
       setLoading(false);

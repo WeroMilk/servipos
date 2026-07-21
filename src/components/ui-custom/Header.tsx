@@ -36,7 +36,7 @@ import {
 } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { AdminSucursalSwitcher } from '@/components/ui-custom/AdminSucursalSwitcher';
-import { AppEventsNotificationPanel } from '@/components/ui-custom/AppEventsNotificationPanel';
+import { AccentColorPicker } from '@/components/ui-custom/AccentColorPicker';
 import { BRAND_LOGO_SRCSET, BRAND_LOGO_URL } from '@/lib/branding';
 import { ROLE_LABELS, userCanSeeInventoryMissions, userCanSeeMissionProgressOnly } from '@/lib/userPermissions';
 import { MAIN_NAV_ITEMS } from '@/lib/mainNavItems';
@@ -58,7 +58,6 @@ export function Header() {
   const toggleTheme = useAppStore((s) => s.toggleTheme);
   const resolvedDark = useAppStore((s) => getResolvedIsDark(s));
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [mobileEventsOpen, setMobileEventsOpen] = useState(false);
   const [mobileCierreReportesOpen, setMobileCierreReportesOpen] = useState(false);
   const firstMobileNavItemRef = useRef<HTMLButtonElement | null>(null);
   const swipeStartXRef = useRef<number | null>(null);
@@ -117,7 +116,6 @@ export function Header() {
   };
 
   const handleSheetTouchStart = (event: TouchEvent<HTMLDivElement>) => {
-    if (mobileEventsOpen) return;
     const touch = event.touches[0];
     if (!touch) return;
     swipeStartXRef.current = touch.clientX;
@@ -125,7 +123,7 @@ export function Header() {
   };
 
   const handleSheetTouchMove = (event: TouchEvent<HTMLDivElement>) => {
-    if (!mobileMenuOpen || mobileEventsOpen) return;
+    if (!mobileMenuOpen) return;
     const touch = event.touches[0];
     const startX = swipeStartXRef.current;
     const startY = swipeStartYRef.current;
@@ -143,7 +141,6 @@ export function Header() {
   };
 
   const handleSheetTouchEnd = () => {
-    if (mobileEventsOpen) return;
     swipeStartXRef.current = null;
     swipeStartYRef.current = null;
   };
@@ -166,7 +163,7 @@ export function Header() {
         title="Historial de movimientos de inventario"
         aria-label="Historial de movimientos de inventario"
         onClick={() => invHeader.onHistorial()}
-        className="h-9 w-9 shrink-0 rounded-xl border-blue-600/45 text-blue-800 hover:bg-blue-500/10 hover:text-blue-900 dark:border-amber-500/45 dark:text-amber-200/95 dark:hover:bg-amber-500/15 dark:hover:text-amber-100 sm:h-9 sm:w-9"
+        className="h-9 w-9 shrink-0 rounded-xl border-brand-to/45 text-brand-to hover:bg-brand/10 hover:text-brand-to dark:border-amber-500/45 dark:text-amber-200/95 dark:hover:bg-amber-500/15 dark:hover:text-amber-100 sm:h-9 sm:w-9"
       >
         <Clock className="h-4 w-4" />
       </Button>
@@ -177,7 +174,7 @@ export function Header() {
         title="Imprimir ticket de stock bajo"
         aria-label="Ticket stock bajo"
         onClick={() => invHeader.onTicketStockBajo()}
-        className="h-9 w-9 shrink-0 rounded-xl border-blue-600/45 text-blue-800 hover:bg-blue-500/10 hover:text-blue-900 dark:border-amber-500/45 dark:text-amber-200/95 dark:hover:bg-amber-500/15 dark:hover:text-amber-100 sm:h-9 sm:w-9"
+        className="h-9 w-9 shrink-0 rounded-xl border-brand-to/45 text-brand-to hover:bg-brand/10 hover:text-brand-to dark:border-amber-500/45 dark:text-amber-200/95 dark:hover:bg-amber-500/15 dark:hover:text-amber-100 sm:h-9 sm:w-9"
       >
         <Printer className="h-4 w-4" />
       </Button>
@@ -199,7 +196,7 @@ export function Header() {
         title="Nuevo producto"
         aria-label="Nuevo producto"
         onClick={() => invHeader.onNuevo()}
-        className="h-9 w-9 shrink-0 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:from-cyan-400 hover:to-blue-500 sm:h-9 sm:w-9"
+        className="h-9 w-9 shrink-0 rounded-xl bg-brand-gradient text-white hover:from-brand-from hover:to-brand-to sm:h-9 sm:w-9"
       >
         <Plus className="h-4 w-4" />
       </Button>
@@ -282,7 +279,7 @@ export function Header() {
               title="Modificar saldo de caja (ingreso o retiro de efectivo)"
               aria-label="Modificar saldo"
               aria-haspopup="menu"
-              className="h-10 shrink-0 gap-1 rounded-xl border-slate-300 px-2.5 text-slate-700 hover:bg-sky-500/10 hover:text-sky-800 dark:border-slate-600 dark:text-sky-200 dark:hover:bg-sky-500/15 sm:h-9 sm:px-3"
+              className="h-10 shrink-0 gap-1 rounded-xl border-slate-300 px-2.5 text-slate-700 hover:bg-brand/10 hover:text-brand-to dark:border-slate-600 dark:text-brand dark:hover:bg-brand/15 sm:h-9 sm:px-3"
             >
               <Wallet className="h-4 w-4 shrink-0" />
               <span className="hidden text-xs font-medium min-[400px]:inline">Modificar saldo</span>
@@ -344,7 +341,7 @@ export function Header() {
         <div className="flex w-full min-w-0 items-center gap-1 sm:gap-1.5 lg:hidden">
           <Link
             to="/"
-            className="flex shrink-0 items-center rounded-lg p-1 outline-none ring-cyan-500/40 focus-visible:ring-2"
+            className="flex shrink-0 items-center rounded-lg p-1 outline-none ring-brand/40 focus-visible:ring-2"
             aria-label="Ir a inicio"
           >
             <img
@@ -396,7 +393,7 @@ export function Header() {
           <div className="flex shrink-0 items-center px-0.5">
             <Link
               to="/"
-              className="flex shrink-0 items-center rounded-lg p-1 outline-none ring-cyan-500/40 focus-visible:ring-2 sm:hidden"
+              className="flex shrink-0 items-center rounded-lg p-1 outline-none ring-brand/40 focus-visible:ring-2 sm:hidden"
               aria-label="Ir a inicio"
             >
               <img
@@ -444,7 +441,7 @@ export function Header() {
               {resolvedDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </Button>
 
-            {user && hasPermission('reportes:ver') ? <AppEventsNotificationPanel dock="header" /> : null}
+            <AccentColorPicker />
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -452,7 +449,7 @@ export function Header() {
                   variant="ghost"
                   className="flex shrink-0 items-center gap-2 rounded-xl bg-slate-200/80 px-2 py-2 text-slate-900 hover:bg-slate-300/80 dark:bg-slate-800/50 dark:text-slate-100 dark:hover:bg-slate-700/50 sm:gap-3 sm:px-3"
                 >
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-brand-from to-brand-to">
                     <User className="h-4 w-4 text-white" />
                   </div>
                   <div className="hidden min-w-0 text-left sm:block">
@@ -515,12 +512,6 @@ export function Header() {
             <SheetDescription className="sr-only">
               Menú móvil con navegación y accesos de la cuenta.
             </SheetDescription>
-            {user && hasPermission('reportes:ver') ? (
-              <div className="flex items-center justify-between gap-2 rounded-xl border border-slate-200/80 bg-slate-50/50 px-3 py-2 dark:border-slate-800/60 dark:bg-slate-900/40">
-                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Eventos</span>
-                <AppEventsNotificationPanel dock="header" onPopoverOpenChange={setMobileEventsOpen} />
-              </div>
-            ) : null}
           </SheetHeader>
 
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-y-contain py-4 pr-2">
@@ -548,7 +539,7 @@ export function Header() {
                   type="button"
                   size="icon"
                   variant="outline"
-                  className="h-9 w-9 shrink-0 border-slate-300 bg-white text-cyan-600 hover:bg-slate-100 hover:text-cyan-700 dark:border-slate-600 dark:bg-slate-800/80 dark:text-cyan-400 dark:hover:bg-slate-800 dark:hover:text-cyan-300"
+                  className="h-9 w-9 shrink-0 border-slate-300 bg-white text-brand hover:bg-slate-100 hover:text-brand-to dark:border-slate-600 dark:bg-slate-800/80 dark:text-brand dark:hover:bg-slate-800 dark:hover:text-brand"
                   aria-label="Reportes de cierre de caja"
                   title="Reportes de cierre de caja"
                   onClick={openMobileCierreReportes}
@@ -586,7 +577,7 @@ export function Header() {
                       className={cn(
                         'w-full justify-start rounded-xl border-slate-300 dark:border-slate-600',
                         isActive &&
-                          'border-cyan-500/45 bg-cyan-500/10 text-cyan-700 dark:border-cyan-500/45 dark:bg-cyan-500/15 dark:text-cyan-300'
+                          'border-brand/45 bg-brand/10 text-brand-to dark:border-brand/45 dark:bg-brand/15 dark:text-brand'
                       )}
                       onClick={() => {
                         closeMobileMenu();
@@ -622,6 +613,7 @@ export function Header() {
                 {resolvedDark ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
                 {resolvedDark ? 'Modo claro' : 'Modo oscuro'}
               </Button>
+              <AccentColorPicker className="rounded-xl border border-slate-300 dark:border-slate-600" />
             </div>
 
             <div className="mt-auto flex flex-col gap-2 border-t border-slate-200/80 pt-4 dark:border-slate-800/80">

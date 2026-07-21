@@ -6,7 +6,6 @@ import {
   generateGoodsExitFolio,
 } from '@/db/database';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
-import { reportHookFailure } from '@/lib/appEventLog';
 import { applyGoodsExit } from '@/lib/goodsExitLogic';
 import {
   createGoodsExitFirestore,
@@ -122,7 +121,6 @@ export function useGoodsExits() {
       await loadLocal();
       return (await getGoodsExits(effectiveSucursalId)).find((g) => g.id === id);
     } catch (err) {
-      reportHookFailure('hook:useGoodsExits', 'Registrar salida de mercancía', err);
       throw err;
     }
   };

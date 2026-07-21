@@ -251,19 +251,19 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
               ) : null}
             </p>
           </div>
-          <div className="rounded-xl border-2 border-cyan-500/50 bg-cyan-500/[0.12] p-4 dark:border-cyan-500/40 dark:bg-cyan-950/40 lg:rounded-lg lg:p-2.5">
-            <p className="text-[11px] font-bold uppercase tracking-wide text-cyan-900 dark:text-cyan-300 lg:text-[10px]">
+          <div className="rounded-xl border-2 border-brand/50 bg-brand/[0.12] p-4 dark:border-brand/40 dark:bg-brand-to/40 lg:rounded-lg lg:p-2.5">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-brand-to dark:text-brand lg:text-[10px]">
               Tarjetas — total para cuadrar
             </p>
-            <p className="mt-1 text-xs leading-snug text-cyan-900/90 dark:text-cyan-200/85 lg:mt-0.5 lg:text-[11px] lg:leading-tight">
+            <p className="mt-1 text-xs leading-snug text-brand-to/90 dark:text-brand/85 lg:mt-0.5 lg:text-[11px] lg:leading-tight">
               Total de cobros con tarjeta en esta sesión en el POS. Cuadre este importe con la suma de comprobantes
               (vouchers) o con el corte que reporte su terminal bancaria.
             </p>
-            <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-cyan-950 dark:text-cyan-50 lg:mt-1 lg:text-xl">
+            <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-brand-to dark:text-brand-foreground lg:mt-1 lg:text-xl">
               {formatMoney(gruposPagoPreview.tarjetas)}
             </p>
             {lineasTarjetaPreview.length > 0 ? (
-              <ul className="mt-3 space-y-1 border-t border-cyan-800/25 pt-2 text-xs text-cyan-950/95 dark:border-cyan-400/25 dark:text-cyan-100/90 lg:mt-1.5 lg:pt-1.5 lg:text-[11px]">
+              <ul className="mt-3 space-y-1 border-t border-brand-to/25 pt-2 text-xs text-brand-to/95 dark:border-brand/25 dark:text-brand/90 lg:mt-1.5 lg:pt-1.5 lg:text-[11px]">
                 {lineasTarjetaPreview.map((row) => (
                   <li key={row.clave} className="flex justify-between gap-2">
                     <span className="min-w-0 truncate">{row.label}</span>
@@ -272,41 +272,41 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
                 ))}
               </ul>
             ) : (
-              <p className="mt-2 text-xs text-cyan-900/75 dark:text-cyan-300/75 lg:mt-1 lg:text-[11px]">
+              <p className="mt-2 text-xs text-brand-to/75 dark:text-brand/75 lg:mt-1 lg:text-[11px]">
                 Sin cobros con tarjeta en esta sesión.
               </p>
             )}
           </div>
         </div>
 
-        <div className="rounded-lg border border-sky-500/35 bg-sky-500/[0.08] p-3 dark:border-sky-500/30 dark:bg-sky-950/25 lg:p-2.5">
-          <p className="text-[11px] font-bold uppercase tracking-wide text-sky-950 dark:text-sky-200 lg:text-[10px]">
+        <div className="rounded-lg border border-brand/35 bg-brand/[0.08] p-3 dark:border-brand/30 dark:bg-brand-to/25 lg:p-2.5">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-brand-to dark:text-brand lg:text-[10px]">
             Aportes de efectivo (esta sesión)
           </p>
           {aportesOrdenados.length > 0 ? (
-            <ul className="mt-2 space-y-2 text-xs text-sky-950/95 dark:text-sky-100/90 lg:mt-1.5 lg:space-y-1.5 lg:text-[11px]">
+            <ul className="mt-2 space-y-2 text-xs text-brand-to/95 dark:text-brand/90 lg:mt-1.5 lg:space-y-1.5 lg:text-[11px]">
               {aportesOrdenados.map((r) => (
                 <li
                   key={r.id}
-                  className="flex flex-col gap-0.5 border-b border-sky-800/15 pb-2 last:border-b-0 last:pb-0 dark:border-sky-400/15"
+                  className="flex flex-col gap-0.5 border-b border-brand-to/15 pb-2 last:border-b-0 last:pb-0 dark:border-brand/15"
                 >
                   <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
-                    <span className="tabular-nums font-semibold text-sky-950 dark:text-sky-50">
+                    <span className="tabular-nums font-semibold text-brand-to dark:text-brand-foreground">
                       +{formatMoney(r.monto)}
                     </span>
-                    <span className="text-sky-900/85 dark:text-sky-200/80">
+                    <span className="text-brand-to/85 dark:text-brand/80">
                       {formatInAppTimezone(r.createdAt, { dateStyle: 'short', timeStyle: 'short' })} ·{' '}
                       {r.usuarioNombre}
                     </span>
                   </div>
                   {r.notas?.trim() ? (
-                    <span className="font-semibold text-sky-950 dark:text-sky-50">{r.notas.trim()}</span>
+                    <span className="font-semibold text-brand-to dark:text-brand-foreground">{r.notas.trim()}</span>
                   ) : null}
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="mt-2 text-xs text-sky-900/80 dark:text-sky-300/75 lg:mt-1 lg:text-[11px]">
+            <p className="mt-2 text-xs text-brand-to/80 dark:text-brand/75 lg:mt-1 lg:text-[11px]">
               Sin aportes registrados (dinero extra ingresado a caja sin venta).
             </p>
           )}
@@ -350,7 +350,7 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
   const handleOpen = async () => {
     const fondo = parseFloat(fondoInput.replace(',', '.')) || 0;
     if (fondo < 0) {
-      addToast({ type: 'error', message: 'El fondo inicial no puede ser negativo', logToAppEvents: true });
+      addToast({ type: 'error', message: 'El fondo inicial no puede ser negativo'});
       return;
     }
     setBusy(true);
@@ -359,7 +359,6 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
       addToast({
         type: 'success',
         message: 'Caja abierta. Ya puede registrar ventas.',
-        logToAppEvents: true,
       });
       setOpenDialog(false);
       setFondoInput('0');
@@ -367,7 +366,6 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
       addToast({
         type: 'error',
         message: cajaFirestoreUserMessage(e),
-        logToAppEvents: true,
       });
     } finally {
       setBusy(false);
@@ -388,7 +386,6 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
         addToast({
           type: 'error',
           message: `No puede retirar más del efectivo disponible en caja (${formatMoney(disponible)}).`,
-          logToAppEvents: true,
         });
         return;
       }
@@ -414,7 +411,6 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
         addToast({
           type: 'success',
           message: `Saldo agregado: ${formatMoney(mRounded)}`,
-          logToAppEvents: true,
         });
       } else {
         if (isCloud && effectiveSucursalId) {
@@ -435,7 +431,6 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
         addToast({
           type: 'success',
           message: `Retiro registrado: ${formatMoney(mRounded)}`,
-          logToAppEvents: true,
         });
       }
       setSaldoDialog(false);
@@ -445,7 +440,6 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
       addToast({
         type: 'error',
         message: cajaFirestoreUserMessage(e),
-        logToAppEvents: true,
       });
     } finally {
       setBusy(false);
@@ -456,7 +450,7 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
     if (!activa) return;
     const declarado = parseFloat(conteoInput.replace(',', '.'));
     if (!Number.isFinite(declarado) || declarado < 0) {
-      addToast({ type: 'error', message: 'Ingrese el efectivo contado en caja', logToAppEvents: true });
+      addToast({ type: 'error', message: 'Ingrese el efectivo contado en caja'});
       return;
     }
     const totalTerminal = parseFloat(tarjetasCorteInput.replace(',', '.'));
@@ -464,7 +458,6 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
       addToast({
         type: 'error',
         message: 'Ingrese el total del corte de terminal (tarjeta)',
-        logToAppEvents: true,
       });
       return;
     }
@@ -473,7 +466,6 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
       addToast({
         type: 'error',
         message: 'Indique el folio del voucher de terminal (5 dígitos)',
-        logToAppEvents: true,
       });
       return;
     }
@@ -576,7 +568,6 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
       addToast({
         type: 'success',
         message: 'Caja cerrada. Comprobante y reporte de la sesión listos para imprimir.',
-        logToAppEvents: true,
       });
       setCloseDialog(false);
       setConteoInput('');
@@ -587,7 +578,6 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
       addToast({
         type: 'error',
         message: cajaFirestoreUserMessage(e),
-        logToAppEvents: true,
       });
     } finally {
       setBusy(false);
@@ -647,7 +637,6 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
     addToast({
       type: 'success',
       message: 'Arqueo previo y reporte de la sesión listos para imprimir.',
-      logToAppEvents: true,
     });
     setArqueoDialog(false);
   };
@@ -829,11 +818,11 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
                   className="border-slate-300 dark:border-slate-700 dark:bg-slate-800"
                 />
               </div>
-              <div className="space-y-2 rounded-lg border border-cyan-500/40 bg-cyan-500/[0.08] p-3 dark:border-cyan-500/30 dark:bg-cyan-950/30">
-                <p className="text-[11px] font-bold uppercase tracking-wide text-cyan-900 dark:text-cyan-300">
+              <div className="space-y-2 rounded-lg border border-brand/40 bg-brand/[0.08] p-3 dark:border-brand/30 dark:bg-brand-to/30">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-brand-to dark:text-brand">
                   Cierre de terminal
                 </p>
-                <p className="text-xs text-cyan-900/85 dark:text-cyan-200/80">
+                <p className="text-xs text-brand-to/85 dark:text-brand/80">
                   POS tarjetas: {formatMoney(gruposPagoPreview.tarjetas)}. Capture el total real del corte y el folio
                   de 5 dígitos del voucher.
                 </p>
@@ -846,7 +835,7 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
                     value={tarjetasCorteInput}
                     onChange={(e) => setTarjetasCorteInput(e.target.value)}
                     placeholder={String(gruposPagoPreview.tarjetas)}
-                    className="border-cyan-600/30 dark:border-cyan-500/40 dark:bg-slate-800"
+                    className="border-brand/30 dark:border-brand/40 dark:bg-slate-800"
                   />
                 </div>
                 <div className="space-y-2">
@@ -859,7 +848,7 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
                     value={folioTerminalInput}
                     onChange={(e) => setFolioTerminalInput(e.target.value.replace(/\D/g, '').slice(0, 5))}
                     placeholder="00000"
-                    className="border-cyan-600/30 font-mono tracking-widest dark:border-cyan-500/40 dark:bg-slate-800"
+                    className="border-brand/30 font-mono tracking-widest dark:border-brand/40 dark:bg-slate-800"
                   />
                 </div>
                 {(() => {
@@ -874,7 +863,7 @@ export const CajaPosToolbar = forwardRef<CajaPosToolbarHandle, CajaPosToolbarPro
                           ? 'text-emerald-700 dark:text-emerald-400'
                           : dif < -0.005
                             ? 'text-red-600 dark:text-red-400'
-                            : 'text-cyan-900 dark:text-cyan-200'
+                            : 'text-brand-to dark:text-brand'
                       )}
                     >
                       Diferencia vs POS: {formatMoney(dif)}

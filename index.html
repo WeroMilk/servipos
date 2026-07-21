@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es-MX">
+<html lang="es-MX" data-accent="blue">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -10,6 +10,11 @@
           var storageKey = 'pos-app-storage';
           var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
           var dark = prefersDark;
+          var accent = 'blue';
+          var accents = {
+            blue: 1, sky: 1, teal: 1, emerald: 1, green: 1, lime: 1,
+            amber: 1, orange: 1, rose: 1, pink: 1, violet: 1, indigo: 1
+          };
           var raw = localStorage.getItem(storageKey);
           if (raw) {
             var parsed = JSON.parse(raw);
@@ -18,8 +23,10 @@
             else if (st.themePreference === 'dark') dark = true;
             else if (st.themePreference === 'system') dark = prefersDark;
             else if (typeof st.isDarkMode === 'boolean') dark = st.isDarkMode;
+            if (st.accentColor && accents[st.accentColor]) accent = st.accentColor;
           }
           document.documentElement.classList.toggle('dark', dark);
+          document.documentElement.setAttribute('data-accent', accent);
           var meta = document.querySelector('meta[name="theme-color"]');
           if (meta) meta.setAttribute('content', dark ? '#0f172a' : '#f1f5f9');
         } catch (e) {}

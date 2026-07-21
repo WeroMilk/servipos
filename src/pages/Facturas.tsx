@@ -87,7 +87,7 @@ import {
 
 const statusColors: Record<string, string> = {
   pendiente: 'bg-amber-500/10 text-black border-amber-500/30 dark:text-amber-100',
-  enviada: 'bg-sky-500/10 text-sky-800 border-sky-500/30 dark:text-sky-200',
+  enviada: 'bg-brand/10 text-brand-to border-brand/30 dark:text-brand',
   timbrada: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
   cancelada: 'bg-red-500/10 text-red-400 border-red-500/30',
   error: 'bg-red-500/10 text-red-400 border-red-500/30',
@@ -181,13 +181,12 @@ export function Facturas() {
     setDeletingInvoice(true);
     try {
       await removeInvoice(deleteInvoiceTarget.id);
-      addToast({ type: 'success', message: 'Factura eliminada del historial local', logToAppEvents: true });
+      addToast({ type: 'success', message: 'Factura eliminada del historial local'});
       setDeleteInvoiceTarget(null);
     } catch (e) {
       addToast({
         type: 'error',
         message: e instanceof Error ? e.message : 'No se pudo eliminar',
-        logToAppEvents: true,
       });
     } finally {
       setDeletingInvoice(false);
@@ -211,13 +210,11 @@ export function Facturas() {
       addToast({
         type: 'success',
         message: `Factura timbrada. UUID: ${stamped.uuid}`,
-        logToAppEvents: true,
       });
     } catch (e) {
       addToast({
         type: 'error',
         message: e instanceof Error ? e.message : 'No se pudo timbrar',
-        logToAppEvents: true,
       });
     } finally {
       setStampingId(null);
@@ -237,7 +234,6 @@ export function Facturas() {
         addToast({
           type: 'success',
           message: 'Solicitud de cancelación enviada al SAT vía Facturama',
-          logToAppEvents: true,
         });
       } else {
         await cancelInvoice(cancelSatTarget.id, `Local: motivo ${cancelMotive}`);
@@ -250,7 +246,6 @@ export function Facturas() {
       addToast({
         type: 'error',
         message: e instanceof Error ? e.message : 'No se pudo cancelar',
-        logToAppEvents: true,
       });
     } finally {
       setCancelingSat(false);
@@ -268,7 +263,6 @@ export function Facturas() {
       addToast({
         type: 'success',
         message: `Nota de crédito timbrada. UUID: ${related.uuid}`,
-        logToAppEvents: true,
       });
       const fresh = await reloadInvoice(invoice.id);
       if (fresh) setSelectedInvoice(fresh);
@@ -276,7 +270,6 @@ export function Facturas() {
       addToast({
         type: 'error',
         message: e instanceof Error ? e.message : 'No se pudo emitir la nota de crédito',
-        logToAppEvents: true,
       });
     } finally {
       setStampingId(null);
@@ -311,7 +304,6 @@ export function Facturas() {
       addToast({
         type: 'success',
         message: `Complemento de pago timbrado. UUID: ${complement.uuid}`,
-        logToAppEvents: true,
       });
       const fresh = await reloadInvoice(pagoTarget.id);
       if (fresh) setSelectedInvoice(fresh);
@@ -320,7 +312,6 @@ export function Facturas() {
       addToast({
         type: 'error',
         message: e instanceof Error ? e.message : 'No se pudo emitir el complemento',
-        logToAppEvents: true,
       });
     } finally {
       setPagoBusy(false);
@@ -406,7 +397,6 @@ export function Facturas() {
         message: fiscalConfig.modoPruebaFiscal
           ? 'Factura de prueba creada (serie PRUEBA, sin validez fiscal)'
           : 'Factura generada exitosamente',
-        logToAppEvents: true,
       });
 
       if (printAfterCreate) {
@@ -424,19 +414,17 @@ export function Facturas() {
           addToast({
             type: 'error',
             message: 'Factura guardada pero faltan datos del emisor para imprimir. Use Imprimir en el menú de la factura.',
-            logToAppEvents: true,
           });
         } else {
           addToast({
             type: 'error',
             message:
               'Factura creada; no se pudo cargar para imprimir de inmediato. Use «Imprimir representación» en la lista.',
-            logToAppEvents: true,
           });
         }
       }
     } catch (error: any) {
-      addToast({ type: 'error', message: error.message, logToAppEvents: true });
+      addToast({ type: 'error', message: error.message});
     }
   };
 
@@ -491,16 +479,15 @@ export function Facturas() {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        addToast({ type: 'success', message: 'PDF oficial Facturama descargado', logToAppEvents: true });
+        addToast({ type: 'success', message: 'PDF oficial Facturama descargado'});
         return;
       }
       await exportInvoiceCfdiToPdf(invoice, `Factura_${invoice.serie}_${invoice.folio}`);
-      addToast({ type: 'success', message: 'PDF descargado (formato factura clásica)', logToAppEvents: true });
+      addToast({ type: 'success', message: 'PDF descargado (formato factura clásica)'});
     } catch (e) {
       addToast({
         type: 'error',
         message: e instanceof Error ? e.message : 'No se pudo generar el PDF',
-        logToAppEvents: true,
       });
     }
   };
@@ -586,7 +573,7 @@ export function Facturas() {
         <Button
           onClick={() => setShowAddDialog(true)}
           size="lg"
-          className="h-11 bg-gradient-to-r from-cyan-500 to-blue-600 px-6 text-base font-semibold text-white shadow-sm sm:h-12 sm:px-8 sm:text-lg"
+          className="h-11 bg-brand-gradient px-6 text-base font-semibold text-white shadow-sm sm:h-12 sm:px-8 sm:text-lg"
         >
           <Plus className="mr-2 h-5 w-5 shrink-0 sm:h-6 sm:w-6" />
           Nueva
@@ -609,8 +596,8 @@ export function Facturas() {
         <Card className="shrink-0 border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 lg:min-w-0 lg:max-w-md lg:flex-[0_1_340px]">
           <CardContent className="flex flex-wrap items-center justify-between gap-3 p-2 sm:p-3">
             <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-500/20 sm:h-10 sm:w-10">
-                <Receipt className="h-4 w-4 text-cyan-400 sm:h-5 sm:w-5" />
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand/20 sm:h-10 sm:w-10">
+                <Receipt className="h-4 w-4 text-brand sm:h-5 sm:w-5" />
               </div>
               <div className="min-w-0">
                 <p className="text-[10px] text-slate-600 dark:text-slate-500 sm:text-xs">
@@ -650,7 +637,7 @@ export function Facturas() {
           <div className="space-y-2 p-2 md:hidden">
             {loading ? (
               <div className="flex justify-center py-8">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500/30 border-t-cyan-500" />
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand/30 border-t-brand" />
               </div>
             ) : filteredInvoices.length === 0 ? (
               <p className="py-8 text-center text-slate-600 dark:text-slate-500">No se encontraron facturas</p>
@@ -677,7 +664,7 @@ export function Facturas() {
                           Prueba
                         </Badge>
                       ) : null}
-                      <span className="shrink-0 text-cyan-400">{formatMoney(invoice.total)}</span>
+                      <span className="shrink-0 text-brand">{formatMoney(invoice.total)}</span>
                     </div>
                     <p className="mt-1 truncate text-sm text-slate-600 dark:text-slate-400">
                       <ClientProfileLink
@@ -699,7 +686,7 @@ export function Facturas() {
                         {statusLabels[invoice.estado] ?? invoice.estado}
                       </Badge>
                     </div>
-                    <p className="mt-2 text-center text-xs text-cyan-500/80">Ver detalle…</p>
+                    <p className="mt-2 text-center text-xs text-brand/80">Ver detalle…</p>
                   </button>
                   <Button
                     type="button"
@@ -742,7 +729,7 @@ export function Facturas() {
                 {loading ? (
                   <TableRow>
                     <TableCell colSpan={6} className="py-8 text-center">
-                      <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-cyan-500/30 border-t-cyan-500" />
+                      <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-brand/30 border-t-brand" />
                     </TableCell>
                   </TableRow>
                 ) : filteredInvoices.length === 0 ? (
@@ -783,7 +770,7 @@ export function Facturas() {
                       <TableCell className="whitespace-nowrap text-slate-600 dark:text-slate-400">
                         {new Date(invoice.fechaEmision).toLocaleDateString('es-MX')}
                       </TableCell>
-                      <TableCell className="whitespace-nowrap font-medium text-cyan-400">
+                      <TableCell className="whitespace-nowrap font-medium text-brand">
                         {formatMoney(invoice.total)}
                       </TableCell>
                       <TableCell>
@@ -967,7 +954,7 @@ export function Facturas() {
                             'flex w-full flex-wrap items-center justify-between gap-x-2 gap-y-1 border-b border-slate-300/80 px-3 py-2.5 text-left text-sm last:border-b-0 dark:border-slate-700/80',
                             'hover:bg-slate-300/50 dark:hover:bg-slate-700/50',
                             selectedSale?.id === sale.id &&
-                              'bg-cyan-500/15 ring-1 ring-inset ring-cyan-500/40 dark:bg-cyan-500/10'
+                              'bg-brand/15 ring-1 ring-inset ring-brand/40 dark:bg-brand/10'
                           )}
                         >
                           <span className="min-w-0 font-mono text-slate-900 dark:text-slate-100">{sale.folio}</span>
@@ -978,7 +965,7 @@ export function Facturas() {
                               tab="compras"
                             />
                           </span>
-                          <span className="shrink-0 font-medium text-cyan-600 dark:text-cyan-400">
+                          <span className="shrink-0 font-medium text-brand dark:text-brand">
                             {formatMoney(sale.total)}
                           </span>
                         </button>
@@ -1070,7 +1057,7 @@ export function Facturas() {
                         type="checkbox"
                         checked={printAfterCreate}
                         onChange={(e) => setPrintAfterCreate(e.target.checked)}
-                        className="mt-1 h-4 w-4 shrink-0 rounded border-slate-400 accent-blue-600 focus:ring-blue-500/40"
+                        className="mt-1 h-4 w-4 shrink-0 rounded border-slate-400 accent-brand focus:ring-brand/40"
                       />
                       <span className="text-sm text-slate-700 dark:text-slate-300">
                         <span className="font-medium text-slate-900 dark:text-slate-100">
@@ -1094,7 +1081,7 @@ export function Facturas() {
                         <span>IVA:</span>
                         <span>{formatMoney(selectedSale.impuestos)}</span>
                       </div>
-                      <div className="flex justify-between text-xl font-bold text-cyan-400">
+                      <div className="flex justify-between text-xl font-bold text-brand">
                         <span>Total:</span>
                         <span>{formatMoney(selectedSale.total)}</span>
                       </div>
@@ -1112,7 +1099,7 @@ export function Facturas() {
             <Button 
               onClick={handleGenerateInvoice}
               disabled={!selectedSale || !fiscalConfig}
-              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+              className="bg-brand-gradient text-white"
             >
               <Check className="w-4 h-4 mr-2" />
               Generar Factura
@@ -1143,7 +1130,7 @@ export function Facturas() {
             </Button>
             <Button 
               onClick={handleDownloadXML}
-              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+              className="bg-brand-gradient text-white"
             >
               <Download className="w-4 h-4 mr-2" />
               Descargar XML
@@ -1242,7 +1229,7 @@ export function Facturas() {
                         <td className="p-3 text-slate-800 dark:text-slate-200">{item.descripcion}</td>
                         <td className="p-3 text-center text-slate-600 dark:text-slate-400">{item.cantidad}</td>
                         <td className="p-3 text-right text-slate-600 dark:text-slate-400">{formatMoney(item.precioUnitario)}</td>
-                        <td className="p-3 text-right text-cyan-400">{formatMoney(item.total)}</td>
+                        <td className="p-3 text-right text-brand">{formatMoney(item.total)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1254,7 +1241,7 @@ export function Facturas() {
                   <p className="text-slate-600 dark:text-slate-400">Subtotal: {formatMoney(selectedInvoice.subtotal)}</p>
                   <p className="text-slate-600 dark:text-slate-400">Descuento: {formatMoney(selectedInvoice.descuento)}</p>
                   <p className="text-slate-600 dark:text-slate-400">IVA: {formatMoney(selectedInvoice.impuestosTrasladados)}</p>
-                  <p className="mt-2 text-xl font-bold text-cyan-400">
+                  <p className="mt-2 text-xl font-bold text-brand">
                     Total: {formatMoney(selectedInvoice.total)}
                   </p>
                 </div>
@@ -1435,7 +1422,7 @@ export function Facturas() {
               Cerrar
             </Button>
             <Button
-              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+              className="bg-brand-gradient text-white"
               disabled={pagoBusy}
               onClick={() => void confirmPagoComplement()}
             >

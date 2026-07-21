@@ -14,7 +14,6 @@ import type { DevolucionLineInput } from '@/lib/salePartialReturnCompute';
 import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 import { subscribeSalesCatalog, subscribeSaleDocument, getSalesCatalogSnapshot } from '@/lib/firestore/salesFirestore';
-import { reportHookFailure } from '@/lib/appEventLog';
 import { saleEnRangoHistorial } from '@/lib/saleHistorialFecha';
 
 // ============================================
@@ -40,7 +39,6 @@ export function useSales(limit: number = 100) {
       setSales(data);
       setError(null);
     } catch (err) {
-      reportHookFailure('hook:useSales', 'Cargar ventas (local)', err);
       setError('Error al cargar ventas');
       console.error(err);
     } finally {
@@ -75,7 +73,6 @@ export function useSales(limit: number = 100) {
         }
       } catch (err) {
         if (!cancelled) {
-          reportHookFailure('hook:useSales', 'Cargar ventas', err);
           setError('Error al cargar ventas');
           console.error(err);
         }
@@ -107,7 +104,6 @@ export function useSales(limit: number = 100) {
       }
       return { id, folio };
     } catch (err) {
-      reportHookFailure('hook:useSales', 'Crear venta', err);
       setError('Error al crear venta');
       throw err;
     }
@@ -124,7 +120,6 @@ export function useSales(limit: number = 100) {
         await loadSalesLocal();
       }
     } catch (err) {
-      reportHookFailure('hook:useSales', 'Cancelar venta', err);
       setError('Error al cancelar venta');
       throw err;
     }
@@ -141,7 +136,6 @@ export function useSales(limit: number = 100) {
         await loadSalesLocal();
       }
     } catch (err) {
-      reportHookFailure('hook:useSales', 'Completar venta pendiente', err);
       setError('Error al completar venta');
       throw err;
     }
@@ -158,7 +152,6 @@ export function useSales(limit: number = 100) {
         await loadSalesLocal();
       }
     } catch (err) {
-      reportHookFailure('hook:useSales', 'Registrar cobro sobre ticket', err);
       setError('Error al registrar cobro');
       throw err;
     }
@@ -176,7 +169,6 @@ export function useSales(limit: number = 100) {
       }
       return out;
     } catch (err) {
-      reportHookFailure('hook:useSales', 'Devolución parcial', err);
       setError('Error al registrar devolución');
       throw err;
     }
@@ -230,7 +222,6 @@ export function useSalesByDateRange(inicio: Date, fin: Date) {
       const total = normalized.reduce((sum, sale) => sum + (Number(sale.total) || 0), 0);
       setTotals({ total, count: normalized.length });
     } catch (err) {
-      reportHookFailure('hook:useSalesByDateRange', 'Cargar ventas por rango', err);
       console.error('Error al cargar ventas:', err);
     } finally {
       setLoading(false);
@@ -305,7 +296,6 @@ export function useSaleDetails(saleId: string | null) {
         const data = await getSaleById(saleId);
         if (!cancelled) setSale(data || null);
       } catch (err) {
-        reportHookFailure('hook:useSaleDetails', 'Cargar venta (local)', err);
         console.error('Error al cargar venta:', err);
         if (!cancelled) setSale(null);
       } finally {

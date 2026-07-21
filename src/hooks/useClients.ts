@@ -13,7 +13,6 @@ import {
   emitirCreditoTiendaCliente,
 } from '@/db/database';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
-import { reportHookFailure } from '@/lib/appEventLog';
 import { getDefaultSucursalIdForNewData } from '@/lib/sucursales';
 import { POS_GENERIC_CLIENT_LABEL } from '@/lib/posDefaultCliente';
 import {
@@ -147,7 +146,6 @@ export function useClients() {
       setClients(clientsWithMostrador(data, sid));
       setError(null);
     } catch (err) {
-      reportHookFailure('hook:useClients', 'Cargar clientes', err);
       setError('Error al cargar clientes');
       console.error(err);
     } finally {
@@ -241,7 +239,6 @@ export function useClients() {
       await updateClient(id, updates);
       await loadClients();
     } catch (err) {
-      reportHookFailure('hook:useClients', 'Actualizar cliente', err);
       setError('Error al actualizar cliente');
       if (isRemotePermissionDenied(err)) {
         throw new Error(`No tiene permiso para actualizar el cliente en la nube. ${SUPABASE_PERMISSION_HINT}`);
@@ -260,7 +257,6 @@ export function useClients() {
       await deleteClient(id);
       await loadClients();
     } catch (err) {
-      reportHookFailure('hook:useClients', 'Eliminar cliente', err);
       setError('Error al eliminar cliente');
       throw err;
     }
@@ -373,7 +369,6 @@ export function useClientSearch() {
             const data = await searchClients(query, effectiveSucursalId);
             setResults(data);
           } catch (err) {
-            reportHookFailure('hook:useClientSearch', 'Búsqueda de clientes', err);
             console.error('Error en búsqueda:', err);
           } finally {
             setLoading(false);
@@ -403,7 +398,6 @@ export function useClientDetails(clientId: string | null) {
         const data = await getClientById(clientId);
         setClient(data || null);
       } catch (err) {
-        reportHookFailure('hook:useClientDetails', 'Cargar cliente', err);
         console.error('Error al cargar cliente:', err);
       } finally {
         setLoading(false);

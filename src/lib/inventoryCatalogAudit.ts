@@ -16,6 +16,7 @@ const CATALOG_KEYS: (keyof Product)[] = [
   'categoria',
   'proveedor',
   'unidadMedida',
+  'ubicacionFisica',
   'activo',
   'preciosPorListaCliente',
   'imagen',
@@ -100,13 +101,15 @@ function formatFieldChange(key: keyof Product, prev: unknown, next: unknown): st
                           ? 'Proveedor'
                           : key === 'unidadMedida'
                             ? 'Unidad'
-                            : key === 'activo'
-                              ? 'Activo en catálogo'
-                              : key === 'imagen'
-                                ? 'Imagen (URL)'
-                                : key === 'preciosPorListaCliente'
-                                  ? 'Precios por lista cliente'
-                                  : String(key);
+                            : key === 'ubicacionFisica'
+                              ? 'Ubicación física'
+                              : key === 'activo'
+                                ? 'Activo en catálogo'
+                                : key === 'imagen'
+                                  ? 'Imagen (URL)'
+                                  : key === 'preciosPorListaCliente'
+                                    ? 'Precios por lista cliente'
+                                    : String(key);
 
   if (key === 'precioVenta' || key === 'precioCompra') {
     return `${label}: ${moneyStr(prev)} → ${moneyStr(next)}`;

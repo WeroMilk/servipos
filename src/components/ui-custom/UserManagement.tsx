@@ -270,14 +270,14 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
                 embedded && 'text-sm sm:text-base'
               )}
             >
-              <Users className={cn('text-cyan-400', embedded ? 'h-4 w-4 sm:h-5 sm:w-5' : 'h-5 w-5')} />
+              <Users className={cn('text-brand', embedded ? 'h-4 w-4 sm:h-5 sm:w-5' : 'h-5 w-5')} />
               Usuarios
             </CardTitle>
             <Button
               type="button"
               size={embedded ? 'sm' : 'default'}
               onClick={openCreate}
-              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+              className="bg-brand-gradient text-white"
             >
               <Plus className="mr-2 h-4 w-4" />
               Nuevo usuario
@@ -408,7 +408,7 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
                               variant="ghost"
                               size="icon"
                               className={cn(
-                                'text-slate-600 dark:text-slate-400 hover:text-cyan-400',
+                                'text-slate-600 dark:text-slate-400 hover:text-brand',
                                 embedded ? 'h-7 w-7' : 'h-8 w-8'
                               )}
                               onClick={() => openEdit(u)}
@@ -603,7 +603,7 @@ export function UserManagement({ embedded = false }: UserManagementProps) {
               type="button"
               disabled={saving}
               onClick={() => void handleSave()}
-              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+              className="bg-brand-gradient text-white"
             >
               {saving ? 'Guardando…' : 'Guardar'}
             </Button>
