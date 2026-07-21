@@ -76,7 +76,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover';
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { clearAllInventoryMovementsLocal, getInventoryMovementsByProductId } from '@/db/database';
 import { deleteAllInventoryMovementsFirestore } from '@/lib/firestore/inventoryMovementsFirestore';
 import { subscribeSucursales } from '@/lib/firestore/sucursalesMetaFirestore';
@@ -516,6 +516,83 @@ function InventoryProductActions({
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+function UbicacionFisicaNombre({
+  product,
+  variant,
+  onOpenDialog,
+  className,
+  nameClassName,
+  pinClassName,
+  layout = 'start',
+}: {
+  product: Product;
+  variant: 'popover' | 'dialog';
+  onOpenDialog?: (product: Product) => void;
+  className?: string;
+  nameClassName?: string;
+  pinClassName?: string;
+  layout?: 'start' | 'center';
+}) {
+  const slots = resolveUbicacionesProducto(product);
+  const trigger = (
+    <button
+      type="button"
+      onClick={variant === 'dialog' ? () => onOpenDialog?.(product) : undefined}
+      className={className}
+      title="Ver ubicación física"
+    >
+      <span
+        className={cn(
+          'inline-flex max-w-full gap-1.5',
+          layout === 'center' ? 'items-center' : 'items-start'
+        )}
+      >
+        <span className={nameClassName}>{product.nombre}</span>
+        <MapPin className={pinClassName} aria-hidden />
+      </span>
+    </button>
+  );
+
+  if (variant === 'dialog') {
+    return trigger;
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+      <PopoverContent
+        side="top"
+        align="start"
+        className="w-72 border-slate-200 bg-slate-100 p-3 text-slate-900 shadow-lg dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+      >
+        <div className="space-y-2.5 text-sm">
+          <div className="flex items-center gap-1.5 font-medium text-slate-800 dark:text-slate-100">
+            <MapPin className="h-4 w-4 shrink-0 text-brand dark:text-brand" aria-hidden />
+            Ubicación
+          </div>
+          <p className="font-mono text-xs text-slate-600 dark:text-slate-400">SKU: {product.sku}</p>
+          {slots.length === 0 ? (
+            <p className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-400">
+              Este producto aún no tiene ubicación física registrada.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {slots.map((slot) => (
+                <Badge
+                  key={slot}
+                  className="bg-brand/15 px-2.5 py-0.5 text-sm font-semibold tabular-nums text-brand-to dark:text-brand"
+                >
+                  {slot}
+                </Badge>
+              ))}
+            </div>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -1950,19 +2027,14 @@ export function Inventario() {
                     className="rounded-xl border border-slate-200/90 bg-slate-50/95 p-3 shadow-sm dark:border-slate-800/80 dark:bg-slate-900/60"
                   >
                     <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setUbicacionDialogProduct(product)}
+                      <UbicacionFisicaNombre
+                        product={product}
+                        variant="dialog"
+                        onOpenDialog={setUbicacionDialogProduct}
                         className="min-w-0 flex-1 rounded-md px-0.5 py-0.5 text-left transition-colors hover:bg-slate-200/70 dark:hover:bg-slate-800/60"
-                        title="Ver ubicación física"
-                      >
-                        <span className="inline-flex max-w-full items-start gap-1.5">
-                          <span className="text-sm font-semibold leading-snug text-slate-900 underline-offset-2 hover:underline dark:text-slate-100">
-                            {product.nombre}
-                          </span>
-                          <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand dark:text-brand" aria-hidden />
-                        </span>
-                      </button>
+                        nameClassName="text-sm font-semibold leading-snug text-slate-900 underline-offset-2 hover:underline dark:text-slate-100"
+                        pinClassName="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand dark:text-brand"
+                      />
                       <InventoryProductActions
                         editLabel="Editar producto"
                         onEdit={() => openEditDialog(product)}
@@ -2009,19 +2081,15 @@ export function Inventario() {
                   >
                     <div className="flex gap-2">
                       <div className="min-w-0 flex-1">
-                        <button
-                          type="button"
-                          onClick={() => setUbicacionDialogProduct(product)}
+                        <UbicacionFisicaNombre
+                          product={product}
+                          variant="dialog"
+                          onOpenDialog={setUbicacionDialogProduct}
                           className="w-full -mx-0.5 rounded-md px-0.5 py-0.5 text-left transition-colors hover:bg-slate-200/70 dark:hover:bg-slate-800/60"
-                          title="Ver ubicación física"
-                        >
-                          <span className="inline-flex max-w-full items-center gap-1.5">
-                            <span className="text-sm font-semibold leading-snug text-slate-900 underline-offset-2 hover:underline dark:text-slate-100">
-                              {product.nombre}
-                            </span>
-                            <MapPin className="h-3.5 w-3.5 shrink-0 text-brand dark:text-brand" aria-hidden />
-                          </span>
-                        </button>
+                          nameClassName="text-sm font-semibold leading-snug text-slate-900 underline-offset-2 hover:underline dark:text-slate-100"
+                          pinClassName="h-3.5 w-3.5 shrink-0 text-brand dark:text-brand"
+                          layout="center"
+                        />
                         {hasInventoryDescripcionVisible(product.descripcion) ? (
                           <p className="mt-1 line-clamp-2 text-xs text-slate-600 dark:text-slate-500">
                             {product.descripcion}
@@ -2335,15 +2403,13 @@ export function Inventario() {
                     visibleInventoryProducts.map((product) => (
                       <TableRow key={product.id} className="border-slate-200/80 dark:border-slate-800/50">
                         <TableCell className="min-w-0 font-medium whitespace-normal break-words text-slate-800 dark:text-slate-200">
-                          <button
-                            type="button"
-                            onClick={() => setUbicacionDialogProduct(product)}
+                          <UbicacionFisicaNombre
+                            product={product}
+                            variant="popover"
                             className="inline-flex max-w-full items-start gap-1.5 text-left font-medium text-slate-800 underline-offset-2 hover:underline dark:text-slate-200"
-                            title="Ver ubicación física"
-                          >
-                            <span className="min-w-0 break-words">{product.nombre}</span>
-                            <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand dark:text-brand" aria-hidden />
-                          </button>
+                            nameClassName="min-w-0 break-words"
+                            pinClassName="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand dark:text-brand"
+                          />
                         </TableCell>
                         <TableCell className="align-top">
                           <Input
@@ -2377,15 +2443,13 @@ export function Inventario() {
                       <TableRow key={product.id} className="border-slate-200/80 dark:border-slate-800/50">
                         <TableCell className="min-w-0 align-top whitespace-normal">
                           <div className="min-w-0 break-words">
-                            <button
-                              type="button"
-                              onClick={() => setUbicacionDialogProduct(product)}
+                            <UbicacionFisicaNombre
+                              product={product}
+                              variant="popover"
                               className="inline-flex max-w-full items-start gap-1.5 text-left font-medium text-slate-800 underline-offset-2 hover:underline dark:text-slate-200"
-                              title="Ver ubicación física"
-                            >
-                              <span className="min-w-0 break-words">{product.nombre}</span>
-                              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand dark:text-brand" aria-hidden />
-                            </button>
+                              nameClassName="min-w-0 break-words"
+                              pinClassName="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand dark:text-brand"
+                            />
                             {hasInventoryDescripcionVisible(product.descripcion) ? (
                               <p className="text-xs text-slate-600 dark:text-slate-500">{product.descripcion}</p>
                             ) : null}
