@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { Navigate } from 'react-router-dom';
 import { Bomb, Flag, RotateCcw, Timer } from 'lucide-react';
 import { PageShell } from '@/components/ui-custom/PageShell';
@@ -49,12 +49,7 @@ function neighbors(r: number, c: number, rows: number, cols: number): [number, n
   return out;
 }
 
-function placeMines(
-  grid: Cell[][],
-  mines: number,
-  safeR: number,
-  safeC: number
-): Cell[][] {
+function placeMines(grid: Cell[][], mines: number, safeR: number, safeC: number): Cell[][] {
   const rows = grid.length;
   const cols = grid[0]!.length;
   const next = grid.map((row) => row.map((cell) => ({ ...cell })));
@@ -145,9 +140,7 @@ function BuscaminasGame() {
   const [status, setStatus] = useState<'playing' | 'won' | 'lost'>('playing');
   const [seconds, setSeconds] = useState(0);
   const [timerOn, setTimerOn] = useState(false);
-  const longPressRef = useRef<{ r: number; c: number; timer: ReturnType<typeof setTimeout> } | null>(
-    null
-  );
+  const longPressRef = useRef<{ timer: ReturnType<typeof setTimeout> } | null>(null);
   const flagGestureRef = useRef(false);
 
   const reset = useCallback((diff: Difficulty = difficulty) => {
@@ -175,55 +168,53 @@ function BuscaminasGame() {
   const reveal = useCallback(
     (r: number, c: number) => {
       if (status !== 'playing') return;
+
       setGrid((prev) => {
         let g = prev;
-        if (!minesPlaced) {
+        const firstClick = !minesPlaced;
+        if (firstClick) {
           g = placeMines(prev, cfg.mines, r, c);
         }
         const cell = g[r]![c]!;
         if (cell.revealed || cell.flagged) return prev;
+
         if (cell.mine) {
-          const blown = g.map((row) =>
-            row.map((cell2) => (cell2.mine ? { ...cell2, revealed: true } : { ...cell2 }))
+          queueMicrotask(() => {
+            setStatus('lost');
+            setTimerOn(false);
+            if (firstClick) setMinesPlaced(true);
+          });
+          return g.map((row, ri) =>
+            row.map((cell2, ci) => {
+              if (cell2.mine) return { ...cell2, revealed: true };
+              if (ri === r && ci === c) return { ...cell2, revealed: true };
+              return { ...cell2 };
+            })
           );
-          blown[r]![c] = { ...blown[r]![c]!, revealed: true };
-          return blown;
         }
-        return floodReveal(g, r, c);
+
+        const opened = floodReveal(g, r, c);
+        const won = checkWin(opened);
+        queueMicrotask(() => {
+          if (firstClick) {
+            setMinesPlaced(true);
+            setTimerOn(true);
+          }
+          if (won) {
+            setStatus('won');
+            setTimerOn(false);
+          }
+        });
+        if (won) {
+          return opened.map((row) =>
+            row.map((cell2) => (cell2.mine ? { ...cell2, flagged: true } : cell2))
+          );
+        }
+        return opened;
       });
-      if (!minesPlaced) {
-        setMinesPlaced(true);
-        setTimerOn(true);
-      }
     },
     [status, minesPlaced, cfg.mines]
   );
-
-  useEffect(() => {
-    if (status !== 'playing' || !minesPlaced) return;
-    if (grid.some((row) => row.some((cell) => cell.mine && cell.revealed && !cell.flagged))) {
-      // lost: mine revealed
-      const lost = grid.some((row) =>
-        row.some((cell) => cell.mine && cell.revealed)
-      );
-      if (lost && grid.flat().some((c) => c.mine && c.revealed)) {
-        const anyBlown = grid.some((row) => row.some((c) => c.mine && c.revealed));
-        if (anyBlown) {
-          // Detect win/loss after grid update
-        }
-      }
-    }
-    const hitMine = grid.some((row) => row.some((c) => c.mine && c.revealed));
-    if (hitMine) {
-      setStatus('lost');
-      setTimerOn(false);
-      return;
-    }
-    if (checkWin(grid)) {
-      setStatus('won');
-      setTimerOn(false);
-    }
-  }, [grid, minesPlaced, status]);
 
   const toggleFlag = useCallback(
     (r: number, c: number) => {
@@ -232,13 +223,14 @@ function BuscaminasGame() {
         const cell = prev[r]![c]!;
         if (cell.revealed) return prev;
         if (!minesPlaced) {
-          setMinesPlaced(true);
-          setTimerOn(true);
-          // Place mines away from this cell so flagging first is ok
           const withMines = placeMines(prev, cfg.mines, r, c);
+          queueMicrotask(() => {
+            setMinesPlaced(true);
+            setTimerOn(true);
+          });
           return withMines.map((row, ri) =>
             row.map((cell2, ci) =>
-              ri === r && ci === c ? { ...cell2, flagged: !cell2.flagged } : cell2
+              ri === r && ci === c ? { ...cell2, flagged: true } : cell2
             )
           );
         }
@@ -252,7 +244,7 @@ function BuscaminasGame() {
     [status, minesPlaced, cfg.mines]
   );
 
-  const onContextMenu = (e: React.MouseEvent, r: number, c: number) => {
+  const onContextMenu = (e: MouseEvent, r: number, c: number) => {
     e.preventDefault();
     toggleFlag(r, c);
   };
@@ -261,8 +253,6 @@ function BuscaminasGame() {
     flagGestureRef.current = false;
     if (longPressRef.current) clearTimeout(longPressRef.current.timer);
     longPressRef.current = {
-      r,
-      c,
       timer: setTimeout(() => {
         flagGestureRef.current = true;
         toggleFlag(r, c);
