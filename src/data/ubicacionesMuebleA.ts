@@ -1,6 +1,6 @@
 import { normSkuBarcode } from '@/lib/productCatalogUniqueness';
 
-/** Códigos por slot de ubicación física (muebles A / B / C). */
+/** Códigos por slot de ubicación física (muebles A–H). */
 export const MUEBLE_POR_SLOT: Readonly<Record<string, readonly string[]>> = {
   A: [
     'w910010062',
@@ -107,6 +107,40 @@ export const MUEBLE_POR_SLOT: Readonly<Record<string, readonly string[]>> = {
   ],
   C3: ['1885', '1885', '1885', '30', '2223'],
   C4: [],
+  D: [],
+  D1: ['1173', '1003', '1003'],
+  D2: ['1115', '1115', '1358', '1357'],
+  D3: ['30', '170', '1906'],
+  D4: ['1174', '1174', '2326', '170'],
+  D5: ['1174', '1174', '169', '169', '1174'],
+  D6: ['1003'],
+  E: [],
+  E1: [],
+  E2: ['TRLAWH004', '606', '169', '1906'],
+  E3: ['30', '171'],
+  E4: ['2047', '2204'],
+  E5: [],
+  E6: ['167', '1757'],
+  F: ['1453'],
+  F1: ['2306'],
+  F2: [],
+  F3: [],
+  F4: [],
+  F5: [],
+  F6: [],
+  F7: [],
+  F8: [],
+  G: [],
+  G1: ['216', '640'],
+  G2: ['103', '150', '80', '197', '113', '81'],
+  G3: ['508'],
+  G4: [],
+  G5: [],
+  G6: [],
+  G7: [],
+  G8: [],
+  H: [],
+  H1: [],
 };
 
 const SLOT_ORDER = [
@@ -125,6 +159,40 @@ const SLOT_ORDER = [
   'C2',
   'C3',
   'C4',
+  'D',
+  'D1',
+  'D2',
+  'D3',
+  'D4',
+  'D5',
+  'D6',
+  'E',
+  'E1',
+  'E2',
+  'E3',
+  'E4',
+  'E5',
+  'E6',
+  'F',
+  'F1',
+  'F2',
+  'F3',
+  'F4',
+  'F5',
+  'F6',
+  'F7',
+  'F8',
+  'G',
+  'G1',
+  'G2',
+  'G3',
+  'G4',
+  'G5',
+  'G6',
+  'G7',
+  'G8',
+  'H',
+  'H1',
 ] as const;
 
 /** Slots disponibles para asignar ubicación física a un producto. */
@@ -150,7 +218,7 @@ const CODIGO_A_UBICACIONES: ReadonlyMap<string, readonly string[]> = (() => {
 })();
 
 /**
- * Ubicaciones físicas (muebles A–C) por SKU/código (mapa estático).
+ * Ubicaciones físicas (muebles A–H) por SKU/código (mapa estático).
  */
 export function getUbicacionesProducto(sku: string, codigoBarras?: string | null): string[] {
   const bySku = CODIGO_A_UBICACIONES.get(normSkuBarcode(sku));
