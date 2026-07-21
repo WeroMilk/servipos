@@ -153,9 +153,6 @@ export function SalidasMercancia() {
           cantidad: Math.max(1, l.cantidad),
         })),
       });
-      const piezas = goodsExitTotalPiezas(
-        draftLines.map((l) => ({ ...l, productId: l.product.id, cantidad: l.cantidad, lineId: l.lineId }))
-      );
       addToast({
         type: 'success',
         message: `Salida registrada (${created?.folio ?? 'ok'}). Inventario actualizado.`,

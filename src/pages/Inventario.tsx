@@ -1120,7 +1120,6 @@ export function Inventario() {
         precioCompraUnit: formData.precioCompra > 0 ? formData.precioCompra : 0,
       });
       setStockQtyFocus(false);
-      const tipoLbl = tipoMovimientoLabel(stockAdjustment.tipo as InventoryMovement['tipo']);
       addToast({ type: 'success', message: 'Stock ajustado exitosamente'});
     } catch (error: any) {
       addToast({ type: 'error', message: error.message});
