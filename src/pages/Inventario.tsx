@@ -1059,8 +1059,6 @@ export function Inventario() {
       setShowEditDialog(false);
       setSelectedProduct(null);
       setListasPrecioMainDraft({});
-      const nombreEdit = upperTxt(formData.nombre.trim());
-      const skuEdit = upperTxt((formData.sku ?? '').trim());
       addToast({ type: 'success', message: 'Producto actualizado exitosamente'});
     } catch (error: any) {
       addToast({ type: 'error', message: error.message});

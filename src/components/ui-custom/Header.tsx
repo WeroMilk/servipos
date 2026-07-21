@@ -91,11 +91,6 @@ export function Header() {
   }, [mobileMenuOpen]);
 
   useEffect(() => {
-    if (mobileMenuOpen) return;
-    setMobileEventsOpen(false);
-  }, [mobileMenuOpen]);
-
-  useEffect(() => {
     return () => {
       if (mobileCierreOpenTimerRef.current != null) {
         window.clearTimeout(mobileCierreOpenTimerRef.current);
