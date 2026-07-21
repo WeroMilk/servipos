@@ -16,6 +16,7 @@ import {
   ArrowDown,
   ArrowUp,
   Download,
+  MapPin,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -101,6 +102,7 @@ import { tipoMovimientoLabel } from '@/lib/inventoryMovementLabels';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { isMovimientoLlegadaMercancia } from '@/lib/inventoryAbasto';
 import { downloadInventarioCompleto, downloadInventarioStockBajo } from '@/lib/inventoryExport';
+import { getUbicacionesProducto } from '@/data/ubicacionesMuebleA';
 import { buildProductSearchIndex, searchProductIndex } from '@/lib/productSearchIndex';
 import { effectiveListaPreciosIncluyenIva, defaultListaPreciosIncluyenIva } from '@/lib/catalogPricingFlags';
 import {
@@ -636,7 +638,12 @@ export function Inventario() {
   const [inventoryListPage, setInventoryListPage] = useState(1);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [ubicacionDialogProduct, setUbicacionDialogProduct] = useState<Product | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const ubicacionDialogSlots = useMemo(() => {
+    if (!ubicacionDialogProduct) return [] as string[];
+    return getUbicacionesProducto(ubicacionDialogProduct.sku, ubicacionDialogProduct.codigoBarras);
+  }, [ubicacionDialogProduct]);
   const [stockAdjustment, setStockAdjustment] = useState({
     tipo: 'entrada',
     cantidad: 0,
@@ -1981,24 +1988,15 @@ export function Inventario() {
                     <div className="flex gap-2">
                       <button
                         type="button"
-                        onClick={() => handleInventorySortClick('nombre')}
-                        className={cn(
-                          'min-w-0 flex-1 rounded-md px-0.5 py-0.5 text-left transition-colors',
-                          inventorySort.key === 'nombre'
-                            ? 'bg-cyan-500/10 ring-1 ring-cyan-500/35'
-                            : 'hover:bg-slate-200/70 dark:hover:bg-slate-800/60'
-                        )}
-                        title="Ordenar por nombre"
+                        onClick={() => setUbicacionDialogProduct(product)}
+                        className="min-w-0 flex-1 rounded-md px-0.5 py-0.5 text-left transition-colors hover:bg-slate-200/70 dark:hover:bg-slate-800/60"
+                        title="Ver ubicación física"
                       >
-                        <span className="inline-flex max-w-full items-start gap-1">
-                          <span className="text-sm font-semibold leading-snug text-slate-900 dark:text-slate-100">
+                        <span className="inline-flex max-w-full items-start gap-1.5">
+                          <span className="text-sm font-semibold leading-snug text-slate-900 underline-offset-2 hover:underline dark:text-slate-100">
                             {product.nombre}
                           </span>
-                          {inventorySort.key === 'nombre' ?
-                            inventorySort.dir === 'asc' ?
-                              <ArrowUp className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-600 dark:text-cyan-400" aria-hidden />
-                            : <ArrowDown className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-600 dark:text-cyan-400" aria-hidden />
-                          : null}
+                          <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-600 dark:text-cyan-400" aria-hidden />
                         </span>
                       </button>
                       <InventoryProductActions
@@ -2049,24 +2047,15 @@ export function Inventario() {
                       <div className="min-w-0 flex-1">
                         <button
                           type="button"
-                          onClick={() => handleInventorySortClick('nombre')}
-                          className={cn(
-                            'w-full rounded-md px-0.5 py-0.5 text-left transition-colors -mx-0.5',
-                            inventorySort.key === 'nombre'
-                              ? 'bg-cyan-500/10 ring-1 ring-cyan-500/35'
-                              : 'hover:bg-slate-200/70 dark:hover:bg-slate-800/60'
-                          )}
-                          title="Ordenar por nombre"
+                          onClick={() => setUbicacionDialogProduct(product)}
+                          className="w-full -mx-0.5 rounded-md px-0.5 py-0.5 text-left transition-colors hover:bg-slate-200/70 dark:hover:bg-slate-800/60"
+                          title="Ver ubicación física"
                         >
-                          <span className="inline-flex max-w-full items-center gap-1">
-                            <span className="text-sm font-semibold leading-snug text-slate-900 dark:text-slate-100">
+                          <span className="inline-flex max-w-full items-center gap-1.5">
+                            <span className="text-sm font-semibold leading-snug text-slate-900 underline-offset-2 hover:underline dark:text-slate-100">
                               {product.nombre}
                             </span>
-                            {inventorySort.key === 'nombre' ?
-                              inventorySort.dir === 'asc' ?
-                                <ArrowUp className="h-3.5 w-3.5 shrink-0 text-cyan-600 dark:text-cyan-400" aria-hidden />
-                              : <ArrowDown className="h-3.5 w-3.5 shrink-0 text-cyan-600 dark:text-cyan-400" aria-hidden />
-                            : null}
+                            <MapPin className="h-3.5 w-3.5 shrink-0 text-cyan-600 dark:text-cyan-400" aria-hidden />
                           </span>
                         </button>
                         {hasInventoryDescripcionVisible(product.descripcion) ? (
@@ -2382,7 +2371,15 @@ export function Inventario() {
                     visibleInventoryProducts.map((product) => (
                       <TableRow key={product.id} className="border-slate-200/80 dark:border-slate-800/50">
                         <TableCell className="min-w-0 font-medium whitespace-normal break-words text-slate-800 dark:text-slate-200">
-                          {product.nombre}
+                          <button
+                            type="button"
+                            onClick={() => setUbicacionDialogProduct(product)}
+                            className="inline-flex max-w-full items-start gap-1.5 text-left font-medium text-slate-800 underline-offset-2 hover:underline dark:text-slate-200"
+                            title="Ver ubicación física"
+                          >
+                            <span className="min-w-0 break-words">{product.nombre}</span>
+                            <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-600 dark:text-cyan-400" aria-hidden />
+                          </button>
                         </TableCell>
                         <TableCell className="align-top">
                           <Input
@@ -2416,7 +2413,15 @@ export function Inventario() {
                       <TableRow key={product.id} className="border-slate-200/80 dark:border-slate-800/50">
                         <TableCell className="min-w-0 align-top whitespace-normal">
                           <div className="min-w-0 break-words">
-                            <p className="font-medium text-slate-800 dark:text-slate-200">{product.nombre}</p>
+                            <button
+                              type="button"
+                              onClick={() => setUbicacionDialogProduct(product)}
+                              className="inline-flex max-w-full items-start gap-1.5 text-left font-medium text-slate-800 underline-offset-2 hover:underline dark:text-slate-200"
+                              title="Ver ubicación física"
+                            >
+                              <span className="min-w-0 break-words">{product.nombre}</span>
+                              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-600 dark:text-cyan-400" aria-hidden />
+                            </button>
                             {hasInventoryDescripcionVisible(product.descripcion) ? (
                               <p className="text-xs text-slate-600 dark:text-slate-500">{product.descripcion}</p>
                             ) : null}
@@ -3067,6 +3072,63 @@ export function Inventario() {
             <Button
               type="button"
               onClick={() => setAddSessionSummaryOpen(false)}
+              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+            >
+              Entendido
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Ubicación física (prueba mueble A) */}
+      <Dialog
+        open={ubicacionDialogProduct != null}
+        onOpenChange={(open) => {
+          if (!open) setUbicacionDialogProduct(null);
+        }}
+      >
+        <DialogContent className="bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 pr-6">
+              <MapPin className="h-5 w-5 shrink-0 text-cyan-600 dark:text-cyan-400" aria-hidden />
+              <span className="min-w-0 break-words">{ubicacionDialogProduct?.nombre ?? 'Ubicación'}</span>
+            </DialogTitle>
+            <DialogDescription className="text-left text-slate-600 dark:text-slate-400">
+              Mueble A (prueba)
+            </DialogDescription>
+          </DialogHeader>
+          {ubicacionDialogProduct ? (
+            <div className="space-y-3 text-sm">
+              <p className="font-mono text-slate-700 dark:text-slate-300">
+                SKU: {ubicacionDialogProduct.sku}
+              </p>
+              {ubicacionDialogSlots.length === 0 ? (
+                <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-400">
+                  Este producto aún no tiene ubicación física en el mapa de prueba.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Ubicación{ubicacionDialogSlots.length > 1 ? 'es' : ''}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {ubicacionDialogSlots.map((slot) => (
+                      <Badge
+                        key={slot}
+                        className="bg-cyan-500/15 px-3 py-1 text-base font-semibold tabular-nums text-cyan-700 dark:text-cyan-300"
+                      >
+                        {slot}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button
+              type="button"
+              onClick={() => setUbicacionDialogProduct(null)}
               className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
             >
               Entendido
