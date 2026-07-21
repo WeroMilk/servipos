@@ -124,6 +124,38 @@ export async function applyPurchaseOrderReceive(
   return nextItems;
 }
 
+/**
+ * Cancela lo pendiente de una línea (mercancía que no llegó): no mueve stock.
+ * - Si no se había recibido nada → elimina la línea.
+ * - Si ya hubo recepción parcial → `cantidadFacturada = cantidadRecibida` (pendiente 0).
+ */
+export function cancelPurchaseOrderPendingLine(
+  order: PurchaseOrder,
+  lineId: string
+): { productos: PurchaseOrderItem[]; estado: PurchaseOrderEstado } {
+  const id = lineId.trim();
+  if (!id) throw new Error('Línea no válida');
+  const item = order.productos.find((p) => p.lineId === id);
+  if (!item) throw new Error('Línea no encontrada en el pedido');
+  const pend = purchaseOrderPendienteLinea(item);
+  if (pend <= 0) throw new Error('Esta línea ya no tiene pendiente por recibir');
+
+  const rec = Math.max(0, Number(item.cantidadRecibida) || 0);
+  let productos: PurchaseOrderItem[];
+  if (rec <= 0) {
+    productos = order.productos.filter((p) => p.lineId !== id);
+  } else {
+    productos = order.productos.map((p) =>
+      p.lineId === id ? { ...p, cantidadFacturada: rec } : p
+    );
+  }
+
+  if (productos.length === 0) {
+    return { productos, estado: 'cancelada' };
+  }
+  return { productos, estado: derivePurchaseOrderEstado(productos) };
+}
+
 export function mapLegacyPurchaseOrderEstado(raw: unknown): PurchaseOrderEstado {
   const s = String(raw ?? '');
   if (s === 'esperando_mercancia' || s === 'parcial' || s === 'completado' || s === 'cancelada') {

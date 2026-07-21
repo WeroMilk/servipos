@@ -615,6 +615,33 @@ export async function appendPagosToCompletedSaleFirestore(
   if (error) throw new Error(error.message);
 }
 
+/** Reemplaza el arreglo de pagos de una venta completada (p. ej. al anular abono CxC). */
+export async function replaceSalePagosFirestore(
+  sucursalId: string,
+  saleId: string,
+  pagos: Payment[]
+): Promise<void> {
+  const sid = saleId.trim();
+  if (!sid) throw new Error('Venta inválida');
+  const supabase = getSupabase();
+  const { data: row } = await supabase
+    .from('sales')
+    .select('doc')
+    .eq('sucursal_id', sucursalId)
+    .eq('id', sid)
+    .maybeSingle();
+  if (!row?.doc) throw new Error('Venta no encontrada');
+  const doc = { ...(row.doc as Record<string, unknown>) };
+  doc.pagos = pagos.map((p) => paymentToDoc(p));
+  doc.updatedAt = new Date().toISOString();
+  const { error } = await supabase
+    .from('sales')
+    .update({ doc, updated_at: new Date().toISOString() })
+    .eq('sucursal_id', sucursalId)
+    .eq('id', sid);
+  if (error) throw new Error(error.message);
+}
+
 export async function getSaleByFolioFirestore(sucursalId: string, folioRaw: string): Promise<Sale | null> {
   const folio = folioRaw.trim();
   if (!folio) return null;

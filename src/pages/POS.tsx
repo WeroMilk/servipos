@@ -1463,10 +1463,50 @@ export function POS() {
     setMetodoPago,
   ]);
 
+  const ppdAbonoFormasEffective = useMemo(() => {
+    const base = [...FORMAS_PAGO_UI];
+    const creditoDisp =
+      client && !client.isMostrador && client.id !== 'mostrador' ?
+        saldoCreditoCliente(client)
+      : 0;
+    if (creditoDisp > 0.005 && !base.some((fp) => fp.clave === 'STC')) {
+      base.push({
+        clave: 'STC',
+        descripcion: `Crédito de tienda (${formatMoney(creditoDisp)})`,
+      });
+    }
+    return base;
+  }, [client]);
+
   const ppdAbonoFormaSelectValue = useMemo(() => {
-    if (FORMAS_PAGO_UI.some((f) => f.clave === ppdAbonoFormaPago)) return ppdAbonoFormaPago;
+    if (ppdAbonoFormasEffective.some((f) => f.clave === ppdAbonoFormaPago)) return ppdAbonoFormaPago;
     return '01';
-  }, [ppdAbonoFormaPago]);
+  }, [ppdAbonoFormaPago, ppdAbonoFormasEffective]);
+
+  const creditoTiendaDisponibleCheckout = useMemo(() => {
+    if (!client || client.isMostrador || client.id === 'mostrador') return 0;
+    return saldoCreditoCliente(client);
+  }, [client]);
+
+  const creditoTiendaYaEnPagos = useMemo(
+    () => sumCreditoTiendaEnPagosParcial(pagos),
+    [pagos]
+  );
+
+  const creditoTiendaRestanteCheckout = Math.max(
+    0,
+    Math.round((creditoTiendaDisponibleCheckout - creditoTiendaYaEnPagos) * 100) / 100
+  );
+
+  /** Capar monto STC al crédito restante y al faltante del ticket. */
+  const montoStcCapped = useCallback(
+    (montoRaw: number): number => {
+      const falta = Math.max(0, cobroReferencia - totalPagadoVenta);
+      const cap = Math.min(montoRaw, creditoTiendaRestanteCheckout, falta);
+      return Math.round(Math.max(0, cap) * 100) / 100;
+    },
+    [cobroReferencia, totalPagadoVenta, creditoTiendaRestanteCheckout]
+  );
 
   const esFormaTarjeta = (fp: string) => fp === '04' || fp === '28';
   const esFormaEfectivo = (fp: string) => fp === '01';
@@ -1518,13 +1558,59 @@ export function POS() {
 
   const commitMontoRecibido = () => {
     const normalized = montoRecibidoInput.replace(',', '.').trim();
-    const monto = parseFloat(normalized) || 0;
+    let monto = parseFloat(normalized) || 0;
     if (monto <= 0) {
       addToast({ type: 'warning', message: 'Ingrese un monto mayor a cero' });
       return;
     }
+    if (formaPagoAbono === 'STC') {
+      const capped = montoStcCapped(monto);
+      if (capped <= 0.005) {
+        addToast({
+          type: 'warning',
+          message:
+            creditoTiendaRestanteCheckout <= 0.005
+              ? 'No hay crédito de tienda disponible'
+              : 'El ticket ya está cubierto',
+        });
+        return;
+      }
+      if (capped + 0.001 < monto) {
+        addToast({
+          type: 'info',
+          message: `Se aplicaron ${formatMoney(capped)} de crédito (máximo disponible / faltante).`,
+        });
+      }
+      monto = capped;
+    }
     addPago({ formaPago: formaPagoAbono, monto });
     setMontoRecibidoInput('');
+  };
+
+  const aplicarCreditoTiendaDisponible = () => {
+    const capped = montoStcCapped(creditoTiendaRestanteCheckout);
+    if (capped <= 0.005) {
+      addToast({
+        type: 'warning',
+        message:
+          creditoTiendaRestanteCheckout <= 0.005
+            ? 'No hay crédito de tienda disponible'
+            : 'El ticket ya está cubierto',
+      });
+      return;
+    }
+    addPago({ formaPago: 'STC', monto: capped });
+    setMontoRecibidoInput('');
+    if (metodoPago !== 'PPD' && capped + 0.004 < cobroReferencia - totalPagadoVenta + capped) {
+      setMetodoPago('PPD');
+    }
+    const falta = Math.max(0, cobroReferencia - (totalPagadoVenta + capped));
+    if (falta > 0.005) {
+      addToast({
+        type: 'success',
+        message: `Crédito aplicado: ${formatMoney(capped)}. Falta ${formatMoney(falta)}`,
+      });
+    }
   };
 
   const handleAddProduct = useCallback((product: Product, quantityArg?: number) => {
@@ -2535,8 +2621,18 @@ export function POS() {
         const fpLinea = ppdAbonoFormaPago;
         const norm = montoRecibidoInput.replace(',', '.').trim();
         if (norm) {
-          const m = parseFloat(norm);
+          let m = parseFloat(norm);
           if (Number.isFinite(m) && m > 0) {
+            if (fpLinea === 'STC') {
+              m = montoStcCapped(m);
+              if (m <= 0.005) {
+                addToast({
+                  type: 'warning',
+                  message: 'No hay crédito de tienda suficiente para este abono',
+                });
+                return;
+              }
+            }
             addPago({ formaPago: fpLinea, monto: m });
             pagoAgregadoEnEstaInvocacion = true;
             setMontoRecibidoInput('');
@@ -2550,8 +2646,18 @@ export function POS() {
         /** PUE: aplica el importe del campo (efectivo, transferencia, etc.) como abono antes de validar. */
         const norm = montoRecibidoInput.replace(',', '.').trim();
         if (norm) {
-          const m = parseFloat(norm);
+          let m = parseFloat(norm);
           if (Number.isFinite(m) && m > 0) {
+            if (formaPago === 'STC') {
+              m = montoStcCapped(m);
+              if (m <= 0.005) {
+                addToast({
+                  type: 'warning',
+                  message: 'No hay crédito de tienda suficiente para este abono',
+                });
+                return;
+              }
+            }
             addPago({ formaPago, monto: m });
             pagoAgregadoEnEstaInvocacion = true;
             setMontoRecibidoInput('');
@@ -4582,7 +4688,7 @@ export function POS() {
                             hideScrollButtons
                             className="z-[300] max-h-[min(50dvh,18rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
                           >
-                            {FORMAS_PAGO_UI.map((fp) => (
+                            {ppdAbonoFormasEffective.map((fp) => (
                               <SelectItem
                                 key={fp.clave}
                                 value={fp.clave}
@@ -4593,8 +4699,19 @@ export function POS() {
                             ))}
                           </SelectContent>
                         </Select>
+                        {creditoTiendaRestanteCheckout > 0.005 ? (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            className="h-9 w-full border border-violet-500/30 bg-violet-500/10 text-violet-800 hover:bg-violet-500/20 dark:text-violet-200"
+                            onClick={aplicarCreditoTiendaDisponible}
+                          >
+                            Usar crédito ({formatMoney(creditoTiendaRestanteCheckout)})
+                          </Button>
+                        ) : null}
                         <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-500 sm:text-xs">
-                          Parcialidades: registre cada cobro (varias tarjetas, efectivo + tarjeta, etc.).
+                          Parcialidades: registre cada cobro (varias tarjetas, efectivo + tarjeta, crédito de tienda, etc.).
                           Enter o Completar con un monto solo agrega ese abono y deja el diálogo abierto.
                           {puedeVentaConSaldoPendiente ?
                             ' Para cerrar dejando saldo en cuenta, vacíe el monto y pulse «Completar dejando saldo».'

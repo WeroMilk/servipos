@@ -416,7 +416,7 @@ export async function listAbonosCobrosEnRangoFirestore(
       const key = a.id?.trim() || `${t}-${a.monto}-${a.formaPago}-${a.clienteId ?? ''}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      out.push(a);
+      out.push({ ...a, cajaSesionId: a.cajaSesionId?.trim() || sesion.id });
     }
   }
   out.sort((a, b) => {
@@ -545,6 +545,42 @@ export async function registrarAbonoCobroCajaFirestore(
     p_usuario_nombre: input.usuarioNombre,
   });
   if (error) throw new Error(error.message);
+}
+
+/** Quita un abono CxC de la sesión (abierta o cerrada) por id. */
+export async function anularAbonoCobroCajaFirestore(
+  sucursalId: string,
+  sesionId: string,
+  abonoId: string
+): Promise<void> {
+  const aid = abonoId.trim();
+  if (!aid) throw new Error('Indique el abono a anular');
+  const supabase = getSupabase();
+  const { error } = await supabase.rpc('rpc_anular_abono_caja', {
+    p_sucursal_id: sucursalId,
+    p_sesion_id: sesionId.trim(),
+    p_abono_id: aid,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/** Busca en sesiones recientes la que contiene un abono por id. */
+export async function findCajaSesionIdForAbonoFirestore(
+  sucursalId: string,
+  abonoId: string,
+  options?: { limitSesiones?: number }
+): Promise<string | null> {
+  const aid = abonoId.trim();
+  if (!aid) return null;
+  const sesiones = await listCajaSesionesFirestore(sucursalId.trim(), {
+    limit: options?.limitSesiones ?? 200,
+  });
+  for (const sesion of sesiones) {
+    if ((sesion.abonosCobros ?? []).some((a) => (a.id || '').trim() === aid)) {
+      return sesion.id;
+    }
+  }
+  return null;
 }
 
 /** Registra una emisión de crédito de tienda en la sesión abierta (corte). */

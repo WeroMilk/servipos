@@ -15,6 +15,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -77,7 +87,7 @@ export function RecepcionPedidos() {
   const proveedoresLista = useInventoryListsStore((s) => s.proveedores);
   const setProveedoresInventario = useInventoryListsStore((s) => s.setProveedores);
   const setListasPrecioExtraInventario = useInventoryListsStore((s) => s.setListasPrecioExtra);
-  const { orders, loading, registerOrder, receiveOrderLines, products, editProduct } =
+  const { orders, loading, registerOrder, receiveOrderLines, cancelPendingLine, products, editProduct } =
     usePurchaseOrders();
 
   const [filtro, setFiltro] = useState<FiltroPedido>('activos');
@@ -94,6 +104,11 @@ export function RecepcionPedidos() {
     Record<string, { cantidadRecibir: number; actualizarPrecioCompra: boolean }>
   >({});
   const [receiving, setReceiving] = useState(false);
+  const [cancelPendienteTarget, setCancelPendienteTarget] = useState<{
+    order: PurchaseOrder;
+    line: PurchaseOrder['productos'][number];
+  } | null>(null);
+  const [cancelPendienteBusy, setCancelPendienteBusy] = useState(false);
 
   const [detailOrder, setDetailOrder] = useState<PurchaseOrder | null>(null);
 
@@ -299,6 +314,47 @@ export function RecepcionPedidos() {
       });
     } finally {
       setReceiving(false);
+    }
+  };
+
+  const confirmarCancelarPendiente = async () => {
+    if (!cancelPendienteTarget) return;
+    setCancelPendienteBusy(true);
+    try {
+      const updated = await cancelPendingLine(
+        cancelPendienteTarget.order,
+        cancelPendienteTarget.line.lineId
+      );
+      addToast({
+        type: 'success',
+        message: `Se quitó lo pendiente de «${cancelPendienteTarget.line.nombre ?? cancelPendienteTarget.line.productId}». No se modificó el inventario.`,
+      });
+      setCancelPendienteTarget(null);
+      const stillPend = updated.productos.some((p) => purchaseOrderPendienteLinea(p) > 0);
+      if (stillPend && receiveOrder?.id === updated.id) {
+        const draft: Record<string, { cantidadRecibir: number; actualizarPrecioCompra: boolean }> =
+          {};
+        for (const it of updated.productos) {
+          const pend = purchaseOrderPendienteLinea(it);
+          if (pend <= 0) continue;
+          draft[it.lineId] = {
+            cantidadRecibir: pend,
+            actualizarPrecioCompra: it.actualizarPrecioCompra !== false,
+          };
+        }
+        setReceiveDraft(draft);
+        setReceiveOrder(updated);
+      } else if (receiveOrder?.id === updated.id) {
+        setReceiveOrder(null);
+      }
+      if (detailOrder?.id === updated.id) setDetailOrder(updated);
+    } catch (e) {
+      addToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'No se pudo quitar la línea pendiente',
+      });
+    } finally {
+      setCancelPendienteBusy(false);
     }
   };
 
@@ -693,6 +749,20 @@ export function RecepcionPedidos() {
                         >
                           <X className="h-3 w-3" />
                         </Button>
+                        {canEdit ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-500/40 dark:text-red-400 dark:hover:bg-red-500/10"
+                            onClick={() =>
+                              setCancelPendienteTarget({ order: receiveOrder, line: it })
+                            }
+                          >
+                            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                            No llegó
+                          </Button>
+                        ) : null}
                         <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
                           <input
                             type="checkbox"
@@ -731,6 +801,53 @@ export function RecepcionPedidos() {
           ) : null}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={cancelPendienteTarget != null}
+        onOpenChange={(o) => {
+          if (!o && !cancelPendienteBusy) setCancelPendienteTarget(null);
+        }}
+      >
+        <AlertDialogContent className="border-slate-200 bg-slate-50 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Quitar producto pendiente?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
+                <p>
+                  <span className="font-medium text-slate-800 dark:text-slate-200">
+                    {cancelPendienteTarget?.line.nombre ??
+                      cancelPendienteTarget?.line.productId ??
+                      'Producto'}
+                  </span>
+                </p>
+                <p>
+                  Se cancelará lo pendiente (
+                  {cancelPendienteTarget
+                    ? purchaseOrderPendienteLinea(cancelPendienteTarget.line)
+                    : 0}
+                  ). No se dará entrada a inventario.
+                  {(cancelPendienteTarget?.line.cantidadRecibida ?? 0) > 0
+                    ? ' Lo ya recibido se conserva en el pedido.'
+                    : ' La línea se eliminará del pedido.'}
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={cancelPendienteBusy}>Volver</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={cancelPendienteBusy}
+              className="bg-red-600 hover:bg-red-700"
+              onClick={(e) => {
+                e.preventDefault();
+                void confirmarCancelarPendiente();
+              }}
+            >
+              {cancelPendienteBusy ? 'Quitando…' : 'Sí, no llegó'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={detailOrder != null} onOpenChange={(o) => !o && setDetailOrder(null)}>
         <DialogContent className="max-h-[92dvh] overflow-y-auto border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 sm:max-w-3xl">
@@ -772,6 +889,7 @@ export function RecepcionPedidos() {
                       <TableHead className="text-center">Recibido</TableHead>
                       <TableHead className="text-right">P. compra s/IVA</TableHead>
                       <TableHead className="text-right">Subtotal recibido</TableHead>
+                      {canEdit ? <TableHead className="w-[1%]"> </TableHead> : null}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -779,6 +897,7 @@ export function RecepcionPedidos() {
                       const rec = Math.max(0, Number(it.cantidadRecibida) || 0);
                       const pu = Number(it.precioUnitarioCompra) || 0;
                       const subtotal = Math.round(rec * pu * 100) / 100;
+                      const pend = purchaseOrderPendienteLinea(it);
                       return (
                         <TableRow key={it.lineId}>
                           <TableCell className="font-medium">
@@ -810,6 +929,25 @@ export function RecepcionPedidos() {
                           <TableCell className="text-right tabular-nums">
                             {subtotal > 0 ? formatMoney(subtotal) : '—'}
                           </TableCell>
+                          {canEdit ? (
+                            <TableCell>
+                              {pend > 0 &&
+                              detailOrder.estado !== 'completado' &&
+                              detailOrder.estado !== 'cancelada' ? (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-500/40 dark:text-red-400"
+                                  onClick={() =>
+                                    setCancelPendienteTarget({ order: detailOrder, line: it })
+                                  }
+                                >
+                                  No llegó
+                                </Button>
+                              ) : null}
+                            </TableCell>
+                          ) : null}
                         </TableRow>
                       );
                     })}

@@ -506,6 +506,8 @@ export interface CajaAbonoCobro {
   createdAt: Date;
   usuarioId: string;
   usuarioNombre: string;
+  /** Sesión de caja donde vive el ítem (útil al anular desde Historial del día). */
+  cajaSesionId?: string;
 }
 
 /** Registro de apertura/cierre de caja por sucursal (`public.caja_sesiones`). */

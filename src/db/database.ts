@@ -35,6 +35,7 @@ import {
   fetchSalesByClienteIdFirestore,
   updatePendingOpenSaleFirestore,
   partialReturnSaleFirestore,
+  replaceSalePagosFirestore,
 } from '@/lib/firestore/salesFirestore';
 import type { DevolucionLineInput } from '@/lib/salePartialReturnCompute';
 import { computeDevolucionParcial } from '@/lib/salePartialReturnCompute';
@@ -44,6 +45,11 @@ import {
   updateQuotationFirestore,
 } from '@/lib/firestore/quotationsFirestore';
 import { updateClientFirestore } from '@/lib/firestore/clientsFirestore';
+import {
+  anularAbonoCobroCajaFirestore,
+  findCajaSesionIdForAbonoFirestore,
+  getCajaSesionFirestore,
+} from '@/lib/firestore/cajaFirestore';
 import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
 import { SERIE_FACTURA_PRUEBA, SERIE_NOMINA_PRUEBA } from '@/lib/fiscalConstants';
 import { getDefaultSucursalIdForNewData } from '@/lib/sucursales';
@@ -1822,6 +1828,225 @@ export async function registrarAbonoACuentaCliente(
     updatedAt: now,
     syncStatus: sid ? 'synced' : 'pending',
   });
+}
+
+export type AnularAbonoCxCInput = {
+  sucursalId: string;
+  clienteId: string;
+  monto: number;
+  formaPago?: FormaPago;
+  /** Id del ítem en `caja_sesiones.abonosCobros`. */
+  abonoCajaId?: string;
+  cajaSesionId?: string;
+  /** Marca temporal del abono (historial o caja) para emparejar. */
+  at?: Date;
+};
+
+/**
+ * Anula un abono CxC: restaura `saldoAdeudado`, quita historial, revierte pagos
+ * `esAbonoCxC` en tickets y elimina el ítem de la sesión de caja.
+ */
+export async function anularAbonoCxC(input: AnularAbonoCxCInput): Promise<void> {
+  const sucursalId = input.sucursalId.trim();
+  const clienteId = input.clienteId.trim();
+  const monto = Math.round(Number(input.monto) * 100) / 100;
+  if (!sucursalId) throw new Error('Sucursal no válida');
+  if (!clienteId || clienteId === MOSTRADOR_CLIENT_ID) throw new Error('Cliente no válido');
+  if (!Number.isFinite(monto) || monto <= 0.005) throw new Error('Monto de abono no válido');
+
+  const formaPago = input.formaPago;
+  const atMs = input.at instanceof Date && Number.isFinite(input.at.getTime()) ? input.at.getTime() : null;
+  let cajaSesionId = input.cajaSesionId?.trim() || '';
+  let abonoCajaId = input.abonoCajaId?.trim() || '';
+
+  if (!cajaSesionId && abonoCajaId) {
+    cajaSesionId = (await findCajaSesionIdForAbonoFirestore(sucursalId, abonoCajaId)) || '';
+  }
+
+  // 1) Quitar pagos esAbonoCxC en tickets del cliente (hasta cubrir el monto).
+  const sales = await getSalesByClienteId(clienteId, { sucursalId });
+  let remaining = monto;
+  const candidates: { saleId: string; pagoId: string; monto: number; score: number }[] = [];
+  for (const sale of sales) {
+    if (sale.estado !== 'completada' && sale.estado !== 'facturada') continue;
+    for (const p of sale.pagos ?? []) {
+      if (p.esAbonoCxC !== true) continue;
+      const pm = Math.round((Number(p.monto) || 0) * 100) / 100;
+      if (pm <= 0.005) continue;
+      if (formaPago && p.formaPago !== formaPago) continue;
+      const paySid = (p.cajaSesionId ?? '').trim();
+      if (cajaSesionId && paySid && paySid !== cajaSesionId) continue;
+      let score = 0;
+      if (cajaSesionId && paySid === cajaSesionId) score += 10;
+      if (formaPago && p.formaPago === formaPago) score += 5;
+      if (atMs != null) {
+        const saleAt = sale.updatedAt ?? sale.completedAt ?? sale.createdAt;
+        const t = saleAt instanceof Date ? saleAt.getTime() : new Date(saleAt).getTime();
+        if (Number.isFinite(t)) {
+          const delta = Math.abs(t - atMs);
+          if (delta < 5 * 60 * 1000) score += 8;
+          else if (delta < 24 * 60 * 60 * 1000) score += 2;
+        }
+      }
+      candidates.push({ saleId: sale.id, pagoId: p.id, monto: pm, score });
+    }
+  }
+  candidates.sort((a, b) => b.score - a.score || b.monto - a.monto);
+
+  const removeBySale = new Map<string, Set<string>>();
+  for (const c of candidates) {
+    if (remaining <= 0.005) break;
+    if (c.monto > remaining + 0.05) continue;
+    const set = removeBySale.get(c.saleId) ?? new Set<string>();
+    set.add(c.pagoId);
+    removeBySale.set(c.saleId, set);
+    remaining = Math.round((remaining - c.monto) * 100) / 100;
+  }
+
+  // Si no emparejó por montos parciales exactos, quitar los mejores candidatos hasta cubrir.
+  if (remaining > 0.05) {
+    remaining = monto;
+    removeBySale.clear();
+    for (const c of candidates) {
+      if (remaining <= 0.005) break;
+      const set = removeBySale.get(c.saleId) ?? new Set<string>();
+      if (set.has(c.pagoId)) continue;
+      set.add(c.pagoId);
+      removeBySale.set(c.saleId, set);
+      remaining = Math.round((remaining - c.monto) * 100) / 100;
+    }
+  }
+
+  for (const [saleId, pagoIds] of removeBySale) {
+    const sale = sales.find((s) => s.id === saleId);
+    if (!sale) continue;
+    const nextPagos = (sale.pagos ?? []).filter((p) => !pagoIds.has(p.id));
+    await replaceSalePagosFirestore(sucursalId, saleId, nextPagos);
+    await db.sales.update(saleId, {
+      pagos: nextPagos,
+      updatedAt: new Date(),
+      syncStatus: 'synced',
+    });
+  }
+
+  // 2) Restaurar saldoAdeudado y quitar entrada de abonosHistorial.
+  const row = await db.clients.get(clienteId);
+  if (!row || row.isMostrador) throw new Error('Cliente no encontrado');
+  const current = Math.round((Number(row.saldoAdeudado) || 0) * 100) / 100;
+  const nextSaldo = Math.round((current + monto) * 100) / 100;
+  const prevHist = Array.isArray(row.abonosHistorial) ? row.abonosHistorial : [];
+  const histNorm = prevHist.map((e) => ({
+    at: e.at instanceof Date ? e.at : new Date(e.at),
+    monto: Math.round(Math.max(0, Number(e.monto) || 0) * 100) / 100,
+    saldoAnterior: Math.round(Math.max(0, Number(e.saldoAnterior) || 0) * 100) / 100,
+    saldoNuevo: Math.round(Math.max(0, Number(e.saldoNuevo) || 0) * 100) / 100,
+    formaPago: e.formaPago,
+    cajaSesionId: e.cajaSesionId?.trim() || undefined,
+    usuarioNombre: e.usuarioNombre?.trim() || undefined,
+  }));
+
+  let removedIdx = -1;
+  for (let i = 0; i < histNorm.length; i++) {
+    const e = histNorm[i];
+    if (Math.abs(e.monto - monto) > 0.02) continue;
+    if (formaPago && e.formaPago && e.formaPago !== formaPago) continue;
+    if (cajaSesionId && e.cajaSesionId && e.cajaSesionId !== cajaSesionId) continue;
+    if (atMs != null) {
+      const t = e.at.getTime();
+      if (Number.isFinite(t) && Math.abs(t - atMs) > 2 * 60 * 1000) continue;
+    }
+    removedIdx = i;
+    if (!cajaSesionId && e.cajaSesionId) cajaSesionId = e.cajaSesionId;
+    break;
+  }
+  // Sin match estricto por tiempo: primer monto (+ forma/sesión) coincidente.
+  if (removedIdx < 0) {
+    for (let i = 0; i < histNorm.length; i++) {
+      const e = histNorm[i];
+      if (Math.abs(e.monto - monto) > 0.02) continue;
+      if (formaPago && e.formaPago && e.formaPago !== formaPago) continue;
+      if (cajaSesionId && e.cajaSesionId && e.cajaSesionId !== cajaSesionId) continue;
+      removedIdx = i;
+      if (!cajaSesionId && e.cajaSesionId) cajaSesionId = e.cajaSesionId;
+      break;
+    }
+  }
+
+  const abonosHistorial =
+    removedIdx >= 0 ? histNorm.filter((_, i) => i !== removedIdx) : histNorm;
+
+  const patch: Partial<Client> & {
+    ultimoAbonoMonto?: number | null;
+    ultimoAbonoAt?: Date | null;
+    ultimoAbonoSaldoAnterior?: number | null;
+    ultimoAbonoSaldoNuevo?: number | null;
+    ultimoAbonoUsuarioNombre?: string | null;
+  } = {
+    saldoAdeudado: nextSaldo,
+    abonosHistorial: abonosHistorial.slice(0, 80),
+  };
+  if (abonosHistorial.length > 0) {
+    const last = abonosHistorial[0];
+    patch.ultimoAbonoMonto = last.monto;
+    patch.ultimoAbonoAt = last.at;
+    patch.ultimoAbonoSaldoAnterior = last.saldoAnterior;
+    patch.ultimoAbonoSaldoNuevo = last.saldoNuevo;
+    patch.ultimoAbonoUsuarioNombre = last.usuarioNombre;
+  } else {
+    patch.ultimoAbonoMonto = null;
+    patch.ultimoAbonoAt = null;
+    patch.ultimoAbonoSaldoAnterior = null;
+    patch.ultimoAbonoSaldoNuevo = null;
+    patch.ultimoAbonoUsuarioNombre = null;
+  }
+
+  await updateClientFirestore(sucursalId, clienteId, patch as Partial<Client>);
+  await db.clients.update(clienteId, {
+    saldoAdeudado: nextSaldo,
+    abonosHistorial: abonosHistorial.slice(0, 80),
+    ...(abonosHistorial.length > 0
+      ? {
+          ultimoAbonoMonto: abonosHistorial[0].monto,
+          ultimoAbonoAt: abonosHistorial[0].at,
+          ultimoAbonoSaldoAnterior: abonosHistorial[0].saldoAnterior,
+          ultimoAbonoSaldoNuevo: abonosHistorial[0].saldoNuevo,
+          ultimoAbonoUsuarioNombre: abonosHistorial[0].usuarioNombre,
+        }
+      : {
+          ultimoAbonoMonto: undefined,
+          ultimoAbonoAt: undefined,
+          ultimoAbonoSaldoAnterior: undefined,
+          ultimoAbonoSaldoNuevo: undefined,
+          ultimoAbonoUsuarioNombre: undefined,
+        }),
+    updatedAt: new Date(),
+    syncStatus: 'synced',
+  });
+
+  // 3) Quitar de caja_sesiones.abonosCobros.
+  if (cajaSesionId && abonoCajaId) {
+    await anularAbonoCobroCajaFirestore(sucursalId, cajaSesionId, abonoCajaId);
+  } else if (cajaSesionId && !abonoCajaId) {
+    // Buscar ítem por fingerprint si venimos del historial del cliente.
+    const sesion = await getCajaSesionFirestore(sucursalId, cajaSesionId);
+    const match = (sesion?.abonosCobros ?? []).find((a) => {
+      const am = Math.round((Number(a.monto) || 0) * 100) / 100;
+      if (Math.abs(am - monto) > 0.02) return false;
+      if (formaPago && a.formaPago !== formaPago) return false;
+      if ((a.clienteId ?? '').trim() && (a.clienteId ?? '').trim() !== clienteId) return false;
+      if (atMs != null) {
+        const t = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
+        if (Number.isFinite(t) && Math.abs(t - atMs) > 5 * 60 * 1000) return false;
+      }
+      return true;
+    });
+    if (match?.id) {
+      await anularAbonoCobroCajaFirestore(sucursalId, cajaSesionId, match.id);
+    }
+  } else if (abonoCajaId) {
+    const found = await findCajaSesionIdForAbonoFirestore(sucursalId, abonoCajaId);
+    if (found) await anularAbonoCobroCajaFirestore(sucursalId, found, abonoCajaId);
+  }
 }
 
 /**

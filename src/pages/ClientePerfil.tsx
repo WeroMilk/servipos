@@ -50,10 +50,10 @@ import {
   useSales,
 } from '@/hooks';
 import { useAppStore, useAuthStore } from '@/stores';
-import type { Client, Invoice, Quotation, QuotationStatus, Sale, SaleItem } from '@/types';
+import type { Client, ClientAbonoHistorialEntry, Invoice, Quotation, QuotationStatus, Sale, SaleItem } from '@/types';
 import { cn, formatMoney } from '@/lib/utils';
 import { formatInAppTimezone } from '@/lib/appTimezone';
-import { getSalesByClienteId } from '@/db/database';
+import { anularAbonoCxC, getSalesByClienteId } from '@/db/database';
 import { saleCuentaComoCompraCliente } from '@/lib/saleClienteHistorial';
 import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
 import { saleIsInvoiced } from '@/lib/saleInvoiced';
@@ -77,6 +77,16 @@ import {
   type CreditoTiendaMotivoEmisionId,
 } from '@/lib/clientCreditoTienda';
 import { useClientPriceListCatalog } from '@/hooks/useClientPriceListCatalog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 type ProfileTab = 'resumen' | 'compras' | 'facturas' | 'cotizaciones' | 'adeudos' | 'credito';
 
@@ -167,6 +177,7 @@ export function ClientePerfil() {
   const cajaSesion = useCajaSesion({ sucursalId: effectiveSucursalId });
   const { addToast } = useAppStore();
   const user = useAuthStore((s) => s.user);
+  const isAdmin = user?.role === 'admin';
   const priceListCatalog = useClientPriceListCatalog();
 
   const [creditoDialogOpen, setCreditoDialogOpen] = useState(false);
@@ -177,6 +188,8 @@ export function ClientePerfil() {
   const [creditoReferencia, setCreditoReferencia] = useState('');
   const [creditoNotas, setCreditoNotas] = useState('');
   const [creditoBusy, setCreditoBusy] = useState(false);
+  const [abonoCancelEntry, setAbonoCancelEntry] = useState<ClientAbonoHistorialEntry | null>(null);
+  const [abonoCancelBusy, setAbonoCancelBusy] = useState(false);
 
   const client = useMemo(() => {
     if (!clientId) return null;
@@ -907,6 +920,19 @@ export function ClientePerfil() {
                                 {entry.formaPago ? ` · pago ${entry.formaPago}` : ''}
                                 {entry.usuarioNombre ? ` · ${entry.usuarioNombre}` : ''}
                               </p>
+                              {isAdmin ? (
+                                <div className="mt-2">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 border-red-500/35 text-xs text-red-600 hover:bg-red-500/10 dark:border-red-500/40 dark:text-red-400"
+                                    onClick={() => setAbonoCancelEntry(entry)}
+                                  >
+                                    Cancelar abono
+                                  </Button>
+                                </div>
+                              ) : null}
                             </li>
                           ))}
                         </ul>
@@ -1123,6 +1149,75 @@ export function ClientePerfil() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={abonoCancelEntry != null}
+        onOpenChange={(o) => {
+          if (!o && !abonoCancelBusy) setAbonoCancelEntry(null);
+        }}
+      >
+        <AlertDialogContent className="border-slate-200 bg-slate-50 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Cancelar este abono?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
+                <p>
+                  Monto{' '}
+                  <span className="font-semibold tabular-nums">
+                    {formatMoney(abonoCancelEntry?.monto ?? 0)}
+                  </span>
+                </p>
+                <p>
+                  Se restaurará el saldo pendiente, se quitará del corte y los tickets volverán a deber.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={abonoCancelBusy}>Volver</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={abonoCancelBusy || !effectiveSucursalId || !client}
+              className="bg-red-600 hover:bg-red-700"
+              onClick={(e) => {
+                e.preventDefault();
+                void (async () => {
+                  if (!abonoCancelEntry || !effectiveSucursalId || !client) return;
+                  setAbonoCancelBusy(true);
+                  try {
+                    await anularAbonoCxC({
+                      sucursalId: effectiveSucursalId,
+                      clienteId: client.id,
+                      monto: abonoCancelEntry.monto,
+                      formaPago: abonoCancelEntry.formaPago,
+                      cajaSesionId: abonoCancelEntry.cajaSesionId,
+                      at:
+                        abonoCancelEntry.at instanceof Date
+                          ? abonoCancelEntry.at
+                          : new Date(abonoCancelEntry.at),
+                    });
+                    addToast({
+                      type: 'success',
+                      message: `Abono de ${formatMoney(abonoCancelEntry.monto)} anulado.`,
+                      logToAppEvents: true,
+                    });
+                    setAbonoCancelEntry(null);
+                  } catch (err) {
+                    addToast({
+                      type: 'error',
+                      message: err instanceof Error ? err.message : 'No se pudo anular el abono',
+                      logToAppEvents: true,
+                    });
+                  } finally {
+                    setAbonoCancelBusy(false);
+                  }
+                })();
+              }}
+            >
+              {abonoCancelBusy ? 'Anulando…' : 'Confirmar anulación'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </PageShell>
   );
 }

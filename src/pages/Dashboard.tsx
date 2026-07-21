@@ -42,6 +42,7 @@ import { cn, formatMoney } from '@/lib/utils';
 import { printThermalDailySalesReport, printThermalTicketFromSale } from '@/lib/printTicket';
 import { listAbonosCobrosEnRangoFirestore } from '@/lib/firestore/cajaFirestore';
 import type { CajaAbonoCobro } from '@/types';
+import { anularAbonoCxC, cancelSale } from '@/db/database';
 import {
   buildHistorialCobrosMovimientos,
   computeCobradoPeriodo,
@@ -79,7 +80,6 @@ import {
   type PeriodGranularity,
 } from '@/components/ui-custom/DashboardPeriodPopover';
 import { useAuthStore, useAppStore, getResolvedIsDark } from '@/stores';
-import { cancelSale } from '@/db/database';
 import { saleListaCancelacionEtiqueta } from '@/lib/saleCancelacion';
 import { saleIsInvoiced } from '@/lib/saleInvoiced';
 import { parrafosAyudaCancelacionVentaAdmin } from '@/lib/cancelacionVentaAdminUi';
@@ -338,6 +338,9 @@ export function Dashboard() {
   const [saleCancelOpen, setSaleCancelOpen] = useState(false);
   const [saleToCancel, setSaleToCancel] = useState<Sale | null>(null);
   const [saleCancelBusy, setSaleCancelBusy] = useState(false);
+  const [abonoCancelOpen, setAbonoCancelOpen] = useState(false);
+  const [abonoToCancel, setAbonoToCancel] = useState<CajaAbonoCobro | null>(null);
+  const [abonoCancelBusy, setAbonoCancelBusy] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
     const t = startOfDayFromDateKey(getMexicoDateKey());
     return { from: t, to: t };
@@ -630,6 +633,50 @@ export function Dashboard() {
       setSaleCancelBusy(false);
     }
   }, [saleToCancel, effectiveSucursalId, addToast]);
+
+  const confirmCancelAbonoFromPanel = useCallback(async () => {
+    if (!abonoToCancel || !effectiveSucursalId) {
+      addToast({ type: 'error', message: 'No hay sucursal para anular el abono.' });
+      return;
+    }
+    const clienteId = abonoToCancel.clienteId?.trim();
+    if (!clienteId) {
+      addToast({ type: 'error', message: 'Este abono no tiene cliente asociado.' });
+      return;
+    }
+    setAbonoCancelBusy(true);
+    try {
+      await anularAbonoCxC({
+        sucursalId: effectiveSucursalId,
+        clienteId,
+        monto: abonoToCancel.monto,
+        formaPago: abonoToCancel.formaPago,
+        abonoCajaId: abonoToCancel.id,
+        cajaSesionId: abonoToCancel.cajaSesionId,
+        at:
+          abonoToCancel.createdAt instanceof Date
+            ? abonoToCancel.createdAt
+            : new Date(abonoToCancel.createdAt),
+      });
+      setAbonosFetched((prev) => prev.filter((a) => a.id !== abonoToCancel.id));
+      setReprintAbonoDetail(null);
+      addToast({
+        type: 'success',
+        message: `Abono de ${formatMoney(abonoToCancel.monto)} anulado. El saldo pendiente del cliente se restauró.`,
+        logToAppEvents: true,
+      });
+      setAbonoCancelOpen(false);
+      setAbonoToCancel(null);
+    } catch (err) {
+      addToast({
+        type: 'error',
+        message: err instanceof Error ? err.message : 'No se pudo anular el abono',
+        logToAppEvents: true,
+      });
+    } finally {
+      setAbonoCancelBusy(false);
+    }
+  }, [abonoToCancel, effectiveSucursalId, addToast]);
 
   const stockButtonKeyHandler = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -1578,6 +1625,22 @@ export function Dashboard() {
                     </dd>
                   </div>
                 </dl>
+                {isAdmin && reprintAbonoDetail.clienteId?.trim() ? (
+                  <div className="pt-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="border-red-500/35 text-red-600 hover:bg-red-500/10 dark:border-red-500/40 dark:text-red-400 dark:hover:bg-red-500/15"
+                      onClick={() => {
+                        setAbonoToCancel(reprintAbonoDetail);
+                        setAbonoCancelOpen(true);
+                      }}
+                    >
+                      Cancelar abono
+                    </Button>
+                  </div>
+                ) : null}
               </div>
             ) : reprintSaleDetail ? (
               <div className="space-y-4">
@@ -1787,6 +1850,21 @@ export function Dashboard() {
                             <FileText className="mr-2 h-4 w-4" />
                             Ver detalle
                           </Button>
+                          {isAdmin && a.clienteId?.trim() ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="border-red-500/35 text-red-600 hover:bg-red-500/10 dark:border-red-500/40 dark:text-red-400 dark:hover:bg-red-500/15"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setAbonoToCancel(a);
+                                setAbonoCancelOpen(true);
+                              }}
+                            >
+                              Cancelar
+                            </Button>
+                          ) : null}
                         </div>
                       </li>
                     );
@@ -1969,6 +2047,58 @@ export function Dashboard() {
               onClick={() => void confirmCancelSaleFromPanel()}
             >
               {saleCancelBusy ? 'Cancelando…' : 'Confirmar cancelación'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={abonoCancelOpen}
+        onOpenChange={(open) => {
+          setAbonoCancelOpen(open);
+          if (!open) setAbonoToCancel(null);
+        }}
+      >
+        <AlertDialogContent className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Cancelar este abono?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
+                <p>
+                  Cliente{' '}
+                  <span className="font-medium text-slate-800 dark:text-slate-200">
+                    {abonoToCancel?.clienteNombre?.trim() || '—'}
+                  </span>
+                  {' · '}
+                  <span className="font-semibold tabular-nums text-slate-800 dark:text-slate-200">
+                    {formatMoney(abonoToCancel?.monto ?? 0)}
+                  </span>
+                </p>
+                <ul className="list-disc space-y-1.5 pl-5">
+                  <li>Se restaurará el saldo pendiente del cliente.</li>
+                  <li>El abono dejará de contar en el corte de caja de ese día.</li>
+                  <li>Los tickets volverán a reflejar el adeudo correspondiente.</li>
+                  <li>Devuelva el efectivo o tarjeta fuera del sistema si aplica.</li>
+                  <li>Si emitió complemento CFDI, cancele o ajuste ese CFDI por separado.</li>
+                </ul>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              disabled={abonoCancelBusy}
+              className="border-slate-300 dark:border-slate-600"
+            >
+              Volver
+            </AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={abonoCancelBusy}
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => void confirmCancelAbonoFromPanel()}
+            >
+              {abonoCancelBusy ? 'Anulando…' : 'Confirmar anulación'}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

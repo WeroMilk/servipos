@@ -279,6 +279,10 @@ function abonoFingerprint(a: {
 /**
  * Une abonos guardados en la sesión con los recuperables desde tickets (`esAbonoCxC`)
  * o historial de clientes. Evita perder el corte si el RPC de caja falló tras guardar CxC.
+ *
+ * Fuente canónica: `sesion.abonosCobros` (o historial si la sesión está vacía).
+ * Los pagos `esAbonoCxC` en tickets solo se usan como respaldo cuando no hay cobertura
+ * canónica del mismo cliente en la sesión (evita duplicar total $561 + parciales $546+$15).
  */
 export function resolveAbonosCobrosSesion(
   sesion: Pick<CajaSesion, 'id' | 'abonosCobros'>,
@@ -289,6 +293,7 @@ export function resolveAbonosCobrosSesion(
   const out: CajaAbonoCobro[] = [];
   const ids = new Set<string>();
   const fps = new Set<string>();
+  const clientesCanon = new Set<string>();
 
   const push = (a: CajaAbonoCobro) => {
     const monto = Math.round((Number(a.monto) || 0) * 100) / 100;
@@ -298,31 +303,39 @@ export function resolveAbonosCobrosSesion(
     if ((id && ids.has(id)) || fps.has(fp)) return;
     if (id) ids.add(id);
     fps.add(fp);
-    out.push({ ...a, monto });
+    const cid = (a.clienteId ?? '').trim();
+    if (cid) clientesCanon.add(cid);
+    out.push({ ...a, monto, cajaSesionId: a.cajaSesionId?.trim() || sid });
   };
 
-  for (const a of sesion.abonosCobros ?? []) push(a);
+  const sesionAbonos = sesion.abonosCobros ?? [];
+  for (const a of sesionAbonos) push(a);
 
+  // Historial: respaldo de IDs/montos no cubiertos (dedupe por fingerprint / id).
+  for (const a of abonosExtra ?? []) push(a);
+
+  // Tickets esAbonoCxC: solo si ese cliente aún no tiene abono canónico (sesión o historial).
   for (const sale of ventasPool ?? []) {
     for (const p of sale.pagos ?? []) {
       if (p.esAbonoCxC !== true) continue;
       if (!pagoPerteneceASesion(sale, p, sid)) continue;
       const monto = Math.round((Number(p.monto) || 0) * 100) / 100;
       if (monto <= 0.005) continue;
+      const clienteId = sale.clienteId && sale.clienteId !== 'mostrador' ? sale.clienteId : undefined;
+      if (clienteId && clientesCanon.has(clienteId)) continue;
       push({
         id: `pago:${sale.id}:${p.id}`,
         monto,
         formaPago: p.formaPago,
-        clienteId: sale.clienteId && sale.clienteId !== 'mostrador' ? sale.clienteId : undefined,
+        clienteId,
         clienteNombre: sale.cliente?.nombre,
         createdAt: sale.completedAt ?? sale.updatedAt ?? sale.createdAt,
         usuarioId: sale.usuarioId || '',
         usuarioNombre: sale.usuarioNombre?.trim() || 'Ticket',
+        cajaSesionId: sid,
       });
     }
   }
-
-  for (const a of abonosExtra ?? []) push(a);
 
   out.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   return out;

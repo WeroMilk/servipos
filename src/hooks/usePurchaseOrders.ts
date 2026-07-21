@@ -11,6 +11,7 @@ import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 import { reportHookFailure } from '@/lib/appEventLog';
 import {
   applyPurchaseOrderReceive,
+  cancelPurchaseOrderPendingLine,
   derivePurchaseOrderEstado,
   type PurchaseOrderReceiveLineInput,
 } from '@/lib/purchaseOrderLogic';
@@ -110,6 +111,23 @@ export function usePurchaseOrders() {
     }
   };
 
+  const cancelPendingLine = async (order: PurchaseOrder, lineId: string): Promise<PurchaseOrder> => {
+    const { productos, estado } = cancelPurchaseOrderPendingLine(order, lineId);
+    const updates: Partial<PurchaseOrder> = { productos, estado };
+    try {
+      if (effectiveSucursalId) {
+        await updatePurchaseOrderFirestore(effectiveSucursalId, order.id, updates);
+      } else {
+        await updatePurchaseOrder(order.id, updates);
+        await loadLocal();
+      }
+      return { ...order, ...updates, updatedAt: new Date() };
+    } catch (err) {
+      reportHookFailure('hook:usePurchaseOrders', 'Cancelar pendiente de línea', err);
+      throw err;
+    }
+  };
+
   const cancelOrder = async (orderId: string): Promise<void> => {
     try {
       if (effectiveSucursalId) {
@@ -144,6 +162,7 @@ export function usePurchaseOrders() {
     error,
     registerOrder,
     receiveOrderLines,
+    cancelPendingLine,
     cancelOrder,
     removeOrder,
     products,

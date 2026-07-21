@@ -361,19 +361,22 @@ export async function updateClientFirestore(
     doc.saldoAdeudado = Number.isFinite(v) ? Math.max(0, Math.round(v * 100) / 100) : null;
   }
   if (updates.ultimoAbonoMonto !== undefined) {
-    const v = Number(updates.ultimoAbonoMonto);
-    doc.ultimoAbonoMonto = Number.isFinite(v) ? Math.max(0, Math.round(v * 100) / 100) : null;
+    const v = updates.ultimoAbonoMonto;
+    doc.ultimoAbonoMonto =
+      v == null || !Number.isFinite(Number(v)) ? null : Math.max(0, Math.round(Number(v) * 100) / 100);
   }
   if (updates.ultimoAbonoAt !== undefined) {
     doc.ultimoAbonoAt = updates.ultimoAbonoAt ? new Date(updates.ultimoAbonoAt).toISOString() : null;
   }
   if (updates.ultimoAbonoSaldoAnterior !== undefined) {
-    const v = Number(updates.ultimoAbonoSaldoAnterior);
-    doc.ultimoAbonoSaldoAnterior = Number.isFinite(v) ? Math.max(0, Math.round(v * 100) / 100) : null;
+    const v = updates.ultimoAbonoSaldoAnterior;
+    doc.ultimoAbonoSaldoAnterior =
+      v == null || !Number.isFinite(Number(v)) ? null : Math.max(0, Math.round(Number(v) * 100) / 100);
   }
   if (updates.ultimoAbonoSaldoNuevo !== undefined) {
-    const v = Number(updates.ultimoAbonoSaldoNuevo);
-    doc.ultimoAbonoSaldoNuevo = Number.isFinite(v) ? Math.max(0, Math.round(v * 100) / 100) : null;
+    const v = updates.ultimoAbonoSaldoNuevo;
+    doc.ultimoAbonoSaldoNuevo =
+      v == null || !Number.isFinite(Number(v)) ? null : Math.max(0, Math.round(Number(v) * 100) / 100);
   }
   if (updates.ultimoAbonoUsuarioNombre !== undefined) {
     const t = updates.ultimoAbonoUsuarioNombre?.trim();
