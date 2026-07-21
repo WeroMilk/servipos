@@ -1975,16 +1975,20 @@ export async function anularAbonoCxC(input: AnularAbonoCxCInput): Promise<void> 
   const abonosHistorial =
     removedIdx >= 0 ? histNorm.filter((_, i) => i !== removedIdx) : histNorm;
 
-  const patch: Partial<Client> & {
-    ultimoAbonoMonto?: number | null;
-    ultimoAbonoAt?: Date | null;
-    ultimoAbonoSaldoAnterior?: number | null;
-    ultimoAbonoSaldoNuevo?: number | null;
-    ultimoAbonoUsuarioNombre?: string | null;
-  } = {
+  const patch: Partial<Client> = {
     saldoAdeudado: nextSaldo,
     abonosHistorial: abonosHistorial.slice(0, 80),
   };
+  const clearUltimoAbono =
+    abonosHistorial.length === 0
+      ? ({
+          ultimoAbonoMonto: null,
+          ultimoAbonoAt: null,
+          ultimoAbonoSaldoAnterior: null,
+          ultimoAbonoSaldoNuevo: null,
+          ultimoAbonoUsuarioNombre: null,
+        } as Partial<Client>)
+      : null;
   if (abonosHistorial.length > 0) {
     const last = abonosHistorial[0];
     patch.ultimoAbonoMonto = last.monto;
@@ -1992,15 +1996,12 @@ export async function anularAbonoCxC(input: AnularAbonoCxCInput): Promise<void> 
     patch.ultimoAbonoSaldoAnterior = last.saldoAnterior;
     patch.ultimoAbonoSaldoNuevo = last.saldoNuevo;
     patch.ultimoAbonoUsuarioNombre = last.usuarioNombre;
-  } else {
-    patch.ultimoAbonoMonto = null;
-    patch.ultimoAbonoAt = null;
-    patch.ultimoAbonoSaldoAnterior = null;
-    patch.ultimoAbonoSaldoNuevo = null;
-    patch.ultimoAbonoUsuarioNombre = null;
   }
 
-  await updateClientFirestore(sucursalId, clienteId, patch as Partial<Client>);
+  await updateClientFirestore(sucursalId, clienteId, {
+    ...patch,
+    ...(clearUltimoAbono ?? {}),
+  });
   await db.clients.update(clienteId, {
     saldoAdeudado: nextSaldo,
     abonosHistorial: abonosHistorial.slice(0, 80),
