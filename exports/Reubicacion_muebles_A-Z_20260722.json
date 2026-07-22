@@ -1,10 +1,9 @@
 {
-  "generatedAt": "2026-07-22T19:49:41.432Z",
-  "totalReubicar": 19,
+  "generatedAt": "2026-07-22T20:04:31.353Z",
+  "totalReubicar": 9,
   "byCategoria": {
-    "LAVADORAS": 7,
-    "REFRIGERACION": 11,
-    "SECADORAS": 1
+    "LAVADORAS": 3,
+    "REFRIGERACION": 6
   },
   "missingCodes": 9,
   "sinZona": 29,
@@ -18,116 +17,53 @@
       "deberiaEstar": "C4"
     },
     {
-      "sku": "40801",
-      "nombre": "RESISTENCIA BLINDADA REF. LG,SM,LG 52 CMS 60128-0023300-00",
+      "sku": "1764",
+      "nombre": "PERILLA SEC MABE BLANCA/GRIS ORG 253C1252G004",
       "categoria": "LAVADORAS",
-      "estaEn": "R1",
+      "estaEn": "Ñ1",
       "deberiaEstar": "D"
-    },
-    {
-      "sku": "1171",
-      "nombre": "TARJETA DISPLAY MABE SIRUS NUEVO WR01F02537",
-      "categoria": "LAVADORAS",
-      "estaEn": "V2",
-      "deberiaEstar": "E"
-    },
-    {
-      "sku": "1602",
-      "nombre": "SELECTOR REF MABE WR01F04364 / 238C4974G001",
-      "categoria": "LAVADORAS",
-      "estaEn": "V2",
-      "deberiaEstar": "E1"
-    },
-    {
-      "sku": "1545",
-      "nombre": "MOTOR ESQUELETO FLECHA LARGA",
-      "categoria": "LAVADORAS",
-      "estaEn": "W2",
-      "deberiaEstar": "E5"
-    },
-    {
-      "sku": "1545",
-      "nombre": "MOTOR ESQUELETO FLECHA LARGA",
-      "categoria": "LAVADORAS",
-      "estaEn": "W4",
-      "deberiaEstar": "F2"
     },
     {
       "sku": "W11454741",
       "nombre": "TRANSMISION FLECHA LARGA WH. ORG. W11454741",
       "categoria": "LAVADORAS",
       "estaEn": "Z",
-      "deberiaEstar": "F3"
-    },
-    {
-      "sku": "1763",
-      "nombre": "SWITCH PUERTA LG FRONTAL EBF49827801 GEN",
-      "categoria": "REFRIGERACION",
-      "estaEn": "L2",
-      "deberiaEstar": "U6"
-    },
-    {
-      "sku": "1764",
-      "nombre": "PERILLA SEC MABE BLANCA/GRIS ORG 253C1252G004",
-      "categoria": "REFRIGERACION",
-      "estaEn": "Ñ1",
-      "deberiaEstar": "V3"
-    },
-    {
-      "sku": "1896",
-      "nombre": "DESLIZADOR TAMBOR SEC. AMANA GEN. 37001298",
-      "categoria": "REFRIGERACION",
-      "estaEn": "Ñ1",
-      "deberiaEstar": "Y1"
-    },
-    {
-      "sku": "1131",
-      "nombre": "SWITCH FOCO SEC. SAMSUNG ORG. DC64-00828B",
-      "categoria": "REFRIGERACION",
-      "estaEn": "Ñ2",
-      "deberiaEstar": "Z1"
-    },
-    {
-      "sku": "819",
-      "nombre": "TERMOSTATO CALENTADOR DE AGUA 86° 110V",
-      "categoria": "REFRIGERACION",
-      "estaEn": "Ñ3",
-      "deberiaEstar": "Z10"
+      "deberiaEstar": "E"
     },
     {
       "sku": "1794",
       "nombre": "METRO PERFIL DOBLE NEGRO",
       "categoria": "REFRIGERACION",
       "estaEn": "P3",
-      "deberiaEstar": "V1"
+      "deberiaEstar": "U6"
     },
     {
       "sku": "2265",
       "nombre": "PERIL ARPON NEGRO CENTRAL",
       "categoria": "REFRIGERACION",
       "estaEn": "P3",
-      "deberiaEstar": "V1"
+      "deberiaEstar": "V3"
     },
     {
       "sku": "95",
       "nombre": "METRO PERFIL ESTD. MOD. M BLCO.",
       "categoria": "REFRIGERACION",
       "estaEn": "P3",
-      "deberiaEstar": "V1"
+      "deberiaEstar": "Y1"
     },
     {
       "sku": "953",
       "nombre": "METRO PERFIL NEGRO ALA DE VAMPIRO",
       "categoria": "REFRIGERACION",
       "estaEn": "P3",
-      "deberiaEstar": "V1"
+      "deberiaEstar": "Z1"
     },
     {
       "sku": "1242",
       "nombre": "FOCO 20W MABE",
       "categoria": "REFRIGERACION",
       "estaEn": "Q1",
-      "deberiaEstar": "V1"
+      "deberiaEstar": "Z10"
     },
     {
       "sku": "7503026195567",
@@ -135,13 +71,6 @@
       "categoria": "REFRIGERACION",
       "estaEn": "Q1",
       "deberiaEstar": "V1"
-    },
-    {
-      "sku": "799",
-      "nombre": "PERILLA TARJETACONT. MBK BCA/CROM.",
-      "categoria": "SECADORAS",
-      "estaEn": "A1",
-      "deberiaEstar": "Ñ5"
     }
   ],
   "pendientesItems": [

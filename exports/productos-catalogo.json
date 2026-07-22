@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-22T00:41:15.317Z",
+  "generatedAt": "2026-07-22T20:04:21.645Z",
   "count": 2461,
   "products": [
     {
@@ -322,7 +322,7 @@
       "nombre": "AGUA",
       "codigoBarras": "75004699",
       "categoria": "ACCESORIOS",
-      "existencia": 18,
+      "existencia": 13,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -1342,7 +1342,7 @@
       "nombre": "CINTA AISLANTE ELECTRICA 18M",
       "codigoBarras": "",
       "categoria": "ACCESORIOS",
-      "existencia": 60,
+      "existencia": 59,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -2374,7 +2374,7 @@
       "nombre": "GRASA ROSHFRAN B.A.T. 3 250GR",
       "codigoBarras": "",
       "categoria": "ACCESORIOS",
-      "existencia": 37,
+      "existencia": 36,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -2662,7 +2662,7 @@
       "nombre": "JUEGO DE PUNTAS 2\" CON SEGURO TORX TRUPER",
       "codigoBarras": "",
       "categoria": "ACCESORIOS",
-      "existencia": 7,
+      "existencia": 6,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -2830,7 +2830,7 @@
       "nombre": "LIMPIADOR SERPENTINES ALQUIM GAL. ROS",
       "codigoBarras": "",
       "categoria": "ACCESORIOS",
-      "existencia": 1,
+      "existencia": 0,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -3370,7 +3370,7 @@
       "nombre": "PEGAMENTO EPOXICO AZUL 100G",
       "codigoBarras": "",
       "categoria": "ACCESORIOS",
-      "existencia": -1,
+      "existencia": 2,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -3382,8 +3382,8 @@
       "nombre": "PEGAMENTO EPOXICO BLANCO 100G",
       "codigoBarras": "",
       "categoria": "ACCESORIOS",
-      "existencia": 1,
-      "ubicacionFisica": "",
+      "existencia": 3,
+      "ubicacionFisica": "Mostrador",
       "esServicio": false
     },
     {
@@ -3418,7 +3418,7 @@
       "nombre": "PEGAMENTO EPOXICO NEGRO 100G UNO CLEAR",
       "codigoBarras": "",
       "categoria": "ACCESORIOS",
-      "existencia": 0,
+      "existencia": 3,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -3862,7 +3862,7 @@
       "nombre": "PUNTA ESTRELLA P/TALADRO PH2 3\" PZ",
       "codigoBarras": "",
       "categoria": "ACCESORIOS",
-      "existencia": 9,
+      "existencia": 8,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -3898,7 +3898,7 @@
       "nombre": "REFRESCO COCA-COLA ZERO 600G",
       "codigoBarras": "7501055320639",
       "categoria": "ACCESORIOS",
-      "existencia": -4,
+      "existencia": 15,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -4042,7 +4042,7 @@
       "nombre": "SILICON PENSYLVANIA ROJO ALTA TEMP. 75G",
       "codigoBarras": "",
       "categoria": "ACCESORIOS",
-      "existencia": 4,
+      "existencia": 3,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -4054,7 +4054,7 @@
       "nombre": "SOLDADURA",
       "codigoBarras": "",
       "categoria": "ACCESORIOS",
-      "existencia": -3,
+      "existencia": 7,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -4270,7 +4270,7 @@
       "nombre": "TERMINAL ENCHUFE HEMBRA AMARILLA",
       "codigoBarras": "",
       "categoria": "ACCESORIOS",
-      "existencia": 345,
+      "existencia": 341,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -5014,7 +5014,7 @@
       "nombre": "CAPACITOR CUADRADO 2.5 UF",
       "codigoBarras": "",
       "categoria": "AIRE ACONDICIONADO",
-      "existencia": 24,
+      "existencia": 23,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -5254,7 +5254,7 @@
       "nombre": "CAPACITOR DE TRABAJO 40UF A 440V",
       "codigoBarras": "",
       "categoria": "AIRE ACONDICIONADO",
-      "existencia": 60,
+      "existencia": 59,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -6130,7 +6130,7 @@
       "nombre": "KIT DE BASES ANTIVIBRACIONES PARA CONDENSADORAS",
       "codigoBarras": "",
       "categoria": "AIRE ACONDICIONADO",
-      "existencia": 32,
+      "existencia": 28,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -6142,7 +6142,7 @@
       "nombre": "KIT DE INSTALACION ALUMINIO 1/4-1/2",
       "codigoBarras": "",
       "categoria": "AIRE ACONDICIONADO",
-      "existencia": 21,
+      "existencia": 20,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -6658,7 +6658,7 @@
       "nombre": "NIPLE UNION FLARE 5/8\"",
       "codigoBarras": "",
       "categoria": "AIRE ACONDICIONADO",
-      "existencia": 29,
+      "existencia": 28,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -7318,7 +7318,7 @@
       "nombre": "VALVULA DE CARGA/SERVICIO 3/16",
       "codigoBarras": "",
       "categoria": "AIRE ACONDICIONADO",
-      "existencia": 1348,
+      "existencia": 1339,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -7354,7 +7354,7 @@
       "nombre": "VALVULA DE SERV. 1/4",
       "codigoBarras": "",
       "categoria": "AIRE ACONDICIONADO",
-      "existencia": 972,
+      "existencia": 971,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -8434,7 +8434,7 @@
       "nombre": "GAS REFRIGERANTE 134 ERKA",
       "codigoBarras": "",
       "categoria": "GASES",
-      "existencia": 106,
+      "existencia": 104,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -8590,7 +8590,7 @@
       "nombre": "GAS REFRIGERANTE R22 1KG GEN",
       "codigoBarras": "",
       "categoria": "GASES",
-      "existencia": 261,
+      "existencia": 259,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -8794,7 +8794,7 @@
       "nombre": "ACEITE TRANSMISION 140 ROSHFRANS",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 20,
+      "existencia": 19,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -9430,7 +9430,7 @@
       "nombre": "BALERO 6205 MABE OLIMPIA",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 41,
+      "existencia": 40,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -10307,7 +10307,7 @@
       "codigoBarras": "",
       "categoria": "LAVADORAS",
       "existencia": 10,
-      "ubicacionFisica": "",
+      "ubicacionFisica": "M5",
       "esServicio": false
     },
     {
@@ -10486,7 +10486,7 @@
       "nombre": "BOBINA REPUESTO ELECTROVALVULA UNIV.",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 87,
+      "existencia": 86,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -10834,7 +10834,7 @@
       "nombre": "BUJE POSTE SUP. MBOL",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 118,
+      "existencia": 117,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -11098,7 +11098,7 @@
       "nombre": "CLUTCH ENS. WH KIT W910010062 GEN.",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 35,
+      "existencia": 34,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -11110,7 +11110,7 @@
       "nombre": "CLUTCH LAV WH GEN 6 COJINETES",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 93,
+      "existencia": 92,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -11170,7 +11170,7 @@
       "nombre": "COPLE MOTOR WH REF. GEN",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 36,
+      "existencia": 35,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -12130,7 +12130,7 @@
       "nombre": "FLECHA TRANSMISION WH ACOPLADA ORG.",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 3,
+      "existencia": 2,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -12562,7 +12562,7 @@
       "nombre": "KIT RELAY C/PATA PUNTO ROJO",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 23,
+      "existencia": 22,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -12970,7 +12970,7 @@
       "nombre": "MANGUERA DESAGUE UNIVERSAL 4 ENTRADAS NEGRA",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 11,
+      "existencia": 9,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -13018,7 +13018,7 @@
       "nombre": "MANGUERA INTERNA DRENADO WH ORG. W10358149",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 3,
+      "existencia": 2,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -13198,7 +13198,7 @@
       "nombre": "MOTOR BOMBA 80W UNIVERSAL",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 36,
+      "existencia": 35,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -13222,7 +13222,7 @@
       "nombre": "MOTOR BOMBA LAV. UNIV. 85W CON CONECTOR",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 44,
+      "existencia": 41,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -13379,18 +13379,6 @@
       "codigoBarras": "",
       "categoria": "LAVADORAS",
       "existencia": 5,
-      "ubicacionFisica": "",
-      "esServicio": false
-    },
-    {
-      "sucursalId": "olivares",
-      "id": "d0b9864c048653b87a988cce28f466c8",
-      "activo": true,
-      "sku": "1545",
-      "nombre": "MOTOR ESQUELETO FLECHA LARGA",
-      "codigoBarras": "",
-      "categoria": "LAVADORAS",
-      "existencia": 25,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -13744,6 +13732,18 @@
     },
     {
       "sucursalId": "olivares",
+      "id": "b358822ffdcc8dbc37dc44f417147607",
+      "activo": true,
+      "sku": "1764",
+      "nombre": "PERILLA SEC MABE BLANCA/GRIS ORG 253C1252G004",
+      "codigoBarras": "",
+      "categoria": "LAVADORAS",
+      "existencia": 10,
+      "ubicacionFisica": "Ñ1",
+      "esServicio": false
+    },
+    {
+      "sucursalId": "olivares",
       "id": "7252fdac0fe8353e649792ea46fde14c",
       "activo": true,
       "sku": "1948",
@@ -13788,6 +13788,18 @@
       "categoria": "LAVADORAS",
       "existencia": 37,
       "ubicacionFisica": "",
+      "esServicio": false
+    },
+    {
+      "sucursalId": "olivares",
+      "id": "3051a4991051be2818e8374702355a8d",
+      "activo": true,
+      "sku": "799",
+      "nombre": "PERILLA TARJETACONT. MBK BCA/CROM.",
+      "codigoBarras": "",
+      "categoria": "LAVADORAS",
+      "existencia": 25,
+      "ubicacionFisica": "A1",
       "esServicio": false
     },
     {
@@ -14146,7 +14158,7 @@
       "nombre": "POSTE CUBRE FLECHA LMBOL",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 29,
+      "existencia": 28,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -14548,18 +14560,6 @@
     },
     {
       "sucursalId": "olivares",
-      "id": "32c86930ec168a56dfeb9644ac61764e",
-      "activo": true,
-      "sku": "40801",
-      "nombre": "RESISTENCIA BLINDADA REF. LG,SM,LG 52 CMS 60128-0023300-00",
-      "codigoBarras": "",
-      "categoria": "LAVADORAS",
-      "existencia": 20,
-      "ubicacionFisica": "",
-      "esServicio": false
-    },
-    {
-      "sucursalId": "olivares",
       "id": "e1c7fec18835f7c7af1eabdcb6aff1ab",
       "activo": true,
       "sku": "98142339",
@@ -14800,18 +14800,6 @@
     },
     {
       "sucursalId": "olivares",
-      "id": "41084ccc7095f559c3cad56fd2d2ef64",
-      "activo": true,
-      "sku": "1602",
-      "nombre": "SELECTOR REF MABE WR01F04364 / 238C4974G001",
-      "codigoBarras": "",
-      "categoria": "LAVADORAS",
-      "existencia": 16,
-      "ubicacionFisica": "",
-      "esServicio": false
-    },
-    {
-      "sucursalId": "olivares",
       "id": "2981e41072fd0ae3f2596cfe66e1cc7a",
       "activo": true,
       "sku": "631",
@@ -15010,7 +14998,7 @@
       "nombre": "SELLO INFERIOR POSTE MBAM",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 419,
+      "existencia": 418,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -15094,7 +15082,7 @@
       "nombre": "SELLO POSTE ELE WW 5308001742 GEN.",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 18,
+      "existencia": 17,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -15178,7 +15166,7 @@
       "nombre": "SELLO POSTE SUP. MBAM",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 5,
+      "existencia": 4,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -15358,7 +15346,7 @@
       "nombre": "SELLO TINA MBAM DOBLE RESORTE",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 89,
+      "existencia": 88,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -15430,7 +15418,7 @@
       "nombre": "SELLO TINA MBOL ORG",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 54,
+      "existencia": 53,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -15874,7 +15862,7 @@
       "nombre": "SOPORTE SUSP. KIT 3 GEN PADS",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 284,
+      "existencia": 281,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -15910,7 +15898,7 @@
       "nombre": "SOPORTE TINA WH GEN CANDADO",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 38,
+      "existencia": 36,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -16450,7 +16438,7 @@
       "nombre": "SUSPENSION WH ORG. ROSA 59 CM 4P W11084453",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 19,
+      "existencia": 17,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -16704,6 +16692,18 @@
       "categoria": "LAVADORAS",
       "existencia": 1,
       "ubicacionFisica": "",
+      "esServicio": false
+    },
+    {
+      "sucursalId": "olivares",
+      "id": "f75a111424a1bd4a0242e366ad703787",
+      "activo": true,
+      "sku": "1763",
+      "nombre": "SWITCH PUERTA LG FRONTAL EBF49827801 GEN",
+      "codigoBarras": "",
+      "categoria": "LAVADORAS",
+      "existencia": 49,
+      "ubicacionFisica": "L2",
       "esServicio": false
     },
     {
@@ -17236,18 +17236,6 @@
     },
     {
       "sucursalId": "olivares",
-      "id": "f7391e5a62ba34f7524afdcba3b8b31b",
-      "activo": true,
-      "sku": "1171",
-      "nombre": "TARJETA DISPLAY MABE SIRUS NUEVO WR01F02537",
-      "codigoBarras": "",
-      "categoria": "LAVADORAS",
-      "existencia": 3,
-      "ubicacionFisica": "",
-      "esServicio": false
-    },
-    {
-      "sucursalId": "olivares",
       "id": "75093dda930ecba440e59afcee5d5037",
       "activo": true,
       "sku": "2031",
@@ -17614,7 +17602,7 @@
       "nombre": "TORNILLO AGITADOR WH GEN",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 95,
+      "existencia": 93,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -19534,7 +19522,7 @@
       "nombre": "AISLAMIENTO FLEXIBLE ARMAFLEZ P/TUBO 3/8",
       "codigoBarras": "",
       "categoria": "REFRIGERACION",
-      "existencia": 21,
+      "existencia": 19,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -21100,18 +21088,6 @@
     },
     {
       "sucursalId": "olivares",
-      "id": "d67f66bc4dfe01fa1f85036e05145134",
-      "activo": true,
-      "sku": "1896",
-      "nombre": "DESLIZADOR TAMBOR SEC. AMANA GEN. 37001298",
-      "codigoBarras": "",
-      "categoria": "REFRIGERACION",
-      "existencia": 21,
-      "ubicacionFisica": "",
-      "esServicio": false
-    },
-    {
-      "sucursalId": "olivares",
       "id": "67b2d54f60862e2d0bfae77ef3827af7",
       "activo": true,
       "sku": "1802",
@@ -21262,7 +21238,7 @@
       "nombre": "EMPAQUES PARA MANOMETRO PIEZA",
       "codigoBarras": "",
       "categoria": "REFRIGERACION",
-      "existencia": 442,
+      "existencia": 434,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -21910,7 +21886,7 @@
       "nombre": "FILTRO DESHIDRATADOR 25G. C/COLILLA",
       "codigoBarras": "",
       "categoria": "REFRIGERACION",
-      "existencia": 682,
+      "existencia": 671,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -21983,7 +21959,7 @@
       "codigoBarras": "",
       "categoria": "REFRIGERACION",
       "existencia": 25,
-      "ubicacionFisica": "",
+      "ubicacionFisica": "U2",
       "esServicio": false
     },
     {
@@ -22007,7 +21983,7 @@
       "codigoBarras": "",
       "categoria": "REFRIGERACION",
       "existencia": 5,
-      "ubicacionFisica": "",
+      "ubicacionFisica": "U2",
       "esServicio": false
     },
     {
@@ -22019,7 +21995,7 @@
       "codigoBarras": "",
       "categoria": "REFRIGERACION",
       "existencia": 15,
-      "ubicacionFisica": "",
+      "ubicacionFisica": "U2",
       "esServicio": false
     },
     {
@@ -22043,7 +22019,7 @@
       "codigoBarras": "",
       "categoria": "REFRIGERACION",
       "existencia": 10,
-      "ubicacionFisica": "",
+      "ubicacionFisica": "U2",
       "esServicio": false
     },
     {
@@ -22067,7 +22043,7 @@
       "codigoBarras": "",
       "categoria": "REFRIGERACION",
       "existencia": 8,
-      "ubicacionFisica": "",
+      "ubicacionFisica": "U2",
       "esServicio": false
     },
     {
@@ -22618,7 +22594,7 @@
       "nombre": "METRO DE TUBO DE COBRE 1/4",
       "codigoBarras": "",
       "categoria": "REFRIGERACION",
-      "existencia": 135.5,
+      "existencia": 131.5,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -22690,7 +22666,7 @@
       "nombre": "METRO TUBO FLEXIBLE COBRE 1/2",
       "codigoBarras": "",
       "categoria": "REFRIGERACION",
-      "existencia": 71,
+      "existencia": 67,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -22774,7 +22750,7 @@
       "nombre": "MOTOR CHICO REF. LG 4 CABLES ORG. CW EAU65058327",
       "codigoBarras": "",
       "categoria": "REFRIGERACION",
-      "existencia": 19,
+      "existencia": 18,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -22944,6 +22920,18 @@
       "categoria": "REFRIGERACION",
       "existencia": 12,
       "ubicacionFisica": "",
+      "esServicio": false
+    },
+    {
+      "sucursalId": "olivares",
+      "id": "d0b9864c048653b87a988cce28f466c8",
+      "activo": true,
+      "sku": "1545",
+      "nombre": "MOTOR ESQUELETO FLECHA LARGA",
+      "codigoBarras": "",
+      "categoria": "REFRIGERACION",
+      "existencia": 25,
+      "ubicacionFisica": "W2",
       "esServicio": false
     },
     {
@@ -23716,18 +23704,6 @@
     },
     {
       "sucursalId": "olivares",
-      "id": "b358822ffdcc8dbc37dc44f417147607",
-      "activo": true,
-      "sku": "1764",
-      "nombre": "PERILLA SEC MABE BLANCA/GRIS ORG 253C1252G004",
-      "codigoBarras": "",
-      "categoria": "REFRIGERACION",
-      "existencia": 10,
-      "ubicacionFisica": "",
-      "esServicio": false
-    },
-    {
-      "sucursalId": "olivares",
       "id": "df2acca264089bfc720d6fec0e00da38",
       "activo": true,
       "sku": "998",
@@ -24118,7 +24094,7 @@
       "nombre": "RELAY UNIV. CAFE REF",
       "codigoBarras": "",
       "categoria": "REFRIGERACION",
-      "existencia": 44,
+      "existencia": 43,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -24167,7 +24143,7 @@
       "codigoBarras": "",
       "categoria": "REFRIGERACION",
       "existencia": 17,
-      "ubicacionFisica": "",
+      "ubicacionFisica": "T4",
       "esServicio": false
     },
     {
@@ -24408,6 +24384,18 @@
       "categoria": "REFRIGERACION",
       "existencia": 8,
       "ubicacionFisica": "",
+      "esServicio": false
+    },
+    {
+      "sucursalId": "olivares",
+      "id": "32c86930ec168a56dfeb9644ac61764e",
+      "activo": true,
+      "sku": "40801",
+      "nombre": "RESISTENCIA BLINDADA REF. LG,SM,LG 52 CMS 60128-0023300-00",
+      "codigoBarras": "",
+      "categoria": "REFRIGERACION",
+      "existencia": 20,
+      "ubicacionFisica": "R1",
       "esServicio": false
     },
     {
@@ -24976,6 +24964,18 @@
     },
     {
       "sucursalId": "olivares",
+      "id": "41084ccc7095f559c3cad56fd2d2ef64",
+      "activo": true,
+      "sku": "1602",
+      "nombre": "SELECTOR REF MABE WR01F04364 / 238C4974G001",
+      "codigoBarras": "",
+      "categoria": "REFRIGERACION",
+      "existencia": 16,
+      "ubicacionFisica": "V2",
+      "esServicio": false
+    },
+    {
+      "sucursalId": "olivares",
       "id": "475ac31eda42854a4a529302f7383416",
       "activo": true,
       "sku": "945",
@@ -25222,7 +25222,7 @@
       "nombre": "SOLDADURA DE PLATA 0%",
       "codigoBarras": "",
       "categoria": "REFRIGERACION",
-      "existencia": 1237,
+      "existencia": 1232,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -25258,7 +25258,7 @@
       "nombre": "SOLDADURA PLATA 5% HARRIS",
       "codigoBarras": "",
       "categoria": "REFRIGERACION",
-      "existencia": 21,
+      "existencia": 20,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -25336,18 +25336,6 @@
     },
     {
       "sucursalId": "olivares",
-      "id": "304881c307299b39c948eaf95eafc869",
-      "activo": true,
-      "sku": "1131",
-      "nombre": "SWITCH FOCO SEC. SAMSUNG ORG. DC64-00828B",
-      "codigoBarras": "",
-      "categoria": "REFRIGERACION",
-      "existencia": 6,
-      "ubicacionFisica": "",
-      "esServicio": false
-    },
-    {
-      "sucursalId": "olivares",
       "id": "fdd536fefa122a9421e1c412dde46395",
       "activo": true,
       "sku": "7503026191835",
@@ -25391,18 +25379,6 @@
       "codigoBarras": "",
       "categoria": "REFRIGERACION",
       "existencia": 0,
-      "ubicacionFisica": "",
-      "esServicio": false
-    },
-    {
-      "sucursalId": "olivares",
-      "id": "f75a111424a1bd4a0242e366ad703787",
-      "activo": true,
-      "sku": "1763",
-      "nombre": "SWITCH PUERTA LG FRONTAL EBF49827801 GEN",
-      "codigoBarras": "",
-      "categoria": "REFRIGERACION",
-      "existencia": 49,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -25936,6 +25912,18 @@
     },
     {
       "sucursalId": "olivares",
+      "id": "f7391e5a62ba34f7524afdcba3b8b31b",
+      "activo": true,
+      "sku": "1171",
+      "nombre": "TARJETA DISPLAY MABE SIRUS NUEVO WR01F02537",
+      "codigoBarras": "",
+      "categoria": "REFRIGERACION",
+      "existencia": 3,
+      "ubicacionFisica": "V2",
+      "esServicio": false
+    },
+    {
+      "sucursalId": "olivares",
       "id": "d164935a2e968f174795977bd77e4e84",
       "activo": true,
       "sku": "5304531506",
@@ -26212,18 +26200,6 @@
     },
     {
       "sucursalId": "olivares",
-      "id": "dc18c6e6763c4e59b06a8679901b0453",
-      "activo": true,
-      "sku": "819",
-      "nombre": "TERMOSTATO CALENTADOR DE AGUA 86° 110V",
-      "codigoBarras": "",
-      "categoria": "REFRIGERACION",
-      "existencia": 10,
-      "ubicacionFisica": "",
-      "esServicio": false
-    },
-    {
-      "sucursalId": "olivares",
       "id": "1316dc26dd038dfcad37c18fc572e080",
       "activo": true,
       "sku": "805",
@@ -26254,7 +26230,7 @@
       "nombre": "TERMOSTATO DIGITAL COLDTEK -50-70C",
       "codigoBarras": "",
       "categoria": "REFRIGERACION",
-      "existencia": 8,
+      "existencia": 7,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -26458,7 +26434,7 @@
       "nombre": "TUBO COBRE 5/8 METRO",
       "codigoBarras": "",
       "categoria": "REFRIGERACION",
-      "existencia": 55,
+      "existencia": 54,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -26656,6 +26632,18 @@
     },
     {
       "sucursalId": "olivares",
+      "id": "d67f66bc4dfe01fa1f85036e05145134",
+      "activo": true,
+      "sku": "1896",
+      "nombre": "DESLIZADOR TAMBOR SEC. AMANA GEN. 37001298",
+      "codigoBarras": "",
+      "categoria": "SECADORA",
+      "existencia": 21,
+      "ubicacionFisica": "Ñ1",
+      "esServicio": false
+    },
+    {
+      "sucursalId": "olivares",
       "id": "5df33afd89f4298c1b652d53e68e1250",
       "activo": true,
       "sku": "1277",
@@ -26664,6 +26652,30 @@
       "categoria": "SECADORA",
       "existencia": 163.5,
       "ubicacionFisica": "",
+      "esServicio": false
+    },
+    {
+      "sucursalId": "olivares",
+      "id": "304881c307299b39c948eaf95eafc869",
+      "activo": true,
+      "sku": "1131",
+      "nombre": "SWITCH FOCO SEC. SAMSUNG ORG. DC64-00828B",
+      "codigoBarras": "",
+      "categoria": "SECADORA",
+      "existencia": 6,
+      "ubicacionFisica": "Ñ2",
+      "esServicio": false
+    },
+    {
+      "sucursalId": "olivares",
+      "id": "dc18c6e6763c4e59b06a8679901b0453",
+      "activo": true,
+      "sku": "819",
+      "nombre": "TERMOSTATO CALENTADOR DE AGUA 86° 110V",
+      "codigoBarras": "",
+      "categoria": "SECADORA",
+      "existencia": 10,
+      "ubicacionFisica": "Ñ3",
       "esServicio": false
     },
     {
@@ -26698,7 +26710,7 @@
       "nombre": "ARO SOPORT COJINETE SUP. SEC.",
       "codigoBarras": "",
       "categoria": "SECADORAS",
-      "existencia": 3,
+      "existencia": 2,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -26722,7 +26734,7 @@
       "nombre": "BANDA MABE GE",
       "codigoBarras": "",
       "categoria": "SECADORAS",
-      "existencia": 20,
+      "existencia": 19,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -27610,7 +27622,7 @@
       "nombre": "JUEGO DE ESPREA KIT WH GEN",
       "codigoBarras": "",
       "categoria": "SECADORAS",
-      "existencia": 38,
+      "existencia": 36,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -27790,7 +27802,7 @@
       "nombre": "MANGUERA DE GAS PARA SEC 3M",
       "codigoBarras": "",
       "categoria": "SECADORAS",
-      "existencia": 13,
+      "existencia": 12,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -27946,19 +27958,7 @@
       "nombre": "PERILLA SELECTOR SEC, WH, W11611672",
       "codigoBarras": "",
       "categoria": "SECADORAS",
-      "existencia": 10,
-      "ubicacionFisica": "",
-      "esServicio": false
-    },
-    {
-      "sucursalId": "olivares",
-      "id": "3051a4991051be2818e8374702355a8d",
-      "activo": true,
-      "sku": "799",
-      "nombre": "PERILLA TARJETACONT. MBK BCA/CROM.",
-      "codigoBarras": "",
-      "categoria": "SECADORAS",
-      "existencia": 25,
+      "existencia": 9,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -27982,7 +27982,7 @@
       "nombre": "PERILLA TIMER SEC. WH. CROMO W11291948",
       "codigoBarras": "",
       "categoria": "SECADORAS",
-      "existencia": 124,
+      "existencia": 123,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -28582,7 +28582,7 @@
       "nombre": "SWITCH SECADORA TAPA WH 3C. GEN",
       "codigoBarras": "",
       "categoria": "SECADORAS",
-      "existencia": 123,
+      "existencia": 121,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -28750,7 +28750,7 @@
       "nombre": "TERMICO PUENTE SAMSUNG ORG.",
       "codigoBarras": "",
       "categoria": "SECADORAS",
-      "existencia": 1,
+      "existencia": 0,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -28966,7 +28966,7 @@
       "nombre": "TERMOSTATO SEC. KIT WHO. 279769",
       "codigoBarras": "",
       "categoria": "SECADORAS",
-      "existencia": 60,
+      "existencia": 59,
       "ubicacionFisica": "",
       "esServicio": false
     },
