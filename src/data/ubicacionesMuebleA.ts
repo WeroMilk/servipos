@@ -1307,28 +1307,52 @@ const CODIGO_A_UBICACIONES: ReadonlyMap<string, readonly string[]> = (() => {
 })();
 
 /**
- * Ubicaciones físicas (muebles A–H) por SKU/código (mapa estático).
+ * Une slots sin duplicar y respeta el orden de SLOT_ORDER.
  */
-export function getUbicacionesProducto(sku: string, codigoBarras?: string | null): string[] {
-  const bySku = CODIGO_A_UBICACIONES.get(normSkuBarcode(sku));
-  if (bySku?.length) return [...bySku];
-  const barcode = (codigoBarras ?? '').trim();
-  if (!barcode) return [];
-  const byBarcode = CODIGO_A_UBICACIONES.get(normSkuBarcode(barcode));
-  return byBarcode?.length ? [...byBarcode] : [];
+function mergeSlotsOrdered(...lists: Array<readonly string[] | undefined>): string[] {
+  const seen = new Set<string>();
+  for (const list of lists) {
+    if (!list) continue;
+    for (const slot of list) {
+      const s = (slot ?? '').trim();
+      if (s) seen.add(s);
+    }
+  }
+  if (seen.size === 0) return [];
+  const ordered: string[] = [];
+  for (const slot of SLOT_ORDER) {
+    if (seen.has(slot)) {
+      ordered.push(slot);
+      seen.delete(slot);
+    }
+  }
+  // Cualquier slot fuera del orden conocido (p. ej. tipográfico)
+  for (const slot of seen) ordered.push(slot);
+  return ordered;
 }
 
 /**
- * Ubicación efectiva: campo guardado en el producto, o inferencia por SKU del mapa.
+ * Ubicaciones físicas por SKU y/o código de barras (mapa estático; puede devolver varios estantes).
+ */
+export function getUbicacionesProducto(sku: string, codigoBarras?: string | null): string[] {
+  const bySku = CODIGO_A_UBICACIONES.get(normSkuBarcode(sku));
+  const barcode = (codigoBarras ?? '').trim();
+  const byBarcode = barcode ? CODIGO_A_UBICACIONES.get(normSkuBarcode(barcode)) : undefined;
+  return mergeSlotsOrdered(bySku, byBarcode);
+}
+
+/**
+ * Ubicaciones efectivas: mapa (SKU + código) unido al campo guardado en el producto.
  */
 export function resolveUbicacionesProducto(product: {
   sku: string;
   codigoBarras?: string | null;
   ubicacionFisica?: string | null;
 }): string[] {
+  const fromMap = getUbicacionesProducto(product.sku, product.codigoBarras);
   const saved = (product.ubicacionFisica ?? '').trim();
-  if (saved) return [saved];
-  return getUbicacionesProducto(product.sku, product.codigoBarras);
+  if (!saved) return fromMap;
+  return mergeSlotsOrdered(fromMap, [saved]);
 }
 
 export function productoPerteneceAMueble(
