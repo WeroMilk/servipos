@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-07-22T20:04:21.645Z",
-  "count": 2461,
+  "generatedAt": "2026-07-22T23:52:48.213Z",
+  "count": 2462,
   "products": [
     {
       "sucursalId": "olivares",
@@ -322,7 +322,7 @@
       "nombre": "AGUA",
       "codigoBarras": "75004699",
       "categoria": "ACCESORIOS",
-      "existencia": 13,
+      "existencia": 12,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -550,8 +550,8 @@
       "nombre": "BASCULA DIGITAL COLGANTE 50KG PRETUL",
       "codigoBarras": "",
       "categoria": "ACCESORIOS",
-      "existencia": 0,
-      "ubicacionFisica": "",
+      "existencia": 1,
+      "ubicacionFisica": "Mostrador",
       "esServicio": false
     },
     {
@@ -1720,6 +1720,18 @@
     },
     {
       "sucursalId": "olivares",
+      "id": "594e18dddb9b45d79c91b41d2d3440bd",
+      "activo": true,
+      "sku": "7506240661788",
+      "nombre": "DESARMADOR DE CAJA TORX",
+      "codigoBarras": "7506240661788",
+      "categoria": "ACCESORIOS",
+      "existencia": 5,
+      "ubicacionFisica": "Mostrador",
+      "esServicio": false
+    },
+    {
+      "sucursalId": "olivares",
       "id": "a46655306c99f32e5e9b51cbebd56a37",
       "activo": true,
       "sku": "7501206664261",
@@ -1942,8 +1954,8 @@
       "nombre": "EMPAQUE DEHULE P/MANG. 10 PZAS.",
       "codigoBarras": "",
       "categoria": "ACCESORIOS",
-      "existencia": 0,
-      "ubicacionFisica": "",
+      "existencia": 24,
+      "ubicacionFisica": "Mostrador",
       "esServicio": false
     },
     {
@@ -2494,8 +2506,8 @@
       "nombre": "JUEGO 5 PIEDRAS MONTADAS ALTO RENDIMIENTO",
       "codigoBarras": "",
       "categoria": "ACCESORIOS",
-      "existencia": 0,
-      "ubicacionFisica": "",
+      "existencia": 5,
+      "ubicacionFisica": "Mostrador",
       "esServicio": false
     },
     {
@@ -2698,7 +2710,7 @@
       "nombre": "KIT DE EMPAQUES Y VALVULAS DE REPUESTO GB KIT-PVGB/01",
       "codigoBarras": "037103576156",
       "categoria": "ACCESORIOS",
-      "existencia": 6,
+      "existencia": 5,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -3562,8 +3574,8 @@
       "nombre": "PILA ALCALINA AA",
       "codigoBarras": "",
       "categoria": "ACCESORIOS",
-      "existencia": 0,
-      "ubicacionFisica": "",
+      "existencia": 32,
+      "ubicacionFisica": "Mostrador",
       "esServicio": false
     },
     {
@@ -3574,8 +3586,8 @@
       "nombre": "PILA ALCALINA AAA",
       "codigoBarras": "",
       "categoria": "ACCESORIOS",
-      "existencia": 10,
-      "ubicacionFisica": "",
+      "existencia": 26,
+      "ubicacionFisica": "Mostrador",
       "esServicio": false
     },
     {
@@ -3898,7 +3910,7 @@
       "nombre": "REFRESCO COCA-COLA ZERO 600G",
       "codigoBarras": "7501055320639",
       "categoria": "ACCESORIOS",
-      "existencia": 15,
+      "existencia": 13,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -4198,8 +4210,8 @@
       "nombre": "TAQUETE PLASTICO 1/4\" ROJO",
       "codigoBarras": "",
       "categoria": "ACCESORIOS",
-      "existencia": 7,
-      "ubicacionFisica": "",
+      "existencia": 27,
+      "ubicacionFisica": "Mostrador",
       "esServicio": false
     },
     {
@@ -4270,7 +4282,7 @@
       "nombre": "TERMINAL ENCHUFE HEMBRA AMARILLA",
       "codigoBarras": "",
       "categoria": "ACCESORIOS",
-      "existencia": 341,
+      "existencia": 291,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -4582,7 +4594,7 @@
       "nombre": "TUBO TERMORETRACTIL 3/8 METRO",
       "codigoBarras": "",
       "categoria": "ACCESORIOS",
-      "existencia": 50,
+      "existencia": 48,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -5434,7 +5446,7 @@
       "nombre": "CAPACITOR DE TRABAJO CUAD. 4MDF",
       "codigoBarras": "",
       "categoria": "AIRE ACONDICIONADO",
-      "existencia": 129,
+      "existencia": 125,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -5674,7 +5686,7 @@
       "nombre": "CINTA PVC IGNIRETARDANTE 15M GB",
       "codigoBarras": "",
       "categoria": "AIRE ACONDICIONADO",
-      "existencia": 81,
+      "existencia": 79,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -5950,7 +5962,7 @@
       "nombre": "ESPUMA POLIURETANO 300 ML T E",
       "codigoBarras": "",
       "categoria": "AIRE ACONDICIONADO",
-      "existencia": 10,
+      "existencia": 9,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -6142,7 +6154,7 @@
       "nombre": "KIT DE INSTALACION ALUMINIO 1/4-1/2",
       "codigoBarras": "",
       "categoria": "AIRE ACONDICIONADO",
-      "existencia": 20,
+      "existencia": 19,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -8434,7 +8446,7 @@
       "nombre": "GAS REFRIGERANTE 134 ERKA",
       "codigoBarras": "",
       "categoria": "GASES",
-      "existencia": 104,
+      "existencia": 103,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -8590,7 +8602,7 @@
       "nombre": "GAS REFRIGERANTE R22 1KG GEN",
       "codigoBarras": "",
       "categoria": "GASES",
-      "existencia": 259,
+      "existencia": 258,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -8626,7 +8638,7 @@
       "nombre": "GAS REFRIGERANTE R32 680GR ERKA",
       "codigoBarras": "",
       "categoria": "GASES",
-      "existencia": 59,
+      "existencia": 58,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -9022,7 +9034,7 @@
       "nombre": "AGITADOR MABE KRAKEN LUJO 233D2041P001",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 4,
+      "existencia": 3,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -10666,7 +10678,7 @@
       "nombre": "BOTON INICIO PAUSA MBK 02",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 7,
+      "existencia": 6,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -10810,7 +10822,7 @@
       "nombre": "BUJE LARGO P/POSTE WH ACOP.",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 165,
+      "existencia": 164,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -11770,7 +11782,7 @@
       "nombre": "ELECTROVALVULA UNIVERSAL WH",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 15,
+      "existencia": 14,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -11842,7 +11854,7 @@
       "nombre": "EMBRAGUE NEUTRAL WHO",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 40,
+      "existencia": 39,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -12130,7 +12142,7 @@
       "nombre": "FLECHA TRANSMISION WH ACOPLADA ORG.",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 2,
+      "existencia": 1,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -12682,7 +12694,7 @@
       "nombre": "LEVA FLECHA TRANSMISION WH ACOP. ORG.",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 20,
+      "existencia": 19,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -14206,7 +14218,7 @@
       "nombre": "POSTE ENSAMBLE SOLO WH ACOP. GEN",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 17,
+      "existencia": 16,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -15022,7 +15034,7 @@
       "nombre": "SELLO INFERIOR SPINTUBE WH",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 685,
+      "existencia": 684,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -15526,7 +15538,7 @@
       "nombre": "SELLO TINA WHA GEN",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 652,
+      "existencia": 651,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -15886,7 +15898,7 @@
       "nombre": "SOPORTE TINA TRANS. WH COPACABANA",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 61,
+      "existencia": 60,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -15922,7 +15934,7 @@
       "nombre": "SUSPENCION 60 CM WHO NEGRA",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 129,
+      "existencia": 128,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -17122,7 +17134,7 @@
       "nombre": "TARJETA CONTROL PRINC. W11518682",
       "codigoBarras": "",
       "categoria": "LAVADORAS",
-      "existencia": 5,
+      "existencia": 4,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -19522,7 +19534,7 @@
       "nombre": "AISLAMIENTO FLEXIBLE ARMAFLEZ P/TUBO 3/8",
       "codigoBarras": "",
       "categoria": "REFRIGERACION",
-      "existencia": 19,
+      "existencia": 14,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -20134,7 +20146,7 @@
       "nombre": "COMPRESOR 1/2 R290 HDQ_QD110UHW",
       "codigoBarras": "",
       "categoria": "REFRIGERACION",
-      "existencia": 2,
+      "existencia": 1,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -22090,7 +22102,7 @@
       "nombre": "FUSIBLE REF. UNIVERSAL",
       "codigoBarras": "",
       "categoria": "REFRIGERACION",
-      "existencia": 15,
+      "existencia": 14,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -22594,7 +22606,7 @@
       "nombre": "METRO DE TUBO DE COBRE 1/4",
       "codigoBarras": "",
       "categoria": "REFRIGERACION",
-      "existencia": 131.5,
+      "existencia": 129.5,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -23062,7 +23074,7 @@
       "nombre": "MOTOR EVAP. C.SENSOR MABE GEN.",
       "codigoBarras": "",
       "categoria": "REFRIGERACION",
-      "existencia": 7,
+      "existencia": 6,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -23602,7 +23614,7 @@
       "nombre": "NIPLE CONECTOR RAPIDO 1/4",
       "codigoBarras": "",
       "categoria": "REFRIGERACION",
-      "existencia": 8,
+      "existencia": 7,
       "ubicacionFisica": "",
       "esServicio": false
     },
@@ -26230,7 +26242,7 @@
       "nombre": "TERMOSTATO DIGITAL COLDTEK -50-70C",
       "codigoBarras": "",
       "categoria": "REFRIGERACION",
-      "existencia": 7,
+      "existencia": 6,
       "ubicacionFisica": "",
       "esServicio": false
     },

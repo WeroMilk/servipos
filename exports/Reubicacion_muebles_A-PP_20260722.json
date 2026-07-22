@@ -1,14 +1,36 @@
 {
-  "generatedAt": "2026-07-22T23:50:53.315Z",
-  "totalReubicar": 9,
+  "generatedAt": "2026-07-22T23:52:48.547Z",
+  "totalReubicar": 20,
   "byCategoria": {
-    "LAVADORAS": 3,
+    "AIRE ACONDICIONADO": 3,
+    "LAVADORAS": 11,
     "REFRIGERACION": 6
   },
-  "missingCodes": 9,
-  "sinZona": 29,
-  "pendientes": 68,
+  "missingCodes": 10,
+  "sinZona": 30,
+  "pendientes": 72,
   "items": [
+    {
+      "sku": "192",
+      "nombre": "RELAY P/TARJETA MS SFK-11DM",
+      "categoria": "AIRE ACONDICIONADO",
+      "estaEn": "N1",
+      "deberiaEstar": "AA3"
+    },
+    {
+      "sku": "932",
+      "nombre": "RELAY P/TARJETA 12V 240V DC1550",
+      "categoria": "AIRE ACONDICIONADO",
+      "estaEn": "N1",
+      "deberiaEstar": "BB3"
+    },
+    {
+      "sku": "183",
+      "nombre": "KIT INSTALACION ALUMINIO 1/4-3/8",
+      "categoria": "AIRE ACONDICIONADO",
+      "estaEn": "O4",
+      "deberiaEstar": "DD3"
+    },
     {
       "sku": "1019",
       "nombre": "TAPA AGITADOR MB KR. GRIS",
@@ -17,18 +39,74 @@
       "deberiaEstar": "C4"
     },
     {
+      "sku": "1305",
+      "nombre": "RESORTE ROJO/MOR. S/SUSP. MABE",
+      "categoria": "LAVADORAS",
+      "estaEn": "NN3",
+      "deberiaEstar": "D"
+    },
+    {
+      "sku": "1306",
+      "nombre": "RESORTE CAFE S/SUSP. MABE",
+      "categoria": "LAVADORAS",
+      "estaEn": "NN3",
+      "deberiaEstar": "E"
+    },
+    {
+      "sku": "1307",
+      "nombre": "RESORTE VERDE S/SUSP. MABE",
+      "categoria": "LAVADORAS",
+      "estaEn": "NN3",
+      "deberiaEstar": "E1"
+    },
+    {
+      "sku": "1308",
+      "nombre": "RESORTE AZUL S/SUSP. MABE",
+      "categoria": "LAVADORAS",
+      "estaEn": "NN3",
+      "deberiaEstar": "E5"
+    },
+    {
+      "sku": "1424",
+      "nombre": "BUJE POSTE INF. MBOL.",
+      "categoria": "LAVADORAS",
+      "estaEn": "NN3",
+      "deberiaEstar": "F2"
+    },
+    {
+      "sku": "28",
+      "nombre": "BUJE CON HOMBRO MBOL CHICO",
+      "categoria": "LAVADORAS",
+      "estaEn": "NN3",
+      "deberiaEstar": "F3"
+    },
+    {
+      "sku": "1293",
+      "nombre": "TRANSMISION MABE AMAZONAS SIN BASE FLOTADOR",
+      "categoria": "LAVADORAS",
+      "estaEn": "NN4",
+      "deberiaEstar": "F4"
+    },
+    {
+      "sku": "1805",
+      "nombre": "TRANSMISION KRAKEN PLATO GRANDE S/BASE",
+      "categoria": "LAVADORAS",
+      "estaEn": "NN4",
+      "deberiaEstar": "F5"
+    },
+    {
       "sku": "1764",
       "nombre": "PERILLA SEC MABE BLANCA/GRIS ORG 253C1252G004",
       "categoria": "LAVADORAS",
       "estaEn": "Ñ1",
-      "deberiaEstar": "D"
+      "deberiaEstar": "F6"
     },
     {
       "sku": "W11454741",
       "nombre": "TRANSMISION FLECHA LARGA WH. ORG. W11454741",
       "categoria": "LAVADORAS",
       "estaEn": "Z",
-      "deberiaEstar": "E"
+      "deberiaEstar": "F7"
     },
     {
       "sku": "1794",
@@ -70,7 +148,7 @@
       "nombre": "RELOJ DE DESHIELO REF MB10HR GEN.",
       "categoria": "REFRIGERACION",
       "estaEn": "Q1",
-      "deberiaEstar": "V1"
+      "deberiaEstar": "DD4"
     }
   ],
   "pendientesItems": [
@@ -481,6 +559,30 @@
       "nombre": "CUCHULLA HAMILTON *STRONG* COPLE CHICO",
       "categoria": "LICUADORAS",
       "estaEn": "Z9"
+    },
+    {
+      "sku": "2056",
+      "nombre": "VASO B&D ALTO ENTRADA GRANDE",
+      "categoria": "LICUADORAS",
+      "estaEn": "GG1"
+    },
+    {
+      "sku": "2063",
+      "nombre": "VASO ARMADO IRROMPIBLE TIPO HAMILTON",
+      "categoria": "LICUADORAS",
+      "estaEn": "GG2"
+    },
+    {
+      "sku": "2062",
+      "nombre": "VASO REDONDO IRROMPIBLE HAMILTON",
+      "categoria": "LICUADORAS",
+      "estaEn": "GG2"
+    },
+    {
+      "sku": "2068",
+      "nombre": "VASO STAR DE MARKROLON",
+      "categoria": "LICUADORAS",
+      "estaEn": "GG3"
     }
   ]
 }

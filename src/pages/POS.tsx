@@ -4401,7 +4401,7 @@ export function POS() {
       </div>
 
       <Dialog open={ventasAbiertasDialogOpen} onOpenChange={setVentasAbiertasDialogOpen}>
-        <DialogContent className="max-h-[min(85dvh,calc(100dvh-4rem))] w-[min(calc(100vw-1.5rem),24rem)] border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-900 sm:max-w-md">
+        <DialogContent className="max-h-[min(85dvh,calc(100dvh-4rem))] w-[min(calc(100vw-1.5rem),36rem)] border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-900 sm:max-w-xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
               <ClipboardList className="h-5 w-5 shrink-0 text-amber-500" />

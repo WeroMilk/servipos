@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Genera un Word con productos mal ubicados en muebles A–Z (sin Mostrador/BANDAS).
+ * Genera un Word con productos mal ubicados en muebles A–PP (sin Mostrador/BANDAS/Cajonera).
  *
  * Uso:
  *   node scripts/gen-reubicacion-muebles-docx.mjs
@@ -29,7 +29,8 @@ import {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 
-const LETTERS_AZ = [
+/** Letras simples A–Z (sin X) + dobles AA…PP / ÑÑ. */
+const LETTERS_SINGLES = [
   'A',
   'B',
   'C',
@@ -58,19 +59,44 @@ const LETTERS_AZ = [
   'Z',
 ];
 
+const LETTERS_DOUBLES = [
+  'AA',
+  'BB',
+  'CC',
+  'DD',
+  'EE',
+  'FF',
+  'GG',
+  'HH',
+  'II',
+  'JJ',
+  'KK',
+  'LL',
+  'MM',
+  'NN',
+  'ÑÑ',
+  'OO',
+  'PP',
+];
+
+const LETTERS_APP = [...LETTERS_SINGLES, ...LETTERS_DOUBLES];
+
 /**
- * Acomodo físico (solo A–Z; sin X ni Mostrador/BANDAS):
+ * Acomodo físico (A–PP; sin Mostrador/BANDAS/Cajonera):
  *   A–M  Lavadoras
  *   M–Q  Secadoras (M compartido con lavadoras)
- *   R–Z  Refrigeración (incluye Y1 y Z–Z10)
+ *   R–Z + AA–PP  Refrigeración
+ *   AA–PP  Aire acondicionado
  * Pendientes (sin destino forzado): ESTUFAS, BOILER, LICUADORAS y demás.
  */
 const ZONA_POR_CATEGORIA = {
   LAVADORAS: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M'],
   SECADORAS: ['M', 'N', 'Ñ', 'O', 'P', 'Q'],
   SECADORA: ['M', 'N', 'Ñ', 'O', 'P', 'Q'],
-  REFRIGERACION: ['R', 'S', 'T', 'U', 'V', 'W', 'Y', 'Z'],
-  REFRIGERACIÓN: ['R', 'S', 'T', 'U', 'V', 'W', 'Y', 'Z'],
+  REFRIGERACION: ['R', 'S', 'T', 'U', 'V', 'W', 'Y', 'Z', ...LETTERS_DOUBLES],
+  REFRIGERACIÓN: ['R', 'S', 'T', 'U', 'V', 'W', 'Y', 'Z', ...LETTERS_DOUBLES],
+  'AIRE ACONDICIONADO': [...LETTERS_DOUBLES],
+  AIRE: [...LETTERS_DOUBLES],
 };
 
 /** Categorías que se listan como pendientes (no se sugiere “debería estar”). */
@@ -83,7 +109,8 @@ const CATEGORIAS_PENDIENTES = new Set([
 const ZONAS_RESUMEN = [
   ['LAVADORAS', 'A–M'],
   ['SECADORAS / SECADORA', 'M–Q'],
-  ['REFRIGERACION', 'R–Z (Y1, Z–Z10)'],
+  ['REFRIGERACION', 'R–Z y AA–PP'],
+  ['AIRE ACONDICIONADO', 'AA–PP'],
   ['Pendientes', 'ESTUFAS, BOILER, LICUADORAS (sin destino forzado)'],
 ];
 
@@ -106,9 +133,9 @@ function letterOfSlot(slot) {
   return m ? m[1].toLocaleUpperCase('es') : '';
 }
 
-function isSlotAZ(slot) {
+function isSlotAPP(slot) {
   const L = letterOfSlot(slot);
-  return LETTERS_AZ.includes(L);
+  return LETTERS_APP.includes(L);
 }
 
 function parseMueblePorSlot(tsPath) {
@@ -255,13 +282,13 @@ async function main() {
   const mueble = parseMueblePorSlot(tsPath);
   const { byCode } = loadCatalog(catPath);
 
-  const allSlotsAZ = Object.keys(mueble).filter(isSlotAZ);
-  // Orden natural del archivo / SLOT_ORDER-like: A, A1…Z10
-  allSlotsAZ.sort((a, b) => {
+  const allSlotsAPP = Object.keys(mueble).filter(isSlotAPP);
+  // Orden natural: A, A1…Z10, AA…PP
+  allSlotsAPP.sort((a, b) => {
     const La = letterOfSlot(a);
     const Lb = letterOfSlot(b);
-    const ia = LETTERS_AZ.indexOf(La);
-    const ib = LETTERS_AZ.indexOf(Lb);
+    const ia = LETTERS_APP.indexOf(La);
+    const ib = LETTERS_APP.indexOf(Lb);
     if (ia !== ib) return ia - ib;
     const na = parseInt(a.replace(/^[A-Za-zÑñ]+/u, '') || '0', 10);
     const nb = parseInt(b.replace(/^[A-Za-zÑñ]+/u, '') || '0', 10);
@@ -275,7 +302,7 @@ async function main() {
   const placements = []; // unique sku+slot
 
   const seen = new Set();
-  for (const slot of allSlotsAZ) {
+  for (const slot of allSlotsAPP) {
     const codes = mueble[slot] ?? [];
     slotLoad[slot] = 0;
     slotCatCount[slot] = {};
@@ -336,7 +363,7 @@ async function main() {
   const seenSlot = new Set();
   for (const letters of Object.values(ZONA_POR_CATEGORIA)) {
     for (const L of letters) {
-      for (const slot of allSlotsAZ) {
+      for (const slot of allSlotsAPP) {
         if (letterOfSlot(slot) === L && !seenSlot.has(slot)) {
           seenSlot.add(slot);
           zoneSlotsOrdered.push(slot);
@@ -344,7 +371,7 @@ async function main() {
       }
     }
   }
-  for (const slot of allSlotsAZ) {
+  for (const slot of allSlotsAPP) {
     if (!seenSlot.has(slot)) zoneSlotsOrdered.push(slot);
   }
 
@@ -357,17 +384,17 @@ async function main() {
 
   const outDir = join(ROOT, 'exports');
   mkdirSync(outDir, { recursive: true });
-  const outPath = join(outDir, `Reubicacion_muebles_A-Z_${todayStamp()}.docx`);
+  const outPath = join(outDir, `Reubicacion_muebles_A-PP_${todayStamp()}.docx`);
 
   const children = [
     new Paragraph({
       heading: HeadingLevel.TITLE,
-      children: [new TextRun({ text: 'Reubicación de muebles A–Z', bold: true })],
+      children: [new TextRun({ text: 'Reubicación de muebles A–PP', bold: true })],
     }),
     new Paragraph({
       children: [
         new TextRun({
-          text: `Generado: ${new Date().toLocaleString('es-MX')} · Solo estantes A–Z (Mostrador y BANDAS excluidos).`,
+          text: `Generado: ${new Date().toLocaleString('es-MX')} · Estantes A–PP (Mostrador, BANDAS y Cajonera excluidos).`,
           italics: true,
           size: 18,
         }),
@@ -386,7 +413,7 @@ async function main() {
     }),
     new Paragraph({
       heading: HeadingLevel.HEADING_2,
-      children: [new TextRun('Acomodo de muebles A–Z')],
+      children: [new TextRun('Acomodo de muebles A–PP')],
     }),
     ...ZONAS_RESUMEN.map(
       ([cat, zona]) =>
@@ -536,7 +563,7 @@ async function main() {
     new Paragraph({
       children: [
         new TextRun(
-          'Mostrador y BANDAS no se modifican ni se listan para reubicación. Este documento no altera ubicacionesMuebleA.ts ni Supabase.'
+          'Mostrador, BANDAS y Cajonera no se modifican ni se listan para reubicación. Este documento no altera ubicacionesMuebleA.ts ni Supabase.'
         ),
       ],
     })
