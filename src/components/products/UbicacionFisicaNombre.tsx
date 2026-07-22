@@ -67,12 +67,12 @@ export function UbicacionFisicaNombre({
     >
       <span
         className={cn(
-          'inline-flex max-w-full gap-1.5',
+          'flex w-full min-w-0 max-w-full gap-1.5',
           layout === 'center' ? 'items-center' : 'items-start'
         )}
       >
-        <span className={cn('min-w-0', nameClassName)}>{product.nombre}</span>
-        <MapPin className={pinClassName} aria-hidden />
+        <span className={cn('min-w-0 flex-1', nameClassName)}>{product.nombre}</span>
+        <MapPin className={cn('shrink-0', pinClassName)} aria-hidden />
       </span>
     </button>
   );

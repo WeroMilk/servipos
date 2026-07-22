@@ -19,6 +19,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   Eye,
+  MapPin,
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { scheduleBarcodeScannerAutofocus } from '@/lib/scannerCameraFocus';
@@ -62,12 +63,14 @@ import {
   clearVentasAbiertasPosHeaderBridge,
 } from '@/stores/ventasAbiertasPosHeaderStore';
 import { useProductSearch, useSales, useClients, useEffectiveSucursalId, useCajaSesion } from '@/hooks';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { usePosCartCloudSync } from '@/hooks/usePosCartCloudSync';
 import { CajaPosToolbar, type CajaPosToolbarHandle } from '@/components/caja/CajaPosToolbar';
 import {
   UbicacionFisicaContent,
   UbicacionFisicaNombre,
 } from '@/components/products/UbicacionFisicaNombre';
+import { resolveUbicacionesProducto } from '@/data/ubicacionesMuebleA';
 import type {
   Client,
   Product,
@@ -913,6 +916,7 @@ export function POS() {
   const [checkoutPaymentKey, setCheckoutPaymentKey] = useState(0);
   const [processingSale, setProcessingSale] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>('cart');
+  const isMobile = useIsMobile();
   const [globalDiscFocus, setGlobalDiscFocus] = useState(false);
   /** Fila del carrito cuyo % descuento está enfocado (vacío visual si es 0, como desc. global). */
   const [lineDiscountFocusProductId, setLineDiscountFocusProductId] = useState<string | null>(null);
@@ -922,6 +926,7 @@ export function POS() {
   );
   /** Producto cuyo popup de descripción está abierto (carrito). */
   const [productDescriptionDialog, setProductDescriptionDialog] = useState<Product | null>(null);
+  const [ubicacionDialogProduct, setUbicacionDialogProduct] = useState<Product | null>(null);
   const [productDescriptionEditText, setProductDescriptionEditText] = useState('');
   const [productDescriptionSaving, setProductDescriptionSaving] = useState(false);
   const [ventaResetConfirmOpen, setVentaResetConfirmOpen] = useState(false);
@@ -3512,6 +3517,7 @@ export function POS() {
                   <div className="divide-y divide-slate-200 dark:divide-slate-800/50">
                     {items.map((item) => {
                       const umLine = normalizeClaveUnidadSat(item.product.unidadMedida);
+                      const ubicacionSlots = resolveUbicacionesProducto(item.product);
                       return (
                       <div
                         key={item.product.id}
@@ -3521,10 +3527,11 @@ export function POS() {
                           <div className="flex items-start gap-1">
                             <UbicacionFisicaNombre
                               product={item.product}
-                              variant="popover"
+                              variant={isMobile ? 'dialog' : 'popover'}
+                              onOpenDialog={setUbicacionDialogProduct}
                               className="min-w-0 max-w-full flex-1 rounded-md px-0.5 py-0.5 text-left transition-colors hover:bg-slate-200/70 dark:hover:bg-slate-800/60"
-                              nameClassName="block truncate font-medium text-slate-800 underline-offset-2 hover:underline dark:text-slate-200"
-                              pinClassName="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand dark:text-brand"
+                              nameClassName="truncate font-medium text-slate-800 underline-offset-2 hover:underline dark:text-slate-200"
+                              pinClassName="mt-0.5 h-3.5 w-3.5 text-brand dark:text-brand"
                             />
                             {item.promoLabel ? (
                               <span
@@ -3544,6 +3551,12 @@ export function POS() {
                               <Eye className="h-4 w-4" strokeWidth={2.25} />
                             </button>
                           </div>
+                          {ubicacionSlots.length > 0 ? (
+                            <p className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-brand dark:text-brand">
+                              <MapPin className="h-3 w-3 shrink-0" aria-hidden />
+                              Estante {ubicacionSlots.join(', ')}
+                            </p>
+                          ) : null}
                           <p className="text-xs text-slate-600 dark:text-slate-500">
                             <CartLineSkuStockText product={item.product} />
                           </p>
@@ -5342,6 +5355,35 @@ export function POS() {
             </Button>
             <Button type="button" disabled={listasPrecioCatalogSaving} onClick={() => void saveListasPrecioCatalogFromPos()}>
               {listasPrecioCatalogSaving ? 'Guardando…' : 'Confirmar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={ubicacionDialogProduct != null}
+        onOpenChange={(open) => {
+          if (!open) setUbicacionDialogProduct(null);
+        }}
+      >
+        <DialogContent className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 pr-6 text-left text-base font-semibold leading-snug">
+              <MapPin className="h-5 w-5 shrink-0 text-brand dark:text-brand" aria-hidden />
+              <span className="min-w-0 break-words">{ubicacionDialogProduct?.nombre ?? 'Ubicación'}</span>
+            </DialogTitle>
+            <DialogDescription className="text-left text-slate-600 dark:text-slate-400">
+              Ubicación física
+            </DialogDescription>
+          </DialogHeader>
+          {ubicacionDialogProduct ? <UbicacionFisicaContent product={ubicacionDialogProduct} /> : null}
+          <DialogFooter>
+            <Button
+              type="button"
+              onClick={() => setUbicacionDialogProduct(null)}
+              className="bg-brand-gradient text-white"
+            >
+              Entendido
             </Button>
           </DialogFooter>
         </DialogContent>
