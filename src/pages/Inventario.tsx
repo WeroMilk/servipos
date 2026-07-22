@@ -984,6 +984,7 @@ export function Inventario() {
         unidadMedida: normalizeClaveUnidadSat(formData.unidadMedida),
         claveProdServ: cps,
         preciosPorListaCliente: preciosPorListaCliente ?? {},
+        ubicacionFisica: (formData.ubicacionFisica ?? '').trim(),
       } as any);
       addSessionLinesRef.current = [
         ...addSessionLinesRef.current,
@@ -2845,7 +2846,7 @@ export function Inventario() {
                 className="h-10 border-slate-300 bg-slate-200 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9"
               />
             </div>
-            <div className="col-span-2 space-y-1.5 lg:col-span-4 lg:space-y-1">
+            <div className="col-span-2 space-y-1.5 lg:col-span-2 lg:space-y-1">
               <Label className="text-sm lg:text-xs">Categoría</Label>
               <Select
                 value={formData.categoria || '__none__'}
@@ -2868,6 +2869,40 @@ export function Inventario() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="col-span-2 space-y-1.5 lg:col-span-2 lg:space-y-1">
+              <Label className="text-sm lg:text-xs">Ubicación física (mueble)</Label>
+              <Select
+                value={formData.ubicacionFisica || '__none__'}
+                onValueChange={(v) =>
+                  setFormData({ ...formData, ubicacionFisica: v === '__none__' ? '' : v })
+                }
+              >
+                <SelectTrigger className="h-10 border-slate-300 bg-slate-200 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9">
+                  <SelectValue placeholder="Sin ubicación" />
+                </SelectTrigger>
+                <SelectContent
+                  position="popper"
+                  className="z-[300] max-h-[min(50dvh,18rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
+                >
+                  <SelectItem value="__none__" className="text-slate-900 dark:text-slate-100">
+                    Sin ubicación
+                  </SelectItem>
+                  {(() => {
+                    const slots = [...MUEBLE_SLOTS];
+                    const cur = (formData.ubicacionFisica ?? '').trim();
+                    if (cur && !slots.includes(cur)) slots.unshift(cur);
+                    return slots.map((slot) => (
+                      <SelectItem key={slot} value={slot} className="text-slate-900 dark:text-slate-100">
+                        Mueble {slot}
+                      </SelectItem>
+                    ));
+                  })()}
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] leading-snug text-slate-500 dark:text-slate-400 lg:leading-tight">
+                Estante donde está el producto físicamente (A, A1, U2, …).
+              </p>
             </div>
           </div>
 
