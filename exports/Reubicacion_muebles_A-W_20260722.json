@@ -1,0 +1,388 @@
+{
+  "generatedAt": "2026-07-22T19:02:24.868Z",
+  "totalReubicar": 18,
+  "byCategoria": {
+    "LAVADORAS": 6,
+    "REFRIGERACION": 11,
+    "SECADORAS": 1
+  },
+  "missingCodes": 8,
+  "sinZona": 21,
+  "pendientes": 41,
+  "items": [
+    {
+      "sku": "1019",
+      "nombre": "TAPA AGITADOR MB KR. GRIS",
+      "categoria": "LAVADORAS",
+      "estaEn": "N1",
+      "deberiaEstar": "C4"
+    },
+    {
+      "sku": "40801",
+      "nombre": "RESISTENCIA BLINDADA REF. LG,SM,LG 52 CMS 60128-0023300-00",
+      "categoria": "LAVADORAS",
+      "estaEn": "R1",
+      "deberiaEstar": "D"
+    },
+    {
+      "sku": "1171",
+      "nombre": "TARJETA DISPLAY MABE SIRUS NUEVO WR01F02537",
+      "categoria": "LAVADORAS",
+      "estaEn": "V2",
+      "deberiaEstar": "E"
+    },
+    {
+      "sku": "1602",
+      "nombre": "SELECTOR REF MABE WR01F04364 / 238C4974G001",
+      "categoria": "LAVADORAS",
+      "estaEn": "V2",
+      "deberiaEstar": "E1"
+    },
+    {
+      "sku": "1545",
+      "nombre": "MOTOR ESQUELETO FLECHA LARGA",
+      "categoria": "LAVADORAS",
+      "estaEn": "W2",
+      "deberiaEstar": "E5"
+    },
+    {
+      "sku": "1545",
+      "nombre": "MOTOR ESQUELETO FLECHA LARGA",
+      "categoria": "LAVADORAS",
+      "estaEn": "W4",
+      "deberiaEstar": "F2"
+    },
+    {
+      "sku": "1763",
+      "nombre": "SWITCH PUERTA LG FRONTAL EBF49827801 GEN",
+      "categoria": "REFRIGERACION",
+      "estaEn": "L2",
+      "deberiaEstar": "U6"
+    },
+    {
+      "sku": "1764",
+      "nombre": "PERILLA SEC MABE BLANCA/GRIS ORG 253C1252G004",
+      "categoria": "REFRIGERACION",
+      "estaEn": "Ñ1",
+      "deberiaEstar": "V3"
+    },
+    {
+      "sku": "1896",
+      "nombre": "DESLIZADOR TAMBOR SEC. AMANA GEN. 37001298",
+      "categoria": "REFRIGERACION",
+      "estaEn": "Ñ1",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "1131",
+      "nombre": "SWITCH FOCO SEC. SAMSUNG ORG. DC64-00828B",
+      "categoria": "REFRIGERACION",
+      "estaEn": "Ñ2",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "819",
+      "nombre": "TERMOSTATO CALENTADOR DE AGUA 86° 110V",
+      "categoria": "REFRIGERACION",
+      "estaEn": "Ñ3",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "1794",
+      "nombre": "METRO PERFIL DOBLE NEGRO",
+      "categoria": "REFRIGERACION",
+      "estaEn": "P3",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "2265",
+      "nombre": "PERIL ARPON NEGRO CENTRAL",
+      "categoria": "REFRIGERACION",
+      "estaEn": "P3",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "95",
+      "nombre": "METRO PERFIL ESTD. MOD. M BLCO.",
+      "categoria": "REFRIGERACION",
+      "estaEn": "P3",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "953",
+      "nombre": "METRO PERFIL NEGRO ALA DE VAMPIRO",
+      "categoria": "REFRIGERACION",
+      "estaEn": "P3",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "1242",
+      "nombre": "FOCO 20W MABE",
+      "categoria": "REFRIGERACION",
+      "estaEn": "Q1",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "7503026195567",
+      "nombre": "RELOJ DE DESHIELO REF MB10HR GEN.",
+      "categoria": "REFRIGERACION",
+      "estaEn": "Q1",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "799",
+      "nombre": "PERILLA TARJETACONT. MBK BCA/CROM.",
+      "categoria": "SECADORAS",
+      "estaEn": "A1",
+      "deberiaEstar": "Ñ5"
+    }
+  ],
+  "pendientesItems": [
+    {
+      "sku": "1416",
+      "nombre": "VASO DE VIDRIO CUADRADO OSTER",
+      "categoria": "LICUADORAS",
+      "estaEn": "P1"
+    },
+    {
+      "sku": "1466",
+      "nombre": "VASO PARED DELGADA PLASTICO SIRVE OSTER",
+      "categoria": "LICUADORAS",
+      "estaEn": "P1"
+    },
+    {
+      "sku": "1921",
+      "nombre": "TAPA VASO LICUADORA OSTER REDONDA",
+      "categoria": "LICUADORAS",
+      "estaEn": "P1"
+    },
+    {
+      "sku": "1911",
+      "nombre": "IGNITOR HORNO/ESTUFA LG ORG.",
+      "categoria": "ESTUFAS",
+      "estaEn": "P1"
+    },
+    {
+      "sku": "1654",
+      "nombre": "CUCHILLA LICUADORA B&D GRIS CHICO",
+      "categoria": "LICUADORAS",
+      "estaEn": "P1"
+    },
+    {
+      "sku": "1849",
+      "nombre": "TAPA VASO LICUADORA OSTER CUADRADA",
+      "categoria": "LICUADORAS",
+      "estaEn": "P1"
+    },
+    {
+      "sku": "1645",
+      "nombre": "TERMISTOR SENSOR P/ BOILER GEN UNIV,",
+      "categoria": "BOILER",
+      "estaEn": "P2"
+    },
+    {
+      "sku": "1477",
+      "nombre": "CUADRO LARGO OSTER GEN",
+      "categoria": "LICUADORAS",
+      "estaEn": "P2"
+    },
+    {
+      "sku": "1587",
+      "nombre": "PERILLA ESTUFA CASSETTE MABE GRAFITO 20\" (51 CM) 24\" (61 CM), WS01L14351",
+      "categoria": "ESTUFAS",
+      "estaEn": "P2"
+    },
+    {
+      "sku": "2266",
+      "nombre": "PERILLA ESTUFA MABE 295D1091P003 / WS01L14402",
+      "categoria": "ESTUFAS",
+      "estaEn": "P2"
+    },
+    {
+      "sku": "1591",
+      "nombre": "VÁLVULA QUEMADOR ESTUFA MABE WS01F03720 223C4585P001",
+      "categoria": "ESTUFAS",
+      "estaEn": "P2"
+    },
+    {
+      "sku": "1588",
+      "nombre": "VALVULA QUEMADOR ESTUFA MABE ECLIPSE C/SOP V/LGO ORIGINAL",
+      "categoria": "ESTUFAS",
+      "estaEn": "P2"
+    },
+    {
+      "sku": "1719",
+      "nombre": "VALVULA PARA QUEMADOR 3 Y 4\" 223C5208P018",
+      "categoria": "ESTUFAS",
+      "estaEn": "P2"
+    },
+    {
+      "sku": "1909",
+      "nombre": "PERILLA ESTUFA TIPO PLACA MABE WS01L18850 259C1632G001",
+      "categoria": "ESTUFAS",
+      "estaEn": "P2"
+    },
+    {
+      "sku": "1589",
+      "nombre": "VÁLVULA QUEMADOR ESTUFA JUMBO MABE 6.5 CM WS01F03721",
+      "categoria": "ESTUFAS",
+      "estaEn": "P2"
+    },
+    {
+      "sku": "2050",
+      "nombre": "TAPA QUEMADOR MABE 223C7303P001 ORG.",
+      "categoria": "ESTUFAS",
+      "estaEn": "P2"
+    },
+    {
+      "sku": "1590",
+      "nombre": "TERMOCONTROL DEL HORNO 5 POSICIONESPARA ESTUFA",
+      "categoria": "ESTUFAS",
+      "estaEn": "P2"
+    },
+    {
+      "sku": "1954",
+      "nombre": "PERILLA RECTANGULAR CROM S/MCA 12541009",
+      "categoria": "ESTUFAS",
+      "estaEn": "P2"
+    },
+    {
+      "sku": "1844",
+      "nombre": "BUJIA S/MABE 80 CMS",
+      "categoria": "ESTUFAS",
+      "estaEn": "Q1"
+    },
+    {
+      "sku": "1843",
+      "nombre": "BUJIA CON ARNES 5PZS 295D1528G004",
+      "categoria": "ESTUFAS",
+      "estaEn": "Q1"
+    },
+    {
+      "sku": "1846",
+      "nombre": "BUJIA S/WH 80 CMS",
+      "categoria": "ESTUFAS",
+      "estaEn": "Q1"
+    },
+    {
+      "sku": "1934",
+      "nombre": "COPLE CHICO DE MOTOR NB",
+      "categoria": "LICUADORAS",
+      "estaEn": "Q1"
+    },
+    {
+      "sku": "1933",
+      "nombre": "COPLE GRANDE DE MOTOR NB",
+      "categoria": "LICUADORAS",
+      "estaEn": "Q1"
+    },
+    {
+      "sku": "1923",
+      "nombre": "CLIP PARA BUJA WH ORG.",
+      "categoria": "ESTUFAS",
+      "estaEn": "Q1"
+    },
+    {
+      "sku": "2229",
+      "nombre": "TAPA QUEMADOR ESTUFA MABE 223C3327G004",
+      "categoria": "ESTUFAS",
+      "estaEn": "Q1"
+    },
+    {
+      "sku": "1967",
+      "nombre": "ESPREA ESTUFA TEKA",
+      "categoria": "ESTUFAS",
+      "estaEn": "Q1"
+    },
+    {
+      "sku": "1943",
+      "nombre": "COPLE CUCHILLA GRANDE NB",
+      "categoria": "LICUADORAS",
+      "estaEn": "Q1"
+    },
+    {
+      "sku": "1937",
+      "nombre": "COPLE DE CUCHILLA CHICO NB",
+      "categoria": "LICUADORAS",
+      "estaEn": "Q1"
+    },
+    {
+      "sku": "1939",
+      "nombre": "INTERRUPTOR DE SEGURIDAD NB",
+      "categoria": "LICUADORAS",
+      "estaEn": "Q1"
+    },
+    {
+      "sku": "1929",
+      "nombre": "EMPAQUE PARA NB BLANCO",
+      "categoria": "LICUADORAS",
+      "estaEn": "Q1"
+    },
+    {
+      "sku": "1928",
+      "nombre": "EMPAQUE PARA NB GRIS",
+      "categoria": "LICUADORAS",
+      "estaEn": "Q1"
+    },
+    {
+      "sku": "1940",
+      "nombre": "JUEGO DE CARBONES NB",
+      "categoria": "LICUADORAS",
+      "estaEn": "Q1"
+    },
+    {
+      "sku": "2210",
+      "nombre": "FILTRO CAMPANA MABE-IEM COMPLETO 26X36CM",
+      "categoria": "ESTUFAS",
+      "estaEn": "Q2"
+    },
+    {
+      "sku": "2211",
+      "nombre": "FILTRO CAMPANA UNIVERSAL BLANCO 36X80CM",
+      "categoria": "ESTUFAS",
+      "estaEn": "Q2"
+    },
+    {
+      "sku": "2207",
+      "nombre": "TUERCA IZQUIERA 7/8 PARA PIG TAIL",
+      "categoria": "BOILER",
+      "estaEn": "Q2"
+    },
+    {
+      "sku": "2206",
+      "nombre": "ADAPTADOR PARA PIGTAIL 1/4",
+      "categoria": "BOILER",
+      "estaEn": "Q2"
+    },
+    {
+      "sku": "1597",
+      "nombre": "TERMOSTATO BOILER IUSA ENTRADA 1/2 495066",
+      "categoria": "BOILER",
+      "estaEn": "Q3"
+    },
+    {
+      "sku": "1598",
+      "nombre": "TERMOSTATO BOILER IUSA ENCENDIDO ELECTRONICO ENTRADA 3/8 212936",
+      "categoria": "BOILER",
+      "estaEn": "Q3"
+    },
+    {
+      "sku": "2216",
+      "nombre": "REGULADOR DE GAS SENCILLO CON POOL R-3001-AS0",
+      "categoria": "BOILER",
+      "estaEn": "Q3"
+    },
+    {
+      "sku": "2215",
+      "nombre": "REGULADOR DE GAS SENCILLO R-5000",
+      "categoria": "BOILER",
+      "estaEn": "Q3"
+    },
+    {
+      "sku": "2015",
+      "nombre": "MODULO 7 SALIDAS ESTUFA",
+      "categoria": "ESTUFAS",
+      "estaEn": "Q3"
+    }
+  ]
+}
