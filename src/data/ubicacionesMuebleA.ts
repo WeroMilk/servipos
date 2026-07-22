@@ -198,6 +198,26 @@ const SLOT_ORDER = [
 /** Slots disponibles para asignar ubicación física a un producto. */
 export const MUEBLE_SLOTS: readonly string[] = [...SLOT_ORDER];
 
+/** Letras de mueble para conteo: A–Z y AA, BB, … PP. */
+export const MUEBLE_LETRAS: readonly string[] = (() => {
+  const singles = Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i));
+  const doubles = Array.from({ length: 16 }, (_, i) => {
+    const ch = String.fromCharCode(65 + i); // A…P
+    return `${ch}${ch}`;
+  });
+  return [...singles, ...doubles];
+})();
+
+/** ¿El slot (A3, AA, PP1…) pertenece al mueble elegido (A, AA, PP…)? */
+export function slotPerteneceAMueble(slot: string, muebleLetra: string): boolean {
+  const s = (slot ?? '').trim().toUpperCase();
+  const L = (muebleLetra ?? '').trim().toUpperCase();
+  if (!s || !L) return false;
+  if (s === L) return true;
+  // Evita que "AA" cuente como mueble "A"
+  return new RegExp(`^${L}\\d+$`).test(s);
+}
+
 /** Código normalizado → slots (sin duplicar el mismo slot). */
 const CODIGO_A_UBICACIONES: ReadonlyMap<string, readonly string[]> = (() => {
   const map = new Map<string, string[]>();
@@ -240,4 +260,15 @@ export function resolveUbicacionesProducto(product: {
   const saved = (product.ubicacionFisica ?? '').trim();
   if (saved) return [saved];
   return getUbicacionesProducto(product.sku, product.codigoBarras);
+}
+
+export function productoPerteneceAMueble(
+  product: {
+    sku: string;
+    codigoBarras?: string | null;
+    ubicacionFisica?: string | null;
+  },
+  muebleLetra: string
+): boolean {
+  return resolveUbicacionesProducto(product).some((slot) => slotPerteneceAMueble(slot, muebleLetra));
 }

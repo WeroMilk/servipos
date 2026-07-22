@@ -103,6 +103,7 @@ import { isMovimientoLlegadaMercancia } from '@/lib/inventoryAbasto';
 import { downloadInventarioCompleto, downloadInventarioStockBajo } from '@/lib/inventoryExport';
 import { getUbicacionesProducto, MUEBLE_SLOTS, resolveUbicacionesProducto } from '@/data/ubicacionesMuebleA';
 import { UbicacionFisicaNombre } from '@/components/products/UbicacionFisicaNombre';
+import { InventarioPorMueble } from '@/pages/InventarioPorMueble';
 import { buildProductSearchIndex, searchProductIndex } from '@/lib/productSearchIndex';
 import { effectiveListaPreciosIncluyenIva, defaultListaPreciosIncluyenIva } from '@/lib/catalogPricingFlags';
 import {
@@ -113,7 +114,7 @@ import {
   proveedorSelectItemLabel,
 } from '@/lib/proveedoresCatalog';
 
-type InventoryMode = 'productos' | 'stock' | 'valor' | 'codigos';
+type InventoryMode = 'mueble' | 'productos' | 'stock' | 'valor' | 'codigos';
 
 type InventorySortKey = 'nombre' | 'sku' | 'categoria' | 'precio' | 'existencia';
 
@@ -660,7 +661,7 @@ export function Inventario() {
   const [editNumFocus, setEditNumFocus] = useState({
     existenciaMinima: false,
   });
-  const [inventoryMode, setInventoryMode] = useState<InventoryMode>('productos');
+  const [inventoryMode, setInventoryMode] = useState<InventoryMode>('mueble');
 
   const setInventoryModeWithDefaultSort = useCallback((mode: InventoryMode) => {
     setInventoryMode(mode);
@@ -1469,6 +1470,7 @@ export function Inventario() {
   );
 
   const modeHint: Record<InventoryMode, string> = {
+    mueble: 'Elige un mueble y cuenta escaneando (cámara en móvil, pistola en PC).',
     productos: '',
     stock: 'Stock en cero, por debajo del mínimo, o por debajo del 15% del mínimo configurado.',
     valor:
@@ -1640,7 +1642,27 @@ export function Inventario() {
         </div>
       }
     >
-      <div className="grid w-full min-w-0 shrink-0 grid-cols-1 gap-2 min-[420px]:grid-cols-2 lg:grid-cols-4 lg:gap-3">
+      <div className="grid w-full min-w-0 shrink-0 grid-cols-1 gap-2 min-[420px]:grid-cols-2 lg:grid-cols-5 lg:gap-3">
+        <button
+          type="button"
+          onClick={() => setInventoryModeWithDefaultSort('mueble')}
+          className={cn(
+            'rounded-xl border text-left transition-all',
+            inventoryMode === 'mueble'
+              ? 'border-brand/50 bg-slate-100/90 dark:bg-slate-900/80 ring-2 ring-brand/25'
+              : 'border-slate-200/80 dark:border-slate-800/50 bg-slate-50/90 dark:bg-slate-900/50 hover:border-slate-300 dark:border-slate-700/60'
+          )}
+        >
+          <CardContent className="flex items-center gap-2 p-2 sm:gap-3 sm:p-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand/20 sm:h-10 sm:w-10">
+              <MapPin className="h-4 w-4 text-brand sm:h-5 sm:w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-slate-900 dark:text-slate-100 sm:text-base">Por mueble</p>
+              <p className="text-[10px] text-slate-600 dark:text-slate-500 sm:text-xs">Conteo A–PP</p>
+            </div>
+          </CardContent>
+        </button>
         <button
           type="button"
           onClick={() => setInventoryModeWithDefaultSort('productos')}
@@ -1854,6 +1876,12 @@ export function Inventario() {
         </div>
       ) : null}
 
+      {inventoryMode === 'mueble' ? (
+        <div className="mt-3 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden sm:mt-4">
+          <InventarioPorMueble />
+        </div>
+      ) : (
+        <>
       <div className="relative mt-3 mb-3 w-full min-w-0 shrink-0 sm:mt-4 sm:mb-4">
         <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-600 dark:text-slate-500 sm:left-3 sm:h-5 sm:w-5" />
         <Input
@@ -2464,6 +2492,8 @@ export function Inventario() {
           ) : null}
         </div>
       </div>
+        </>
+      )}
     </PageShell>
 
       {/* Add Product Dialog */}
