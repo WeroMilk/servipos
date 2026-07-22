@@ -9,3 +9,6 @@ dist
 
 # Extracción masiva de lista de precios (generar con striprtf + script)
 lista_precios_extracted.txt
+
+# Lock files de Office
+**/.~lock.*
