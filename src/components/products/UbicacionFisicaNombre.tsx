@@ -1,3 +1,4 @@
+import { useEffect, useState, type ReactElement } from 'react';
 import { MapPin } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -82,7 +83,44 @@ export function UbicacionFisicaNombre({
   }
 
   return (
-    <Popover modal={false}>
+    <UbicacionFisicaPopover trigger={trigger} product={product} />
+  );
+}
+
+function UbicacionFisicaPopover({
+  trigger,
+  product,
+}: {
+  trigger: ReactElement;
+  product: Product;
+}) {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const closeOnScroll = (event: Event) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest('[data-slot="popover-content"]')) {
+        return;
+      }
+      setOpen(false);
+    };
+
+    // capture: el scroll suele ocurrir en contenedores overflow (POS/lista), no en window
+    window.addEventListener('scroll', closeOnScroll, true);
+    window.addEventListener('wheel', closeOnScroll, { capture: true, passive: true });
+    window.addEventListener('touchmove', closeOnScroll, { capture: true, passive: true });
+
+    return () => {
+      window.removeEventListener('scroll', closeOnScroll, true);
+      window.removeEventListener('wheel', closeOnScroll, true);
+      window.removeEventListener('touchmove', closeOnScroll, true);
+    };
+  }, [open]);
+
+  return (
+    <Popover modal={false} open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent
         side="top"
