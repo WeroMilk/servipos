@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Genera un Word con productos mal ubicados en muebles A–W (sin Mostrador/BANDAS).
+ * Genera un Word con productos mal ubicados en muebles A–Z (sin Mostrador/BANDAS).
  *
  * Uso:
  *   node scripts/gen-reubicacion-muebles-docx.mjs
@@ -29,7 +29,7 @@ import {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 
-const LETTERS_AW = [
+const LETTERS_AZ = [
   'A',
   'B',
   'C',
@@ -54,21 +54,23 @@ const LETTERS_AW = [
   'U',
   'V',
   'W',
+  'Y',
+  'Z',
 ];
 
 /**
- * Acomodo físico (solo A–W):
+ * Acomodo físico (solo A–Z; sin X ni Mostrador/BANDAS):
  *   A–M  Lavadoras
  *   M–Q  Secadoras (M compartido con lavadoras)
- *   R–W  Refrigeración
+ *   R–Z  Refrigeración (incluye Y1 y Z–Z10)
  * Pendientes (sin destino forzado): ESTUFAS, BOILER, LICUADORAS y demás.
  */
 const ZONA_POR_CATEGORIA = {
   LAVADORAS: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M'],
   SECADORAS: ['M', 'N', 'Ñ', 'O', 'P', 'Q'],
   SECADORA: ['M', 'N', 'Ñ', 'O', 'P', 'Q'],
-  REFRIGERACION: ['R', 'S', 'T', 'U', 'V', 'W'],
-  REFRIGERACIÓN: ['R', 'S', 'T', 'U', 'V', 'W'],
+  REFRIGERACION: ['R', 'S', 'T', 'U', 'V', 'W', 'Y', 'Z'],
+  REFRIGERACIÓN: ['R', 'S', 'T', 'U', 'V', 'W', 'Y', 'Z'],
 };
 
 /** Categorías que se listan como pendientes (no se sugiere “debería estar”). */
@@ -81,7 +83,7 @@ const CATEGORIAS_PENDIENTES = new Set([
 const ZONAS_RESUMEN = [
   ['LAVADORAS', 'A–M'],
   ['SECADORAS / SECADORA', 'M–Q'],
-  ['REFRIGERACION', 'R–W'],
+  ['REFRIGERACION', 'R–Z (Y1, Z–Z10)'],
   ['Pendientes', 'ESTUFAS, BOILER, LICUADORAS (sin destino forzado)'],
 ];
 
@@ -104,9 +106,9 @@ function letterOfSlot(slot) {
   return m ? m[1].toLocaleUpperCase('es') : '';
 }
 
-function isSlotAW(slot) {
+function isSlotAZ(slot) {
   const L = letterOfSlot(slot);
-  return LETTERS_AW.includes(L);
+  return LETTERS_AZ.includes(L);
 }
 
 function parseMueblePorSlot(tsPath) {
@@ -253,13 +255,13 @@ async function main() {
   const mueble = parseMueblePorSlot(tsPath);
   const { byCode } = loadCatalog(catPath);
 
-  const allSlotsAW = Object.keys(mueble).filter(isSlotAW);
-  // Orden natural del archivo / SLOT_ORDER-like: A, A1…W4
-  allSlotsAW.sort((a, b) => {
+  const allSlotsAZ = Object.keys(mueble).filter(isSlotAZ);
+  // Orden natural del archivo / SLOT_ORDER-like: A, A1…Z10
+  allSlotsAZ.sort((a, b) => {
     const La = letterOfSlot(a);
     const Lb = letterOfSlot(b);
-    const ia = LETTERS_AW.indexOf(La);
-    const ib = LETTERS_AW.indexOf(Lb);
+    const ia = LETTERS_AZ.indexOf(La);
+    const ib = LETTERS_AZ.indexOf(Lb);
     if (ia !== ib) return ia - ib;
     const na = parseInt(a.replace(/^[A-Za-zÑñ]+/u, '') || '0', 10);
     const nb = parseInt(b.replace(/^[A-Za-zÑñ]+/u, '') || '0', 10);
@@ -273,7 +275,7 @@ async function main() {
   const placements = []; // unique sku+slot
 
   const seen = new Set();
-  for (const slot of allSlotsAW) {
+  for (const slot of allSlotsAZ) {
     const codes = mueble[slot] ?? [];
     slotLoad[slot] = 0;
     slotCatCount[slot] = {};
@@ -334,7 +336,7 @@ async function main() {
   const seenSlot = new Set();
   for (const letters of Object.values(ZONA_POR_CATEGORIA)) {
     for (const L of letters) {
-      for (const slot of allSlotsAW) {
+      for (const slot of allSlotsAZ) {
         if (letterOfSlot(slot) === L && !seenSlot.has(slot)) {
           seenSlot.add(slot);
           zoneSlotsOrdered.push(slot);
@@ -342,7 +344,7 @@ async function main() {
       }
     }
   }
-  for (const slot of allSlotsAW) {
+  for (const slot of allSlotsAZ) {
     if (!seenSlot.has(slot)) zoneSlotsOrdered.push(slot);
   }
 
@@ -355,17 +357,17 @@ async function main() {
 
   const outDir = join(ROOT, 'exports');
   mkdirSync(outDir, { recursive: true });
-  const outPath = join(outDir, `Reubicacion_muebles_A-W_${todayStamp()}.docx`);
+  const outPath = join(outDir, `Reubicacion_muebles_A-Z_${todayStamp()}.docx`);
 
   const children = [
     new Paragraph({
       heading: HeadingLevel.TITLE,
-      children: [new TextRun({ text: 'Reubicación de muebles A–W', bold: true })],
+      children: [new TextRun({ text: 'Reubicación de muebles A–Z', bold: true })],
     }),
     new Paragraph({
       children: [
         new TextRun({
-          text: `Generado: ${new Date().toLocaleString('es-MX')} · Solo estantes A–W (Mostrador y BANDAS excluidos).`,
+          text: `Generado: ${new Date().toLocaleString('es-MX')} · Solo estantes A–Z (Mostrador y BANDAS excluidos).`,
           italics: true,
           size: 18,
         }),
@@ -384,7 +386,7 @@ async function main() {
     }),
     new Paragraph({
       heading: HeadingLevel.HEADING_2,
-      children: [new TextRun('Acomodo de muebles A–W')],
+      children: [new TextRun('Acomodo de muebles A–Z')],
     }),
     ...ZONAS_RESUMEN.map(
       ([cat, zona]) =>
