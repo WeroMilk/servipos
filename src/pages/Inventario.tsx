@@ -638,6 +638,11 @@ export function Inventario() {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [ubicacionDialogProduct, setUbicacionDialogProduct] = useState<Product | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  /** Confirmación al cambiar estante: eliminar ubicaciones anteriores (mapa + form). */
+  const [ubicacionReplaceConfirm, setUbicacionReplaceConfirm] = useState<{
+    next: string;
+    previousSlots: string[];
+  } | null>(null);
   const ubicacionDialogSlots = useMemo(() => {
     if (!ubicacionDialogProduct) return [] as string[];
     return resolveUbicacionesProducto(ubicacionDialogProduct);
@@ -1210,6 +1215,7 @@ export function Inventario() {
 
   const openEditDialog = (product: Product) => {
     setSelectedProduct(product);
+    setUbicacionReplaceConfirm(null);
     setFormData({
       sku: product.sku,
       codigoBarras: product.codigoBarras || '',
@@ -3334,9 +3340,25 @@ export function Inventario() {
               <Label>Ubicación física (mueble)</Label>
               <Select
                 value={formData.ubicacionFisica || '__none__'}
-                onValueChange={(v) =>
-                  setFormData({ ...formData, ubicacionFisica: v === '__none__' ? '' : v })
-                }
+                onValueChange={(v) => {
+                  const next = v === '__none__' ? '' : v;
+                  const current = (formData.ubicacionFisica ?? '').trim();
+                  if (next === current) return;
+
+                  const fromMap = selectedProduct
+                    ? getUbicacionesProducto(selectedProduct.sku, selectedProduct.codigoBarras)
+                    : [];
+                  const previousSlots = [
+                    ...new Set([...fromMap, ...(current ? [current] : [])]),
+                  ].filter((slot) => slot !== next);
+
+                  if (next && previousSlots.length > 0) {
+                    setUbicacionReplaceConfirm({ next, previousSlots });
+                    return;
+                  }
+
+                  setFormData({ ...formData, ubicacionFisica: next });
+                }}
               >
                 <SelectTrigger className="h-10 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">
                   <SelectValue placeholder="Sin ubicación" />
@@ -3361,7 +3383,8 @@ export function Inventario() {
                 </SelectContent>
               </Select>
               <p className="text-[10px] leading-snug text-slate-500 dark:text-slate-400">
-                Indica en qué anaquel/mueble está el producto físicamente (A–C).
+                Al cambiar de estante se pedirá confirmar si eliminas el anterior; la ubicación
+                guardada es la que se muestra en POS e inventario.
               </p>
             </div>
             <div className="space-y-2">
@@ -4103,6 +4126,55 @@ export function Inventario() {
               className="bg-red-600 text-white hover:bg-red-500"
             >
               {clearingMovements ? 'Borrando…' : 'Vaciar todo'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={ubicacionReplaceConfirm != null}
+        onOpenChange={(open) => {
+          if (!open) setUbicacionReplaceConfirm(null);
+        }}
+      >
+        <AlertDialogContent className="z-[320] border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar el estante anterior?</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-600 dark:text-slate-400">
+              {ubicacionReplaceConfirm ? (
+                <>
+                  Este artículo aparece en{' '}
+                  <span className="font-medium text-slate-800 dark:text-slate-200">
+                    {ubicacionReplaceConfirm.previousSlots.join(', ')}
+                  </span>
+                  . Si confirmas, solo quedará registrado en{' '}
+                  <span className="font-medium text-slate-800 dark:text-slate-200">
+                    {ubicacionReplaceConfirm.next}
+                  </span>
+                  .
+                </>
+              ) : (
+                'Se reemplazará la ubicación física anterior.'
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-800">
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-brand text-white hover:bg-brand-to"
+              onClick={(e) => {
+                e.preventDefault();
+                if (!ubicacionReplaceConfirm) return;
+                setFormData((prev) => ({
+                  ...prev,
+                  ubicacionFisica: ubicacionReplaceConfirm.next,
+                }));
+                setUbicacionReplaceConfirm(null);
+              }}
+            >
+              Sí, solo {ubicacionReplaceConfirm?.next ?? 'nuevo'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

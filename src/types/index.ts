@@ -192,7 +192,8 @@ export interface Product {
   esServicio?: boolean;
   /**
    * Slot de ubicación física en mueble (A, A1, B2, C3, …).
-   * Si falta, la UI puede inferir desde el mapa estático por SKU.
+   * Si está definido, es la ubicación efectiva (reemplaza el mapa estático por SKU).
+   * Si falta, la UI infiere desde el mapa estático por SKU.
    */
   ubicacionFisica?: string;
   activo: boolean;

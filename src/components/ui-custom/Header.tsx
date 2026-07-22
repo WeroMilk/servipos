@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type MouseEvent, type TouchEvent } from 'r
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   LogOut,
+  Map,
   Menu,
   Moon,
   Sun,
@@ -19,6 +20,13 @@ import {
 } from 'lucide-react';
 import { useAuthStore, useSyncStore, useAppStore, getResolvedIsDark } from '@/stores';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,6 +56,8 @@ import { useInventarioHeaderStore } from '@/stores/inventarioHeaderStore';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 import { CajaCierreReportesDialog, CajaCierreReportesHeaderButton, CajaCierreReportesIcon } from '@/components/caja/CajaCierreReportesDialog';
 
+const CROQUIS_TIENDA_URL = '/croquis-tienda.png';
+
 export function Header() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -60,6 +70,7 @@ export function Header() {
   const resolvedDark = useAppStore((s) => getResolvedIsDark(s));
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileCierreReportesOpen, setMobileCierreReportesOpen] = useState(false);
+  const [croquisOpen, setCroquisOpen] = useState(false);
   const firstMobileNavItemRef = useRef<HTMLButtonElement | null>(null);
   const swipeStartXRef = useRef<number | null>(null);
   const swipeStartYRef = useRef<number | null>(null);
@@ -434,6 +445,18 @@ export function Header() {
               variant="ghost"
               size="icon"
               className="h-10 w-10 shrink-0 rounded-xl bg-slate-200/80 text-slate-700 hover:bg-slate-300/80 hover:text-slate-900 dark:bg-slate-800/50 dark:text-slate-300 dark:hover:bg-slate-700/50 dark:hover:text-slate-100"
+              onClick={() => setCroquisOpen(true)}
+              aria-label="Croquis de la tienda"
+              title="Croquis de la tienda"
+            >
+              <Map className="h-5 w-5" />
+            </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 shrink-0 rounded-xl bg-slate-200/80 text-slate-700 hover:bg-slate-300/80 hover:text-slate-900 dark:bg-slate-800/50 dark:text-slate-300 dark:hover:bg-slate-700/50 dark:hover:text-slate-100"
               onClick={() => toggleTheme()}
               aria-label={resolvedDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
             >
@@ -604,6 +627,20 @@ export function Header() {
               <Button
                 type="button"
                 variant="outline"
+                size="icon"
+                className="h-10 w-10 shrink-0 rounded-xl border-slate-300 dark:border-slate-600"
+                onClick={() => {
+                  closeMobileMenu();
+                  setCroquisOpen(true);
+                }}
+                aria-label="Croquis de la tienda"
+                title="Croquis de la tienda"
+              >
+                <Map className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
                 className="flex-1 rounded-xl border-slate-300 dark:border-slate-600"
                 onClick={() => {
                   toggleTheme();
@@ -652,6 +689,32 @@ export function Header() {
           presentation="fixed-panel"
         />
       ) : null}
+
+      <Dialog open={croquisOpen} onOpenChange={setCroquisOpen}>
+        <DialogContent
+          closeOnOutsideClick
+          useDialogDescription
+          className="flex max-h-[min(92dvh,calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-2rem))] flex-col gap-3 overflow-hidden border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900 sm:max-w-[min(96vw,56rem)]"
+        >
+          <DialogHeader className="shrink-0 pr-8 text-left">
+            <DialogTitle className="text-slate-900 dark:text-slate-100">
+              Croquis de la tienda
+            </DialogTitle>
+            <DialogDescription className="text-slate-600 dark:text-slate-400">
+              Acomodo físico de muebles. Toca fuera para cerrar.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-auto overscroll-contain rounded-lg bg-white dark:bg-slate-950">
+            <img
+              src={CROQUIS_TIENDA_URL}
+              alt="Croquis de la tienda con el acomodo de muebles"
+              className="mx-auto h-auto max-h-[min(78dvh,calc(100dvh-10rem))] w-full object-contain"
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

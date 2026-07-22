@@ -1416,17 +1416,19 @@ export function getUbicacionesProducto(sku: string, codigoBarras?: string | null
 }
 
 /**
- * Ubicaciones efectivas: mapa (SKU + código) unido al campo guardado en el producto.
+ * Ubicaciones efectivas.
+ * Si el producto tiene `ubicacionFisica` guardada, esa es la única (reemplaza el mapa).
+ * Así un traslado Q1→U2 deja de mostrar ambos estantes.
+ * Sin campo guardado, se usan las del mapa estático (puede haber varios).
  */
 export function resolveUbicacionesProducto(product: {
   sku: string;
   codigoBarras?: string | null;
   ubicacionFisica?: string | null;
 }): string[] {
-  const fromMap = getUbicacionesProducto(product.sku, product.codigoBarras);
   const saved = (product.ubicacionFisica ?? '').trim();
-  if (!saved) return fromMap;
-  return mergeSlotsOrdered(fromMap, [saved]);
+  if (saved) return [saved];
+  return getUbicacionesProducto(product.sku, product.codigoBarras);
 }
 
 export function productoPerteneceAMueble(
