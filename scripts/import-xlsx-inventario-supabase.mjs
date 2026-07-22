@@ -188,7 +188,7 @@ function buildInventoryDoc({ r, prev, nowIso, createdAt, incluirRefId }) {
     claveProdServ:
       prev?.claveProdServ != null && String(prev.claveProdServ).replace(/\D/g, '').length === 8
         ? String(prev.claveProdServ).replace(/\D/g, '').slice(0, 8)
-        : null,
+        : '52141500',
     esServicio: esServicio ? true : null,
     activo: true,
     createdAt,

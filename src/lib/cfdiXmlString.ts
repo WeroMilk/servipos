@@ -1,4 +1,5 @@
 import type { Invoice } from '@/types';
+import { resolveClaveProdServ } from '@/lib/satCatalog';
 
 /** Escapa texto para atributos / contenido en XML. */
 export function escapeXmlText(s: string): string {
@@ -37,7 +38,7 @@ export function buildCfdi40XmlString(invoice: Invoice): string {
   const conceptosXml = (invoice.productos ?? [])
     .map((item) => {
       const desc = escapeXmlText((item.descripcion || '').trim() || '—');
-      const cps = escapeXmlText((item.claveProdServ || '01010101').trim());
+      const cps = escapeXmlText(resolveClaveProdServ(item.claveProdServ));
       const cu = escapeXmlText((item.claveUnidad || 'H87').trim());
       const ivaImp = item.impuestosTrasladados.reduce((sum, tax) => sum + tax.importe, 0);
       return `

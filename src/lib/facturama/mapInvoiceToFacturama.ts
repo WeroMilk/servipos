@@ -1,4 +1,5 @@
 import type { Invoice, InvoiceItem } from '@/types';
+import { resolveClaveProdServ } from '@/lib/satCatalog';
 
 function money2(n: number): string {
   return (Math.round((Number(n) || 0) * 100) / 100).toFixed(2);
@@ -60,7 +61,7 @@ export function mapInvoiceToFacturama(invoice: Invoice): Record<string, unknown>
     const hasTaxes = taxes.length > 0;
     return {
       Quantity: money2(p.cantidad),
-      ProductCode: String(p.claveProdServ || '01010101'),
+      ProductCode: resolveClaveProdServ(p.claveProdServ),
       UnitCode: String(p.claveUnidad || 'H87'),
       Unit: 'Pieza',
       Description: String(p.descripcion || 'Concepto').slice(0, 1000),

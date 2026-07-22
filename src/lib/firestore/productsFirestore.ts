@@ -6,7 +6,7 @@ import {
   pickBestPrecioVentaRawFromFirestoreDoc,
   coalescePreciosPorListaClienteInputs,
 } from '@/lib/precioListaNorm';
-import { normalizeClaveProdServ, normalizeClaveUnidadSat } from '@/lib/satCatalog';
+import { normalizeClaveUnidadSat, resolveClaveProdServ } from '@/lib/satCatalog';
 import { normSkuBarcode } from '@/lib/productCatalogUniqueness';
 import { createDebouncedAsyncFn } from '@/lib/debouncedAsync';
 import { getSupabase } from '@/lib/supabaseClient';
@@ -193,10 +193,9 @@ export function docToProduct(row: { id: string; doc: Record<string, unknown> }):
     preciosListaIncluyenIva,
     imagen: d.imagen != null ? String(d.imagen) : undefined,
     unidadMedida: normalizeClaveUnidadSat(d.unidadMedida != null ? String(d.unidadMedida) : 'H87'),
-    claveProdServ: (() => {
-      const raw = d.claveProdServ != null ? String(d.claveProdServ).replace(/\D/g, '').slice(0, 8) : '';
-      return raw.length === 8 ? raw : undefined;
-    })(),
+    claveProdServ: resolveClaveProdServ(
+      d.claveProdServ != null ? String(d.claveProdServ) : undefined
+    ),
     esServicio: d.esServicio === true,
     ubicacionFisica: (() => {
       const u = d.ubicacionFisica != null ? String(d.ubicacionFisica).trim() : '';
@@ -231,10 +230,7 @@ function productToDocPayload(
     preciosListaIncluyenIva: product.preciosListaIncluyenIva ?? null,
     imagen: product.imagen ?? null,
     unidadMedida: normalizeClaveUnidadSat(product.unidadMedida),
-    claveProdServ:
-      normalizeClaveProdServ(product.claveProdServ).length === 8
-        ? normalizeClaveProdServ(product.claveProdServ)
-        : null,
+    claveProdServ: resolveClaveProdServ(product.claveProdServ),
     esServicio: product.esServicio === true ? true : null,
     ubicacionFisica: product.ubicacionFisica?.trim() ? product.ubicacionFisica.trim() : null,
     activo: product.activo,
@@ -462,8 +458,7 @@ export async function updateProductFirestore(
     doc.codigoBarras = v && v.length > 0 ? v : null;
   }
   if ('claveProdServ' in updates) {
-    const n = normalizeClaveProdServ(updates.claveProdServ);
-    doc.claveProdServ = n.length === 8 ? n : null;
+    doc.claveProdServ = resolveClaveProdServ(updates.claveProdServ);
   }
   if ('ubicacionFisica' in updates) {
     const u = updates.ubicacionFisica?.trim() ?? '';

@@ -2,6 +2,7 @@ import { buildLetterFooterHtml, getBrandLogoAbsoluteUrl } from '@/lib/documentPr
 import { montoALetrasMXN } from '@/lib/montoALetras';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { formatMoney } from '@/lib/utils';
+import { DEFAULT_CLAVE_PROD_SERV, resolveClaveProdServ } from '@/lib/satCatalog';
 import {
   buildInvoiceCfdiQrUrl,
   buildNominaCfdiQrUrl,
@@ -278,10 +279,10 @@ export async function buildInvoiceCfdiPrintDocumentHtml(inv: Invoice): Promise<s
   const rowsConceptos = productos
     .map((it) => {
       const desc = (it.descripcion || '').trim() || '-';
-      const cps = (it.claveProdServ || '01010101').trim();
+      const cps = resolveClaveProdServ(it.claveProdServ);
       const cu = (it.claveUnidad || 'H87').trim();
       const cpsNote =
-        cps !== '01010101' ? ` <span class="cps">(${escHtml(cps)})</span>` : '';
+        cps !== DEFAULT_CLAVE_PROD_SERV ? ` <span class="cps">(${escHtml(cps)})</span>` : '';
       return `<tr>
         <td class="num">${escHtml(Number(it.cantidad).toFixed(2))}</td>
         <td>${escHtml(unidadCortaSat(cu))}</td>

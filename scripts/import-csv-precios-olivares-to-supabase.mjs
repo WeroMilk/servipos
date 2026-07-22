@@ -290,7 +290,7 @@ async function main() {
       preciosListaIncluyenIva: false,
       imagen: null,
       unidadMedida,
-      claveProdServ: null,
+      claveProdServ: '52141500',
       activo: true,
       createdAt: nowIso,
       updatedAt: nowIso,

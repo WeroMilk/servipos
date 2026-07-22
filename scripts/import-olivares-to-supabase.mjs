@@ -161,7 +161,7 @@ function buildProductDoc(r, recSinIva, incluirRefId, createdAtIso, updatedAtIso)
     preciosListaIncluyenIva: false,
     imagen: null,
     unidadMedida,
-    claveProdServ: null,
+    claveProdServ: '52141500',
     activo: true,
     createdAt: createdAtIso,
     updatedAt: updatedAtIso,

@@ -27,6 +27,9 @@ export function normalizeClaveUnidadSat(raw: string | undefined | null): SatClav
   return 'H87';
 }
 
+/** Clave Producto/Servicio SAT por defecto cuando el artículo no tiene una válida. */
+export const DEFAULT_CLAVE_PROD_SERV = '52141500';
+
 /** Clave Producto/Servicio SAT: 8 dígitos. */
 export function normalizeClaveProdServ(raw: string | undefined | null): string {
   return String(raw ?? '')
@@ -36,6 +39,12 @@ export function normalizeClaveProdServ(raw: string | undefined | null): string {
 
 export function isValidClaveProdServSat(value: string | undefined | null): boolean {
   return /^\d{8}$/.test(String(value ?? '').trim());
+}
+
+/** Devuelve la clave válida o el default `52141500`. */
+export function resolveClaveProdServ(raw: string | undefined | null): string {
+  const n = normalizeClaveProdServ(raw);
+  return n.length === 8 ? n : DEFAULT_CLAVE_PROD_SERV;
 }
 
 /** Textos para preguntar la cantidad recibida al copiar un producto como plantilla (según unidad SAT). */

@@ -17,7 +17,7 @@ import {
   FileMinus2,
   Banknote,
 } from 'lucide-react';
-import { normalizeClaveProdServ, normalizeClaveUnidadSat } from '@/lib/satCatalog';
+import { resolveClaveProdServ, normalizeClaveUnidadSat } from '@/lib/satCatalog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -353,11 +353,10 @@ export function Facturas() {
         emisor: fiscalConfig,
         ventaId: selectedSale.id,
         productos: (selectedSale.productos ?? []).map((item) => {
-          const cps = normalizeClaveProdServ(item.producto?.claveProdServ);
           return {
           id: crypto.randomUUID(),
           productId: item.productId,
-          claveProdServ: cps.length === 8 ? cps : '01010101',
+          claveProdServ: resolveClaveProdServ(item.producto?.claveProdServ),
           claveUnidad: normalizeClaveUnidadSat(item.producto?.unidadMedida),
           cantidad: item.cantidad,
           descripcion: item.producto?.nombre?.trim() || item.productoNombre?.trim() || '',

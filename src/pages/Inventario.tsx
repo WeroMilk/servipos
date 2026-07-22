@@ -88,9 +88,11 @@ import { getClientPriceListCatalogFromStore } from '@/lib/clientPriceListCatalog
 import { parsePrecioNumberFromFirestore } from '@/lib/precioListaNorm';
 import {
   SAT_CLAVES_UNIDAD,
+  DEFAULT_CLAVE_PROD_SERV,
   normalizeClaveProdServ,
   normalizeClaveUnidadSat,
   isValidClaveProdServSat,
+  resolveClaveProdServ,
   satUnidadLlegadaLabels,
   parseCantidadLlegadaSat,
   parseExistenciaInventarioForm,
@@ -766,7 +768,7 @@ export function Inventario() {
     categoria: '',
     proveedor: '',
     unidadMedida: 'H87',
-    claveProdServ: '',
+    claveProdServ: DEFAULT_CLAVE_PROD_SERV,
     ubicacionFisica: '',
   });
 
@@ -1000,7 +1002,7 @@ export function Inventario() {
           categoria: '',
           proveedor: proveedorParaSiguiente,
           unidadMedida: 'H87',
-          claveProdServ: '',
+          claveProdServ: DEFAULT_CLAVE_PROD_SERV,
           ubicacionFisica: '',
         });
         setPreciosListaStr(emptyPreciosListaStr());
@@ -1166,7 +1168,7 @@ export function Inventario() {
         categoria: p.categoria || '',
         proveedor: normalizeProveedorNombreGuardado(p.proveedor || ''),
         unidadMedida: normalizeClaveUnidadSat(p.unidadMedida),
-        claveProdServ: p.claveProdServ ?? '',
+        claveProdServ: resolveClaveProdServ(p.claveProdServ),
         ubicacionFisica:
           (p.ubicacionFisica ?? '').trim() || getUbicacionesProducto(p.sku, p.codigoBarras)[0] || '',
       });
@@ -1221,7 +1223,7 @@ export function Inventario() {
       categoria: product.categoria || '',
       proveedor: normalizeProveedorNombreGuardado(product.proveedor || ''),
       unidadMedida: normalizeClaveUnidadSat(product.unidadMedida),
-      claveProdServ: product.claveProdServ ?? '',
+      claveProdServ: resolveClaveProdServ(product.claveProdServ),
       ubicacionFisica:
         (product.ubicacionFisica ?? '').trim() ||
         getUbicacionesProducto(product.sku, product.codigoBarras)[0] ||
@@ -1497,7 +1499,7 @@ export function Inventario() {
       categoria: '',
       proveedor: '',
       unidadMedida: 'H87',
-      claveProdServ: '',
+      claveProdServ: DEFAULT_CLAVE_PROD_SERV,
       ubicacionFisica: '',
     });
     setPreciosListaStr(emptyPreciosListaStr());
