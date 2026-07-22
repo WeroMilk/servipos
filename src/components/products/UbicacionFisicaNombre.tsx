@@ -82,12 +82,15 @@ export function UbicacionFisicaNombre({
   }
 
   return (
-    <Popover>
+    <Popover modal={false}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent
         side="top"
         align="start"
-        className="w-72 border-slate-200 bg-slate-100 p-3 text-slate-900 shadow-lg dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+        sideOffset={6}
+        collisionPadding={12}
+        className="z-[230] w-72 border-slate-200 bg-slate-100 p-3 text-slate-900 shadow-lg dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+        onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <UbicacionFisicaContent product={product} />
       </PopoverContent>

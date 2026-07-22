@@ -26,7 +26,7 @@ import type { Product } from '@/types';
 
 type CountedLine = { id: string; nombre: string; sku: string; cantidad: number };
 
-export function InventarioPorMueble() {
+export function ConteoPorMueble() {
   const isMobile = useIsMobile();
   const { addToast } = useAppStore();
   const user = useAuthStore((s) => s.user);
@@ -183,7 +183,7 @@ export function InventarioPorMueble() {
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
         <div>
-          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Inventario por mueble</h2>
+          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Conteo por mueble</h2>
           <p className="mt-0.5 text-sm text-slate-600 dark:text-slate-400">
             Elige el mueble a inventariar. En móvil usa la cámara; en PC, la pistola escaneadora.
           </p>

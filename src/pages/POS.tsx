@@ -63,6 +63,7 @@ import {
   clearVentasAbiertasPosHeaderBridge,
 } from '@/stores/ventasAbiertasPosHeaderStore';
 import { useProductSearch, useSales, useClients, useEffectiveSucursalId, useCajaSesion } from '@/hooks';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { usePosCartCloudSync } from '@/hooks/usePosCartCloudSync';
 import { CajaPosToolbar, type CajaPosToolbarHandle } from '@/components/caja/CajaPosToolbar';
 import {
@@ -915,6 +916,7 @@ export function POS() {
   const [checkoutPaymentKey, setCheckoutPaymentKey] = useState(0);
   const [processingSale, setProcessingSale] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>('cart');
+  const isMobile = useIsMobile();
   const [globalDiscFocus, setGlobalDiscFocus] = useState(false);
   /** Fila del carrito cuyo % descuento está enfocado (vacío visual si es 0, como desc. global). */
   const [lineDiscountFocusProductId, setLineDiscountFocusProductId] = useState<string | null>(null);
@@ -3525,7 +3527,7 @@ export function POS() {
                           <div className="flex items-start gap-1">
                             <UbicacionFisicaNombre
                               product={item.product}
-                              variant="dialog"
+                              variant={isMobile ? 'dialog' : 'popover'}
                               onOpenDialog={setUbicacionDialogProduct}
                               className="min-w-0 max-w-full flex-1 rounded-md px-0.5 py-0.5 text-left transition-colors hover:bg-slate-200/70 dark:hover:bg-slate-800/60"
                               nameClassName="truncate font-medium text-slate-800 underline underline-offset-2 dark:text-slate-200"

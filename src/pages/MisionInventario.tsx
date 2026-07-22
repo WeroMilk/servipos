@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { CheckCircle2, Circle, Loader2, Pencil, Printer } from 'lucide-react';
+import { CheckCircle2, Circle, Loader2, MapPin, Pencil, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -24,6 +24,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { PageShell } from '@/components/ui-custom/PageShell';
+import { ConteoPorMueble } from '@/components/inventory/ConteoPorMueble';
 import { useProducts } from '@/hooks/useProducts';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 import { useAuthStore, useAppStore } from '@/stores';
@@ -54,6 +55,8 @@ import { userCanSeeInventoryMissions, userCanSeeMissionProgressOnly } from '@/li
 import { cn } from '@/lib/utils';
 import type { Product } from '@/types';
 
+type MissionTab = 'mueble' | 'lista';
+
 export function MisionInventario() {
   const user = useAuthStore((s) => s.user);
   const hasPermission = useAuthStore((s) => s.hasPermission);
@@ -62,6 +65,7 @@ export function MisionInventario() {
   const { products, loading, adjustStock } = useProducts();
   const { effectiveSucursalId } = useEffectiveSucursalId();
 
+  const [missionTab, setMissionTab] = useState<MissionTab>('mueble');
   const [dateKey, setDateKey] = useState(() => getMexicoDateKey());
   const [query, setQuery] = useState('');
   const [done, setDone] = useState<Set<string>>(() => new Set());
@@ -383,6 +387,45 @@ export function MisionInventario() {
 
   return (
     <PageShell title={progressOnly ? 'Progreso de inventario' : 'Misiones de inventario'}>
+      {!progressOnly ? (
+        <div className="mb-3 grid shrink-0 grid-cols-2 gap-1 rounded-xl border border-slate-200/80 bg-slate-100/90 p-1 dark:border-slate-800/60 dark:bg-slate-950/80">
+          <button
+            type="button"
+            onClick={() => setMissionTab('mueble')}
+            className={cn(
+              'flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-colors',
+              missionTab === 'mueble'
+                ? 'bg-brand/15 text-brand-to dark:bg-brand/20 dark:text-brand'
+                : 'text-slate-600 hover:bg-slate-200/80 dark:text-slate-500 dark:hover:bg-slate-800/50'
+            )}
+          >
+            <MapPin className="h-4 w-4 shrink-0" aria-hidden />
+            Por mueble
+          </button>
+          <button
+            type="button"
+            onClick={() => setMissionTab('lista')}
+            className={cn(
+              'flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-colors',
+              missionTab === 'lista'
+                ? 'bg-brand/15 text-brand-to dark:bg-brand/20 dark:text-brand'
+                : 'text-slate-600 hover:bg-slate-200/80 dark:text-slate-500 dark:hover:bg-slate-800/50'
+            )}
+          >
+            <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
+            Lista del día
+          </button>
+        </div>
+      ) : null}
+
+      {!progressOnly && missionTab === 'mueble' ? (
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <ConteoPorMueble />
+        </div>
+      ) : null}
+
+      {progressOnly || missionTab === 'lista' ? (
+        <>
       <AlertDialog
         open={pendingUncheckProduct != null}
         onOpenChange={(open) => {
@@ -688,6 +731,8 @@ export function MisionInventario() {
           </p>
         ) : null}
       </div>
+        </>
+      ) : null}
     </PageShell>
   );
 }
