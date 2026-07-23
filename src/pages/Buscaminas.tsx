@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from 'react';
 import { Navigate } from 'react-router-dom';
 import { Bomb, Flag, RotateCcw, Timer, Trophy } from 'lucide-react';
 import { PageShell } from '@/components/ui-custom/PageShell';
@@ -322,6 +322,8 @@ function BuscaminasGame() {
   const onContextMenu = (e: MouseEvent, r: number, c: number) => {
     e.preventDefault();
     e.stopPropagation();
+    clearLongPress();
+    flagGestureRef.current = false;
     toggleFlag(r, c);
   };
 
@@ -332,7 +334,9 @@ function BuscaminasGame() {
     }
   };
 
-  const onPointerDown = (r: number, c: number) => {
+  /** Mantener ≈0.5 s (toque / clic primario) = bandera. Clic derecho va por contextmenu. */
+  const onPointerDown = (e: PointerEvent, r: number, c: number) => {
+    if (e.button !== 0) return;
     flagGestureRef.current = false;
     clearLongPress();
     longPressRef.current = {
@@ -351,7 +355,11 @@ function BuscaminasGame() {
     };
   };
 
-  const onPointerUp = (r: number, c: number) => {
+  const onPointerUp = (e: PointerEvent, r: number, c: number) => {
+    if (e.button !== 0) {
+      clearLongPress();
+      return;
+    }
     clearLongPress();
     if (flagGestureRef.current) {
       flagGestureRef.current = false;
@@ -434,7 +442,7 @@ function BuscaminasGame() {
             {statusLabel}
           </span>
           <span className="text-[11px] text-slate-500 dark:text-slate-500">
-            Clic = abrir · clic derecho / mantener ≈0.5 s = bandera
+            Clic = abrir · clic derecho = bandera · mantener ≈0.5 s = bandera
           </span>
         </div>
 
@@ -455,8 +463,8 @@ function BuscaminasGame() {
                     type="button"
                     disabled={status !== 'playing' && !cell.revealed}
                     onContextMenu={(e) => onContextMenu(e, r, c)}
-                    onPointerDown={() => onPointerDown(r, c)}
-                    onPointerUp={() => onPointerUp(r, c)}
+                    onPointerDown={(e) => onPointerDown(e, r, c)}
+                    onPointerUp={(e) => onPointerUp(e, r, c)}
                     onPointerLeave={onPointerLeave}
                     onPointerCancel={onPointerLeave}
                     className={cn(
