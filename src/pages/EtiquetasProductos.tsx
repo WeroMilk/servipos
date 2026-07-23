@@ -223,17 +223,16 @@ export function EtiquetasProductos() {
       addToast({ type: 'warning', message: 'Agregue artículos antes de guardar la lista pendiente.' });
       return;
     }
+    const etiquetaCount = queue.reduce((s, l) => s + l.copies, 0);
+    const items = queueLinesToPrintItems(queue);
     setPendingBusy(true);
     try {
-      await saveEtiquetasPrintQueue(
-        sid,
-        queueLinesToPrintItems(queue),
-        user?.name || user?.username || user?.id
-      );
+      await saveEtiquetasPrintQueue(sid, items, user?.name || user?.username || user?.id);
+      setQueue([]);
       await refreshPendingCloud();
       addToast({
         type: 'success',
-        message: `Lista pendiente guardada (${queue.reduce((s, l) => s + l.copies, 0)} etiqueta(s)). En la PC ábrala y pulse Imprimir.`,
+        message: `Lista pendiente guardada (${etiquetaCount} etiqueta(s)). En la PC ábrala y pulse Imprimir.`,
       });
     } catch (e) {
       addToast({
