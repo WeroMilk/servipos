@@ -11,6 +11,7 @@ import {
   CloudUpload,
   CloudDownload,
   Plus,
+  ScanLine,
 } from 'lucide-react';
 import { useProducts } from '@/hooks/useProducts';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
@@ -19,6 +20,8 @@ import type { Product } from '@/types';
 import { cn, formatMoney } from '@/lib/utils';
 import { getProductPrecioPublicoRegular } from '@/lib/productListPricing';
 import { printProductLabels } from '@/lib/productLabelPrint';
+import { playBarcodeScannerFeedback } from '@/lib/barcodeScannerFeedback';
+import { BarcodeCameraScanner } from '@/components/scanner/BarcodeCameraScanner';
 import {
   clearEtiquetasPrintQueue,
   countEtiquetasInItems,
@@ -157,6 +160,7 @@ export function EtiquetasProductos() {
   const [labelEditNombreInput, setLabelEditNombreInput] = useState('');
   const [labelEditShowBarcode, setLabelEditShowBarcode] = useState(true);
   const [mobileScan, setMobileScan] = useState('');
+  const [mobileScannerOpen, setMobileScannerOpen] = useState(false);
   const [pendingCloud, setPendingCloud] = useState<EtiquetasPrintQueueDoc | null>(null);
   const [pendingLoading, setPendingLoading] = useState(false);
   const [pendingBusy, setPendingBusy] = useState(false);
@@ -307,21 +311,30 @@ export function EtiquetasProductos() {
     }
   }, [effectiveSucursalId, addToast]);
 
+  const addProductByCode = useCallback(
+    (rawCode: string): boolean => {
+      const code = rawCode.trim();
+      if (!code) {
+        addToast({ type: 'warning', message: 'Escanee o escriba un SKU / código de barras.' });
+        return false;
+      }
+      const product = findProductBySkuOrBarcode(activeProducts, code);
+      if (!product) {
+        playBarcodeScannerFeedback('notFound');
+        addToast({ type: 'error', message: `No se encontró: ${code}` });
+        return false;
+      }
+      setQueue((prev) => mergeIntoQueue(prev, [product], ADD_LIST_COPIES));
+      playBarcodeScannerFeedback('success');
+      addToast({ type: 'success', message: `Añadido: ${product.nombre}` });
+      return true;
+    },
+    [activeProducts, addToast]
+  );
+
   const addProductFromMobileScan = useCallback(() => {
-    const code = mobileScan.trim();
-    if (!code) {
-      addToast({ type: 'warning', message: 'Escanee o escriba un SKU / código de barras.' });
-      return;
-    }
-    const product = findProductBySkuOrBarcode(activeProducts, code);
-    if (!product) {
-      addToast({ type: 'error', message: `No se encontró: ${code}` });
-      return;
-    }
-    setQueue((prev) => mergeIntoQueue(prev, [product], ADD_LIST_COPIES));
-    setMobileScan('');
-    addToast({ type: 'success', message: `Añadido: ${product.nombre}` });
-  }, [mobileScan, activeProducts, addToast]);
+    if (addProductByCode(mobileScan)) setMobileScan('');
+  }, [addProductByCode, mobileScan]);
 
   const addAll = useCallback(() => {
     setQueue((prev) => mergeIntoQueue(prev, activeProducts, ADD_LIST_COPIES));
@@ -538,23 +551,23 @@ export function EtiquetasProductos() {
   }
 
   const mobileUi = (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 p-3 pb-24 md:hidden">
-      <div className="flex items-center gap-2">
+    <div className="flex min-h-0 flex-1 flex-col gap-2 p-3 pb-24 md:hidden">
+      <div className="flex shrink-0 items-center gap-2">
         <Tag className="h-5 w-5 shrink-0 text-brand" aria-hidden />
         <div className="min-w-0">
           <h1 className="text-base font-bold text-slate-900 dark:text-slate-100">Lista de etiquetas</h1>
           <p className="text-[11px] text-slate-500 dark:text-slate-400">
-            Guarde aquí y imprima en la PC con Brother.
+            Escanee para reponer etiquetas · imprima en la PC.
           </p>
         </div>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex shrink-0 gap-2">
         <Input
           type="text"
           inputMode="search"
           enterKeyHint="done"
-          placeholder="Escanear o SKU…"
+          placeholder="Buscar SKU o nombre…"
           value={mobileScan}
           onChange={(e) => setMobileScan(e.target.value)}
           onKeyDown={(e) => {
@@ -566,52 +579,55 @@ export function EtiquetasProductos() {
           className="h-11 flex-1"
           autoComplete="off"
         />
-        <Button type="button" className="h-11 shrink-0 gap-1 px-3" onClick={addProductFromMobileScan}>
-          <Plus className="h-4 w-4" />
-          Añadir
+        <Button
+          type="button"
+          className="h-11 shrink-0 gap-1 px-3"
+          onClick={() => setMobileScannerOpen(true)}
+        >
+          <ScanLine className="h-4 w-4" />
+          Escanear
         </Button>
       </div>
 
-      {!loading && !error ? (
-        <div className="max-h-40 space-y-1 overflow-y-auto rounded-xl border border-slate-200/80 dark:border-slate-800/50">
-          {(mobileScan.trim()
-            ? activeProducts.filter((p) => {
-                const q = mobileScan.trim().toLowerCase();
-                return (
-                  p.nombre.toLowerCase().includes(q) ||
-                  p.sku.toLowerCase().includes(q) ||
-                  (p.codigoBarras ?? '').toLowerCase().includes(q)
-                );
-              })
-            : activeProducts
-          )
-            .slice(0, 40)
+      {!loading && !error && mobileScan.trim() ? (
+        <div className="max-h-28 shrink-0 space-y-1 overflow-y-auto rounded-xl border border-slate-200/80 dark:border-slate-800/50">
+          {activeProducts
+            .filter((p) => {
+              const q = mobileScan.trim().toLowerCase();
+              return (
+                p.nombre.toLowerCase().includes(q) ||
+                p.sku.toLowerCase().includes(q) ||
+                (p.codigoBarras ?? '').toLowerCase().includes(q)
+              );
+            })
+            .slice(0, 20)
             .map((p) => {
-            const inQueue = queue.some((l) => l.productId === p.id);
-            return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => togglePickProductInQueue(p)}
-                className={cn(
-                  'flex w-full items-center gap-2 px-3 py-2 text-left text-sm',
-                  inQueue ? 'bg-brand/10' : 'hover:bg-slate-100 dark:hover:bg-slate-800/60'
-                )}
-              >
-                <span className="min-w-0 flex-1 truncate font-medium">{p.nombre}</span>
-                <span className="shrink-0 font-mono text-[11px] text-slate-500">{p.sku}</span>
-              </button>
-            );
-          })}
-          {activeProducts.length === 0 ? (
-            <p className="p-3 text-center text-xs text-slate-500">Sin productos activos.</p>
-          ) : null}
+              const inQueue = queue.some((l) => l.productId === p.id);
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => {
+                    togglePickProductInQueue(p);
+                    setMobileScan('');
+                  }}
+                  className={cn(
+                    'flex w-full items-center gap-2 px-3 py-2 text-left text-sm',
+                    inQueue ? 'bg-brand/10' : 'hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                  )}
+                >
+                  <span className="min-w-0 flex-1 truncate font-medium">{p.nombre}</span>
+                  <span className="shrink-0 font-mono text-[11px] text-slate-500">{p.sku}</span>
+                </button>
+              );
+            })}
         </div>
       ) : null}
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex shrink-0 flex-wrap gap-2">
         <Button
           type="button"
+          size="sm"
           className="gap-1.5"
           disabled={queue.length === 0 || pendingBusy || !effectiveSucursalId}
           onClick={() => void saveQueueToCloud()}
@@ -619,22 +635,24 @@ export function EtiquetasProductos() {
           <CloudUpload className="h-4 w-4" />
           {pendingBusy ? 'Guardando…' : 'Guardar lista pendiente'}
         </Button>
-        <Button type="button" variant="outline" disabled={queue.length === 0} onClick={clearQueue}>
+        <Button type="button" size="sm" variant="outline" disabled={queue.length === 0} onClick={clearQueue}>
           <Trash2 className="h-4 w-4" />
           Vaciar
         </Button>
       </div>
 
       {pendingCloud && pendingEtiquetaCount > 0 ? (
-        <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-100">
+        <p className="shrink-0 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-900 dark:text-amber-100">
           Hay {pendingEtiquetaCount} etiqueta(s) pendientes en la nube
-          {pendingCloud.updatedBy ? ` (últ. ${pendingCloud.updatedBy})` : ''}. En escritorio: Cargar e Imprimir.
+          {pendingCloud.updatedBy ? ` (últ. ${pendingCloud.updatedBy})` : ''}.
         </p>
       ) : null}
 
-      <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-slate-200/80 dark:border-slate-800/50">
+      <div className="min-h-[min(52dvh,24rem)] flex-1 overflow-y-auto rounded-xl border border-slate-200/80 dark:border-slate-800/50">
         {queue.length === 0 ? (
-          <p className="p-6 text-center text-sm text-slate-500">Lista vacía. Escanee artículos o tóquelos abajo.</p>
+          <p className="p-6 text-center text-sm text-slate-500">
+            Lista vacía. Pulse <strong>Escanear</strong> o busque por SKU.
+          </p>
         ) : (
           <ul className="divide-y divide-slate-200/80 dark:divide-slate-800/50">
             {queue.map((line) => (
@@ -667,7 +685,7 @@ export function EtiquetasProductos() {
         )}
       </div>
 
-      <p className="text-center text-[11px] text-slate-500">
+      <p className="shrink-0 text-center text-[11px] text-slate-500">
         Total:{' '}
         <span className="font-semibold tabular-nums text-slate-700 dark:text-slate-200">
           {queue.reduce((s, l) => s + l.copies, 0)}
@@ -1097,6 +1115,32 @@ export function EtiquetasProductos() {
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-y-contain">
       {mobileUi}
       {desktop}
+      <Dialog open={mobileScannerOpen} onOpenChange={setMobileScannerOpen}>
+        <DialogContent className="max-w-md gap-3 sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ScanLine className="h-5 w-5 text-brand" />
+              Escanear etiqueta
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Apunte al código de barras o SKU. Cada lectura se añade a la lista pendiente.
+          </p>
+          <BarcodeCameraScanner
+            active={mobileScannerOpen}
+            onScan={(code) => {
+              addProductByCode(code);
+            }}
+            className="min-h-[16rem] w-full"
+            elementId="etiquetas-mobile-scanner"
+          />
+          <DialogFooter>
+            <Button type="button" variant="secondary" onClick={() => setMobileScannerOpen(false)}>
+              Cerrar cámara
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog
         open={labelEditProductId != null}
         onOpenChange={(open) => {
