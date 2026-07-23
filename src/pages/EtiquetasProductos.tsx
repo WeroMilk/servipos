@@ -1127,7 +1127,7 @@ export function EtiquetasProductos() {
           <BarcodeCameraScanner
             active={mobileScannerOpen}
             onScan={(code) => {
-              addProductByCode(code);
+              if (addProductByCode(code)) setMobileScannerOpen(false);
             }}
             className="min-h-[16rem] w-full"
             elementId="etiquetas-mobile-scanner"
