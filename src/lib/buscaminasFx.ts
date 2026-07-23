@@ -90,7 +90,7 @@ export function playBuscaminasLoseSound(): void {
 
 /** Mucho confeti en pantalla (varios bursts). */
 let confettiRaf = 0;
-let confettiTimeout: ReturnType<typeof setTimeout> | null = null;
+let confettiTimeout: number | null = null;
 let confettiActive = false;
 
 /** Detiene bursts en curso y limpia partículas visibles. */
