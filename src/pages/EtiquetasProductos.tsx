@@ -10,7 +10,6 @@ import {
   Pencil,
   CloudUpload,
   CloudDownload,
-  Plus,
   ScanLine,
 } from 'lucide-react';
 import { useProducts } from '@/hooks/useProducts';
