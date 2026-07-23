@@ -311,10 +311,15 @@ export function RecepcionPedidos() {
       addToast({ type: 'success', message: 'Mercancía recibida; inventario actualizado.' });
       setReceiveOrder(null);
     } catch (e) {
+      const msg = e instanceof Error ? e.message : 'No se pudo registrar la recepción';
+      // Pedido ya guardado: cerrar diálogo y no invitar a reintentar (evitar doble stock).
+      const pedidoYaGuardado =
+        /ya quedó marcado como recibido|supera lo pendiente|no vuelva a confirmar/i.test(msg);
       addToast({
-        type: 'error',
-        message: e instanceof Error ? e.message : 'No se pudo registrar la recepción',
+        type: pedidoYaGuardado ? 'warning' : 'error',
+        message: msg,
       });
+      if (pedidoYaGuardado) setReceiveOrder(null);
     } finally {
       receivingRef.current = false;
       setReceiving(false);
@@ -668,7 +673,12 @@ export function RecepcionPedidos() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={receiveOrder != null} onOpenChange={(o) => !o && setReceiveOrder(null)}>
+      <Dialog
+        open={receiveOrder != null}
+        onOpenChange={(o) => {
+          if (!o && !receiving) setReceiveOrder(null);
+        }}
+      >
         <DialogContent className="max-h-[92dvh] overflow-y-auto border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -789,7 +799,12 @@ export function RecepcionPedidos() {
                 })}
               </div>
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setReceiveOrder(null)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={receiving}
+                  onClick={() => setReceiveOrder(null)}
+                >
                   Cancelar
                 </Button>
                 <Button

@@ -55,19 +55,26 @@ export type ApplyPurchaseOrderReceiveDeps = {
   getProduct: (id: string) => Product | undefined;
 };
 
-/** Aplica entradas de stock y opcionalmente actualiza precio de compra en catálogo. */
-export async function applyPurchaseOrderReceive(
-  order: PurchaseOrder,
-  lines: PurchaseOrderReceiveLineInput[],
-  deps: ApplyPurchaseOrderReceiveDeps
-): Promise<PurchaseOrderItem[]> {
-  const byLine = new Map(lines.map((l) => [l.lineId, l]));
-  const ref = order.numeroFactura?.trim()
-    ? `Pedido ${order.folio} · Fact. ${order.numeroFactura.trim()}`
-    : `Pedido ${order.folio}`;
-  const motivoBase = `RECEPCIÓN ${order.folio}`;
+export type PurchaseOrderReceiveStockOp = {
+  productId: string;
+  nombre?: string;
+  qtyIn: number;
+  precioUnitarioCompra?: number;
+  actualizarPrecioCompra: boolean;
+};
 
-  const nextItems: PurchaseOrderItem[] = [];
+/**
+ * Valida cantidades y calcula el pedido resultante sin tocar inventario.
+ * Debe persistirse en el pedido *antes* de aplicar stock para evitar duplicados
+ * si el usuario reintenta tras un error parcial.
+ */
+export function planPurchaseOrderReceive(
+  order: PurchaseOrder,
+  lines: PurchaseOrderReceiveLineInput[]
+): { nextProductos: PurchaseOrderItem[]; stockOps: PurchaseOrderReceiveStockOp[] } {
+  const byLine = new Map(lines.map((l) => [l.lineId, l]));
+  const nextProductos: PurchaseOrderItem[] = [];
+  const stockOps: PurchaseOrderReceiveStockOp[] = [];
 
   for (const item of order.productos) {
     const input = byLine.get(item.lineId);
@@ -75,49 +82,28 @@ export async function applyPurchaseOrderReceive(
     const pendiente = purchaseOrderPendienteLinea(item);
     if (qtyIn > pendiente) {
       throw new Error(
-        `La cantidad a recibir de «${item.nombre ?? item.productId}» (${qtyIn}) supera lo pendiente (${pendiente}).`
+        `La cantidad a recibir de «${item.nombre ?? item.productId}» (${qtyIn}) supera lo pendiente (${pendiente}). Si ya confirmó antes, revise el historial de abasto: no vuelva a confirmar.`
       );
     }
+
+    const pu =
+      input?.precioUnitarioCompra != null && Number.isFinite(input.precioUnitarioCompra)
+        ? input.precioUnitarioCompra
+        : item.precioUnitarioCompra;
+    const actualizar =
+      input?.actualizarPrecioCompra !== false && item.actualizarPrecioCompra !== false;
 
     if (qtyIn > 0) {
-      const pu =
-        input?.precioUnitarioCompra != null && Number.isFinite(input.precioUnitarioCompra)
-          ? input.precioUnitarioCompra
-          : item.precioUnitarioCompra;
-      await deps.adjustStock(
-        item.productId,
+      stockOps.push({
+        productId: item.productId,
+        nombre: item.nombre,
         qtyIn,
-        'entrada',
-        motivoBase,
-        ref,
-        order.usuarioId ?? 'system',
-        {
-          proveedor: order.proveedor?.trim() || undefined,
-          proveedorCodigo: order.proveedorCodigo,
-          precioUnitarioCompra: pu != null && pu > 0 ? pu : undefined,
-        }
-      );
-
-      const actualizar =
-        input?.actualizarPrecioCompra !== false &&
-        (item.actualizarPrecioCompra !== false);
-      if (actualizar && pu != null && pu > 0) {
-        const prod = deps.getProduct(item.productId);
-        if (prod && Math.abs((prod.precioCompra ?? 0) - pu) > 0.0001) {
-          try {
-            await deps.editProduct(item.productId, { precioCompra: pu });
-          } catch (err) {
-            // El stock ya entró: no abortar toda la recepción por fallo de precio.
-            console.warn(
-              `[recepción ${order.folio}] No se pudo actualizar precio de compra de ${item.productId}:`,
-              err
-            );
-          }
-        }
-      }
+        precioUnitarioCompra: pu,
+        actualizarPrecioCompra: actualizar,
+      });
     }
 
-    nextItems.push({
+    nextProductos.push({
       ...item,
       cantidadRecibida: Math.max(0, Number(item.cantidadRecibida) || 0) + qtyIn,
       precioUnitarioCompra:
@@ -129,7 +115,65 @@ export async function applyPurchaseOrderReceive(
     });
   }
 
-  return nextItems;
+  return { nextProductos, stockOps };
+}
+
+/** Aplica entradas de stock (y precio de compra best-effort) según un plan ya validado. */
+export async function applyPurchaseOrderReceiveStock(
+  order: PurchaseOrder,
+  stockOps: PurchaseOrderReceiveStockOp[],
+  deps: ApplyPurchaseOrderReceiveDeps
+): Promise<void> {
+  const ref = order.numeroFactura?.trim()
+    ? `Pedido ${order.folio} · Fact. ${order.numeroFactura.trim()}`
+    : `Pedido ${order.folio}`;
+  const motivoBase = `RECEPCIÓN ${order.folio}`;
+
+  for (const op of stockOps) {
+    const pu = op.precioUnitarioCompra;
+    await deps.adjustStock(
+      op.productId,
+      op.qtyIn,
+      'entrada',
+      motivoBase,
+      ref,
+      order.usuarioId ?? 'system',
+      {
+        proveedor: order.proveedor?.trim() || undefined,
+        proveedorCodigo: order.proveedorCodigo,
+        precioUnitarioCompra: pu != null && pu > 0 ? pu : undefined,
+      }
+    );
+
+    if (op.actualizarPrecioCompra && pu != null && pu > 0) {
+      const prod = deps.getProduct(op.productId);
+      if (prod && Math.abs((prod.precioCompra ?? 0) - pu) > 0.0001) {
+        try {
+          await deps.editProduct(op.productId, { precioCompra: pu });
+        } catch (err) {
+          // El stock ya entró: no abortar la recepción por fallo de precio.
+          console.warn(
+            `[recepción ${order.folio}] No se pudo actualizar precio de compra de ${op.productId}:`,
+            err
+          );
+        }
+      }
+    }
+  }
+}
+
+/**
+ * @deprecated Preferir planPurchaseOrderReceive + persist + applyPurchaseOrderReceiveStock
+ * (pedido primero) para no duplicar inventario ante reintentos.
+ */
+export async function applyPurchaseOrderReceive(
+  order: PurchaseOrder,
+  lines: PurchaseOrderReceiveLineInput[],
+  deps: ApplyPurchaseOrderReceiveDeps
+): Promise<PurchaseOrderItem[]> {
+  const { nextProductos, stockOps } = planPurchaseOrderReceive(order, lines);
+  await applyPurchaseOrderReceiveStock(order, stockOps, deps);
+  return nextProductos;
 }
 
 /**

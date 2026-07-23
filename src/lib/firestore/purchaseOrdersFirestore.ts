@@ -103,6 +103,22 @@ export async function createPurchaseOrderFirestore(
   return mapPurchaseOrder(sucursalId, id, doc);
 }
 
+export async function getPurchaseOrderFirestore(
+  sucursalId: string,
+  orderId: string
+): Promise<PurchaseOrder | null> {
+  const supabase = getSupabase();
+  const { data: row, error } = await supabase
+    .from('purchase_orders')
+    .select('id, doc')
+    .eq('sucursal_id', sucursalId)
+    .eq('id', orderId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!row?.doc) return null;
+  return mapPurchaseOrder(sucursalId, row.id, row.doc as Record<string, unknown>);
+}
+
 export async function updatePurchaseOrderFirestore(
   sucursalId: string,
   orderId: string,

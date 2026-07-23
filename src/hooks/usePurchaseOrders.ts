@@ -9,19 +9,36 @@ import {
 } from '@/db/database';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 import {
-  applyPurchaseOrderReceive,
+  applyPurchaseOrderReceiveStock,
   cancelPurchaseOrderPendingLine,
   derivePurchaseOrderEstado,
-  purchaseOrderPendienteLinea,
+  planPurchaseOrderReceive,
   type PurchaseOrderReceiveLineInput,
 } from '@/lib/purchaseOrderLogic';
 import {
   createPurchaseOrderFirestore,
   deletePurchaseOrderFirestore,
+  getPurchaseOrderFirestore,
   subscribePurchaseOrdersCatalog,
   updatePurchaseOrderFirestore,
 } from '@/lib/firestore/purchaseOrdersFirestore';
 import { useProducts } from '@/hooks/useProducts';
+
+async function persistWithRetry(fn: () => Promise<void>, attempts = 3): Promise<void> {
+  let last: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      await fn();
+      return;
+    } catch (err) {
+      last = err;
+      if (i < attempts - 1) {
+        await new Promise((r) => setTimeout(r, 250 * (i + 1)));
+      }
+    }
+  }
+  throw last instanceof Error ? last : new Error(String(last ?? 'error desconocido'));
+}
 
 export function usePurchaseOrders() {
   const { effectiveSucursalId } = useEffectiveSucursalId();
@@ -83,6 +100,18 @@ export function usePurchaseOrders() {
     }
   };
 
+  const resolveFreshOrder = async (orderId: string): Promise<PurchaseOrder> => {
+    if (effectiveSucursalId) {
+      const fresh = await getPurchaseOrderFirestore(effectiveSucursalId, orderId);
+      if (!fresh) throw new Error('Pedido no encontrado. Actualice la lista e intente de nuevo.');
+      return fresh;
+    }
+    const list = await getPurchaseOrders(effectiveSucursalId);
+    const fresh = list.find((o) => o.id === orderId);
+    if (!fresh) throw new Error('Pedido no encontrado. Actualice la lista e intente de nuevo.');
+    return fresh;
+  };
+
   const receiveOrderLines = async (
     order: PurchaseOrder,
     lines: PurchaseOrderReceiveLineInput[]
@@ -90,53 +119,44 @@ export function usePurchaseOrders() {
     const hasQty = lines.some((l) => (Number(l.cantidadRecibir) || 0) > 0);
     if (!hasQty) throw new Error('Indique al menos una cantidad a recibir.');
 
-    // Revalidar pendientes con el pedido más reciente en memoria (evita reintentos ciegos).
-    for (const line of lines) {
-      const qtyIn = Math.max(0, Math.floor(Number(line.cantidadRecibir) || 0));
-      if (qtyIn <= 0) continue;
-      const item = order.productos.find((p) => p.lineId === line.lineId);
-      if (!item) throw new Error('Línea de pedido no encontrada.');
-      const pendiente = purchaseOrderPendienteLinea(item);
-      if (qtyIn > pendiente) {
-        throw new Error(
-          `La cantidad a recibir de «${item.nombre ?? item.productId}» (${qtyIn}) supera lo pendiente (${pendiente}). Si ya confirmó antes y vio error, revise el historial de abasto antes de reintentar.`
-        );
-      }
+    // Siempre contra el pedido en BD (no el snapshot del diálogo), para bloquear reintentos.
+    const fresh = await resolveFreshOrder(order.id);
+    if (fresh.estado === 'cancelada') {
+      throw new Error('Este pedido está cancelado; no se puede recibir mercancía.');
     }
 
-    const nextProductos = await applyPurchaseOrderReceive(order, lines, {
-      adjustStock,
-      editProduct,
-      getProduct: (id) => products.find((p) => p.id === id),
-    });
+    const { nextProductos, stockOps } = planPurchaseOrderReceive(fresh, lines);
+    if (stockOps.length === 0) {
+      throw new Error('Indique al menos una cantidad a recibir.');
+    }
+
     const estado = derivePurchaseOrderEstado(nextProductos);
     const updates: Partial<PurchaseOrder> = { productos: nextProductos, estado };
 
     const persistOrder = async () => {
       if (effectiveSucursalId) {
-        await updatePurchaseOrderFirestore(effectiveSucursalId, order.id, updates);
+        await updatePurchaseOrderFirestore(effectiveSucursalId, fresh.id, updates);
       } else {
-        await updatePurchaseOrder(order.id, updates);
+        await updatePurchaseOrder(fresh.id, updates);
         await loadLocal();
       }
     };
 
+    // 1) Guardar cantidades recibidas PRIMERO → un reintento ya no tiene pendiente.
+    await persistWithRetry(persistOrder, 3);
+
+    // 2) Inventario después. Si falla, el pedido ya no invita a recibir de nuevo.
     try {
-      await persistOrder();
-    } catch (firstErr) {
-      try {
-        await persistOrder();
-      } catch (secondErr) {
-        const detail =
-          secondErr instanceof Error
-            ? secondErr.message
-            : firstErr instanceof Error
-              ? firstErr.message
-              : 'error desconocido';
-        throw new Error(
-          `El inventario ya se actualizó, pero no se pudo guardar el pedido (${detail}). No vuelva a confirmar: revise el pedido y el historial de abasto.`
-        );
-      }
+      await applyPurchaseOrderReceiveStock(fresh, stockOps, {
+        adjustStock,
+        editProduct,
+        getProduct: (id) => products.find((p) => p.id === id),
+      });
+    } catch (stockErr) {
+      const detail = stockErr instanceof Error ? stockErr.message : 'error desconocido';
+      throw new Error(
+        `El pedido ya quedó marcado como recibido, pero falló al actualizar el inventario (${detail}). No vuelva a confirmar esta recepción: revise el historial de abasto y ajuste existencias si hace falta.`
+      );
     }
   };
 
