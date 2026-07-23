@@ -1,12 +1,33 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { Printer, Tag, Trash2, Package, ArrowLeft, ListFilter, Pencil } from 'lucide-react';
+import {
+  Printer,
+  Tag,
+  Trash2,
+  Package,
+  ArrowLeft,
+  ListFilter,
+  Pencil,
+  CloudUpload,
+  CloudDownload,
+  Plus,
+} from 'lucide-react';
 import { useProducts } from '@/hooks/useProducts';
+import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 import { useAuthStore, useAppStore } from '@/stores';
 import type { Product } from '@/types';
 import { cn, formatMoney } from '@/lib/utils';
 import { getProductPrecioPublicoRegular } from '@/lib/productListPricing';
 import { printProductLabels } from '@/lib/productLabelPrint';
+import {
+  clearEtiquetasPrintQueue,
+  countEtiquetasInItems,
+  hydrateEtiquetasPrintQueue,
+  loadEtiquetasPrintQueue,
+  queueLinesToPrintItems,
+  saveEtiquetasPrintQueue,
+  type EtiquetasPrintQueueDoc,
+} from '@/lib/etiquetasPrintQueue';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -121,8 +142,10 @@ const ADD_LIST_COPIES = 1;
 
 export function EtiquetasProductos() {
   const hasPermission = useAuthStore((s) => s.hasPermission);
+  const user = useAuthStore((s) => s.user);
   const { addToast } = useAppStore();
   const { products, loading, error } = useProducts();
+  const { effectiveSucursalId } = useEffectiveSucursalId();
 
   const [queue, setQueue] = useState<QueueLine[]>([]);
   const [familyPick, setFamilyPick] = useState<Record<string, boolean>>({});
@@ -133,6 +156,10 @@ export function EtiquetasProductos() {
   const [labelEditPriceInput, setLabelEditPriceInput] = useState('');
   const [labelEditNombreInput, setLabelEditNombreInput] = useState('');
   const [labelEditShowBarcode, setLabelEditShowBarcode] = useState(true);
+  const [mobileScan, setMobileScan] = useState('');
+  const [pendingCloud, setPendingCloud] = useState<EtiquetasPrintQueueDoc | null>(null);
+  const [pendingLoading, setPendingLoading] = useState(false);
+  const [pendingBusy, setPendingBusy] = useState(false);
 
   const activeProducts = useMemo(
     () => products.filter((p) => p.activo).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')),
@@ -158,6 +185,143 @@ export function EtiquetasProductos() {
       return n.includes(q) || sku.includes(q) || cb.includes(q);
     });
   }, [activeProducts, search]);
+
+  const refreshPendingCloud = useCallback(async () => {
+    const sid = effectiveSucursalId?.trim();
+    if (!sid) {
+      setPendingCloud(null);
+      return;
+    }
+    setPendingLoading(true);
+    try {
+      const doc = await loadEtiquetasPrintQueue(sid);
+      setPendingCloud(doc);
+    } catch (e) {
+      console.warn('[Etiquetas] No se pudo cargar lista pendiente:', e);
+      setPendingCloud(null);
+    } finally {
+      setPendingLoading(false);
+    }
+  }, [effectiveSucursalId]);
+
+  useEffect(() => {
+    void refreshPendingCloud();
+  }, [refreshPendingCloud]);
+
+  const pendingEtiquetaCount = pendingCloud ? countEtiquetasInItems(pendingCloud.items) : 0;
+
+  const saveQueueToCloud = useCallback(async () => {
+    const sid = effectiveSucursalId?.trim();
+    if (!sid) {
+      addToast({ type: 'warning', message: 'No hay sucursal activa para guardar la lista.' });
+      return;
+    }
+    if (queue.length === 0) {
+      addToast({ type: 'warning', message: 'Agregue artículos antes de guardar la lista pendiente.' });
+      return;
+    }
+    setPendingBusy(true);
+    try {
+      await saveEtiquetasPrintQueue(
+        sid,
+        queueLinesToPrintItems(queue),
+        user?.name || user?.username || user?.id
+      );
+      await refreshPendingCloud();
+      addToast({
+        type: 'success',
+        message: `Lista pendiente guardada (${queue.reduce((s, l) => s + l.copies, 0)} etiqueta(s)). En la PC ábrala y pulse Imprimir.`,
+      });
+    } catch (e) {
+      addToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'No se pudo guardar la lista pendiente.',
+      });
+    } finally {
+      setPendingBusy(false);
+    }
+  }, [effectiveSucursalId, queue, user, addToast, refreshPendingCloud]);
+
+  const loadPendingIntoQueue = useCallback(async () => {
+    const sid = effectiveSucursalId?.trim();
+    if (!sid || !pendingCloud?.items.length) {
+      addToast({ type: 'warning', message: 'No hay lista pendiente en la nube.' });
+      return;
+    }
+    setPendingBusy(true);
+    try {
+      const { lines, missingIds } = hydrateEtiquetasPrintQueue(pendingCloud.items, activeProducts);
+      if (lines.length === 0) {
+        addToast({
+          type: 'error',
+          message: 'Ningún artículo de la lista pendiente está en el catálogo activo.',
+        });
+        return;
+      }
+      setQueue((prev) => {
+        const map = new Map(prev.map((l) => [l.productId, { ...l }]));
+        for (const line of lines) {
+          const cur = map.get(line.productId);
+          if (cur) {
+            cur.copies += line.copies;
+            if (line.customLabelPrice != null) cur.customLabelPrice = line.customLabelPrice;
+            if (line.customLabelNombre) cur.customLabelNombre = line.customLabelNombre;
+            if (line.labelShowBarcode === false) cur.labelShowBarcode = false;
+          } else {
+            map.set(line.productId, line);
+          }
+        }
+        return Array.from(map.values());
+      });
+      if (missingIds.length > 0) {
+        addToast({
+          type: 'warning',
+          message: `Cargados ${lines.length} artículo(s). ${missingIds.length} ya no están en el catálogo.`,
+        });
+      } else {
+        addToast({
+          type: 'success',
+          message: `Lista pendiente cargada (${lines.reduce((s, l) => s + l.copies, 0)} etiqueta(s)).`,
+        });
+      }
+    } finally {
+      setPendingBusy(false);
+    }
+  }, [effectiveSucursalId, pendingCloud, activeProducts, addToast]);
+
+  const discardPendingCloud = useCallback(async () => {
+    const sid = effectiveSucursalId?.trim();
+    if (!sid) return;
+    setPendingBusy(true);
+    try {
+      await clearEtiquetasPrintQueue(sid);
+      setPendingCloud(null);
+      addToast({ type: 'success', message: 'Lista pendiente descartada.' });
+    } catch (e) {
+      addToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'No se pudo descartar la lista pendiente.',
+      });
+    } finally {
+      setPendingBusy(false);
+    }
+  }, [effectiveSucursalId, addToast]);
+
+  const addProductFromMobileScan = useCallback(() => {
+    const code = mobileScan.trim();
+    if (!code) {
+      addToast({ type: 'warning', message: 'Escanee o escriba un SKU / código de barras.' });
+      return;
+    }
+    const product = findProductBySkuOrBarcode(activeProducts, code);
+    if (!product) {
+      addToast({ type: 'error', message: `No se encontró: ${code}` });
+      return;
+    }
+    setQueue((prev) => mergeIntoQueue(prev, [product], ADD_LIST_COPIES));
+    setMobileScan('');
+    addToast({ type: 'success', message: `Añadido: ${product.nombre}` });
+  }, [mobileScan, activeProducts, addToast]);
 
   const addAll = useCallback(() => {
     setQueue((prev) => mergeIntoQueue(prev, activeProducts, ADD_LIST_COPIES));
@@ -261,8 +425,14 @@ export function EtiquetasProductos() {
 
   const clearQueue = useCallback(() => {
     setQueue([]);
+    const sid = effectiveSucursalId?.trim();
+    if (sid && pendingCloud?.items.length) {
+      void clearEtiquetasPrintQueue(sid)
+        .then(() => setPendingCloud(null))
+        .catch((e) => console.warn('[Etiquetas] No se pudo limpiar pendiente en nube:', e));
+    }
     addToast({ type: 'success', message: 'Lista de etiquetas vaciada.' });
-  }, [addToast]);
+  }, [addToast, effectiveSucursalId, pendingCloud]);
 
   const updateCopies = useCallback((productId: string, copies: number) => {
     const c = Math.max(1, Math.min(999, Math.floor(copies) || 1));
@@ -346,11 +516,17 @@ export function EtiquetasProductos() {
     }
     closeLabelEdit();
     setQueue([]);
+    const sid = effectiveSucursalId?.trim();
+    if (sid) {
+      void clearEtiquetasPrintQueue(sid)
+        .then(() => setPendingCloud(null))
+        .catch((e) => console.warn('[Etiquetas] No se pudo limpiar pendiente tras imprimir:', e));
+    }
     addToast({
       type: 'success',
       message: 'Use el cuadro de impresión del sistema para finalizar. La lista quedó vacía.',
     });
-  }, [queue, addToast, closeLabelEdit]);
+  }, [queue, addToast, closeLabelEdit, effectiveSucursalId]);
 
   const editingLine = useMemo(
     () => (labelEditProductId ? queue.find((l) => l.productId === labelEditProductId) ?? null : null),
@@ -361,19 +537,143 @@ export function EtiquetasProductos() {
     return <Navigate to="/" replace />;
   }
 
-  const mobileBlock = (
-    <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 p-6 text-center md:hidden">
-      <Tag className="h-14 w-14 text-slate-400" aria-hidden />
-      <div className="max-w-sm space-y-2">
-        <p className="text-base font-semibold text-slate-900 dark:text-slate-100">Solo en escritorio</p>
-        <p className="text-sm text-slate-600 dark:text-slate-400">
-          La preparación e impresión de etiquetas físicas está pensada para pantalla grande y el navegador en
-          el equipo donde está la impresora Brother.
-        </p>
+  const mobileUi = (
+    <div className="flex min-h-0 flex-1 flex-col gap-3 p-3 pb-24 md:hidden">
+      <div className="flex items-center gap-2">
+        <Tag className="h-5 w-5 shrink-0 text-brand" aria-hidden />
+        <div className="min-w-0">
+          <h1 className="text-base font-bold text-slate-900 dark:text-slate-100">Lista de etiquetas</h1>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+            Guarde aquí y imprima en la PC con Brother.
+          </p>
+        </div>
       </div>
-      <Button asChild variant="secondary">
-        <Link to="/inventario">Ir al inventario</Link>
-      </Button>
+
+      <div className="flex gap-2">
+        <Input
+          type="text"
+          inputMode="search"
+          enterKeyHint="done"
+          placeholder="Escanear o SKU…"
+          value={mobileScan}
+          onChange={(e) => setMobileScan(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              addProductFromMobileScan();
+            }
+          }}
+          className="h-11 flex-1"
+          autoComplete="off"
+        />
+        <Button type="button" className="h-11 shrink-0 gap-1 px-3" onClick={addProductFromMobileScan}>
+          <Plus className="h-4 w-4" />
+          Añadir
+        </Button>
+      </div>
+
+      {!loading && !error ? (
+        <div className="max-h-40 space-y-1 overflow-y-auto rounded-xl border border-slate-200/80 dark:border-slate-800/50">
+          {(mobileScan.trim()
+            ? activeProducts.filter((p) => {
+                const q = mobileScan.trim().toLowerCase();
+                return (
+                  p.nombre.toLowerCase().includes(q) ||
+                  p.sku.toLowerCase().includes(q) ||
+                  (p.codigoBarras ?? '').toLowerCase().includes(q)
+                );
+              })
+            : activeProducts
+          )
+            .slice(0, 40)
+            .map((p) => {
+            const inQueue = queue.some((l) => l.productId === p.id);
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => togglePickProductInQueue(p)}
+                className={cn(
+                  'flex w-full items-center gap-2 px-3 py-2 text-left text-sm',
+                  inQueue ? 'bg-brand/10' : 'hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                )}
+              >
+                <span className="min-w-0 flex-1 truncate font-medium">{p.nombre}</span>
+                <span className="shrink-0 font-mono text-[11px] text-slate-500">{p.sku}</span>
+              </button>
+            );
+          })}
+          {activeProducts.length === 0 ? (
+            <p className="p-3 text-center text-xs text-slate-500">Sin productos activos.</p>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          className="gap-1.5"
+          disabled={queue.length === 0 || pendingBusy || !effectiveSucursalId}
+          onClick={() => void saveQueueToCloud()}
+        >
+          <CloudUpload className="h-4 w-4" />
+          {pendingBusy ? 'Guardando…' : 'Guardar lista pendiente'}
+        </Button>
+        <Button type="button" variant="outline" disabled={queue.length === 0} onClick={clearQueue}>
+          <Trash2 className="h-4 w-4" />
+          Vaciar
+        </Button>
+      </div>
+
+      {pendingCloud && pendingEtiquetaCount > 0 ? (
+        <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-100">
+          Hay {pendingEtiquetaCount} etiqueta(s) pendientes en la nube
+          {pendingCloud.updatedBy ? ` (últ. ${pendingCloud.updatedBy})` : ''}. En escritorio: Cargar e Imprimir.
+        </p>
+      ) : null}
+
+      <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-slate-200/80 dark:border-slate-800/50">
+        {queue.length === 0 ? (
+          <p className="p-6 text-center text-sm text-slate-500">Lista vacía. Escanee artículos o tóquelos abajo.</p>
+        ) : (
+          <ul className="divide-y divide-slate-200/80 dark:divide-slate-800/50">
+            {queue.map((line) => (
+              <li key={line.key} className="flex items-center gap-2 px-3 py-2.5">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{labelNombreMostrado(line)}</p>
+                  <p className="text-[11px] text-slate-500">{line.product.sku}</p>
+                </div>
+                <Input
+                  type="number"
+                  min={1}
+                  max={999}
+                  className="h-9 w-14"
+                  value={line.copies}
+                  onChange={(e) => updateCopies(line.productId, Number(e.target.value))}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 shrink-0"
+                  onClick={() => removeLine(line.productId)}
+                  aria-label="Quitar"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <p className="text-center text-[11px] text-slate-500">
+        Total:{' '}
+        <span className="font-semibold tabular-nums text-slate-700 dark:text-slate-200">
+          {queue.reduce((s, l) => s + l.copies, 0)}
+        </span>{' '}
+        etiqueta(s) · sin impresión en móvil
+      </p>
     </div>
   );
 
@@ -393,7 +693,49 @@ export function EtiquetasProductos() {
             </h1>
           </div>
         </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          disabled={pendingBusy || !effectiveSucursalId || queue.length === 0}
+          onClick={() => void saveQueueToCloud()}
+        >
+          <CloudUpload className="h-4 w-4" />
+          Guardar pendiente
+        </Button>
       </div>
+
+      {pendingLoading ? (
+        <p className="text-xs text-slate-500">Buscando lista pendiente…</p>
+      ) : pendingCloud && pendingEtiquetaCount > 0 ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-500/35 bg-amber-500/10 px-3 py-2.5 dark:border-amber-500/40 dark:bg-amber-950/30">
+          <p className="min-w-0 flex-1 text-sm text-amber-950 dark:text-amber-50">
+            Hay <strong className="tabular-nums">{pendingEtiquetaCount}</strong> etiqueta(s) pendientes
+            ({pendingCloud.items.length} artículo(s))
+            {pendingCloud.updatedBy ? ` · ${pendingCloud.updatedBy}` : ''}.
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            className="gap-1.5"
+            disabled={pendingBusy}
+            onClick={() => void loadPendingIntoQueue()}
+          >
+            <CloudDownload className="h-4 w-4" />
+            Cargar
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={pendingBusy}
+            onClick={() => void discardPendingCloud()}
+          >
+            Descartar pendiente
+          </Button>
+        </div>
+      ) : null}
 
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)] lg:grid-rows-[minmax(0,1fr)] lg:items-stretch lg:overflow-hidden">
         <Card className="flex min-h-0 flex-1 flex-col border-slate-200/80 dark:border-slate-800/50 lg:min-h-0 lg:h-full">
@@ -753,7 +1095,7 @@ export function EtiquetasProductos() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-y-contain">
-      {mobileBlock}
+      {mobileUi}
       {desktop}
       <Dialog
         open={labelEditProductId != null}

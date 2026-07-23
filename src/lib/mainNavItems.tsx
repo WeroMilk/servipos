@@ -50,7 +50,6 @@ export const MAIN_NAV_ITEMS: MainNavItem[] = [
     label: 'Etiquetas',
     shortLabel: 'Etiquetas',
     permission: 'inventario:ver',
-    desktopOnly: true,
   },
   {
     to: '/mision-inventario',
