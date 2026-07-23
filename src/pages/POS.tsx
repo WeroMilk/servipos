@@ -909,6 +909,7 @@ export function POS() {
   }, [showClientDialog]);
 
   const [montoRecibidoInput, setMontoRecibidoInput] = useState('');
+  const montoRecibidoInputRef = useRef<HTMLInputElement>(null);
   const [checkoutClienteNombre, setCheckoutClienteNombre] = useState('');
   /** En parcialidades (PPD), medio del próximo abono (mezcla efectivo + tarjetas sin cambiar el selector lateral). */
   const [ppdAbonoFormaPago, setPpdAbonoFormaPago] = useState('01');
@@ -4555,6 +4556,24 @@ export function POS() {
               ? 'max-h-[min(88dvh,calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-4.5rem))] w-[min(calc(100vw-1rem),28rem)] min-w-0 overflow-y-auto overflow-x-auto overscroll-y-contain px-4 py-4 pl-4 pr-12 sm:top-[50%] sm:max-h-[calc(100dvh-2.5rem)] sm:w-[min(calc(100vw-2rem),32rem)] sm:p-6 sm:pr-14 md:w-[min(calc(100vw-2rem),40rem)] lg:w-[min(calc(100vw-2rem),48rem)] md:overflow-x-hidden'
               : 'w-[min(calc(100vw-1rem),24rem)] min-w-0 px-4 py-4 pl-4 pr-12 sm:max-w-sm sm:p-6 sm:pr-14 md:w-[min(calc(100vw-2rem),28rem)]'
           )}
+          onOpenAutoFocus={(e) => {
+            if (
+              checkoutPhase !== 'payment' ||
+              cobroTarjetaPue ||
+              esTraspasoTienda ||
+              checkoutDevolucionListo ||
+              formaPago === 'PPC'
+            ) {
+              return;
+            }
+            e.preventDefault();
+            requestAnimationFrame(() => {
+              const el = montoRecibidoInputRef.current;
+              if (!el) return;
+              el.focus();
+              el.select();
+            });
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && checkoutPhase === 'success') {
               const t = e.target as HTMLElement;
@@ -4743,6 +4762,7 @@ export function POS() {
                     <Label>Monto recibido</Label>
                     <div className="flex gap-2">
                       <Input
+                        ref={montoRecibidoInputRef}
                         type="text"
                         inputMode="decimal"
                         placeholder="0.00"
