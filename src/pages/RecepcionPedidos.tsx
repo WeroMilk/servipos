@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { Plus, PackageCheck, Search, Truck, X, Trash2, Eye, DollarSign } from 'lucide-react';
 import { PageShell } from '@/components/ui-custom/PageShell';
@@ -104,6 +104,7 @@ export function RecepcionPedidos() {
     Record<string, { cantidadRecibir: number; actualizarPrecioCompra: boolean }>
   >({});
   const [receiving, setReceiving] = useState(false);
+  const receivingRef = useRef(false);
   const [cancelPendienteTarget, setCancelPendienteTarget] = useState<{
     order: PurchaseOrder;
     line: PurchaseOrder['productos'][number];
@@ -294,6 +295,8 @@ export function RecepcionPedidos() {
 
   const handleReceive = async () => {
     if (!receiveOrder) return;
+    if (receivingRef.current) return;
+    receivingRef.current = true;
     setReceiving(true);
     try {
       await receiveOrderLines(
@@ -313,6 +316,7 @@ export function RecepcionPedidos() {
         message: e instanceof Error ? e.message : 'No se pudo registrar la recepción',
       });
     } finally {
+      receivingRef.current = false;
       setReceiving(false);
     }
   };

@@ -104,7 +104,15 @@ export async function applyPurchaseOrderReceive(
       if (actualizar && pu != null && pu > 0) {
         const prod = deps.getProduct(item.productId);
         if (prod && Math.abs((prod.precioCompra ?? 0) - pu) > 0.0001) {
-          await deps.editProduct(item.productId, { precioCompra: pu });
+          try {
+            await deps.editProduct(item.productId, { precioCompra: pu });
+          } catch (err) {
+            // El stock ya entró: no abortar toda la recepción por fallo de precio.
+            console.warn(
+              `[recepción ${order.folio}] No se pudo actualizar precio de compra de ${item.productId}:`,
+              err
+            );
+          }
         }
       }
     }

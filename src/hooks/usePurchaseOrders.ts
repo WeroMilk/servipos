@@ -12,6 +12,7 @@ import {
   applyPurchaseOrderReceive,
   cancelPurchaseOrderPendingLine,
   derivePurchaseOrderEstado,
+  purchaseOrderPendienteLinea,
   type PurchaseOrderReceiveLineInput,
 } from '@/lib/purchaseOrderLogic';
 import {
@@ -89,6 +90,20 @@ export function usePurchaseOrders() {
     const hasQty = lines.some((l) => (Number(l.cantidadRecibir) || 0) > 0);
     if (!hasQty) throw new Error('Indique al menos una cantidad a recibir.');
 
+    // Revalidar pendientes con el pedido más reciente en memoria (evita reintentos ciegos).
+    for (const line of lines) {
+      const qtyIn = Math.max(0, Math.floor(Number(line.cantidadRecibir) || 0));
+      if (qtyIn <= 0) continue;
+      const item = order.productos.find((p) => p.lineId === line.lineId);
+      if (!item) throw new Error('Línea de pedido no encontrada.');
+      const pendiente = purchaseOrderPendienteLinea(item);
+      if (qtyIn > pendiente) {
+        throw new Error(
+          `La cantidad a recibir de «${item.nombre ?? item.productId}» (${qtyIn}) supera lo pendiente (${pendiente}). Si ya confirmó antes y vio error, revise el historial de abasto antes de reintentar.`
+        );
+      }
+    }
+
     const nextProductos = await applyPurchaseOrderReceive(order, lines, {
       adjustStock,
       editProduct,
@@ -96,15 +111,32 @@ export function usePurchaseOrders() {
     });
     const estado = derivePurchaseOrderEstado(nextProductos);
     const updates: Partial<PurchaseOrder> = { productos: nextProductos, estado };
-    try {
+
+    const persistOrder = async () => {
       if (effectiveSucursalId) {
         await updatePurchaseOrderFirestore(effectiveSucursalId, order.id, updates);
       } else {
         await updatePurchaseOrder(order.id, updates);
         await loadLocal();
       }
-    } catch (err) {
-      throw err;
+    };
+
+    try {
+      await persistOrder();
+    } catch (firstErr) {
+      try {
+        await persistOrder();
+      } catch (secondErr) {
+        const detail =
+          secondErr instanceof Error
+            ? secondErr.message
+            : firstErr instanceof Error
+              ? firstErr.message
+              : 'error desconocido';
+        throw new Error(
+          `El inventario ya se actualizó, pero no se pudo guardar el pedido (${detail}). No vuelva a confirmar: revise el pedido y el historial de abasto.`
+        );
+      }
     }
   };
 
