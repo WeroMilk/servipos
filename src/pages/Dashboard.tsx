@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   TrendingUp,
@@ -333,6 +333,8 @@ export function Dashboard() {
   const [reprintDayKey, setReprintDayKey] = useState(() => getMexicoDateKey());
   const [reprintSearchMode, setReprintSearchMode] = useState(false);
   const [reprintSearchQuery, setReprintSearchQuery] = useState('');
+  const reprintListScrollRef = useRef<HTMLDivElement | null>(null);
+  const reprintListScrollTopRef = useRef(0);
   const [abonosFetched, setAbonosFetched] = useState<CajaAbonoCobro[]>([]);
   const [abonosLoading, setAbonosLoading] = useState(false);
   const [saleCancelOpen, setSaleCancelOpen] = useState(false);
@@ -587,7 +589,24 @@ export function Dashboard() {
     setReprintDayKey(getMexicoDateKey());
     setReprintSearchMode(false);
     setReprintSearchQuery('');
+    reprintListScrollTopRef.current = 0;
   }, []);
+
+  const rememberReprintListScroll = useCallback(() => {
+    reprintListScrollTopRef.current = reprintListScrollRef.current?.scrollTop ?? 0;
+  }, []);
+
+  const backToReprintList = useCallback(() => {
+    setReprintSaleDetail(null);
+    setReprintAbonoDetail(null);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!todaySalesOpen || reprintSaleDetail || reprintAbonoDetail) return;
+    const el = reprintListScrollRef.current;
+    if (!el) return;
+    el.scrollTop = reprintListScrollTopRef.current;
+  }, [todaySalesOpen, reprintSaleDetail, reprintAbonoDetail]);
 
   const openTodaySalesDialog = useCallback(() => {
     let dayKey: string;
@@ -1441,10 +1460,7 @@ export function Dashboard() {
                   size="icon"
                   className="h-9 w-9 shrink-0 text-slate-600 dark:text-slate-400"
                   aria-label="Volver al listado"
-                  onClick={() => {
-                    setReprintSaleDetail(null);
-                    setReprintAbonoDetail(null);
-                  }}
+                  onClick={backToReprintList}
                 >
                   <ChevronLeft className="h-5 w-5" />
                 </Button>
@@ -1577,7 +1593,10 @@ export function Dashboard() {
               </div>
             )}
           </DialogHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3">
+          <div
+            ref={reprintListScrollRef}
+            className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3"
+          >
             {reprintAbonoDetail ? (
               <div className="space-y-4">
                 <div className="rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-900 dark:text-amber-100">
@@ -1839,6 +1858,7 @@ export function Dashboard() {
                             className="border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300"
                             onClick={(e) => {
                               e.stopPropagation();
+                              rememberReprintListScroll();
                               setReprintSaleDetail(null);
                               setReprintAbonoDetail(a);
                             }}
@@ -1942,6 +1962,7 @@ export function Dashboard() {
                           className="border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300"
                           onClick={(e) => {
                             e.stopPropagation();
+                            rememberReprintListScroll();
                             setReprintAbonoDetail(null);
                             setReprintSaleDetail(sale);
                           }}
