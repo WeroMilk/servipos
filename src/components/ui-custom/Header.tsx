@@ -49,7 +49,7 @@ import { BRAND_LOGO_SRCSET, BRAND_LOGO_URL } from '@/lib/branding';
 import { ROLE_LABELS, userCanSeeInventoryMissions, userCanSeeMissionProgressOnly } from '@/lib/userPermissions';
 import { MAIN_NAV_ITEMS } from '@/lib/mainNavItems';
 import { SHOW_CHECADOR_NAV } from '@/lib/featureFlags';
-import { isGabrielUser, registerLogoEasterEggClick } from '@/lib/gabrielEasterEgg';
+import { canAccessBuscaminasEasterEgg, isGabrielUser, registerLogoEasterEggClick } from '@/lib/gabrielEasterEgg';
 import { useCajaPosHeaderStore } from '@/stores/cajaPosHeaderStore';
 import { useVentasAbiertasPosHeaderStore } from '@/stores/ventasAbiertasPosHeaderStore';
 import { useInventarioHeaderStore } from '@/stores/inventarioHeaderStore';
@@ -321,7 +321,7 @@ export function Header() {
   const showCierreReportesButton = hasPermission('ventas:ver');
 
   const handleBrandLogoClick = (e: MouseEvent) => {
-    if (!isGabrielUser(user)) return;
+    if (!canAccessBuscaminasEasterEgg(user)) return;
     if (registerLogoEasterEggClick()) {
       e.preventDefault();
       navigate('/buscaminas');

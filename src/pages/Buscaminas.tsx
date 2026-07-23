@@ -4,7 +4,7 @@ import { Bomb, Flag, RotateCcw, Timer, Trophy } from 'lucide-react';
 import { PageShell } from '@/components/ui-custom/PageShell';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { isGabrielUser } from '@/lib/gabrielEasterEgg';
+import { canAccessBuscaminasEasterEgg } from '@/lib/gabrielEasterEgg';
 import {
   clearBuscaminasWinConfetti,
   fireBuscaminasWinConfetti,
@@ -155,7 +155,7 @@ const ADJACENT_COLOR: Record<number, string> = {
 export function Buscaminas() {
   const user = useAuthStore((s) => s.user);
 
-  if (!isGabrielUser(user)) {
+  if (!canAccessBuscaminasEasterEgg(user)) {
     return <Navigate to="/" replace />;
   }
 

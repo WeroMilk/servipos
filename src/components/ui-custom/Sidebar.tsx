@@ -12,7 +12,7 @@ import {
   userCanSeeInventoryMissions,
   userCanSeeMissionProgressOnly,
 } from '@/lib/userPermissions';
-import { isGabrielUser, registerLogoEasterEggClick } from '@/lib/gabrielEasterEgg';
+import { canAccessBuscaminasEasterEgg, registerLogoEasterEggClick } from '@/lib/gabrielEasterEgg';
 
 interface NavItemProps {
   to: string;
@@ -73,7 +73,7 @@ export function Sidebar() {
       <button
         type="button"
         onClick={() => {
-          if (isGabrielUser(user) && registerLogoEasterEggClick()) {
+          if (canAccessBuscaminasEasterEgg(user) && registerLogoEasterEggClick()) {
             navigate('/buscaminas');
             return;
           }
