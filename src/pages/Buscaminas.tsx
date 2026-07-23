@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { isGabrielUser } from '@/lib/gabrielEasterEgg';
 import {
+  clearBuscaminasWinConfetti,
   fireBuscaminasWinConfetti,
   playBuscaminasLoseSound,
   playBuscaminasWinSound,
@@ -182,6 +183,7 @@ function BuscaminasGame() {
   difficultyRef.current = difficulty;
 
   const reset = useCallback((diff: Difficulty = difficulty) => {
+    clearBuscaminasWinConfetti();
     const d = DIFFICULTY[diff];
     setDifficulty(diff);
     setGrid(createEmptyGrid(d.rows, d.cols));
@@ -197,6 +199,8 @@ function BuscaminasGame() {
       longPressRef.current = null;
     }
   }, [difficulty]);
+
+  useEffect(() => () => clearBuscaminasWinConfetti(), []);
 
   useEffect(() => {
     if (!timerOn || status !== 'playing') return;

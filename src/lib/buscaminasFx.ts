@@ -89,11 +89,32 @@ export function playBuscaminasLoseSound(): void {
 }
 
 /** Mucho confeti en pantalla (varios bursts). */
+let confettiRaf = 0;
+let confettiTimeout: ReturnType<typeof setTimeout> | null = null;
+let confettiActive = false;
+
+/** Detiene bursts en curso y limpia partículas visibles. */
+export function clearBuscaminasWinConfetti(): void {
+  confettiActive = false;
+  if (confettiRaf) {
+    cancelAnimationFrame(confettiRaf);
+    confettiRaf = 0;
+  }
+  if (confettiTimeout != null) {
+    clearTimeout(confettiTimeout);
+    confettiTimeout = null;
+  }
+  confetti.reset();
+}
+
 export function fireBuscaminasWinConfetti(): void {
+  clearBuscaminasWinConfetti();
+  confettiActive = true;
   const end = Date.now() + 2800;
   const colors = ['#22d3ee', '#f59e0b', '#ef4444', '#a3e635', '#c084fc', '#f472b6'];
 
   const frame = () => {
+    if (!confettiActive) return;
     confetti({
       particleCount: 7,
       angle: 60,
@@ -110,9 +131,13 @@ export function fireBuscaminasWinConfetti(): void {
       colors,
       zIndex: 9999,
     });
-    if (Date.now() < end) requestAnimationFrame(frame);
+    if (confettiActive && Date.now() < end) {
+      confettiRaf = requestAnimationFrame(frame);
+    } else {
+      confettiRaf = 0;
+    }
   };
-  frame();
+  confettiRaf = requestAnimationFrame(frame);
 
   confetti({
     particleCount: 180,
@@ -122,7 +147,9 @@ export function fireBuscaminasWinConfetti(): void {
     colors,
     zIndex: 9999,
   });
-  window.setTimeout(() => {
+  confettiTimeout = window.setTimeout(() => {
+    confettiTimeout = null;
+    if (!confettiActive) return;
     confetti({
       particleCount: 120,
       spread: 160,
