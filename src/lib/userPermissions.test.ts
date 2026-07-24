@@ -5,6 +5,7 @@ import {
   userCanAccessPanel,
   userCanSeeInventoryMissions,
   userHasPermission,
+  userIsGerenteOrAdmin,
 } from '@/lib/userPermissions';
 import type { User } from '@/types';
 
@@ -51,5 +52,7 @@ describe('userPermissions', () => {
     expect(userCanAccessPanel(makeUser({ role: 'cashier' }))).toBe(false);
     expect(homePathForUser(makeUser({ role: 'cashier' }))).toBe('/pos');
     expect(homePathForUser(makeUser({ role: 'admin' }))).toBe('/');
+    expect(userIsGerenteOrAdmin(makeUser({ role: 'gerente' }))).toBe(true);
+    expect(userIsGerenteOrAdmin(makeUser({ role: 'cashier' }))).toBe(false);
   });
 });

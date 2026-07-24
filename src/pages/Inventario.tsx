@@ -68,6 +68,7 @@ import { productEsServicio } from '@/lib/productServicio';
 import { useClientPriceListCatalog } from '@/hooks/useClientPriceListCatalog';
 import {
   type ClientPriceListId,
+  POS_EDIT_UNIT_PRICE_PIN,
 } from '@/lib/clientPriceLists';
 import {
   Select,
@@ -83,6 +84,7 @@ import { subscribeSucursales } from '@/lib/firestore/sucursalesMetaFirestore';
 import { getSucursalStateDocOnce } from '@/lib/firestore/stateDocsFirestore';
 import { confirmIncomingStoreTransfer } from '@/lib/firestore/storeTransfersFirestore';
 import { cn, formatMoney } from '@/lib/utils';
+import { userIsGerenteOrAdmin } from '@/lib/userPermissions';
 import { getProductPrecioPublicoRegular, deriveListaPrecioStorageStringsFromPrecioVenta } from '@/lib/productListPricing';
 import { getClientPriceListCatalogFromStore } from '@/lib/clientPriceListCatalog';
 import { parsePrecioNumberFromFirestore } from '@/lib/precioListaNorm';
@@ -697,6 +699,55 @@ export function Inventario() {
   const [inventoryBootstrapping, setInventoryBootstrapping] = useState(true);
 
   const isAdmin = user?.role === 'admin';
+  const canBypassInventoryEditPin = userIsGerenteOrAdmin(user);
+  const [managerAuthOpen, setManagerAuthOpen] = useState(false);
+  const [managerAuthPin, setManagerAuthPin] = useState('');
+  const managerAuthPinRef = useRef<HTMLInputElement>(null);
+  const managerAuthPendingRef = useRef<(() => void) | null>(null);
+  const managerAuthCancelRef = useRef<(() => void) | null>(null);
+
+  const closeManagerAuthDialog = useCallback(() => {
+    const onCancel = managerAuthCancelRef.current;
+    managerAuthCancelRef.current = null;
+    managerAuthPendingRef.current = null;
+    setManagerAuthOpen(false);
+    setManagerAuthPin('');
+    onCancel?.();
+  }, []);
+
+  const requestManagerAuth = useCallback(
+    (action: () => void, onCancel?: () => void) => {
+      if (canBypassInventoryEditPin) {
+        action();
+        return;
+      }
+      managerAuthPendingRef.current = action;
+      managerAuthCancelRef.current = onCancel ?? null;
+      setManagerAuthPin('');
+      setManagerAuthOpen(true);
+    },
+    [canBypassInventoryEditPin]
+  );
+
+  const confirmManagerAuthPin = useCallback(() => {
+    if (managerAuthPin.trim() === POS_EDIT_UNIT_PRICE_PIN) {
+      const action = managerAuthPendingRef.current;
+      managerAuthPendingRef.current = null;
+      managerAuthCancelRef.current = null;
+      setManagerAuthOpen(false);
+      setManagerAuthPin('');
+      action?.();
+      return;
+    }
+    addToast({ type: 'error', message: 'Contraseña incorrecta' });
+  }, [managerAuthPin, addToast]);
+
+  useEffect(() => {
+    if (!managerAuthOpen) return;
+    const t = window.setTimeout(() => managerAuthPinRef.current?.focus(), 0);
+    return () => clearTimeout(t);
+  }, [managerAuthOpen]);
+
   const {
     movements: inventoryMovements,
     loading: inventoryMovementsLoading,
@@ -1075,7 +1126,7 @@ export function Inventario() {
   };
 
   const handleDeleteProduct = (product: Product) => {
-    setDeleteProductTarget(product);
+    requestManagerAuth(() => setDeleteProductTarget(product));
   };
 
   const confirmDeleteProduct = async () => {
@@ -1214,7 +1265,7 @@ export function Inventario() {
     return satUnidadLlegadaLabels(addTemplateLlegadaProduct.unidadMedida ?? 'H87');
   }, [addTemplateLlegadaProduct]);
 
-  const openEditDialog = (product: Product) => {
+  const openEditDialogUnlocked = (product: Product) => {
     setSelectedProduct(product);
     setUbicacionReplaceConfirm(null);
     setFormData({
@@ -1257,6 +1308,10 @@ export function Inventario() {
     setShowEditDialog(true);
   };
 
+  const openEditDialog = (product: Product) => {
+    requestManagerAuth(() => openEditDialogUnlocked(product));
+  };
+
   /** Abrir edición desde Misiones de inventario (`navigate` con `state.editProductId`). */
   useEffect(() => {
     const st = location.state as { editProductId?: string } | null;
@@ -1281,19 +1336,21 @@ export function Inventario() {
 
   const openPreciosDialog = useCallback(
     (product: Product) => {
-      const p = productById.get(product.id) ?? product;
-      const pl = emptyPreciosListaStr();
-      for (const id of priceListCatalog.ids) {
-        const v = p.preciosPorListaCliente?.[id];
-        pl[id] = v != null && Number.isFinite(v) ? String(v) : '';
-      }
-      setListasPrecioDialogDraft({});
-      setPreciosDialogListaStr(pl);
-      setPreciosDialogProduct(p);
-      setPreciosDialogListaIvaMode('sin');
-      setPreciosDialogOpen(true);
+      requestManagerAuth(() => {
+        const p = productById.get(product.id) ?? product;
+        const pl = emptyPreciosListaStr();
+        for (const id of priceListCatalog.ids) {
+          const v = p.preciosPorListaCliente?.[id];
+          pl[id] = v != null && Number.isFinite(v) ? String(v) : '';
+        }
+        setListasPrecioDialogDraft({});
+        setPreciosDialogListaStr(pl);
+        setPreciosDialogProduct(p);
+        setPreciosDialogListaIvaMode('sin');
+        setPreciosDialogOpen(true);
+      });
     },
-    [productById, priceListCatalog.ids]
+    [productById, priceListCatalog.ids, requestManagerAuth]
   );
 
   const handleSavePreciosDialog = async () => {
@@ -1463,18 +1520,26 @@ export function Inventario() {
         setSkuDrafts((prev) => ({ ...prev, [product.id]: product.sku }));
         return;
       }
-      try {
-        await editProduct(product.id, { sku: raw });
-        addToast({ type: 'success', message: 'SKU actualizado'});
-      } catch (e: unknown) {
-        addToast({
-          type: 'error',
-          message: e instanceof Error ? e.message : 'No se pudo guardar el SKU',
-        });
-        setSkuDrafts((prev) => ({ ...prev, [product.id]: product.sku }));
-      }
+      const saveSku = async () => {
+        try {
+          await editProduct(product.id, { sku: raw });
+          addToast({ type: 'success', message: 'SKU actualizado'});
+        } catch (e: unknown) {
+          addToast({
+            type: 'error',
+            message: e instanceof Error ? e.message : 'No se pudo guardar el SKU',
+          });
+          setSkuDrafts((prev) => ({ ...prev, [product.id]: product.sku }));
+        }
+      };
+      requestManagerAuth(
+        () => {
+          void saveSku();
+        },
+        () => setSkuDrafts((prev) => ({ ...prev, [product.id]: product.sku }))
+      );
     },
-    [skuDrafts, products, editProduct, addToast]
+    [skuDrafts, editProduct, addToast, requestManagerAuth]
   );
 
   const modeHint: Record<InventoryMode, string> = {
@@ -1595,9 +1660,11 @@ export function Inventario() {
   }, [products, effectiveSucursalId, addToast]);
 
   const openNuevoProductoDialog = () => {
-    resetForm();
-    addSessionLinesRef.current = [];
-    setShowAddDialog(true);
+    requestManagerAuth(() => {
+      resetForm();
+      addSessionLinesRef.current = [];
+      setShowAddDialog(true);
+    });
   };
 
   const openNuevoRef = useRef(openNuevoProductoDialog);
@@ -4250,6 +4317,51 @@ export function Inventario() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog
+        open={managerAuthOpen}
+        onOpenChange={(open) => {
+          if (!open) closeManagerAuthDialog();
+        }}
+      >
+        <DialogContent
+          className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:max-w-md"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
+          <DialogHeader>
+            <DialogTitle>Autorización requerida</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Ingrese la contraseña de administrador o gerente para modificar el inventario.
+            </p>
+            <Input
+              ref={managerAuthPinRef}
+              type="password"
+              autoComplete="off"
+              placeholder="Contraseña"
+              value={managerAuthPin}
+              onChange={(e) => setManagerAuthPin(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  confirmManagerAuthPin();
+                }
+              }}
+              className="border-slate-300 dark:border-slate-700 dark:bg-slate-800"
+            />
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button type="button" variant="outline" onClick={closeManagerAuthDialog}>
+                Cancelar
+              </Button>
+              <Button type="button" onClick={confirmManagerAuthPin}>
+                Continuar
+              </Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

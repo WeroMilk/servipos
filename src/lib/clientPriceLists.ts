@@ -40,5 +40,5 @@ export const DEFAULT_CLIENT_PRICE_DISCOUNTS: Record<BuiltinClientPriceListId, nu
   cananea: 15,
 };
 
-/** PIN para que cajeros editen precio unitario en carrito (admin no lo usa). */
+/** PIN compartido: cajeros autorizan edición de precio en POS e inventario (admin/gerente no lo usan). */
 export const POS_EDIT_UNIT_PRICE_PIN = '1234';
