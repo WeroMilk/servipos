@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { getEffectivePermissions, userCanSeeInventoryMissions, userHasPermission } from '@/lib/userPermissions';
+import {
+  getEffectivePermissions,
+  homePathForUser,
+  userCanAccessPanel,
+  userCanSeeInventoryMissions,
+  userHasPermission,
+} from '@/lib/userPermissions';
 import type { User } from '@/types';
 
 function makeUser(partial: Partial<User> = {}): User {
@@ -37,5 +43,13 @@ describe('userPermissions', () => {
   it('shows inventory missions for active cashier with mission permission', () => {
     const cashier = makeUser({ role: 'cashier' });
     expect(userCanSeeInventoryMissions(cashier)).toBe(true);
+  });
+
+  it('allows panel only for admin and gerente', () => {
+    expect(userCanAccessPanel(makeUser({ role: 'admin' }))).toBe(true);
+    expect(userCanAccessPanel(makeUser({ role: 'gerente' }))).toBe(true);
+    expect(userCanAccessPanel(makeUser({ role: 'cashier' }))).toBe(false);
+    expect(homePathForUser(makeUser({ role: 'cashier' }))).toBe('/pos');
+    expect(homePathForUser(makeUser({ role: 'admin' }))).toBe('/');
   });
 });

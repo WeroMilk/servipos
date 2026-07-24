@@ -4,6 +4,7 @@ import { Layout, LoginForm, LoadingIndicator, RouteErrorBoundary } from '@/compo
 import { useAuthStore, useSyncStore, subscribeSupabaseAuth } from '@/stores';
 import { initializeDemoData, syncServipartzSeedUsers } from '@/db/database';
 import { lazyWithRetry } from '@/lib/lazyWithRetry';
+import { homePathForUser, userCanAccessPanel } from '@/lib/userPermissions';
 
 const Dashboard = lazyWithRetry(() =>
   import('@/pages/Dashboard').then((m) => ({ default: m.Dashboard }))
@@ -76,9 +77,27 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 // Ruta pública que redirige si ya está autenticado
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, authReady } = useAuthStore();
+  const { isAuthenticated, authReady, user } = useAuthStore();
   if (!authReady) return <AuthSessionLoading />;
-  return !isAuthenticated ? <>{children}</> : <Navigate to="/" replace />;
+  return !isAuthenticated ? <>{children}</> : <Navigate to={homePathForUser(user)} replace />;
+}
+
+/** Panel (/): solo admin y gerente; cajeros van al POS. */
+function HomeRoute() {
+  const user = useAuthStore((s) => s.user);
+  if (!userCanAccessPanel(user)) {
+    return <Navigate to="/pos" replace />;
+  }
+  return (
+    <Suspense fallback={<PageFallback message="Cargando panel" />}>
+      <Dashboard />
+    </Suspense>
+  );
+}
+
+function DefaultRedirect() {
+  const user = useAuthStore((s) => s.user);
+  return <Navigate to={homePathForUser(user)} replace />;
 }
 
 function App() {
@@ -177,14 +196,7 @@ function AppRoutes() {
                   </ProtectedRoute>
                 }
               >
-                <Route
-                  index
-                  element={
-                    <Suspense fallback={<PageFallback message="Cargando panel" />}>
-                      <Dashboard />
-                    </Suspense>
-                  }
-                />
+                <Route index element={<HomeRoute />} />
                 <Route
                   path="pos"
                   element={
@@ -316,7 +328,7 @@ function AppRoutes() {
               </Route>
       
               {/* Redirección por defecto */}
-              <Route path="*" element={<Navigate to="/" />} />
+              <Route path="*" element={<DefaultRedirect />} />
             </Routes>
     </RouteErrorBoundary>
   );

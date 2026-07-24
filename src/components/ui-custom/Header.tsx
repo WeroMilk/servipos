@@ -46,7 +46,7 @@ import { cn } from '@/lib/utils';
 import { AdminSucursalSwitcher } from '@/components/ui-custom/AdminSucursalSwitcher';
 import { AccentColorPicker } from '@/components/ui-custom/AccentColorPicker';
 import { BRAND_LOGO_SRCSET, BRAND_LOGO_URL } from '@/lib/branding';
-import { ROLE_LABELS, userCanSeeInventoryMissions, userCanSeeMissionProgressOnly } from '@/lib/userPermissions';
+import { ROLE_LABELS, homePathForUser, userCanAccessPanel, userCanSeeInventoryMissions, userCanSeeMissionProgressOnly } from '@/lib/userPermissions';
 import { MAIN_NAV_ITEMS } from '@/lib/mainNavItems';
 import { SHOW_CHECADOR_NAV } from '@/lib/featureFlags';
 import { canAccessBuscaminasEasterEgg, isGabrielUser, registerLogoEasterEggClick } from '@/lib/gabrielEasterEgg';
@@ -330,6 +330,7 @@ export function Header() {
 
   const mobileNavItems = MAIN_NAV_ITEMS.filter((item) => {
     if (item.to === '/checador' && !SHOW_CHECADOR_NAV) return false;
+    if (item.to === '/') return userCanAccessPanel(user);
     if (item.to === '/mision-inventario') {
       return userCanSeeInventoryMissions(user) || userCanSeeMissionProgressOnly(user);
     }
@@ -348,10 +349,10 @@ export function Header() {
         {/* Móvil / tablet: logo + menú */}
         <div className="flex w-full min-w-0 items-center gap-1 sm:gap-1.5 lg:hidden">
           <Link
-            to="/"
+            to={homePathForUser(user)}
             onClick={handleBrandLogoClick}
             className="flex shrink-0 items-center rounded-lg p-1 outline-none ring-brand/40 focus-visible:ring-2"
-            aria-label="Ir a inicio"
+            aria-label={userCanAccessPanel(user) ? 'Ir a inicio' : 'Ir al punto de venta'}
           >
             <img
               src={BRAND_LOGO_URL}
@@ -401,10 +402,10 @@ export function Header() {
         <div className="hidden min-w-0 flex-1 items-center justify-between gap-2 lg:flex">
           <div className="flex shrink-0 items-center px-0.5">
             <Link
-              to="/"
+              to={homePathForUser(user)}
               onClick={handleBrandLogoClick}
               className="flex shrink-0 items-center rounded-lg p-1 outline-none ring-brand/40 focus-visible:ring-2 sm:hidden"
-              aria-label="Ir a inicio"
+              aria-label={userCanAccessPanel(user) ? 'Ir a inicio' : 'Ir al punto de venta'}
             >
               <img
                 src={BRAND_LOGO_URL}

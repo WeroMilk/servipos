@@ -41,7 +41,7 @@ export const ALL_PERMISSIONS: Permission[] = [
 const ALL_SET = new Set<string>(ALL_PERMISSIONS);
 
 export const PERMISSION_LABELS: Record<Permission, string> = {
-  'ventas:ver': 'Panel, historial del día, Clientes y Cuentas por cobrar',
+  'ventas:ver': 'Historial del día, Clientes y Cuentas por cobrar',
   'ventas:crear': 'Punto de venta (cobrar)',
   'inventario:ver': 'Ver inventario',
   'inventario:crear': 'Alta de productos',
@@ -151,6 +151,17 @@ export function userCanSeeMissionProgressOnly(user: User | null | undefined): bo
     (emailLocal.length > 0 && INVENTORY_MISSIONS_EXCLUDED_USERNAMES.has(emailLocal));
   if (!excluded) return false;
   return user.role === 'admin' || user.role === 'gerente';
+}
+
+/** Panel de inicio (/): solo administradores y gerentes. */
+export function userCanAccessPanel(user: User | null | undefined): boolean {
+  if (!user?.isActive) return false;
+  return user.role === 'admin' || user.role === 'gerente';
+}
+
+/** Ruta de inicio tras login o al pulsar el logo. */
+export function homePathForUser(user: User | null | undefined): string {
+  return userCanAccessPanel(user) ? '/' : '/pos';
 }
 
 export function permissionsFromRoleTemplate(role: UserRole): Permission[] {

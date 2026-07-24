@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { BRAND_LOGO_SRCSET, BRAND_LOGO_URL } from '@/lib/branding';
 import { normalizeServipartzEmail, SERVIPARTZ_LOGIN_USERNAMES } from '@/lib/servipartzAuth';
 import { fetchLoginDirectoryUsers, type LoginDirectoryUser } from '@/lib/firestore/usersDirectoryFirestore';
+import { homePathForUser } from '@/lib/userPermissions';
 import { AccentColorPicker } from './AccentColorPicker';
 import { LoadingIndicator } from './LoadingIndicator';
 
@@ -166,7 +167,7 @@ export function LoginForm() {
           type: 'success',
           message: 'Bienvenido al sistema',
         });
-        navigate('/');
+        navigate(homePathForUser(useAuthStore.getState().user));
       } else {
         addToast({
           type: 'error',

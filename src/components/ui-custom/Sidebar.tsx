@@ -9,6 +9,8 @@ import { SHOW_CHECADOR_NAV } from '@/lib/featureFlags';
 import { BRAND_LOGO_SRCSET, BRAND_LOGO_URL } from '@/lib/branding';
 import {
   ROLE_LABELS,
+  homePathForUser,
+  userCanAccessPanel,
   userCanSeeInventoryMissions,
   userCanSeeMissionProgressOnly,
 } from '@/lib/userPermissions';
@@ -77,13 +79,13 @@ export function Sidebar() {
             navigate('/buscaminas');
             return;
           }
-          navigate('/');
+          navigate(homePathForUser(user));
         }}
         className={cn(
           'flex h-14 w-full shrink-0 cursor-pointer items-center justify-center gap-0 border-b border-slate-200/80 bg-transparent px-2 text-left transition-colors dark:border-slate-800/50 sm:h-16 xl:justify-start xl:gap-3 xl:px-3',
           'hover:bg-slate-100/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 dark:hover:bg-slate-800/30'
         )}
-        aria-label="Ir al panel de inicio"
+        aria-label={userCanAccessPanel(user) ? 'Ir al panel de inicio' : 'Ir al punto de venta'}
       >
         <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg ring-1 ring-slate-300/80 dark:ring-slate-700/50 sm:h-10 sm:w-10">
           <img
@@ -100,13 +102,20 @@ export function Sidebar() {
         </div>
         <div className="hidden min-w-0 leading-tight xl:block">
           <p className="truncate text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100">SERVIPARTZ POS</p>
-          <p className="truncate text-[11px] text-slate-600 dark:text-slate-500 sm:text-xs">Panel · inicio</p>
+          <p className="truncate text-[11px] text-slate-600 dark:text-slate-500 sm:text-xs">
+            {userCanAccessPanel(user) ? 'Panel · inicio' : 'Punto de venta'}
+          </p>
         </div>
       </button>
 
       <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-y-contain p-2 pt-2 xl:p-3">
         {MAIN_NAV_ITEMS.map((item) => {
           if (item.to === '/checador' && !SHOW_CHECADOR_NAV) return null;
+          if (item.to === '/') {
+            return userCanAccessPanel(user) ? (
+              <NavItem key={item.to} to={item.to} icon={item.icon} label={item.label} />
+            ) : null;
+          }
           if (item.to === '/mision-inventario') {
             return userCanSeeInventoryMissions(user) || userCanSeeMissionProgressOnly(user) ? (
               <NavItem
