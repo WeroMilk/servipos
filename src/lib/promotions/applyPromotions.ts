@@ -1,4 +1,5 @@
 import type { CartItem, Promotion } from '@/types';
+import { formatMoney } from '@/lib/utils';
 
 /** Fecha local YYYY-MM-DD (zona del navegador / caja). */
 export function todayYmd(d = new Date()): string {
@@ -15,6 +16,11 @@ export function isPromotionActiveOnDate(p: Promotion, ymd: string): boolean {
 }
 
 export function promoLabel(p: Promotion): string {
+  if (p.kind === 'fixed_price') {
+    const v = Number(p.fixedPrice);
+    if (Number.isFinite(v) && v >= 0) return formatMoney(v);
+    return 'Precio fijo';
+  }
   if (p.kind === 'percent') return `−${Math.round(Number(p.percent) || 0)}%`;
   if (p.kind === 'nxm') {
     const b = Number(p.buyQty) || 0;
@@ -27,6 +33,7 @@ export function promoLabel(p: Promotion): string {
 
 /**
  * Descuento % efectivo sobre el subtotal de la línea (todas las unidades al mismo unitario).
+ * - fixed_price: 0 (el precio se aplica con `precioUnitarioOverride`)
  * - percent: el % directo
  * - nxm buy/pay: por cada buyQty unidades, se pagan payQty → % = 100 * (1 - pay/buy) sobre grupos completos + resto sin descuento
  * - nth_half everyNth=2: en cada par, la 2.ª al 50% → 25% sobre el par completo; resto 1 sin descuento
@@ -34,6 +41,8 @@ export function promoLabel(p: Promotion): string {
 export function effectiveDiscountPercentForQty(p: Promotion, quantity: number): number {
   const qty = Math.max(0, Math.floor(Number(quantity) || 0));
   if (qty <= 0) return 0;
+
+  if (p.kind === 'fixed_price') return 0;
 
   if (p.kind === 'percent') {
     const pct = Number(p.percent) || 0;
@@ -52,7 +61,6 @@ export function effectiveDiscountPercentForQty(p: Promotion, quantity: number): 
 
   if (p.kind === 'nth_half') {
     const every = Math.max(2, Math.floor(Number(p.everyNth) || 2));
-    // Unidades en posición every, 2*every, … pagan 50% → descuento 0.5 cada una
     const halfCount = Math.floor(qty / every);
     if (qty <= 0 || halfCount <= 0) return 0;
     const discountFraction = (halfCount * 0.5) / qty;
@@ -75,6 +83,20 @@ export function buildActivePromoByProductId(
     }
   }
   return map;
+}
+
+function clearAutoPromoFields(item: CartItem): CartItem {
+  const next: CartItem = {
+    ...item,
+    discount: 0,
+    promoId: undefined,
+    promoLabel: undefined,
+  };
+  // Si la promo anterior fijaba precio, quitar el override automático.
+  if (item.promoId) {
+    next.precioUnitarioOverride = undefined;
+  }
+  return next;
 }
 
 /**
@@ -101,30 +123,53 @@ export function applyPromotionsToCartItems(
     const promo = byProduct.get(item.product.id);
     if (!promo) {
       if (!item.promoId && !(Number(item.discount) > 0)) return item;
-      // Quitar descuento automático previo
-      if (item.promoId) {
-        return {
-          ...item,
-          discount: 0,
-          promoId: undefined,
-          promoLabel: undefined,
-        };
-      }
+      if (item.promoId) return clearAutoPromoFields(item);
       return item;
     }
 
-    const pct = effectiveDiscountPercentForQty(promo, item.quantity);
     const label = promoLabel(promo);
+
+    if (promo.kind === 'fixed_price') {
+      const fixed = Number(promo.fixedPrice);
+      if (!Number.isFinite(fixed) || fixed < 0) {
+        if (item.promoId) return clearAutoPromoFields(item);
+        return item;
+      }
+      const rounded = Math.round(fixed * 100) / 100;
+      if (
+        item.promoId === promo.id &&
+        item.promoLabel === label &&
+        !(Number(item.discount) > 0) &&
+        item.precioUnitarioOverride != null &&
+        Math.abs(Number(item.precioUnitarioOverride) - rounded) < 0.001
+      ) {
+        return item;
+      }
+      return {
+        ...item,
+        discount: 0,
+        precioUnitarioOverride: rounded,
+        precioListaId: undefined,
+        promoId: promo.id,
+        promoLabel: label,
+        discountManual: false,
+      };
+    }
+
+    const pct = effectiveDiscountPercentForQty(promo, item.quantity);
     if (
       item.promoId === promo.id &&
       item.promoLabel === label &&
-      Math.abs((Number(item.discount) || 0) - pct) < 0.001
+      Math.abs((Number(item.discount) || 0) - pct) < 0.001 &&
+      item.precioUnitarioOverride == null
     ) {
       return item;
     }
     return {
       ...item,
       discount: pct,
+      // Quitar override si venía de una promo de precio fijo anterior.
+      precioUnitarioOverride: item.promoId ? undefined : item.precioUnitarioOverride,
       promoId: promo.id,
       promoLabel: label,
       discountManual: false,

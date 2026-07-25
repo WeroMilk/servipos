@@ -1075,12 +1075,17 @@ export interface CartItem {
 }
 
 /** Tipos de promoción POS (por sucursal). */
-export type PromoKind = 'percent' | 'nxm' | 'nth_half';
+export type PromoKind = 'fixed_price' | 'percent' | 'nxm' | 'nth_half';
 
 export interface Promotion {
   id: string;
   nombre: string;
   kind: PromoKind;
+  /**
+   * Precio unitario fijo sin IVA (kind=fixed_price).
+   * En caja se aplica como `precioUnitarioOverride`.
+   */
+  fixedPrice?: number;
   /** Descuento % (kind=percent). */
   percent?: number;
   /** nxm: comprar N pagar M (2x1 => buy 2 pay 1). */

@@ -12,7 +12,7 @@ function tsToDate(v: unknown): Date {
 }
 
 function parseKind(v: unknown): PromoKind {
-  if (v === 'nxm' || v === 'nth_half' || v === 'percent') return v;
+  if (v === 'fixed_price' || v === 'nxm' || v === 'nth_half' || v === 'percent') return v;
   return 'percent';
 }
 
@@ -21,6 +21,7 @@ function mapPromotion(sucursalId: string, id: string, doc: Record<string, unknow
     id,
     nombre: String(doc.nombre ?? ''),
     kind: parseKind(doc.kind),
+    fixedPrice: doc.fixedPrice != null ? Number(doc.fixedPrice) : undefined,
     percent: doc.percent != null ? Number(doc.percent) : undefined,
     buyQty: doc.buyQty != null ? Number(doc.buyQty) : undefined,
     payQty: doc.payQty != null ? Number(doc.payQty) : undefined,
@@ -154,6 +155,35 @@ const listeners = new Set<(rows: Promotion[]) => void>();
 let channel: ReturnType<ReturnType<typeof getSupabase>['channel']> | null = null;
 let sid: string | null = null;
 let reloadDebounced: (() => void) | null = null;
+const PROMOTIONS_MISSING_KEY = 'servipos:promotionsRelationMissing';
+let promotionsRelationMissing =
+  typeof sessionStorage !== 'undefined' && sessionStorage.getItem(PROMOTIONS_MISSING_KEY) === '1';
+
+function markPromotionsRelationMissing() {
+  promotionsRelationMissing = true;
+  try {
+    sessionStorage.setItem(PROMOTIONS_MISSING_KEY, '1');
+  } catch {
+    /* ignore */
+  }
+}
+
+function isPromotionsRelationMissing(error: { code?: string; message?: string } | null | undefined): boolean {
+  if (!error) return false;
+  if (error.code === 'PGRST205') return true;
+  return /Could not find the table ['"]public\.promotions['"]/i.test(error.message ?? '');
+}
+
+function emitPromotions(rows: Promotion[]) {
+  lastPromotions = rows;
+  listeners.forEach((l) => {
+    try {
+      l([...lastPromotions]);
+    } catch (e) {
+      console.error(e);
+    }
+  });
+}
 
 export function getPromotionsCatalogSnapshot(): Promotion[] {
   return lastPromotions;
@@ -168,32 +198,36 @@ export function subscribePromotionsCatalog(
   const supabase = getSupabase();
 
   const load = async () => {
+    if (promotionsRelationMissing) {
+      emitPromotions([]);
+      return;
+    }
     const { data, error } = await supabase
       .from('promotions')
       .select('id, doc')
       .eq('sucursal_id', sucursalId);
     if (error) {
+      if (isPromotionsRelationMissing(error)) {
+        markPromotionsRelationMissing();
+        if (channel) {
+          void supabase.removeChannel(channel);
+          channel = null;
+        }
+        emitPromotions([]);
+        return;
+      }
       console.error('Promotions:', error);
       return;
     }
-    lastPromotions = (data ?? [])
-      .map((r) => mapPromotion(sucursalId, r.id, r.doc as Record<string, unknown>))
-      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
-    listeners.forEach((l) => {
-      try {
-        l([...lastPromotions]);
-      } catch (e) {
-        console.error(e);
-      }
-    });
+    emitPromotions(
+      (data ?? [])
+        .map((r) => mapPromotion(sucursalId, r.id, r.doc as Record<string, unknown>))
+        .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+    );
   };
 
-  if (sid !== sucursalId) {
-    if (channel) void supabase.removeChannel(channel);
-    sid = sucursalId;
-    reloadDebounced = createDebouncedAsyncFn(load, 500);
-    lastPromotions = [];
-    void load();
+  const ensureRealtime = () => {
+    if (promotionsRelationMissing || channel || sid !== sucursalId) return;
     channel = supabase
       .channel(`promotions-${sucursalId}`)
       .on(
@@ -207,6 +241,17 @@ export function subscribePromotionsCatalog(
         () => reloadDebounced?.()
       )
       .subscribe();
+  };
+
+  if (sid !== sucursalId) {
+    if (channel) void supabase.removeChannel(channel);
+    channel = null;
+    sid = sucursalId;
+    reloadDebounced = createDebouncedAsyncFn(load, 500);
+    lastPromotions = [];
+    void load().then(() => {
+      ensureRealtime();
+    });
   } else {
     onData([...lastPromotions]);
   }
