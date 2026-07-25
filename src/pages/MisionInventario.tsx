@@ -52,6 +52,14 @@ import { getUserStateDocOnce, saveUserStateDoc } from '@/lib/firestore/stateDocs
 import { formatDateKeyMx, getMexicoDateKey } from '@/lib/quincenaMx';
 import { printThermalDailyMission, printThermalMissionComplete } from '@/lib/printTicket';
 import { userCanSeeInventoryMissions, userCanSeeMissionProgressOnly } from '@/lib/userPermissions';
+import {
+  createMissionStockAdjustRequest,
+  loadMissionStockAdjustRequests,
+  removeMissionStockAdjustRequest,
+  userCanApproveMissionStockAdjust,
+  userNeedsMissionStockAdjustApproval,
+  type MissionStockAdjustRequest,
+} from '@/lib/missionStockAdjustRequests';
 import { cn } from '@/lib/utils';
 import type { Product } from '@/types';
 
@@ -80,6 +88,8 @@ export function MisionInventario() {
   const allowed = fullMission || progressOnly;
   const canEditProducto = hasPermission('inventario:editar');
   const canAdjustStockMission = hasPermission('inventario:mision_ajustar_stock');
+  const canApproveStockAdjust = userCanApproveMissionStockAdjust(user);
+  const needsStockAdjustApproval = userNeedsMissionStockAdjustApproval(user);
 
   const [stockDialogOpen, setStockDialogOpen] = useState(false);
   const [stockDialogProduct, setStockDialogProduct] = useState<Product | null>(null);
@@ -87,6 +97,37 @@ export function MisionInventario() {
   const [stockComentario, setStockComentario] = useState('');
   const [stockSaving, setStockSaving] = useState(false);
   const [pendingUncheckProduct, setPendingUncheckProduct] = useState<Product | null>(null);
+  const [stockAdjustRequests, setStockAdjustRequests] = useState<MissionStockAdjustRequest[]>([]);
+  const [stockAdjustRequestsLoading, setStockAdjustRequestsLoading] = useState(false);
+  const [resolvingRequestId, setResolvingRequestId] = useState<string | null>(null);
+
+  const refreshStockAdjustRequests = useCallback(async () => {
+    if (!effectiveSucursalId) {
+      setStockAdjustRequests([]);
+      return;
+    }
+    setStockAdjustRequestsLoading(true);
+    try {
+      const doc = await loadMissionStockAdjustRequests(effectiveSucursalId);
+      setStockAdjustRequests(doc.items);
+    } catch (e) {
+      console.warn('[MisionInventario] No se pudieron cargar ajustes pendientes:', e);
+    } finally {
+      setStockAdjustRequestsLoading(false);
+    }
+  }, [effectiveSucursalId]);
+
+  useEffect(() => {
+    void refreshStockAdjustRequests();
+  }, [refreshStockAdjustRequests]);
+
+  useEffect(() => {
+    if (!effectiveSucursalId) return;
+    const id = window.setInterval(() => {
+      void refreshStockAdjustRequests();
+    }, 20_000);
+    return () => clearInterval(id);
+  }, [effectiveSucursalId, refreshStockAdjustRequests]);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -286,23 +327,53 @@ export function MisionInventario() {
 
   const submitStockAdjust = useCallback(async () => {
     if (!stockDialogProduct || !user?.id) return;
+    if (!effectiveSucursalId) {
+      addToast({ type: 'error', message: 'No hay sucursal activa para registrar el ajuste.' });
+      return;
+    }
     const raw = stockCantidadStr.trim().replace(',', '.');
     const nueva = Number(raw);
-    if (!Number.isFinite(nueva) || !Number.isInteger(nueva)) {
-      addToast({ type: 'error', message: 'Indique una cantidad entera válida.' });
+    if (!Number.isFinite(nueva) || !Number.isInteger(nueva) || nueva < 0) {
+      addToast({ type: 'error', message: 'Indique una cantidad entera válida (≥ 0).' });
+      return;
+    }
+    const anterior = Math.trunc(Number(stockDialogProduct.existencia) || 0);
+    if (nueva === anterior) {
+      addToast({ type: 'info', message: 'La cantidad es igual a la del sistema; no hay cambio.' });
       return;
     }
     setStockSaving(true);
     try {
-      await adjustStock(
-        stockDialogProduct.id,
-        nueva,
-        'ajuste',
-        `Misión inventario${stockComentario.trim() ? `: ${stockComentario.trim()}` : ''}`,
-        undefined,
-        user.id
-      );
-      addToast({ type: 'success', message: 'Existencia actualizada.' });
+      const comentario = stockComentario.trim();
+      if (needsStockAdjustApproval) {
+        await createMissionStockAdjustRequest({
+          sucursalId: effectiveSucursalId,
+          productId: stockDialogProduct.id,
+          productNombre: stockDialogProduct.nombre,
+          productSku: stockDialogProduct.sku,
+          cantidadAnterior: anterior,
+          cantidadNueva: nueva,
+          comentario,
+          origen: 'mision_lista',
+          solicitadoPorId: user.id,
+          solicitadoPorNombre: user.name?.trim() || user.username?.trim() || user.email || 'Cajero',
+        });
+        addToast({
+          type: 'success',
+          message: 'Solicitud enviada. Pendiente de aprobación de Gabriel o Zavala.',
+        });
+        await refreshStockAdjustRequests();
+      } else {
+        await adjustStock(
+          stockDialogProduct.id,
+          nueva,
+          'ajuste',
+          `Misión inventario${comentario ? `: ${comentario}` : ''}`,
+          undefined,
+          user.id
+        );
+        addToast({ type: 'success', message: 'Existencia actualizada.' });
+      }
       setStockDialogOpen(false);
       setStockDialogProduct(null);
     } catch (e) {
@@ -313,7 +384,96 @@ export function MisionInventario() {
     } finally {
       setStockSaving(false);
     }
-  }, [stockDialogProduct, stockCantidadStr, stockComentario, user?.id, adjustStock, addToast]);
+  }, [
+    stockDialogProduct,
+    stockCantidadStr,
+    stockComentario,
+    user?.id,
+    user?.name,
+    user?.username,
+    user?.email,
+    adjustStock,
+    addToast,
+    effectiveSucursalId,
+    needsStockAdjustApproval,
+    refreshStockAdjustRequests,
+  ]);
+
+  const approveStockAdjustRequest = useCallback(
+    async (req: MissionStockAdjustRequest) => {
+      if (!effectiveSucursalId || !user?.id || !canApproveStockAdjust) return;
+      setResolvingRequestId(req.id);
+      try {
+        const removed = await removeMissionStockAdjustRequest(effectiveSucursalId, req.id);
+        if (!removed) {
+          addToast({ type: 'warning', message: 'La solicitud ya no está pendiente.' });
+          await refreshStockAdjustRequests();
+          return;
+        }
+        const motivoParts = [
+          'Misión inventario (aprobado)',
+          removed.solicitadoPorNombre ? `por ${removed.solicitadoPorNombre}` : '',
+          removed.comentario ? `: ${removed.comentario}` : '',
+        ].filter(Boolean);
+        await adjustStock(
+          removed.productId,
+          removed.cantidadNueva,
+          'ajuste',
+          motivoParts.join(' '),
+          undefined,
+          user.id
+        );
+        addToast({
+          type: 'success',
+          message: `Ajuste aprobado: ${removed.productNombre || removed.productSku}`,
+        });
+        await refreshStockAdjustRequests();
+      } catch (e) {
+        addToast({
+          type: 'error',
+          message: e instanceof Error ? e.message : 'No se pudo aprobar el ajuste',
+        });
+        await refreshStockAdjustRequests();
+      } finally {
+        setResolvingRequestId(null);
+      }
+    },
+    [
+      effectiveSucursalId,
+      user?.id,
+      canApproveStockAdjust,
+      adjustStock,
+      addToast,
+      refreshStockAdjustRequests,
+    ]
+  );
+
+  const rejectStockAdjustRequest = useCallback(
+    async (req: MissionStockAdjustRequest) => {
+      if (!effectiveSucursalId || !canApproveStockAdjust) return;
+      setResolvingRequestId(req.id);
+      try {
+        const removed = await removeMissionStockAdjustRequest(effectiveSucursalId, req.id);
+        if (!removed) {
+          addToast({ type: 'warning', message: 'La solicitud ya no está pendiente.' });
+        } else {
+          addToast({
+            type: 'info',
+            message: `Solicitud rechazada: ${removed.productNombre || removed.productSku}`,
+          });
+        }
+        await refreshStockAdjustRequests();
+      } catch (e) {
+        addToast({
+          type: 'error',
+          message: e instanceof Error ? e.message : 'No se pudo rechazar la solicitud',
+        });
+      } finally {
+        setResolvingRequestId(null);
+      }
+    },
+    [effectiveSucursalId, canApproveStockAdjust, addToast, refreshStockAdjustRequests]
+  );
 
   const applyToggleCheck = useCallback(
     (p: Product) => {
@@ -376,6 +536,12 @@ export function MisionInventario() {
     [done, applyToggleCheck]
   );
 
+  const visibleStockAdjustRequests = useMemo(() => {
+    if (canApproveStockAdjust) return stockAdjustRequests;
+    if (!user?.id) return [];
+    return stockAdjustRequests.filter((r) => r.solicitadoPorId === user.id);
+  }, [canApproveStockAdjust, stockAdjustRequests, user?.id]);
+
   if (!allowed) {
     return <Navigate to="/" replace />;
   }
@@ -418,9 +584,89 @@ export function MisionInventario() {
         </div>
       ) : null}
 
+      {visibleStockAdjustRequests.length > 0 || (canApproveStockAdjust && stockAdjustRequestsLoading) ? (
+        <Card className="mb-3 shrink-0 border-amber-500/40 bg-amber-500/5 dark:border-amber-500/30 dark:bg-amber-500/10">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-3">
+            <CardTitle className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+              {canApproveStockAdjust
+                ? `Ajustes pendientes de aprobación (${visibleStockAdjustRequests.length})`
+                : `Tus ajustes pendientes (${visibleStockAdjustRequests.length})`}
+            </CardTitle>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => void refreshStockAdjustRequests()}
+              disabled={stockAdjustRequestsLoading}
+            >
+              {stockAdjustRequestsLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Actualizar'}
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-2 pb-3">
+            {visibleStockAdjustRequests.length === 0 ? (
+              <p className="text-xs text-slate-600 dark:text-slate-400">No hay solicitudes pendientes.</p>
+            ) : (
+              visibleStockAdjustRequests.map((req) => (
+                <div
+                  key={req.id}
+                  className="rounded-lg border border-slate-200/80 bg-white/80 px-3 py-2 dark:border-slate-700/80 dark:bg-slate-950/50"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                        {req.productNombre || 'Producto'}
+                      </p>
+                      <p className="text-xs text-slate-600 dark:text-slate-400">
+                        SKU {req.productSku || '—'} · {req.cantidadAnterior} → {req.cantidadNueva}
+                        {req.mueble ? ` · mueble ${req.mueble}` : ''}
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-500">
+                        Solicitó {req.solicitadoPorNombre}
+                        {req.comentario ? ` · ${req.comentario}` : ''}
+                      </p>
+                    </div>
+                    {canApproveStockAdjust ? (
+                      <div className="flex shrink-0 gap-1.5">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-8"
+                          disabled={resolvingRequestId === req.id}
+                          onClick={() => void rejectStockAdjustRequest(req)}
+                        >
+                          Rechazar
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-8"
+                          disabled={resolvingRequestId === req.id}
+                          onClick={() => void approveStockAdjustRequest(req)}
+                        >
+                          {resolvingRequestId === req.id ? (
+                            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                          ) : null}
+                          Aprobar
+                        </Button>
+                      </div>
+                    ) : (
+                      <span className="shrink-0 rounded-md bg-amber-500/15 px-2 py-1 text-[11px] font-medium text-amber-800 dark:text-amber-200">
+                        Esperando encargado
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
+
       {!progressOnly && missionTab === 'mueble' ? (
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <ConteoPorMueble />
+          <ConteoPorMueble onPendingAdjustCreated={() => void refreshStockAdjustRequests()} />
         </div>
       ) : null}
 
@@ -474,7 +720,9 @@ export function MisionInventario() {
           <DialogHeader>
             <DialogTitle>Ajustar existencia</DialogTitle>
             <DialogDescription>
-              Cantidad correcta en sistema y comentario (p. ej. motivo del conteo). Se registra como ajuste de inventario.
+              {needsStockAdjustApproval
+                ? 'Indique la cantidad correcta y un comentario. Un encargado (Gabriel o Zavala) debe aprobar antes de modificar el inventario real.'
+                : 'Cantidad correcta en sistema y comentario (p. ej. motivo del conteo). Se registra como ajuste de inventario.'}
             </DialogDescription>
           </DialogHeader>
           {stockDialogProduct ? (
@@ -511,7 +759,7 @@ export function MisionInventario() {
             </Button>
             <Button type="button" onClick={() => void submitStockAdjust()} disabled={stockSaving || !stockDialogProduct}>
               {stockSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Guardar
+              {needsStockAdjustApproval ? 'Enviar a aprobación' : 'Guardar'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -726,7 +974,9 @@ export function MisionInventario() {
         {!progressOnly && total > 0 ? (
           <p className="text-center text-xs leading-relaxed text-slate-500 dark:text-slate-500">
             {canAdjustStockMission
-              ? 'Si el stock no coincide, use Editar para ajustar la cantidad y dejar comentario. Gracias.'
+              ? needsStockAdjustApproval
+                ? 'Si el stock no coincide, use Editar: la corrección quedará pendiente hasta que Gabriel o Zavala la aprueben.'
+                : 'Si el stock no coincide, use Editar para ajustar la cantidad y dejar comentario. Gracias.'
               : 'Si encuentra diferencias de stock, avise a un encargado o use Inventario (si tiene permiso) para ajustar.'}
           </p>
         ) : null}

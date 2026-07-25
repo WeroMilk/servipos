@@ -31,6 +31,12 @@ export function isGabrielUser(
   return matchesUserId(user, 'gabriel');
 }
 
+export function isZavalaUser(
+  user: Pick<User, 'username' | 'name' | 'email'> | null | undefined
+): boolean {
+  return matchesUserId(user, 'zavala');
+}
+
 export function isAlfonsoUser(
   user: Pick<User, 'username' | 'name' | 'email'> | null | undefined
 ): boolean {

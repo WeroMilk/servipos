@@ -20,20 +20,31 @@ import {
 } from '@/data/ubicacionesMuebleA';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useProductSearch, useProducts } from '@/hooks/useProducts';
+import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
 import { useAppStore, useAuthStore } from '@/stores';
+import {
+  createMissionStockAdjustRequest,
+  userNeedsMissionStockAdjustApproval,
+} from '@/lib/missionStockAdjustRequests';
 import { cn } from '@/lib/utils';
 import type { Product } from '@/types';
 
 type CountedLine = { id: string; nombre: string; sku: string; cantidad: number };
 
-export function ConteoPorMueble() {
+export function ConteoPorMueble({
+  onPendingAdjustCreated,
+}: {
+  onPendingAdjustCreated?: () => void;
+} = {}) {
   const isMobile = useIsMobile();
   const { addToast } = useAppStore();
   const user = useAuthStore((s) => s.user);
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const canAdjust = hasPermission('inventario:editar') || hasPermission('inventario:mision_ajustar_stock');
+  const needsApproval = userNeedsMissionStockAdjustApproval(user);
   const { adjustStock } = useProducts();
   const { searchByBarcode } = useProductSearch();
+  const { effectiveSucursalId } = useEffectiveSucursalId();
 
   const [mueble, setMueble] = useState<string | null>(null);
   const [pending, setPending] = useState<Product | null>(null);
@@ -157,8 +168,33 @@ export function ConteoPorMueble() {
     setSaving(true);
     try {
       if (nueva !== actual) {
-        await adjustStock(pending.id, nueva, 'ajuste', `Conteo mueble ${mueble}`, undefined, user.id);
-        addToast({ type: 'success', message: 'Existencia actualizada.' });
+        if (needsApproval) {
+          if (!effectiveSucursalId) {
+            addToast({ type: 'error', message: 'No hay sucursal activa para registrar la solicitud.' });
+            return;
+          }
+          await createMissionStockAdjustRequest({
+            sucursalId: effectiveSucursalId,
+            productId: pending.id,
+            productNombre: pending.nombre,
+            productSku: pending.sku,
+            cantidadAnterior: actual,
+            cantidadNueva: nueva,
+            comentario: `Conteo mueble ${mueble}`,
+            origen: 'conteo_mueble',
+            mueble,
+            solicitadoPorId: user.id,
+            solicitadoPorNombre: user.name?.trim() || user.username?.trim() || user.email || 'Cajero',
+          });
+          addToast({
+            type: 'success',
+            message: 'Solicitud enviada. Pendiente de aprobación de Gabriel o Zavala.',
+          });
+          onPendingAdjustCreated?.();
+        } else {
+          await adjustStock(pending.id, nueva, 'ajuste', `Conteo mueble ${mueble}`, undefined, user.id);
+          addToast({ type: 'success', message: 'Existencia actualizada.' });
+        }
       } else {
         addToast({ type: 'info', message: 'Cantidad sin cambios.' });
       }
@@ -310,7 +346,10 @@ export function ConteoPorMueble() {
               disabled={saving}
             />
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Sistema: {Math.trunc(Number(pending?.existencia) || 0)}. Modifica si el conteo físico es distinto.
+              Sistema: {Math.trunc(Number(pending?.existencia) || 0)}.
+              {needsApproval
+                ? ' Si cambia la cantidad, se enviará a aprobación de Gabriel o Zavala.'
+                : ' Modifica si el conteo físico es distinto.'}
             </p>
           </div>
           <DialogFooter className="gap-2 sm:justify-end">
@@ -323,7 +362,7 @@ export function ConteoPorMueble() {
               onClick={() => void confirmPending()}
               className={cn('bg-brand-gradient text-white')}
             >
-              {saving ? 'Guardando…' : 'Listo'}
+              {saving ? 'Guardando…' : needsApproval ? 'Enviar' : 'Listo'}
             </Button>
           </DialogFooter>
         </DialogContent>
