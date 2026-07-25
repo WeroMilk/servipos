@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Plus,
@@ -160,6 +160,8 @@ export function Clientes() {
     email: '',
     telefono: '',
     listaPreciosId: 'regular' as ClientPriceListId,
+    /** Vacío = sin límite de crédito. */
+    limiteCredito: '',
     calle: '',
     numeroExterior: '',
     numeroInterior: '',
@@ -170,6 +172,16 @@ export function Clientes() {
   });
 
   const { results: searchResults, search } = useClientSearch();
+
+  const parseLimiteCreditoForm = (raw: string): number | null => {
+    const t = String(raw ?? '').trim().replace(',', '.');
+    if (!t) return null;
+    const n = Number(t);
+    if (!Number.isFinite(n) || n < 0) {
+      throw new Error('Indique un limite de credito valido (>= 0) o dejelo vacio.');
+    }
+    return Math.round(n * 100) / 100;
+  };
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
@@ -182,8 +194,10 @@ export function Clientes() {
     addClientLockRef.current = true;
     setAddClientSubmitting(true);
     try {
+      const limiteCredito = parseLimiteCreditoForm(formData.limiteCredito);
       await addClient({
         ...formData,
+        limiteCredito,
         notasInternas: formData.notasInternas.trim() || undefined,
         isMostrador: false,
         direccion: {
@@ -194,7 +208,7 @@ export function Clientes() {
           codigoPostal: formData.codigoPostal,
           ciudad: formData.ciudad,
           estado: formData.estado || ESTADO_SONORA,
-          pais: 'MÃ©xico',
+          pais: 'México',
         },
       } as any);
 
@@ -230,8 +244,10 @@ export function Clientes() {
     if (!selectedClient) return;
     
     try {
+      const limiteCredito = parseLimiteCreditoForm(formData.limiteCredito);
       await editClient(selectedClient.id, {
         ...formData,
+        limiteCredito,
         notasInternas: formData.notasInternas.trim() || undefined,
         direccion: {
           calle: formData.calle,
@@ -241,7 +257,7 @@ export function Clientes() {
           codigoPostal: formData.codigoPostal,
           ciudad: formData.ciudad,
           estado: formData.estado || ESTADO_SONORA,
-          pais: 'MÃ©xico',
+          pais: 'México',
         },
       });
       
@@ -268,6 +284,10 @@ export function Clientes() {
       email: client.email || '',
       telefono: client.telefono || '',
       listaPreciosId: client.listaPreciosId ?? 'regular',
+      limiteCredito:
+        client.limiteCredito != null && Number.isFinite(Number(client.limiteCredito))
+          ? String(client.limiteCredito)
+          : '',
       calle: client.direccion?.calle || '',
       numeroExterior: client.direccion?.numeroExterior || '',
       numeroInterior: client.direccion?.numeroInterior || '',
@@ -304,6 +324,7 @@ export function Clientes() {
       email: '',
       telefono: '',
       listaPreciosId: 'regular',
+      limiteCredito: '',
       calle: '',
       numeroExterior: '',
       numeroInterior: '',
@@ -770,12 +791,29 @@ export function Clientes() {
                 ))}
               </select>
               <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-500 lg:text-[10px] lg:leading-tight">
-                Precios que verÃ¡ este cliente al elegirlo en punto de venta (regular, tÃ©cnico, mayoreo, etc.).
+                Precios que verá este cliente al elegirlo en punto de venta (regular, técnico, mayoreo, etc.).
+              </p>
+            </div>
+
+            <div className="min-w-0 space-y-1.5 sm:col-span-2 lg:col-span-2 lg:space-y-1">
+              <Label className="text-sm lg:text-xs">Limite de credito</Label>
+              <Input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step="0.01"
+                value={formData.limiteCredito}
+                onChange={(e) => setFormData({ ...formData, limiteCredito: e.target.value })}
+                placeholder="Sin limite"
+                className="h-10 border-slate-300 bg-slate-200 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:h-9"
+              />
+              <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-500 lg:text-[10px] lg:leading-tight">
+                Vacio = sin limite. Si el adeudo alcanza este tope, el POS avisara al seleccionarlo (sin bloquear la venta).
               </p>
             </div>
 
             <div className="min-w-0 space-y-1.5 lg:col-span-2 lg:space-y-1">
-              <Label className="text-sm lg:text-xs">RÃ©gimen Fiscal</Label>
+              <Label className="text-sm lg:text-xs">Régimen Fiscal</Label>
               <select
                 value={formData.regimenFiscal}
                 onChange={(e) => setFormData({ ...formData, regimenFiscal: e.target.value })}
@@ -916,6 +954,22 @@ export function Clientes() {
               </select>
               <p className="text-[11px] text-slate-500 dark:text-slate-500">
                 Precios que verÃ¡ este cliente al elegirlo en punto de venta (regular, tÃ©cnico, mayoreo, etc.).
+              </p>
+            </div>
+            <div className="min-w-0 space-y-2 sm:col-span-2 lg:col-span-1">
+              <Label>Limite de credito</Label>
+              <Input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step="0.01"
+                value={formData.limiteCredito}
+                onChange={(e) => setFormData({ ...formData, limiteCredito: e.target.value })}
+                placeholder="Sin limite"
+                className="border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+              />
+              <p className="text-[11px] text-slate-500 dark:text-slate-500">
+                Vacio = sin limite. Si el adeudo alcanza este tope, el POS avisara al seleccionarlo (sin bloquear la venta).
               </p>
             </div>
 

@@ -36,6 +36,7 @@ import {
 } from '@/components/ui/dialog';
 import {
   AlertDialog,
+  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -148,6 +149,7 @@ import {
   type DevolucionLineInput,
 } from '@/lib/salePartialReturnCompute';
 import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
+import { clientReachedCreditLimit } from '@/lib/clientCreditLimit';
 import { saldoCreditoCliente, sumCreditoTiendaEnPagosParcial } from '@/lib/clientCreditoTienda';
 
 function buildProductStubFromResumeFields(args: {
@@ -902,7 +904,20 @@ export function POS() {
   checkoutPhaseRef.current = checkoutPhase;
   const [ticketSnapshot, setTicketSnapshot] = useState<PosTicketSnapshot | null>(null);
   const [showClientDialog, setShowClientDialog] = useState(false);
+  const [creditLimitAlertOpen, setCreditLimitAlertOpen] = useState(false);
+  const [creditLimitAlertAdeudo, setCreditLimitAlertAdeudo] = useState(0);
   const [ventaClienteSearch, setVentaClienteSearch] = useState('');
+
+  const selectPosClient = useCallback(
+    (c: Client | null) => {
+      setClient(c);
+      if (c && clientReachedCreditLimit(c)) {
+        setCreditLimitAlertAdeudo(Math.max(0, Number(c.saldoAdeudado) || 0));
+        setCreditLimitAlertOpen(true);
+      }
+    },
+    [setClient]
+  );
 
   useEffect(() => {
     if (showClientDialog) setVentaClienteSearch('');
@@ -2318,7 +2333,7 @@ export function POS() {
           if (sale.clienteId && sale.clienteId !== 'mostrador') {
             const row = await getClientById(sale.clienteId);
             if (row?.nombre?.trim()) {
-              setClient(row);
+              selectPosClient(row);
               setMobileTab('cart');
               addToast({
                 type: 'success',
@@ -2340,7 +2355,7 @@ export function POS() {
         if (cid && cid !== 'mostrador') {
           const row = await getClientById(cid);
           if (row?.nombre?.trim()) {
-            setClient(row);
+            selectPosClient(row);
             setMobileTab('cart');
             addToast({
               type: 'success',
@@ -2354,7 +2369,7 @@ export function POS() {
         addToast({ type: 'error', message: 'No se pudo abrir la venta o el cliente en el POS.' });
       }
     })();
-  }, [location.state, navigate, effectiveSucursalId, setClient, addToast, setMobileTab]);
+  }, [location.state, navigate, effectiveSucursalId, selectPosClient, addToast, setMobileTab]);
 
   const ejecutarPasarCxcConCliente = async (vs: Sale, clienteRow: Client) => {
     setPasarCxcBusyId(vs.id);
@@ -3856,6 +3871,13 @@ export function POS() {
                 <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-200 sm:text-base lg:text-sm">
                   {posClienteDisplayNombre(client)}
                 </p>
+                {client &&
+                !client.isMostrador &&
+                Math.max(0, Number(client.saldoAdeudado) || 0) > 0 ? (
+                  <p className="truncate text-[10px] font-medium tabular-nums text-amber-700 dark:text-amber-400 sm:text-xs lg:text-[10px]">
+                    Adeudo: {formatMoney(Math.max(0, Number(client.saldoAdeudado) || 0))}
+                  </p>
+                ) : null}
               </div>
             </div>
             <span className="shrink-0 text-xs font-medium text-brand-to sm:text-sm dark:text-brand lg:text-xs">
@@ -5007,7 +5029,7 @@ export function POS() {
                   key={c.id}
                   type="button"
                   onClick={() => {
-                    setClient(c);
+                    selectPosClient(c);
                     setShowClientDialog(false);
                   }}
                   className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-200/80 dark:bg-slate-800/50 p-3 text-left transition-colors hover:bg-slate-200 dark:bg-slate-800"
@@ -5047,6 +5069,25 @@ export function POS() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={creditLimitAlertOpen} onOpenChange={setCreditLimitAlertOpen}>
+        <AlertDialogContent className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Límite de crédito</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-600 dark:text-slate-400">
+              Tiene un adeudo de {formatMoney(creditLimitAlertAdeudo)}.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction
+              className="bg-brand text-white hover:bg-brand/90"
+              onClick={() => setCreditLimitAlertOpen(false)}
+            >
+              Entendido
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={ventaResetConfirmOpen} onOpenChange={setVentaResetConfirmOpen}>
         <AlertDialogContent className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">

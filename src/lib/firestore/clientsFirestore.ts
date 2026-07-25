@@ -124,6 +124,10 @@ export function docToClient(sucursalId: string, id: string, d: Record<string, un
       d.saldoAdeudado != null && Number.isFinite(Number(d.saldoAdeudado))
         ? Math.max(0, Math.round(Number(d.saldoAdeudado) * 100) / 100)
         : undefined,
+    limiteCredito:
+      d.limiteCredito != null && Number.isFinite(Number(d.limiteCredito))
+        ? Math.max(0, Math.round(Number(d.limiteCredito) * 100) / 100)
+        : null,
     ultimoAbonoMonto:
       d.ultimoAbonoMonto != null && Number.isFinite(Number(d.ultimoAbonoMonto))
         ? Math.max(0, Math.round(Number(d.ultimoAbonoMonto) * 100) / 100)
@@ -203,6 +207,10 @@ function clientToDocPayload(
     saldoAdeudado:
       client.saldoAdeudado != null && Number.isFinite(Number(client.saldoAdeudado))
         ? Math.max(0, Math.round(Number(client.saldoAdeudado) * 100) / 100)
+        : null,
+    limiteCredito:
+      client.limiteCredito != null && Number.isFinite(Number(client.limiteCredito))
+        ? Math.max(0, Math.round(Number(client.limiteCredito) * 100) / 100)
         : null,
     sucursalId: client.sucursalId ?? null,
   };
@@ -359,6 +367,13 @@ export async function updateClientFirestore(
   if (updates.saldoAdeudado !== undefined) {
     const v = Number(updates.saldoAdeudado);
     doc.saldoAdeudado = Number.isFinite(v) ? Math.max(0, Math.round(v * 100) / 100) : null;
+  }
+  if (updates.limiteCredito !== undefined) {
+    const v = updates.limiteCredito;
+    doc.limiteCredito =
+      v == null || !Number.isFinite(Number(v))
+        ? null
+        : Math.max(0, Math.round(Number(v) * 100) / 100);
   }
   if (updates.ultimoAbonoMonto !== undefined) {
     const v = updates.ultimoAbonoMonto;

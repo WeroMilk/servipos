@@ -399,6 +399,11 @@ export interface Client {
    * Se incrementa al cobrar con adeudo y puede reducirse con abonos en Cuentas por cobrar.
    */
   saldoAdeudado?: number;
+  /**
+   * Tope de crédito configurable por cliente.
+   * Ausente / null = sin límite (no avisar en POS).
+   */
+  limiteCredito?: number | null;
   /** Último abono registrado (para reimpresión de comprobante). */
   ultimoAbonoMonto?: number;
   ultimoAbonoAt?: Date;
