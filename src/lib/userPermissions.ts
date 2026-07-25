@@ -159,7 +159,9 @@ export function userCanAccessPanel(user: User | null | undefined): boolean {
 }
 
 /** Admin/gerente: editan inventario (y precio en POS) sin PIN de autorización. */
-export function userIsGerenteOrAdmin(user: User | null | undefined): boolean {
+export function userIsGerenteOrAdmin(
+  user: Pick<User, 'role' | 'isActive'> | null | undefined
+): boolean {
   if (!user?.isActive) return false;
   return user.role === 'admin' || user.role === 'gerente';
 }
