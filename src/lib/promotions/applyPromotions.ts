@@ -31,6 +31,15 @@ export function promoLabel(p: Promotion): string {
   return p.nombre || 'Promo';
 }
 
+/** Convierte precio fijo de promo (con IVA) a unitario base sin IVA para el carrito. */
+export function fixedPromoPriceToUnitSinIva(fixedPriceConIva: number, impuestoPct: number): number {
+  const conIva = Number(fixedPriceConIva);
+  if (!Number.isFinite(conIva) || conIva < 0) return NaN;
+  const imp = Number(impuestoPct);
+  const rate = Number.isFinite(imp) && imp >= 0 ? imp : 16;
+  return Math.round((conIva / (1 + rate / 100)) * 100) / 100;
+}
+
 /**
  * Descuento % efectivo sobre el subtotal de la línea (todas las unidades al mismo unitario).
  * - fixed_price: 0 (el precio se aplica con `precioUnitarioOverride`)
@@ -130,25 +139,27 @@ export function applyPromotionsToCartItems(
     const label = promoLabel(promo);
 
     if (promo.kind === 'fixed_price') {
-      const fixed = Number(promo.fixedPrice);
-      if (!Number.isFinite(fixed) || fixed < 0) {
+      const sinIva = fixedPromoPriceToUnitSinIva(
+        Number(promo.fixedPrice),
+        Number(item.product.impuesto) || 16
+      );
+      if (!Number.isFinite(sinIva) || sinIva < 0) {
         if (item.promoId) return clearAutoPromoFields(item);
         return item;
       }
-      const rounded = Math.round(fixed * 100) / 100;
       if (
         item.promoId === promo.id &&
         item.promoLabel === label &&
         !(Number(item.discount) > 0) &&
         item.precioUnitarioOverride != null &&
-        Math.abs(Number(item.precioUnitarioOverride) - rounded) < 0.001
+        Math.abs(Number(item.precioUnitarioOverride) - sinIva) < 0.001
       ) {
         return item;
       }
       return {
         ...item,
         discount: 0,
-        precioUnitarioOverride: rounded,
+        precioUnitarioOverride: sinIva,
         precioListaId: undefined,
         promoId: promo.id,
         promoLabel: label,

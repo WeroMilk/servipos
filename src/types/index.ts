@@ -1082,8 +1082,8 @@ export interface Promotion {
   nombre: string;
   kind: PromoKind;
   /**
-   * Precio unitario fijo sin IVA (kind=fixed_price).
-   * En caja se aplica como `precioUnitarioOverride`.
+   * Precio unitario fijo con IVA (kind=fixed_price).
+   * En caja se convierte a sin IVA con el % del producto y se aplica como `precioUnitarioOverride`.
    */
   fixedPrice?: number;
   /** Descuento % (kind=percent). */

@@ -42,7 +42,7 @@ type PromoTemplate =
 type FormState = {
   nombre: string;
   template: PromoTemplate;
-  /** Precio unitario sin IVA (texto del input). */
+  /** Precio unitario con IVA (texto del input). */
   fixedPrice: string;
   percent: string;
   fechaInicio: string;
@@ -403,7 +403,7 @@ export function Promociones() {
 
             {isFixedPriceForm ? (
               <div className="space-y-1.5">
-                <Label htmlFor="promo-fixed-price">Precio fijo (sin IVA)</Label>
+                <Label htmlFor="promo-fixed-price">Precio fijo (con IVA)</Label>
                 <div className="flex max-w-[14rem] items-center gap-2">
                   <span className="text-sm text-slate-500">$</span>
                   <Input
@@ -415,13 +415,13 @@ export function Promociones() {
                     value={form.fixedPrice}
                     onChange={(e) => setForm((f) => ({ ...f, fixedPrice: e.target.value }))}
                     placeholder="250.00"
-                    aria-label="Precio fijo sin IVA"
+                    aria-label="Precio fijo con IVA"
                   />
                 </div>
                 <p className="text-[11px] leading-snug text-slate-500">
-                  Ese importe es el unitario sin IVA en caja
+                  Ese importe es el unitario con IVA en caja
                   {Number.isFinite(fixedPreview) && fixedPreview >= 0
-                    ? ` (aprox. ${formatMoney(fixedPreview * 1.16)} con 16% IVA).`
+                    ? ` (aprox. ${formatMoney(fixedPreview / 1.16)} sin 16% IVA).`
                     : '.'}{' '}
                   Todos los artículos seleccionados saldrán a ese precio mientras la promo esté vigente.
                 </p>

@@ -55,11 +55,12 @@ describe('fixed_price promotions', () => {
     expect(effectiveDiscountPercentForQty(makePromo(), 3)).toBe(0);
   });
 
-  it('applies fixed price as unit override on cart lines', () => {
-    const product = makeProduct();
+  it('applies fixed price (con IVA) as unit override sin IVA on cart lines', () => {
+    const product = makeProduct({ impuesto: 16 });
     const items: CartItem[] = [{ product, quantity: 2, discount: 0 }];
     const next = applyPromotionsToCartItems(items, [makePromo({ fixedPrice: 250 })]);
-    expect(next[0]?.precioUnitarioOverride).toBe(250);
+    // 250 / 1.16 ≈ 215.52
+    expect(next[0]?.precioUnitarioOverride).toBe(215.52);
     expect(next[0]?.discount).toBe(0);
     expect(next[0]?.promoId).toBe('promo1');
   });
@@ -73,7 +74,7 @@ describe('fixed_price promotions', () => {
         discount: 0,
         promoId: 'promo1',
         promoLabel: '$250.00',
-        precioUnitarioOverride: 250,
+        precioUnitarioOverride: 215.52,
       },
     ];
     const next = applyPromotionsToCartItems(items, []);
