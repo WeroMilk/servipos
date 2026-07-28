@@ -941,7 +941,7 @@ ${THERMAL_TICKET_VENTA_STYLES}
     ${payload.cambio != null && payload.cambio > 0 ? `<div>Cambio: ${formatMoney(payload.cambio)}</div>` : ''}
     ${
       payload.adeudoPendiente != null && payload.adeudoPendiente > 0.004
-        ? `<div style="margin-top:3px;font-size:10px;font-weight:700;color:#92400e;">Saldo pendiente (cuenta cliente): ${formatMoney(payload.adeudoPendiente)}</div>`
+        ? `<div style="margin-top:3px;font-size:11px;font-weight:700;color:#92400e;">Saldo pendiente (cuenta cliente): ${formatMoney(payload.adeudoPendiente)}</div>`
         : ''
     }
   </div>
@@ -1432,7 +1432,7 @@ function thermalCajaMovimientoLineHtml(
   const sign = kind === 'aporte' ? '+' : '−';
   const hora = formatInAppTimezone(r.createdAt, { timeStyle: 'short' });
   const concepto = r.notas?.trim();
-  const line1 = `<div style="font-size:10px;margin:2px 0 0;line-height:1.2;">
+  const line1 = `<div style="font-size:11px;margin:2px 0 0;line-height:1.25;">
     <span style="font-weight:700;">${sign}${escapeHtml(formatMoney(r.monto))}</span>
     <span> · ${escapeHtml(hora)} · ${escapeHtml(r.usuarioNombre)}</span>
   </div>`;
