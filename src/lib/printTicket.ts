@@ -96,14 +96,13 @@ const THERMAL_BODY_FONT_PX = 12;
 const THERMAL_LOGO_WIDTH_MM = 14;
 
 /**
- * Rollo 80 mm: muchos drivers térmicos empujan el contenido a la derecha y además
- * Chrome a veces ignora `@page size`, centrando un body angosto en una hoja ancha
- * (`margin: 0 auto` → el ticket “aparece” a la derecha y se corta).
- * Columna fija; margen derecho un poco mayor y corrimiento leve a la izquierda centran el ticket.
+ * Rollo 80 mm: el área útil real suele ser menor (márgenes del driver + franja del papel).
+ * Columna angosta (~56 mm) con márgenes laterales equilibrados para que nada se corte
+ * a izquierda ni derecha; tipografía se mantiene.
  */
-const THERMAL_PAGE_MARGIN = '3mm 6mm 4mm 2.5mm'; // top right bottom left
-const THERMAL_BODY_WIDTH_MM = 64;
-const THERMAL_BODY_LEFT_SHIFT_MM = -2;
+const THERMAL_PAGE_MARGIN = '4mm 6mm 5mm 6mm'; // top right bottom left
+const THERMAL_BODY_WIDTH_MM = 56;
+const THERMAL_BODY_LEFT_SHIFT_MM = 0;
 
 /** Cascara común html/body para todos los tickets 80 mm (venta, compact, cierre). */
 const THERMAL_80MM_SHELL_CSS = `
@@ -131,8 +130,8 @@ function thermalTicketBodyShellCss(bodySelector: string): string {
     left: ${THERMAL_BODY_LEFT_SHIFT_MM}mm;
     width: ${THERMAL_BODY_WIDTH_MM}mm;
     max-width: 100%;
-    margin: 0 !important;
-    padding: 4px 2px 8px;
+    margin: 0 auto !important;
+    padding: 4px 3px 8px;
     box-sizing: border-box;
     color: #000;
     -webkit-print-color-adjust: exact;
@@ -303,8 +302,8 @@ ${scopeThermalCss(THERMAL_PIE_SUCURSAL_CSS, 'body.ticket-venta')}
   body.ticket-venta .ticket-politicas div + div { margin-top: 1px; }
   body.ticket-venta .ticket-barcode-wrap { margin-top: 5px; text-align: center; }
   body.ticket-venta .ticket-barcode-wrap img {
-    width: 160px !important;
-    max-width: 95% !important;
+    width: 140px !important;
+    max-width: 100% !important;
     height: auto;
     display: block;
     margin: 0 auto;
@@ -456,7 +455,7 @@ ${scopeThermalCss(THERMAL_PIE_SUCURSAL_CSS, 'body.ticket-compact')}
 const THERMAL_BASE_STYLES = `@page { size: 80mm auto; margin: ${THERMAL_PAGE_MARGIN}; }
   * { box-sizing: border-box; }
   html { width: 80mm; max-width: 80mm; margin: 0; padding: 0; }
-  body { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 22px; color: #000; width: ${THERMAL_BODY_WIDTH_MM}mm; max-width: 100%; margin: 0; padding: 4px 2px; position: relative; left: ${THERMAL_BODY_LEFT_SHIFT_MM}mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 22px; color: #000; width: ${THERMAL_BODY_WIDTH_MM}mm; max-width: 100%; margin: 0 auto; padding: 4px 3px; position: relative; left: ${THERMAL_BODY_LEFT_SHIFT_MM}mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   h1 { font-size: 28px; text-align: center; margin: 0 0 10px; line-height: 1.15; }
   /* Encabezado marca: logo arriba, título debajo; ambos centrados en el ancho del ticket */
   .ticket-brand-block {
