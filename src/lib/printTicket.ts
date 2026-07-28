@@ -95,6 +95,51 @@ const THERMAL_BODY_FONT_PX = 10;
 /** Logo en rollo 80 mm: mitad del tamaño anterior (28 mm → 14 mm). */
 const THERMAL_LOGO_WIDTH_MM = 14;
 
+/**
+ * Rollo 80 mm: muchos drivers térmicos empujan el contenido a la derecha y además
+ * Chrome a veces ignora `@page size`, centrando un body angosto en una hoja ancha
+ * (`margin: 0 auto` → el ticket “aparece” a la derecha y se corta).
+ * Columna fija a la izquierda, margen derecho mayor y ligero corrimiento a la izquierda.
+ */
+const THERMAL_PAGE_MARGIN = '3mm 8mm 4mm 1.5mm'; // top right bottom left
+const THERMAL_BODY_WIDTH_MM = 66;
+const THERMAL_BODY_LEFT_SHIFT_MM = -6;
+
+/** Cascara común html/body para todos los tickets 80 mm (venta, compact, cierre). */
+const THERMAL_80MM_SHELL_CSS = `
+  @page { size: 80mm auto; margin: ${THERMAL_PAGE_MARGIN}; }
+  @media print {
+    html {
+      width: 80mm !important;
+      max-width: 80mm !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+  }
+  html {
+    width: 80mm;
+    max-width: 80mm;
+    margin: 0;
+    padding: 0;
+  }
+`;
+
+function thermalTicketBodyShellCss(bodySelector: string): string {
+  return `
+  ${bodySelector} {
+    position: relative;
+    left: ${THERMAL_BODY_LEFT_SHIFT_MM}mm;
+    width: ${THERMAL_BODY_WIDTH_MM}mm;
+    max-width: 100%;
+    margin: 0 !important;
+    padding: 4px 2px 8px;
+    box-sizing: border-box;
+    color: #000;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }`;
+}
+
 /** Antepone el scope solo a los selectores de cada bloque `{…}` (no a las propiedades). */
 function scopeThermalCss(css: string, scope: string): string {
   return css.replace(/([^{}]+)\{([^}]*)\}/g, (_match, selectors: string, rules: string) => {
@@ -160,26 +205,31 @@ const THERMAL_PIE_SUCURSAL_CSS = `
 
 /**
  * Solo `printThermalTicket` (venta, cotización impresa como ticket, devolución):
- * Tipografía compacta al 80 mm; columna centrada sin corrimiento (evita corte a la izquierda).
+ * Tipografía compacta al 80 mm; columna compensada a la izquierda (evita corte a la derecha).
  */
 const THERMAL_TICKET_VENTA_STYLES = `
-  @page { size: 80mm auto; margin: 5.5mm 5.5mm 6mm 5.5mm; }
+${THERMAL_80MM_SHELL_CSS}
+${thermalTicketBodyShellCss('body.ticket-venta')}
   body.ticket-venta {
-    position: static;
-    width: 64mm;
-    max-width: 100%;
-    margin: 0 auto;
-    padding: 5px 4px 8px;
     font-size: 11px;
     line-height: 1.2;
+    font-weight: 500;
   }
   body.ticket-venta h1,
   body.ticket-venta .ticket-brand-block h1 {
     font-size: 14px !important;
     margin: 0 0 4px !important;
     line-height: 1.15 !important;
+    font-weight: 800 !important;
+    text-align: center !important;
   }
-  body.ticket-venta .ticket-brand-block { margin-bottom: 4px; }
+  body.ticket-venta .ticket-brand-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    margin-bottom: 4px;
+  }
   body.ticket-venta .ticket-brand-block .logo-ticket {
     display: block !important;
     max-width: ${THERMAL_LOGO_WIDTH_MM}mm;
@@ -187,6 +237,7 @@ const THERMAL_TICKET_VENTA_STYLES = `
     height: auto;
     object-fit: contain;
     margin: 0 auto;
+    transform: translateX(-0.5mm);
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
@@ -205,7 +256,7 @@ const THERMAL_TICKET_VENTA_STYLES = `
     overflow-wrap: anywhere;
     word-break: break-word;
   }
-  body.ticket-venta td.desc { font-size: ${THERMAL_BODY_FONT_PX}px; font-weight: 600; padding-top: 3px; }
+  body.ticket-venta td.desc { font-size: ${THERMAL_BODY_FONT_PX}px; font-weight: 700; padding-top: 3px; }
   body.ticket-venta td.right { white-space: normal; text-align: right; }
   body.ticket-venta .tot {
     font-size: ${THERMAL_BODY_FONT_PX}px;
@@ -214,7 +265,7 @@ const THERMAL_TICKET_VENTA_STYLES = `
     line-height: 1.2;
     border-top: 1px dashed #333;
   }
-  body.ticket-venta .tot strong { font-size: 13px; }
+  body.ticket-venta .tot strong { font-size: 13px; font-weight: 800; }
   body.ticket-venta .ticket-pagos {
     font-size: ${THERMAL_BODY_FONT_PX}px !important;
     line-height: 1.2;
@@ -222,7 +273,7 @@ const THERMAL_TICKET_VENTA_STYLES = `
     padding-top: 4px;
     border-top: 1px dashed #333;
   }
-  body.ticket-venta .ticket-pagos .tit { font-weight: 600; margin-bottom: 2px; }
+  body.ticket-venta .ticket-pagos .tit { font-weight: 700; margin-bottom: 2px; }
   body.ticket-venta .meta,
   body.ticket-venta .tot,
   body.ticket-venta .ticket-pagos,
@@ -247,42 +298,41 @@ ${scopeThermalCss(THERMAL_PIE_SUCURSAL_CSS, 'body.ticket-venta')}
     padding-top: 4px;
     border-top: 1px dashed #666;
     text-align: center;
-    font-weight: 600;
+    font-weight: 700;
   }
   body.ticket-venta .ticket-politicas div + div { margin-top: 1px; }
   body.ticket-venta .ticket-barcode-wrap { margin-top: 5px; text-align: center; }
   body.ticket-venta .ticket-barcode-wrap img {
-    width: 180px !important;
-    max-width: 100% !important;
+    width: 160px !important;
+    max-width: 95% !important;
     height: auto;
     display: block;
     margin: 0 auto;
+    image-rendering: pixelated;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   body.ticket-venta .ticket-gracias {
     font-size: ${THERMAL_MIN_FONT_PX}px;
     line-height: 1.15;
     margin-top: 5px;
-    font-weight: 600;
+    font-weight: 700;
     text-align: center;
   }`;
 
 /**
  * Documentos térmicos genéricos (abono, stock bajo, misiones, etc.):
- * misma columna compacta que venta; logo con corrección óptica a la izquierda.
+ * misma columna compensada que venta; logo con corrección óptica a la izquierda.
  */
 const THERMAL_COMPACT_SHELL_STYLES = `
-  @page { size: 80mm auto; margin: 5.5mm 5.5mm 6mm 5.5mm; }
+${THERMAL_80MM_SHELL_CSS}
+${thermalTicketBodyShellCss('body.ticket-compact')}
   * { box-sizing: border-box; }
   body.ticket-compact {
-    position: static;
-    width: 64mm;
-    max-width: 100%;
-    margin: 0 auto;
-    padding: 5px 4px 8px;
     font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
     font-size: 11px;
     line-height: 1.2;
-    color: #111;
+    font-weight: 500;
   }
   body.ticket-compact .ticket-brand-block {
     display: flex;
@@ -299,7 +349,7 @@ const THERMAL_COMPACT_SHELL_STYLES = `
     height: auto;
     object-fit: contain;
     margin: 0 auto;
-    transform: translateX(-1.2mm);
+    transform: translateX(-0.5mm);
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
@@ -309,6 +359,7 @@ const THERMAL_COMPACT_SHELL_STYLES = `
     text-align: center !important;
     font-size: 14px !important;
     line-height: 1.15 !important;
+    font-weight: 800 !important;
   }
   body.ticket-compact .meta {
     font-size: ${THERMAL_MIN_FONT_PX}px;
@@ -337,7 +388,7 @@ const THERMAL_COMPACT_SHELL_STYLES = `
     overflow-wrap: anywhere;
     word-break: break-word;
   }
-  body.ticket-compact .tot strong { font-size: 13px; }
+  body.ticket-compact .tot strong { font-size: 13px; font-weight: 800; }
   body.ticket-compact p,
   body.ticket-compact .ticket-body-text {
     overflow-wrap: anywhere;
@@ -402,9 +453,10 @@ ${scopeThermalCss(THERMAL_PIE_SUCURSAL_CSS, 'body.ticket-compact')}
 `;
 
 /** CSS compartido: ticket de venta 80 mm e informes térmicos (tipografía grande para leer en papel). */
-const THERMAL_BASE_STYLES = `@page { size: 80mm auto; margin: 4mm; }
+const THERMAL_BASE_STYLES = `@page { size: 80mm auto; margin: ${THERMAL_PAGE_MARGIN}; }
   * { box-sizing: border-box; }
-  body { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 22px; color: #111; width: 72mm; margin: 0 auto; padding: 4px; }
+  html { width: 80mm; max-width: 80mm; margin: 0; padding: 0; }
+  body { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 22px; color: #000; width: ${THERMAL_BODY_WIDTH_MM}mm; max-width: 100%; margin: 0; padding: 4px 2px; position: relative; left: ${THERMAL_BODY_LEFT_SHIFT_MM}mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   h1 { font-size: 28px; text-align: center; margin: 0 0 10px; line-height: 1.15; }
   /* Encabezado marca: logo arriba, título debajo; ambos centrados en el ancho del ticket */
   .ticket-brand-block {
@@ -446,21 +498,14 @@ const THERMAL_BASE_STYLES = `@page { size: 80mm auto; margin: 4mm; }
  * rollo 80 mm con el mismo ancho útil y márgenes que `ticket-venta` (impresora térmica).
  */
 const THERMAL_CIERRE_TURNO_STYLES = `
-  @page { size: 80mm auto; margin: 5.5mm 5.5mm 6mm 5.5mm; }
-  @media print {
-    html { width: 80mm; margin: 0 auto; }
-  }
+${THERMAL_80MM_SHELL_CSS}
+${thermalTicketBodyShellCss('body.ticket-cierre-turno')}
   * { box-sizing: border-box; }
   body.ticket-cierre-turno {
-    position: static;
-    width: 64mm;
-    max-width: 100%;
-    margin: 0 auto;
-    padding: 5px 4px 8px;
     font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
     font-size: 11px;
     line-height: 1.2;
-    color: #111;
+    font-weight: 500;
   }
   body.ticket-cierre-turno .ticket-brand-block {
     display: flex;
@@ -476,7 +521,7 @@ const THERMAL_CIERRE_TURNO_STYLES = `
     height: auto;
     object-fit: contain;
     margin: 0 auto;
-    transform: translateX(-1.2mm);
+    transform: translateX(-0.5mm);
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
@@ -486,6 +531,7 @@ const THERMAL_CIERRE_TURNO_STYLES = `
     margin: 3px 0 0 !important;
     line-height: 1.15;
     width: 100%;
+    font-weight: 800 !important;
   }
   body.ticket-cierre-turno h1 {
     font-size: 14px;
@@ -520,7 +566,7 @@ const THERMAL_CIERRE_TURNO_STYLES = `
     overflow-wrap: anywhere;
     word-break: break-word;
   }
-  body.ticket-cierre-turno .tot strong { font-size: 13px; }
+  body.ticket-cierre-turno .tot strong { font-size: 13px; font-weight: 800; }
   body.ticket-cierre-turno p {
     font-size: 10px;
     line-height: 1.2;
@@ -553,11 +599,11 @@ function folioBarcodeDataUrl(folio: string): string | null {
     const canvas = document.createElement('canvas');
     JsBarcode(canvas, t, {
       format: 'CODE128',
-      width: 1.85,
-      height: 44,
+      width: 1.6,
+      height: 40,
       displayValue: true,
-      fontSize: 12,
-      margin: 4,
+      fontSize: 11,
+      margin: 2,
       background: '#ffffff',
       lineColor: '#000000',
     });
@@ -876,7 +922,7 @@ async function printThermalTicketImpl(payload: TicketPayload): Promise<void> {
     )
     .join('');
 
-  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/><title>Ticket</title>
+  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/><meta name="viewport" content="width=302"/><title>Ticket</title>
 <style>${THERMAL_BASE_STYLES}
 ${THERMAL_TICKET_VENTA_STYLES}
 </style></head><body class="ticket-venta">
