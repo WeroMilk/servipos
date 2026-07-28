@@ -99,11 +99,11 @@ const THERMAL_LOGO_WIDTH_MM = 14;
  * Rollo 80 mm: muchos drivers térmicos empujan el contenido a la derecha y además
  * Chrome a veces ignora `@page size`, centrando un body angosto en una hoja ancha
  * (`margin: 0 auto` → el ticket “aparece” a la derecha y se corta).
- * Columna fija; margen izquierdo / corrimiento positivo evitan corte a la izquierda.
+ * Columna fija; margen derecho un poco mayor y corrimiento leve a la izquierda centran el ticket.
  */
-const THERMAL_PAGE_MARGIN = '3mm 4mm 4mm 5mm'; // top right bottom left
+const THERMAL_PAGE_MARGIN = '3mm 6mm 4mm 2.5mm'; // top right bottom left
 const THERMAL_BODY_WIDTH_MM = 64;
-const THERMAL_BODY_LEFT_SHIFT_MM = 3;
+const THERMAL_BODY_LEFT_SHIFT_MM = -2;
 
 /** Cascara común html/body para todos los tickets 80 mm (venta, compact, cierre). */
 const THERMAL_80MM_SHELL_CSS = `
