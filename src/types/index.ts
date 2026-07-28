@@ -473,6 +473,11 @@ export interface Sale {
   posResumeListaPrecios?: string;
   /** Sesión de caja (apertura/cierre) en la que se registró la venta; para arqueo. */
   cajaSesionId?: string;
+  /**
+   * Si true, el ticket térmico de esta venta se imprime sin desglose de IVA
+   * (el cliente no ve Subtotal/IVA; solo TOTAL). No afecta CFDI ni totales guardados.
+   */
+  ocultarIvaEnTicket?: boolean;
   /** Momento en que la venta quedó cobrada (ventas abiertas retomadas en otro día). */
   completedAt?: Date;
   createdAt: Date;

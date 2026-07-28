@@ -52,6 +52,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { useShallow } from 'zustand/react/shallow';
 import { useCartStore, useAppStore, useAuthStore, useInventoryListsStore } from '@/stores';
 import {
@@ -422,6 +423,8 @@ type PosTicketSnapshot = {
   folioVentaOrigen?: string;
   /** true = solo parte del ticket; el folio original sigue activo con líneas restantes. */
   devolucionParcial?: boolean;
+  /** Si true, el ticket no muestra Subtotal/IVA (solo TOTAL). */
+  ocultarIvaEnTicket?: boolean;
 };
 
 /** Imprime el ticket térmico con el snapshot ya construido (evita estado React desactualizado). */
@@ -447,6 +450,7 @@ function printPosTicketSnapshot(snap: PosTicketSnapshot) {
         'COMPROBANTE DE DEVOLUCIÓN — El ticket original quedó cancelado por devolución.',
       resumenPagos: snap.resumenPagos,
       incluirPiePoliticasRefacciones: false,
+      ocultarIvaEnTicket: snap.ocultarIvaEnTicket === true,
     });
     return;
   }
@@ -469,6 +473,7 @@ function printPosTicketSnapshot(snap: PosTicketSnapshot) {
     notas: snap.notas,
     resumenPagos: snap.resumenPagos,
     incluirPiePoliticasRefacciones: true,
+    ocultarIvaEnTicket: snap.ocultarIvaEnTicket === true,
   });
 }
 
@@ -557,6 +562,8 @@ export function POS() {
       setMetodoPago: s.setMetodoPago,
       precioClienteListaId: s.precioClienteListaId,
       setPrecioClienteLista: s.setPrecioClienteLista,
+      ocultarIvaEnTicket: s.ocultarIvaEnTicket,
+      setOcultarIvaEnTicket: s.setOcultarIvaEnTicket,
       transferenciaDestinoSucursalId: s.transferenciaDestinoSucursalId,
       setTransferenciaDestinoSucursalId: s.setTransferenciaDestinoSucursalId,
       addPago: s.addPago,
@@ -593,6 +600,8 @@ export function POS() {
     setMetodoPago,
     precioClienteListaId,
     setPrecioClienteLista,
+    ocultarIvaEnTicket,
+    setOcultarIvaEnTicket,
     transferenciaDestinoSucursalId,
     setTransferenciaDestinoSucursalId,
     addPago,
@@ -682,6 +691,7 @@ export function POS() {
         cliente: clienteEmbed,
         posResumeGlobalDiscount: cartState.discount,
         posResumeListaPrecios: cartState.precioClienteListaId,
+        ocultarIvaEnTicket: cartState.ocultarIvaEnTicket === true,
       },
       { sucursalId: effectiveSucursalId ?? undefined }
     );
@@ -697,6 +707,7 @@ export function POS() {
       cliente: clienteEmbed,
       posResumeGlobalDiscount: cartState.discount,
       posResumeListaPrecios: cartState.precioClienteListaId,
+      ocultarIvaEnTicket: cartState.ocultarIvaEnTicket === true ? true : undefined,
       updatedAt: new Date(),
     };
     setOpenSaleResume({ sale: nextSale });
@@ -720,6 +731,7 @@ export function POS() {
     discount,
     precioClienteListaId,
     client,
+    ocultarIvaEnTicket,
     openSaleResume?.sale?.id,
     openSaleResume?.sale?.estado,
     persistOpenSaleEdits,
@@ -2182,6 +2194,7 @@ export function POS() {
         usuarioNombre: cajeroNombre,
         posResumeGlobalDiscount: discount,
         posResumeListaPrecios: precioClienteListaId,
+        ...(ocultarIvaEnTicket ? { ocultarIvaEnTicket: true } : {}),
         ...(cajaSesion.activa?.id ? { cajaSesionId: cajaSesion.activa.id } : {}),
       };
 
@@ -2252,6 +2265,7 @@ export function POS() {
         client: clientePos,
         globalDiscount: Number(sale.posResumeGlobalDiscount) || 0,
         precioClienteListaId: listaId,
+        ocultarIvaEnTicket: sale.ocultarIvaEnTicket === true,
       });
       setOpenSaleResume({ sale });
       setFormaPago('01');
@@ -2599,6 +2613,7 @@ export function POS() {
           resumenPagos: acreditar
             ? [{ label: 'Crédito de tienda (devolución)', monto }]
             : [{ label: 'Reembolso (devolución)', monto }],
+          ocultarIvaEnTicket: devolucionSaleResuelta.ocultarIvaEnTicket === true,
         };
         setTicketSnapshot(devolucionTicketSnap);
         printPosTicketSnapshot(devolucionTicketSnap);
@@ -2909,6 +2924,7 @@ export function POS() {
             folio: pend.folio?.trim() || undefined,
             notas: pend.notas ? String(pend.notas) : undefined,
             resumenPagos: resumenPagosCxC,
+            ocultarIvaEnTicket: ocultarIvaEnTicket || pend.ocultarIvaEnTicket === true,
           };
           setTicketSnapshot(ticketSnapCxC);
           printPosTicketSnapshot(ticketSnapCxC);
@@ -2979,6 +2995,7 @@ export function POS() {
           folio: pend.folio?.trim() || undefined,
           notas: pend.notas ? String(pend.notas) : undefined,
           resumenPagos: resumenPagosAbierta,
+          ocultarIvaEnTicket: ocultarIvaEnTicket || pend.ocultarIvaEnTicket === true,
         };
         setTicketSnapshot(ticketSnapAbierta);
         printPosTicketSnapshot(ticketSnapAbierta);
@@ -3030,6 +3047,7 @@ export function POS() {
           : undefined,
         usuarioId: user?.id || 'system',
         usuarioNombre: cajeroNombre,
+        ...(ocultarIvaEnTicket ? { ocultarIvaEnTicket: true } : {}),
         ...(cajaSesion.activa?.id ? { cajaSesionId: cajaSesion.activa.id } : {}),
       };
 
@@ -3088,6 +3106,7 @@ export function POS() {
         folio: folioVenta?.trim() || undefined,
         notas: saleData.notas?.trim() ? String(saleData.notas) : undefined,
         resumenPagos,
+        ocultarIvaEnTicket: ocultarIvaEnTicket === true,
       };
       setTicketSnapshot(ticketSnapVenta);
       printPosTicketSnapshot(ticketSnapVenta);
@@ -5293,6 +5312,24 @@ export function POS() {
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
                   «Guardar manual» fija el importe tecleado y quita la lista propia de la línea.
                 </p>
+              </div>
+
+              <div className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 bg-slate-200/40 p-3 dark:border-slate-700 dark:bg-slate-800/50">
+                <div className="min-w-0 space-y-1">
+                  <Label htmlFor="ocultar-iva-ticket" className="text-sm text-slate-800 dark:text-slate-100">
+                    Quitar IVA incluido del ticket
+                  </Label>
+                  <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-400">
+                    El cliente no verá Subtotal ni IVA en el ticket (solo el TOTAL). Los importes fiscales de la venta
+                    se conservan por si después requiere factura.
+                  </p>
+                </div>
+                <Switch
+                  id="ocultar-iva-ticket"
+                  checked={ocultarIvaEnTicket}
+                  onCheckedChange={(v) => setOcultarIvaEnTicket(v === true)}
+                  className="mt-0.5 shrink-0"
+                />
               </div>
 
               <DialogFooter className="flex-col gap-2 border-t border-slate-200 pt-2 dark:border-slate-800 sm:flex-row sm:justify-end">

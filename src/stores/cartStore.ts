@@ -43,6 +43,11 @@ interface CartState {
   transferenciaDestinoSucursalId: string;
   /** Lista "Precios por cliente" (precio por producto o % sobre `precioVenta`). */
   precioClienteListaId: ClientPriceListId;
+  /**
+   * Si true, el ticket térmico no muestra desglose de IVA (Subtotal/IVA);
+   * el cliente solo ve precios y TOTAL. Los totales fiscales de la venta no cambian.
+   */
+  ocultarIvaEnTicket: boolean;
 
   // Acciones
   addItem: (product: Product, quantity?: number) => void;
@@ -59,6 +64,7 @@ interface CartState {
   setFormaPago: (formaPago: string) => void;
   setMetodoPago: (metodoPago: string) => void;
   setPrecioClienteLista: (id: ClientPriceListId) => void;
+  setOcultarIvaEnTicket: (value: boolean) => void;
   addPago: (pago: { formaPago: string; monto: number; referencia?: string }) => void;
   removePago: (index: number) => void;
   setNotas: (notas: string) => void;
@@ -70,6 +76,7 @@ interface CartState {
     client: Client | null;
     globalDiscount: number;
     precioClienteListaId: ClientPriceListId;
+    ocultarIvaEnTicket?: boolean;
   }) => void;
   /** Reemplaza el carrito con un borrador persistido (nube/local), normalizando campos faltantes. */
   replaceCartDraft: (draft: Partial<CartDraftSnapshot> | null | undefined) => void;
@@ -97,6 +104,7 @@ export type CartDraftSnapshot = {
   notas: string;
   transferenciaDestinoSucursalId: string;
   precioClienteListaId: ClientPriceListId;
+  ocultarIvaEnTicket: boolean;
 };
 
 const EMPTY_CART_DRAFT: CartDraftSnapshot = {
@@ -109,6 +117,7 @@ const EMPTY_CART_DRAFT: CartDraftSnapshot = {
   notas: '',
   transferenciaDestinoSucursalId: '',
   precioClienteListaId: 'regular',
+  ocultarIvaEnTicket: false,
 };
 
 /** Borrador vacío del carrito POS (sync nube / localStorage). */
@@ -178,6 +187,7 @@ function sanitizeCartDraft(draft: Partial<CartDraftSnapshot> | null | undefined)
       listId,
       useInventoryListsStore.getState().listasPrecioExtra
     ),
+    ocultarIvaEnTicket: draft.ocultarIvaEnTicket === true,
   };
 }
 
@@ -308,6 +318,10 @@ export const useCartStore = create<CartState>((set, get) => ({
     set({ precioClienteListaId: id });
   },
 
+  setOcultarIvaEnTicket: (value: boolean) => {
+    set({ ocultarIvaEnTicket: value === true });
+  },
+
   addPago: (pago: { formaPago: string; monto: number; referencia?: string }) => {
     set({ pagos: [...get().pagos, pago] });
   },
@@ -341,6 +355,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       pagos: [],
       notas: '',
       transferenciaDestinoSucursalId: '',
+      ocultarIvaEnTicket: params.ocultarIvaEnTicket === true,
     });
   },
 

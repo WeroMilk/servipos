@@ -31,6 +31,7 @@ function snapshotFromStore(): CartDraftSnapshot {
     notas: s.notas,
     transferenciaDestinoSucursalId: s.transferenciaDestinoSucursalId,
     precioClienteListaId: s.precioClienteListaId,
+    ocultarIvaEnTicket: s.ocultarIvaEnTicket === true,
   };
 }
 
@@ -57,6 +58,7 @@ export function usePosCartCloudSync(params: { userId?: string | null; sucursalId
       notas: s.notas,
       transferenciaDestinoSucursalId: s.transferenciaDestinoSucursalId,
       precioClienteListaId: s.precioClienteListaId,
+      ocultarIvaEnTicket: s.ocultarIvaEnTicket,
     }))
   );
 
@@ -71,6 +73,7 @@ export function usePosCartCloudSync(params: { userId?: string | null; sucursalId
       notas: snapshot.notas,
       transferenciaDestinoSucursalId: snapshot.transferenciaDestinoSucursalId,
       precioClienteListaId: snapshot.precioClienteListaId,
+      ocultarIvaEnTicket: snapshot.ocultarIvaEnTicket === true,
     }),
     [snapshot]
   );

@@ -206,6 +206,7 @@ export function saleDataToSale(id: string, d: Record<string, unknown>, sucursalI
       typeof d.cajaSesionId === 'string' && d.cajaSesionId.trim().length > 0
         ? d.cajaSesionId.trim()
         : undefined,
+    ocultarIvaEnTicket: d.ocultarIvaEnTicket === true ? true : undefined,
     sucursalId,
     completedAt:
       d.completedAt != null && String(d.completedAt).length > 0
@@ -277,6 +278,7 @@ function saleToRpcPayload(
       typeof sale.cajaSesionId === 'string' && sale.cajaSesionId.trim().length > 0
         ? sale.cajaSesionId.trim()
         : null,
+    ocultarIvaEnTicket: sale.ocultarIvaEnTicket === true ? true : null,
     ...(sale.estado !== 'pendiente'
       ? { completedAt: (sale.completedAt ?? new Date()).toISOString() }
       : {}),
@@ -473,6 +475,7 @@ export async function updatePendingOpenSaleFirestore(
     cliente?: Client | null;
     posResumeGlobalDiscount: number;
     posResumeListaPrecios: string;
+    ocultarIvaEnTicket?: boolean;
   }
 ): Promise<void> {
   const sid = saleId.trim();
@@ -489,6 +492,7 @@ export async function updatePendingOpenSaleFirestore(
     cliente: clientSnapshotToFirestorePayload(patch.cliente ?? null),
     posResumeGlobalDiscount: patch.posResumeGlobalDiscount,
     posResumeListaPrecios: patch.posResumeListaPrecios?.trim() || null,
+    ocultarIvaEnTicket: patch.ocultarIvaEnTicket === true ? true : null,
   };
   const { error } = await supabase.rpc('rpc_update_pending_open_sale', {
     p_sucursal_id: sucursalId,

@@ -76,6 +76,11 @@ export type TicketPayload = {
    * (escaneable en POS para devolución o referencia al facturar).
    */
   incluirPiePoliticasRefacciones?: boolean;
+  /**
+   * Si true, no imprime Subtotal ni IVA; solo TOTAL (precios de línea ya con IVA).
+   * Para que el cliente no vea el desglose; la factura puede agregarlo después.
+   */
+  ocultarIvaEnTicket?: boolean;
 };
 
 function escapeHtml(s: string): string {
@@ -937,9 +942,13 @@ ${THERMAL_TICKET_VENTA_STYLES}
   </div>
   <table>${rows}</table>
   <div class="tot">
-    <div>Subtotal: ${formatMoney(payload.subtotal)}</div>
+    ${
+      payload.ocultarIvaEnTicket
+        ? `<div><strong>TOTAL ${formatMoney(payload.total)}</strong></div>`
+        : `<div>Subtotal: ${formatMoney(payload.subtotal)}</div>
     <div>IVA: ${formatMoney(payload.impuestos)}</div>
-    <div><strong>TOTAL ${formatMoney(payload.total)}</strong></div>
+    <div><strong>TOTAL ${formatMoney(payload.total)}</strong></div>`
+    }
     ${payload.cambio != null && payload.cambio > 0 ? `<div>Cambio: ${formatMoney(payload.cambio)}</div>` : ''}
     ${
       payload.adeudoPendiente != null && payload.adeudoPendiente > 0.004
@@ -1823,5 +1832,6 @@ export async function printThermalTicketFromSale(sale: Sale): Promise<void> {
       return base || undefined;
     })(),
     incluirPiePoliticasRefacciones: sale.estado === 'completada' || sale.estado === 'facturada',
+    ocultarIvaEnTicket: sale.ocultarIvaEnTicket === true,
   });
 }
