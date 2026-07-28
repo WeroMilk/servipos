@@ -87,10 +87,10 @@ function escapeHtml(s: string): string {
 }
 
 /** Tamaño mínimo legible en ticket térmico (folio, horario, leyendas finales). */
-const THERMAL_MIN_FONT_PX = 9;
+const THERMAL_MIN_FONT_PX = 10;
 
 /** Cuerpo del ticket: productos, totales, pagos y pie de sucursal (Olivares → horario). */
-const THERMAL_BODY_FONT_PX = 10;
+const THERMAL_BODY_FONT_PX = 12;
 
 /** Logo en rollo 80 mm: mitad del tamaño anterior (28 mm → 14 mm). */
 const THERMAL_LOGO_WIDTH_MM = 14;
@@ -99,11 +99,11 @@ const THERMAL_LOGO_WIDTH_MM = 14;
  * Rollo 80 mm: muchos drivers térmicos empujan el contenido a la derecha y además
  * Chrome a veces ignora `@page size`, centrando un body angosto en una hoja ancha
  * (`margin: 0 auto` → el ticket “aparece” a la derecha y se corta).
- * Columna fija a la izquierda, margen derecho mayor y ligero corrimiento a la izquierda.
+ * Columna fija; margen izquierdo / corrimiento positivo evitan corte a la izquierda.
  */
-const THERMAL_PAGE_MARGIN = '3mm 8mm 4mm 1.5mm'; // top right bottom left
-const THERMAL_BODY_WIDTH_MM = 66;
-const THERMAL_BODY_LEFT_SHIFT_MM = -6;
+const THERMAL_PAGE_MARGIN = '3mm 4mm 4mm 5mm'; // top right bottom left
+const THERMAL_BODY_WIDTH_MM = 64;
+const THERMAL_BODY_LEFT_SHIFT_MM = 3;
 
 /** Cascara común html/body para todos los tickets 80 mm (venta, compact, cierre). */
 const THERMAL_80MM_SHELL_CSS = `
@@ -211,13 +211,13 @@ const THERMAL_TICKET_VENTA_STYLES = `
 ${THERMAL_80MM_SHELL_CSS}
 ${thermalTicketBodyShellCss('body.ticket-venta')}
   body.ticket-venta {
-    font-size: 11px;
-    line-height: 1.2;
+    font-size: 12px;
+    line-height: 1.25;
     font-weight: 500;
   }
   body.ticket-venta h1,
   body.ticket-venta .ticket-brand-block h1 {
-    font-size: 14px !important;
+    font-size: 16px !important;
     margin: 0 0 4px !important;
     line-height: 1.15 !important;
     font-weight: 800 !important;
@@ -265,7 +265,7 @@ ${thermalTicketBodyShellCss('body.ticket-venta')}
     line-height: 1.2;
     border-top: 1px dashed #333;
   }
-  body.ticket-venta .tot strong { font-size: 13px; font-weight: 800; }
+  body.ticket-venta .tot strong { font-size: 15px; font-weight: 800; }
   body.ticket-venta .ticket-pagos {
     font-size: ${THERMAL_BODY_FONT_PX}px !important;
     line-height: 1.2;
@@ -330,8 +330,8 @@ ${thermalTicketBodyShellCss('body.ticket-compact')}
   * { box-sizing: border-box; }
   body.ticket-compact {
     font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
-    font-size: 11px;
-    line-height: 1.2;
+    font-size: 12px;
+    line-height: 1.25;
     font-weight: 500;
   }
   body.ticket-compact .ticket-brand-block {
@@ -357,7 +357,7 @@ ${thermalTicketBodyShellCss('body.ticket-compact')}
     margin: 3px 0 0 !important;
     width: 100%;
     text-align: center !important;
-    font-size: 14px !important;
+    font-size: 16px !important;
     line-height: 1.15 !important;
     font-weight: 800 !important;
   }
@@ -374,7 +374,7 @@ ${thermalTicketBodyShellCss('body.ticket-compact')}
   body.ticket-compact td {
     padding: 0;
     vertical-align: top;
-    font-size: 10px;
+    font-size: 11px;
     overflow-wrap: anywhere;
     word-break: break-word;
   }
@@ -383,12 +383,12 @@ ${thermalTicketBodyShellCss('body.ticket-compact')}
     margin-top: 4px;
     border-top: 1px dashed #333;
     padding-top: 4px;
-    font-size: 10px;
-    line-height: 1.2;
+    font-size: 11px;
+    line-height: 1.25;
     overflow-wrap: anywhere;
     word-break: break-word;
   }
-  body.ticket-compact .tot strong { font-size: 13px; font-weight: 800; }
+  body.ticket-compact .tot strong { font-size: 15px; font-weight: 800; }
   body.ticket-compact p,
   body.ticket-compact .ticket-body-text {
     overflow-wrap: anywhere;
@@ -397,18 +397,18 @@ ${thermalTicketBodyShellCss('body.ticket-compact')}
 ${scopeThermalCss(THERMAL_PIE_SUCURSAL_CSS, 'body.ticket-compact')}
   body.ticket-compact .ticket-rol {
     text-align: center;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
     margin: -2px 0 4px;
     line-height: 1.15;
   }
   body.ticket-compact .abono-saldos { border-top: none; padding-top: 4px; }
-  body.ticket-compact .abono-saldos > div { font-size: 10px; line-height: 1.2; }
+  body.ticket-compact .abono-saldos > div { font-size: 11px; line-height: 1.25; }
   body.ticket-compact .abono-saldo-actual {
     margin-top: 3px;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
-    line-height: 1.2;
+    line-height: 1.25;
   }
   body.ticket-compact .abono-nota {
     margin-top: 4px;
@@ -417,16 +417,16 @@ ${scopeThermalCss(THERMAL_PIE_SUCURSAL_CSS, 'body.ticket-compact')}
     text-align: center;
   }
   body.ticket-compact .ticket-body-text {
-    font-size: 10px;
-    line-height: 1.2;
+    font-size: 11px;
+    line-height: 1.25;
     margin: 4px 0;
   }
-  body.ticket-compact .ticket-body-text strong { font-size: 11px; }
+  body.ticket-compact .ticket-body-text strong { font-size: 12px; }
   body.ticket-compact .ticket-section-title {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 600;
     margin: 4px 0 2px;
-    line-height: 1.2;
+    line-height: 1.25;
   }
   body.ticket-compact .ticket-mov-block {
     border-top: 1px dashed #bbb;
@@ -435,7 +435,7 @@ ${scopeThermalCss(THERMAL_PIE_SUCURSAL_CSS, 'body.ticket-compact')}
     font-size: ${THERMAL_MIN_FONT_PX}px;
     line-height: 1.15;
   }
-  body.ticket-compact .ticket-mov-block .mov-tipo { font-weight: 700; font-size: 10px; }
+  body.ticket-compact .ticket-mov-block .mov-tipo { font-weight: 700; font-size: 11px; }
   body.ticket-compact .ticket-mov-block .mov-linea { font-weight: 600; }
   body.ticket-compact .ticket-mision-item {
     border-top: 1px dashed #bbb;
@@ -444,7 +444,7 @@ ${scopeThermalCss(THERMAL_PIE_SUCURSAL_CSS, 'body.ticket-compact')}
     font-size: ${THERMAL_MIN_FONT_PX}px;
     line-height: 1.2;
   }
-  body.ticket-compact .ticket-mision-item .mision-nombre { font-weight: 700; font-size: 10px; }
+  body.ticket-compact .ticket-mision-item .mision-nombre { font-weight: 700; font-size: 11px; }
   body.ticket-compact .ticket-mision-item .mision-fisico {
     margin-top: 2px;
     font-weight: 600;
@@ -503,8 +503,8 @@ ${thermalTicketBodyShellCss('body.ticket-cierre-turno')}
   * { box-sizing: border-box; }
   body.ticket-cierre-turno {
     font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
-    font-size: 11px;
-    line-height: 1.2;
+    font-size: 12px;
+    line-height: 1.25;
     font-weight: 500;
   }
   body.ticket-cierre-turno .ticket-brand-block {
@@ -526,7 +526,7 @@ ${thermalTicketBodyShellCss('body.ticket-cierre-turno')}
     print-color-adjust: exact;
   }
   body.ticket-cierre-turno .ticket-brand-block h1 {
-    font-size: 14px !important;
+    font-size: 16px !important;
     text-align: center;
     margin: 3px 0 0 !important;
     line-height: 1.15;
@@ -534,7 +534,7 @@ ${thermalTicketBodyShellCss('body.ticket-cierre-turno')}
     font-weight: 800 !important;
   }
   body.ticket-cierre-turno h1 {
-    font-size: 14px;
+    font-size: 16px;
     text-align: center;
     margin: 0 0 4px;
     line-height: 1.15;
@@ -550,7 +550,7 @@ ${thermalTicketBodyShellCss('body.ticket-cierre-turno')}
   }
   body.ticket-cierre-turno table { table-layout: fixed; width: 100%; border-collapse: collapse; }
   body.ticket-cierre-turno td {
-    font-size: 10px;
+    font-size: 11px;
     padding: 0;
     vertical-align: top;
     overflow-wrap: anywhere;
@@ -561,24 +561,24 @@ ${thermalTicketBodyShellCss('body.ticket-cierre-turno')}
     margin-top: 4px;
     border-top: 1px dashed #333;
     padding-top: 4px;
-    font-size: 10px;
-    line-height: 1.2;
+    font-size: 11px;
+    line-height: 1.25;
     overflow-wrap: anywhere;
     word-break: break-word;
   }
-  body.ticket-cierre-turno .tot strong { font-size: 13px; font-weight: 800; }
+  body.ticket-cierre-turno .tot strong { font-size: 15px; font-weight: 800; }
   body.ticket-cierre-turno p {
-    font-size: 10px;
-    line-height: 1.2;
+    font-size: 11px;
+    line-height: 1.25;
     margin: 4px 0 2px;
     overflow-wrap: anywhere;
     word-break: break-word;
   }
   body.ticket-cierre-turno .ticket-section-title {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 600;
     margin: 4px 0 2px;
-    line-height: 1.2;
+    line-height: 1.25;
   }
 ${scopeThermalCss(THERMAL_PIE_SUCURSAL_CSS, 'body.ticket-cierre-turno')}
 `;
