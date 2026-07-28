@@ -98,12 +98,12 @@ const THERMAL_LOGO_WIDTH_MM = 12;
 /**
  * Papel real del ticket (rollo BBVA / terminal): 58 mm.
  * Un layout a 80 mm deja margen muerto a la izquierda y corta la derecha.
- * Columna ~48 mm pegada al área imprimible, sin `margin: auto`.
+ * Columna ~47 mm con holgura lateral para que no se coma ningún borde.
  */
 const THERMAL_PAPER_WIDTH_MM = 58;
-const THERMAL_PAGE_MARGIN = '2mm 3mm 3mm 2mm'; // top right bottom left
-const THERMAL_BODY_WIDTH_MM = 48;
-const THERMAL_BODY_LEFT_SHIFT_MM = -1;
+const THERMAL_PAGE_MARGIN = '2mm 2.5mm 3mm 3mm'; // top right bottom left
+const THERMAL_BODY_WIDTH_MM = 47;
+const THERMAL_BODY_LEFT_SHIFT_MM = 0.5;
 /** Ancho en CSS px ≈ mm * 96/25.4 para ventana/viewport de impresión. */
 const THERMAL_VIEWPORT_PX = Math.round((THERMAL_PAPER_WIDTH_MM * 96) / 25.4);
 
