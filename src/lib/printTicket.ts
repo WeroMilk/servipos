@@ -92,32 +92,35 @@ const THERMAL_MIN_FONT_PX = 10;
 /** Cuerpo del ticket: productos, totales, pagos y pie de sucursal (Olivares → horario). */
 const THERMAL_BODY_FONT_PX = 12;
 
-/** Logo en rollo 80 mm: mitad del tamaño anterior (28 mm → 14 mm). */
-const THERMAL_LOGO_WIDTH_MM = 14;
+/** Logo en rollo térmico 58 mm. */
+const THERMAL_LOGO_WIDTH_MM = 12;
 
 /**
- * Rollo 80 mm: el área útil real suele ser menor (márgenes del driver + franja del papel).
- * Columna angosta (~56 mm) con márgenes laterales equilibrados para que nada se corte
- * a izquierda ni derecha; tipografía se mantiene.
+ * Papel real del ticket (rollo BBVA / terminal): 58 mm.
+ * Un layout a 80 mm deja margen muerto a la izquierda y corta la derecha.
+ * Columna ~48 mm pegada al área imprimible, sin `margin: auto`.
  */
-const THERMAL_PAGE_MARGIN = '4mm 6mm 5mm 6mm'; // top right bottom left
-const THERMAL_BODY_WIDTH_MM = 56;
+const THERMAL_PAPER_WIDTH_MM = 58;
+const THERMAL_PAGE_MARGIN = '2mm 2.5mm 3mm 2.5mm'; // top right bottom left
+const THERMAL_BODY_WIDTH_MM = 48;
 const THERMAL_BODY_LEFT_SHIFT_MM = 0;
+/** Ancho en CSS px ≈ mm * 96/25.4 para ventana/viewport de impresión. */
+const THERMAL_VIEWPORT_PX = Math.round((THERMAL_PAPER_WIDTH_MM * 96) / 25.4);
 
-/** Cascara común html/body para todos los tickets 80 mm (venta, compact, cierre). */
+/** Cascara común html/body para todos los tickets térmicos (venta, compact, cierre). */
 const THERMAL_80MM_SHELL_CSS = `
-  @page { size: 80mm auto; margin: ${THERMAL_PAGE_MARGIN}; }
+  @page { size: ${THERMAL_PAPER_WIDTH_MM}mm auto; margin: ${THERMAL_PAGE_MARGIN}; }
   @media print {
     html {
-      width: 80mm !important;
-      max-width: 80mm !important;
+      width: ${THERMAL_PAPER_WIDTH_MM}mm !important;
+      max-width: ${THERMAL_PAPER_WIDTH_MM}mm !important;
       margin: 0 !important;
       padding: 0 !important;
     }
   }
   html {
-    width: 80mm;
-    max-width: 80mm;
+    width: ${THERMAL_PAPER_WIDTH_MM}mm;
+    max-width: ${THERMAL_PAPER_WIDTH_MM}mm;
     margin: 0;
     padding: 0;
   }
@@ -130,8 +133,8 @@ function thermalTicketBodyShellCss(bodySelector: string): string {
     left: ${THERMAL_BODY_LEFT_SHIFT_MM}mm;
     width: ${THERMAL_BODY_WIDTH_MM}mm;
     max-width: 100%;
-    margin: 0 auto !important;
-    padding: 4px 3px 8px;
+    margin: 0 !important;
+    padding: 3px 2px 6px;
     box-sizing: border-box;
     color: #000;
     -webkit-print-color-adjust: exact;
@@ -302,7 +305,7 @@ ${scopeThermalCss(THERMAL_PIE_SUCURSAL_CSS, 'body.ticket-venta')}
   body.ticket-venta .ticket-politicas div + div { margin-top: 1px; }
   body.ticket-venta .ticket-barcode-wrap { margin-top: 5px; text-align: center; }
   body.ticket-venta .ticket-barcode-wrap img {
-    width: 140px !important;
+    width: 120px !important;
     max-width: 100% !important;
     height: auto;
     display: block;
@@ -452,10 +455,10 @@ ${scopeThermalCss(THERMAL_PIE_SUCURSAL_CSS, 'body.ticket-compact')}
 `;
 
 /** CSS compartido: ticket de venta 80 mm e informes térmicos (tipografía grande para leer en papel). */
-const THERMAL_BASE_STYLES = `@page { size: 80mm auto; margin: ${THERMAL_PAGE_MARGIN}; }
+const THERMAL_BASE_STYLES = `@page { size: ${THERMAL_PAPER_WIDTH_MM}mm auto; margin: ${THERMAL_PAGE_MARGIN}; }
   * { box-sizing: border-box; }
-  html { width: 80mm; max-width: 80mm; margin: 0; padding: 0; }
-  body { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 22px; color: #000; width: ${THERMAL_BODY_WIDTH_MM}mm; max-width: 100%; margin: 0 auto; padding: 4px 3px; position: relative; left: ${THERMAL_BODY_LEFT_SHIFT_MM}mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  html { width: ${THERMAL_PAPER_WIDTH_MM}mm; max-width: ${THERMAL_PAPER_WIDTH_MM}mm; margin: 0; padding: 0; }
+  body { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 22px; color: #000; width: ${THERMAL_BODY_WIDTH_MM}mm; max-width: 100%; margin: 0; padding: 3px 2px; position: relative; left: ${THERMAL_BODY_LEFT_SHIFT_MM}mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   h1 { font-size: 28px; text-align: center; margin: 0 0 10px; line-height: 1.15; }
   /* Encabezado marca: logo arriba, título debajo; ambos centrados en el ancho del ticket */
   .ticket-brand-block {
@@ -582,8 +585,8 @@ ${thermalTicketBodyShellCss('body.ticket-cierre-turno')}
 ${scopeThermalCss(THERMAL_PIE_SUCURSAL_CSS, 'body.ticket-cierre-turno')}
 `;
 
-/** ~80 mm de ancho en pantalla previa (96 DPI) para ventana de impresión térmica. */
-const THERMAL_80MM_WINDOW_FEATURES = 'width=302,height=720';
+/** ~58 mm de ancho en pantalla previa (96 DPI) para ventana de impresión térmica. */
+const THERMAL_80MM_WINDOW_FEATURES = `width=${THERMAL_VIEWPORT_PX},height=720`;
 
 const TICKET_POLITICAS_REFACCIONES_LINES = [
   'En partes electricas, no hay garantia',
@@ -598,11 +601,11 @@ function folioBarcodeDataUrl(folio: string): string | null {
     const canvas = document.createElement('canvas');
     JsBarcode(canvas, t, {
       format: 'CODE128',
-      width: 1.6,
-      height: 40,
+      width: 1.35,
+      height: 36,
       displayValue: true,
-      fontSize: 11,
-      margin: 2,
+      fontSize: 10,
+      margin: 1,
       background: '#ffffff',
       lineColor: '#000000',
     });
@@ -892,7 +895,7 @@ type ThermalPrintShell = {
 async function openThermalPrintDocument(shell: ThermalPrintShell): Promise<void> {
   const logoSrc = await resolveBrandLogoDataUrlForPrint();
   const brand = buildThermalBrandBlockHtml(shell.heading, logoSrc);
-  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/><meta name="viewport" content="width=302"/><title>${escapeHtml(shell.pageTitle ?? shell.heading)}</title>
+  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/><meta name="viewport" content="width=${THERMAL_VIEWPORT_PX}"/><title>${escapeHtml(shell.pageTitle ?? shell.heading)}</title>
 <style>${shell.styles}</style></head><body${shell.bodyClass ? ` class="${shell.bodyClass}"` : ''}>
   ${brand}
   ${shell.bodyInnerHtml}
@@ -921,7 +924,7 @@ async function printThermalTicketImpl(payload: TicketPayload): Promise<void> {
     )
     .join('');
 
-  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/><meta name="viewport" content="width=302"/><title>Ticket</title>
+  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/><meta name="viewport" content="width=${THERMAL_VIEWPORT_PX}"/><title>Ticket</title>
 <style>${THERMAL_BASE_STYLES}
 ${THERMAL_TICKET_VENTA_STYLES}
 </style></head><body class="ticket-venta">

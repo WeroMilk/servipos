@@ -5,9 +5,11 @@
 const CONTACT_LINES = [
   'Contacto',
   '662 404 9965',
-  'Av. José San Healy 385, Olivares, 83180 Hermosillo, Son.',
+  'Av. José San Healy 385,',
+  'Olivares, 83180 Hermosillo, Son.',
   'Horario',
-  'Lunes a Viernes: 8:00 a.m. – 6:30 p.m.',
+  'Lunes a Viernes:',
+  '8:00 a.m. – 6:30 p.m.',
   'Sábado: 8:00 a.m. – 2:00 p.m.',
   'Domingo: Cerrado',
 ] as const;
