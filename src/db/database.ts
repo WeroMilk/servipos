@@ -768,6 +768,7 @@ export type PendingOpenSalePatch = {
   cliente?: Client;
   posResumeGlobalDiscount: number;
   posResumeListaPrecios: string;
+  ocultarIvaEnTicket?: boolean;
 };
 
 /** Persiste cambios del carrito en una venta `pendiente` (ajuste de stock por diferencia de cantidades). */
@@ -827,6 +828,7 @@ export async function updatePendingOpenSale(
     cliente: patch.cliente,
     posResumeGlobalDiscount: patch.posResumeGlobalDiscount,
     posResumeListaPrecios: patch.posResumeListaPrecios,
+    ocultarIvaEnTicket: patch.ocultarIvaEnTicket === true ? true : undefined,
     updatedAt: new Date(),
     syncStatus: 'pending',
   });
