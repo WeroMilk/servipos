@@ -847,6 +847,8 @@ export async function completePendingSale(
     /** Cliente elegido en el POS al cobrar (sustituye al de la venta pendiente si cambió). */
     clienteId?: string;
     cliente?: Client | null;
+    /** Si se indica, fija el flag de ticket sin desglose IVA al completar. */
+    ocultarIvaEnTicket?: boolean;
   },
   options?: { sucursalId?: string }
 ): Promise<void> {
@@ -903,6 +905,9 @@ export async function completePendingSale(
         : sale.usuarioNombre,
     ...cajaPatch,
     ...clienteCierrePatch,
+    ...(patch.ocultarIvaEnTicket !== undefined
+      ? { ocultarIvaEnTicket: patch.ocultarIvaEnTicket === true ? true : undefined }
+      : {}),
     updatedAt: now,
     syncStatus: 'pending',
   });

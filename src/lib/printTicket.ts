@@ -943,7 +943,7 @@ ${THERMAL_TICKET_VENTA_STYLES}
   <table>${rows}</table>
   <div class="tot">
     ${
-      payload.ocultarIvaEnTicket
+      payload.ocultarIvaEnTicket === true
         ? `<div><strong>TOTAL ${formatMoney(payload.total)}</strong></div>`
         : `<div>Subtotal: ${formatMoney(payload.subtotal)}</div>
     <div>IVA: ${formatMoney(payload.impuestos)}</div>
@@ -1768,11 +1768,19 @@ export function printNominaPruebaLetter(input: NominaPruebaPrintInput): void {
   });
 }
 
+/** True si la venta se guardó / imprimió sin desglose Subtotal/IVA en el ticket térmico. */
+export function saleOcultarIvaEnTicket(sale: Pick<Sale, 'ocultarIvaEnTicket'> | null | undefined): boolean {
+  const v = sale?.ocultarIvaEnTicket as unknown;
+  return v === true || v === 1 || v === 'true' || v === '1';
+}
+
 /** Reimprimir ticket a partir de una venta guardada (POS / historial). */
 export async function printThermalTicketFromSale(sale: Sale): Promise<void> {
   const cliente = await resolveClienteTicketLabel(sale);
   const catalog = getProductCatalogSnapshot();
+  const ocultarIva = saleOcultarIvaEnTicket(sale);
 
+  // Misma base que el POS: precios de línea con IVA incluido (en BD van sin IVA).
   const lineas = (sale.productos ?? []).map((item) => {
     const desc =
       item.producto?.nombre?.trim() ||
@@ -1781,16 +1789,19 @@ export async function printThermalTicketFromSale(sale: Sale): Promise<void> {
       `Artículo (${String(item.productId).slice(0, 8)}…)`;
     const disc = Number(item.descuento) || 0;
     const pu = Number(item.precioUnitario) || 0;
-    const unit = pu * (1 - disc / 100);
     const qty = Number(item.cantidad) || 0;
+    const imp = Number(item.impuesto);
+    const impPct = Number.isFinite(imp) && imp >= 0 ? imp : 16;
+    const unitSin = pu * (1 - disc / 100);
+    const unitConIva = unitSin * (1 + impPct / 100);
     const lineTot =
-      item.subtotal != null && Number.isFinite(Number(item.subtotal))
-        ? Number(item.subtotal)
-        : qty * pu;
+      item.total != null && Number.isFinite(Number(item.total))
+        ? Number(item.total)
+        : unitConIva * qty;
     return {
       descripcion: desc,
       cantidad: qty,
-      precioUnit: unit,
+      precioUnit: unitConIva,
       total: lineTot,
     };
   });
@@ -1832,6 +1843,6 @@ export async function printThermalTicketFromSale(sale: Sale): Promise<void> {
       return base || undefined;
     })(),
     incluirPiePoliticasRefacciones: sale.estado === 'completada' || sale.estado === 'facturada',
-    ocultarIvaEnTicket: sale.ocultarIvaEnTicket === true,
+    ocultarIvaEnTicket: ocultarIva,
   });
 }

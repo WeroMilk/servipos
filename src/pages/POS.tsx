@@ -2194,7 +2194,7 @@ export function POS() {
         usuarioNombre: cajeroNombre,
         posResumeGlobalDiscount: discount,
         posResumeListaPrecios: precioClienteListaId,
-        ...(ocultarIvaEnTicket ? { ocultarIvaEnTicket: true } : {}),
+        ocultarIvaEnTicket: ocultarIvaEnTicket === true,
         ...(cajaSesion.activa?.id ? { cajaSesionId: cajaSesion.activa.id } : {}),
       };
 
@@ -2399,6 +2399,7 @@ export function POS() {
         cajaSesionId: cajaSesion.activa?.id,
         clienteId: clienteRow.id,
         cliente: clienteRow,
+        ocultarIvaEnTicket: vs.ocultarIvaEnTicket === true,
       });
       setVentasAbiertasDialogOpen(false);
       setPasarCxcClientePickerSale(null);
@@ -2951,6 +2952,7 @@ export function POS() {
           cajaSesionId: cajaSesion.activa?.id,
           clienteId: clienteVentaSnapshot.clienteId,
           cliente: clienteVentaSnapshot.cliente ?? null,
+          ocultarIvaEnTicket: ocultarIvaEnTicket || pend.ocultarIvaEnTicket === true,
         });
 
         try {
@@ -3047,7 +3049,7 @@ export function POS() {
           : undefined,
         usuarioId: user?.id || 'system',
         usuarioNombre: cajeroNombre,
-        ...(ocultarIvaEnTicket ? { ocultarIvaEnTicket: true } : {}),
+        ocultarIvaEnTicket: ocultarIvaEnTicket === true,
         ...(cajaSesion.activa?.id ? { cajaSesionId: cajaSesion.activa.id } : {}),
       };
 

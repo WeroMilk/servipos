@@ -39,7 +39,7 @@ import {
   useOutgoingPendingTransferIds,
 } from '@/hooks';
 import { cn, formatMoney } from '@/lib/utils';
-import { printThermalDailySalesReport, printThermalTicketFromSale } from '@/lib/printTicket';
+import { printThermalDailySalesReport, printThermalTicketFromSale, saleOcultarIvaEnTicket } from '@/lib/printTicket';
 import { listAbonosCobrosEnRangoFirestore } from '@/lib/firestore/cajaFirestore';
 import type { CajaAbonoCobro } from '@/types';
 import { anularAbonoCxC, cancelSale } from '@/db/database';
@@ -1735,14 +1735,18 @@ export function Dashboard() {
                   </ul>
                 </div>
                 <div className="space-y-1 rounded-lg border border-slate-200/80 bg-slate-200/50 px-3 py-2.5 text-sm dark:border-slate-700/60 dark:bg-slate-800/40">
-                  <div className="flex justify-between gap-2 text-slate-700 dark:text-slate-300">
-                    <span>Subtotal</span>
-                    <span className="tabular-nums">{formatMoney(Number(reprintSaleDetail.subtotal) || 0)}</span>
-                  </div>
-                  <div className="flex justify-between gap-2 text-slate-700 dark:text-slate-300">
-                    <span>IVA</span>
-                    <span className="tabular-nums">{formatMoney(Number(reprintSaleDetail.impuestos) || 0)}</span>
-                  </div>
+                  {saleOcultarIvaEnTicket(reprintSaleDetail) ? null : (
+                    <>
+                      <div className="flex justify-between gap-2 text-slate-700 dark:text-slate-300">
+                        <span>Subtotal</span>
+                        <span className="tabular-nums">{formatMoney(Number(reprintSaleDetail.subtotal) || 0)}</span>
+                      </div>
+                      <div className="flex justify-between gap-2 text-slate-700 dark:text-slate-300">
+                        <span>IVA</span>
+                        <span className="tabular-nums">{formatMoney(Number(reprintSaleDetail.impuestos) || 0)}</span>
+                      </div>
+                    </>
+                  )}
                   <div className="flex justify-between gap-2 font-semibold text-brand dark:text-brand">
                     <span>Total</span>
                     <span className="tabular-nums">{formatMoney(reprintSaleDetail.total)}</span>
