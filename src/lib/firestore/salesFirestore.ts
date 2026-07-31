@@ -4,6 +4,8 @@ import { getMexicoDateKey, startOfDayFromDateKey } from '@/lib/quincenaMx';
 import { createDebouncedAsyncFn } from '@/lib/debouncedAsync';
 import { getSupabase } from '@/lib/supabaseClient';
 import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
+import { saleEnRangoHistorial, saleFechaHistorial } from '@/lib/saleHistorialFecha';
+import { saleMatchesTicketSearch } from '@/lib/saleTicketUi';
 
 // ============================================
 // VENTAS (Supabase + RPC atómicos)
@@ -415,22 +417,112 @@ export async function fetchSalesPoolForCajaSesion(
   return [...byId.values()];
 }
 
+const DAY_SALES_PAGE = 1000;
+const TICKET_SEARCH_LIMIT = 150;
+
+async function fetchSalesByDocDateFieldInRange(
+  sucursalId: string,
+  field: 'createdAt' | 'completedAt',
+  startIso: string,
+  endIso: string
+): Promise<Sale[]> {
+  const supabase = getSupabase();
+  const out: Sale[] = [];
+  let from = 0;
+  for (;;) {
+    const { data: rows, error } = await supabase
+      .from('sales')
+      .select('id, doc')
+      .eq('sucursal_id', sucursalId)
+      .gte(`doc->>${field}`, startIso)
+      .lt(`doc->>${field}`, endIso)
+      .range(from, from + DAY_SALES_PAGE - 1);
+    if (error) {
+      console.error(`Supabase sales (${field} rango):`, error);
+      break;
+    }
+    const batch = rows ?? [];
+    for (const r of batch) {
+      const sale = saleDataToSale(r.id, r.doc as Record<string, unknown>, sucursalId);
+      if (sale) out.push(sale);
+    }
+    if (batch.length < DAY_SALES_PAGE) break;
+    from += DAY_SALES_PAGE;
+  }
+  return out;
+}
+
+/** Todas las ventas del día (zona México) para historial / reimpresión; no usa el catálogo de 500. */
 export async function fetchSalesForMexicoDateKey(sucursalId: string, dateKey: string): Promise<Sale[]> {
   const start = startOfDayFromDateKey(dateKey);
   const end = new Date(start);
   end.setDate(end.getDate() + 1);
+  const startIso = start.toISOString();
+  const endIso = end.toISOString();
+  const [byCreated, byCompleted] = await Promise.all([
+    fetchSalesByDocDateFieldInRange(sucursalId, 'createdAt', startIso, endIso),
+    fetchSalesByDocDateFieldInRange(sucursalId, 'completedAt', startIso, endIso),
+  ]);
+  const byId = new Map<string, Sale>();
+  for (const s of byCreated) byId.set(s.id, s);
+  for (const s of byCompleted) byId.set(s.id, s);
+  const list = [...byId.values()].filter((s) => saleEnRangoHistorial(s, start, end));
+  list.sort((a, b) => saleFechaHistorial(b).getTime() - saleFechaHistorial(a).getTime());
+  return list;
+}
+
+function escapeIlikeToken(raw: string): string {
+  return raw.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+}
+
+async function fetchSalesIlikeDocPath(
+  sucursalId: string,
+  column: string,
+  pattern: string,
+  limit: number
+): Promise<Sale[]> {
   const supabase = getSupabase();
-  const { data: rows } = await supabase
+  const { data: rows, error } = await supabase
     .from('sales')
     .select('id, doc')
     .eq('sucursal_id', sucursalId)
-    .gte('doc->>createdAt', start.toISOString())
-    .lt('doc->>createdAt', end.toISOString());
-  const list = (rows ?? [])
+    .ilike(column, pattern)
+    .order('doc->>createdAt', { ascending: false })
+    .limit(limit);
+  if (error) {
+    console.error(`Supabase search tickets (${column}):`, error);
+    return [];
+  }
+  return (rows ?? [])
     .map((r) => saleDataToSale(r.id, r.doc as Record<string, unknown>, sucursalId))
     .filter((s): s is Sale => s != null);
-  list.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-  return list;
+}
+
+/**
+ * Busca tickets en toda la sucursal (folio, cajero, cliente) para reimpresión.
+ * No está limitado al catálogo reciente de 500.
+ */
+export async function searchSalesForTicketReprintFirestore(
+  sucursalId: string,
+  rawQuery: string,
+  limit: number = TICKET_SEARCH_LIMIT
+): Promise<Sale[]> {
+  const q = rawQuery.trim();
+  if (!q) return [];
+  const pattern = `%${escapeIlikeToken(q)}%`;
+  const cap = Math.max(20, Math.min(limit, 300));
+
+  const [byFolio, byCajero, byCliente] = await Promise.all([
+    fetchSalesIlikeDocPath(sucursalId, 'doc->>folio', pattern, cap),
+    fetchSalesIlikeDocPath(sucursalId, 'doc->>usuarioNombre', pattern, cap),
+    fetchSalesIlikeDocPath(sucursalId, 'doc->cliente->>nombre', pattern, cap),
+  ]);
+
+  const byId = new Map<string, Sale>();
+  for (const s of [...byFolio, ...byCajero, ...byCliente]) byId.set(s.id, s);
+  const list = [...byId.values()].filter((s) => saleMatchesTicketSearch(s, q));
+  list.sort((a, b) => saleFechaHistorial(b).getTime() - saleFechaHistorial(a).getTime());
+  return list.slice(0, cap);
 }
 
 const CLIENT_SALES_QUERY_LIMIT = 500;

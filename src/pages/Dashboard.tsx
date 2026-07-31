@@ -33,7 +33,6 @@ import {
 } from '@/components/ui/dialog';
 import {
   useSalesByDateRange,
-  useSales,
   useLowStockProducts,
   useEffectiveSucursalId,
   useOutgoingPendingTransferIds,
@@ -41,8 +40,12 @@ import {
 import { cn, formatMoney } from '@/lib/utils';
 import { printThermalDailySalesReport, printThermalTicketFromSale, saleOcultarIvaEnTicket } from '@/lib/printTicket';
 import { listAbonosCobrosEnRangoFirestore } from '@/lib/firestore/cajaFirestore';
+import {
+  fetchSalesForMexicoDateKey,
+  searchSalesForTicketReprintFirestore,
+} from '@/lib/firestore/salesFirestore';
 import type { CajaAbonoCobro } from '@/types';
-import { anularAbonoCxC, cancelSale } from '@/db/database';
+import { anularAbonoCxC, cancelSale, getSales, getSalesByDateRange } from '@/db/database';
 import {
   buildHistorialCobrosMovimientos,
   computeCobradoPeriodo,
@@ -84,7 +87,7 @@ import { saleListaCancelacionEtiqueta } from '@/lib/saleCancelacion';
 import { saleIsInvoiced } from '@/lib/saleInvoiced';
 import { parrafosAyudaCancelacionVentaAdmin } from '@/lib/cancelacionVentaAdminUi';
 import { efectivoNetoEnCajaPorVenta } from '@/lib/cajaResumen';
-import { saleEnRangoHistorial, saleFechaHistorial } from '@/lib/saleHistorialFecha';
+import { saleFechaHistorial } from '@/lib/saleHistorialFecha';
 import {
   nombreClienteVenta,
   nombreCajeroVenta,
@@ -333,6 +336,12 @@ export function Dashboard() {
   const [reprintDayKey, setReprintDayKey] = useState(() => getMexicoDateKey());
   const [reprintSearchMode, setReprintSearchMode] = useState(false);
   const [reprintSearchQuery, setReprintSearchQuery] = useState('');
+  const [reprintDaySales, setReprintDaySales] = useState<Sale[]>([]);
+  const [reprintDaySalesLoading, setReprintDaySalesLoading] = useState(false);
+  const [reprintDayAbonos, setReprintDayAbonos] = useState<CajaAbonoCobro[]>([]);
+  const [reprintDayAbonosLoading, setReprintDayAbonosLoading] = useState(false);
+  const [reprintSearchResults, setReprintSearchResults] = useState<Sale[]>([]);
+  const [reprintSearchLoading, setReprintSearchLoading] = useState(false);
   const reprintListScrollRef = useRef<HTMLDivElement | null>(null);
   const reprintListScrollTopRef = useRef(0);
   const [abonosFetched, setAbonosFetched] = useState<CajaAbonoCobro[]>([]);
@@ -386,7 +395,7 @@ export function Dashboard() {
     return { mode: 'week', weekStart, weekEndExclusive: addDays(weekEndInclusive, 1) };
   }, [periodGranularity, dateRange?.from, dateRange?.to]);
 
-  /** Cubre el periodo KPI, el rango del gráfico y el día de reimpresión de tickets. */
+  /** Cubre el periodo KPI y el rango del gráfico (el historial de reimpresión consulta por día aparte). */
   const reprintDayStart = useMemo(() => startOfDayFromDateKey(reprintDayKey), [reprintDayKey]);
   const reprintDayEnd = useMemo(() => addDays(reprintDayStart, 1), [reprintDayStart]);
 
@@ -400,20 +409,15 @@ export function Dashboard() {
       chartStart = chartTimeRange.weekStart;
       chartEndExclusive = chartTimeRange.weekEndExclusive;
     }
-    const fetchStart = new Date(
-      Math.min(inicio.getTime(), chartStart.getTime(), reprintDayStart.getTime())
-    );
-    const fetchEnd = new Date(
-      Math.max(fin.getTime(), chartEndExclusive.getTime(), reprintDayEnd.getTime())
-    );
+    const fetchStart = new Date(Math.min(inicio.getTime(), chartStart.getTime()));
+    const fetchEnd = new Date(Math.max(fin.getTime(), chartEndExclusive.getTime()));
     return { fetchStart, fetchEnd };
-  }, [inicio, fin, chartTimeRange, reprintDayStart, reprintDayEnd]);
+  }, [inicio, fin, chartTimeRange]);
 
   const { sales: salesFetched, loading: salesLoading } = useSalesByDateRange(
     fetchBounds.fetchStart,
     fetchBounds.fetchEnd
   );
-  const { sales: ticketCatalogSales, loading: ticketCatalogLoading } = useSales(500);
 
   useEffect(() => {
     let cancelled = false;
@@ -441,6 +445,116 @@ export function Dashboard() {
       cancelled = true;
     };
   }, [effectiveSucursalId, fetchBounds.fetchStart, fetchBounds.fetchEnd]);
+
+  useEffect(() => {
+    if (!todaySalesOpen || reprintSearchMode) return;
+    let cancelled = false;
+    setReprintDaySalesLoading(true);
+    void (async () => {
+      try {
+        let rows: Sale[] = [];
+        if (effectiveSucursalId) {
+          rows = await fetchSalesForMexicoDateKey(effectiveSucursalId, reprintDayKey);
+        } else {
+          rows = await getSalesByDateRange(reprintDayStart, reprintDayEnd);
+        }
+        if (!cancelled) setReprintDaySales(rows);
+      } catch (err) {
+        console.error('Error al cargar historial del día:', err);
+        if (!cancelled) setReprintDaySales([]);
+      } finally {
+        if (!cancelled) setReprintDaySalesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    todaySalesOpen,
+    reprintSearchMode,
+    effectiveSucursalId,
+    reprintDayKey,
+    reprintDayStart,
+    reprintDayEnd,
+  ]);
+
+  useEffect(() => {
+    if (!todaySalesOpen || reprintSearchMode) return;
+    let cancelled = false;
+    if (!effectiveSucursalId) {
+      setReprintDayAbonos([]);
+      setReprintDayAbonosLoading(false);
+      return;
+    }
+    setReprintDayAbonosLoading(true);
+    void (async () => {
+      try {
+        const rows = await listAbonosCobrosEnRangoFirestore(
+          effectiveSucursalId,
+          reprintDayStart,
+          reprintDayEnd
+        );
+        if (!cancelled) setReprintDayAbonos(rows);
+      } catch {
+        if (!cancelled) setReprintDayAbonos([]);
+      } finally {
+        if (!cancelled) setReprintDayAbonosLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    todaySalesOpen,
+    reprintSearchMode,
+    effectiveSucursalId,
+    reprintDayStart,
+    reprintDayEnd,
+  ]);
+
+  useEffect(() => {
+    if (!todaySalesOpen || !reprintSearchMode) {
+      setReprintSearchResults([]);
+      setReprintSearchLoading(false);
+      return;
+    }
+    const q = reprintSearchQuery.trim();
+    if (!q) {
+      setReprintSearchResults([]);
+      setReprintSearchLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setReprintSearchLoading(true);
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          let rows: Sale[] = [];
+          if (effectiveSucursalId) {
+            rows = await searchSalesForTicketReprintFirestore(effectiveSucursalId, q);
+          } else {
+            const local = await getSales(5000);
+            rows = local
+              .filter((s) => saleMatchesTicketSearch(s, q))
+              .sort(
+                (a, b) => saleFechaHistorial(b).getTime() - saleFechaHistorial(a).getTime()
+              )
+              .slice(0, 150);
+          }
+          if (!cancelled) setReprintSearchResults(rows);
+        } catch (err) {
+          console.error('Error al buscar tickets:', err);
+          if (!cancelled) setReprintSearchResults([]);
+        } finally {
+          if (!cancelled) setReprintSearchLoading(false);
+        }
+      })();
+    }, 280);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [todaySalesOpen, reprintSearchMode, reprintSearchQuery, effectiveSucursalId]);
 
   useEffect(() => {
     setKpiDrillDownDayStart(null);
@@ -532,35 +646,18 @@ export function Dashboard() {
   );
   const outgoingTransferPendingIds = useOutgoingPendingTransferIds();
 
-  const reprintSalesRaw = useMemo(() => {
-    return salesFetched.filter((s) => saleEnRangoHistorial(s, reprintDayStart, reprintDayEnd));
-  }, [salesFetched, reprintDayStart, reprintDayEnd]);
   const reprintSalesSorted = useMemo(
     () =>
-      [...reprintSalesRaw].sort(
+      [...reprintDaySales].sort(
         (a, b) => saleFechaHistorial(b).getTime() - saleFechaHistorial(a).getTime()
       ),
-    [reprintSalesRaw]
+    [reprintDaySales]
   );
-  const reprintAbonosDelDia = useMemo(() => {
-    const t0 = reprintDayStart.getTime();
-    const t1 = reprintDayEnd.getTime();
-    return abonosFetched.filter((a) => {
-      const t = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
-      return Number.isFinite(t) && t >= t0 && t < t1;
-    });
-  }, [abonosFetched, reprintDayStart, reprintDayEnd]);
+  const reprintAbonosDelDia = reprintDayAbonos;
   const reprintMovimientos = useMemo(
     () => buildHistorialCobrosMovimientos(reprintSalesSorted, reprintAbonosDelDia),
     [reprintSalesSorted, reprintAbonosDelDia]
   );
-  const reprintSearchResults = useMemo(() => {
-    const q = reprintSearchQuery.trim();
-    if (!q) return [];
-    return ticketCatalogSales
-      .filter((s) => saleMatchesTicketSearch(s, q))
-      .sort((a, b) => saleFechaHistorial(b).getTime() - saleFechaHistorial(a).getTime());
-  }, [ticketCatalogSales, reprintSearchQuery]);
   const reprintSearchMovimientos = useMemo(
     () => buildHistorialCobrosMovimientos(reprintSearchResults, []),
     [reprintSearchResults]
@@ -568,8 +665,9 @@ export function Dashboard() {
   const reprintListMovimientos: HistorialCobroMovimiento[] = reprintSearchMode
     ? reprintSearchMovimientos
     : reprintMovimientos;
-  const reprintListLoading =
-    reprintSearchMode ? ticketCatalogLoading : salesLoading || abonosLoading;
+  const reprintListLoading = reprintSearchMode
+    ? reprintSearchLoading
+    : reprintDaySalesLoading || reprintDayAbonosLoading;
   const reprintTodayKey = getMexicoDateKey();
   const reprintCanGoNext = reprintDayKey < reprintTodayKey;
 
@@ -589,6 +687,9 @@ export function Dashboard() {
     setReprintDayKey(getMexicoDateKey());
     setReprintSearchMode(false);
     setReprintSearchQuery('');
+    setReprintDaySales([]);
+    setReprintDayAbonos([]);
+    setReprintSearchResults([]);
     reprintListScrollTopRef.current = 0;
   }, []);
 
@@ -639,6 +740,13 @@ export function Dashboard() {
         type: 'success',
         message: `Venta cancelada. Inventario reintegrado.${efDev > 0.005 ? ` Devolución en efectivo: ${formatMoney(efDev)}.` : ''} El ticket ya no cuenta en totales.`,
       });
+      const markCanceled = (s: Sale): Sale =>
+        s.id === saleCanceled.id
+          ? { ...s, estado: 'cancelada', cancelacionMotivo: 'panel' }
+          : s;
+      setReprintDaySales((prev) => prev.map(markCanceled));
+      setReprintSearchResults((prev) => prev.map(markCanceled));
+      setReprintSaleDetail((prev) => (prev && prev.id === saleCanceled.id ? markCanceled(prev) : prev));
       setSaleCancelOpen(false);
       setSaleToCancel(null);
     } catch (err) {
@@ -676,6 +784,7 @@ export function Dashboard() {
             : new Date(abonoToCancel.createdAt),
       });
       setAbonosFetched((prev) => prev.filter((a) => a.id !== abonoToCancel.id));
+      setReprintDayAbonos((prev) => prev.filter((a) => a.id !== abonoToCancel.id));
       setReprintAbonoDetail(null);
       addToast({
         type: 'success',
@@ -1483,7 +1592,7 @@ export function Dashboard() {
                   <DialogTitle>Historial del día</DialogTitle>
                   <p className="mt-1 text-sm font-normal text-slate-600 dark:text-slate-500">
                     {reprintSearchMode
-                      ? 'Buscá por folio, cliente, cajero o artículo en el historial reciente de tickets.'
+                      ? 'Buscá por folio, cliente o cajero en todo el historial de tickets.'
                       : 'Ventas y abonos de saldo pendiente cobrados en la fecha elegida.'}
                   </p>
                   {reprintSearchMode ? (
