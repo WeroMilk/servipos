@@ -1,0 +1,1222 @@
+{
+  "generatedAt": "2026-07-28T23:32:45.842Z",
+  "totalReubicar": 171,
+  "byCategoria": {
+    "ABANICOS": 6,
+    "ACCESORIOS": 17,
+    "AIRE ACONDICIONADO": 12,
+    "BOILER": 7,
+    "ESTUFAS": 13,
+    "GENERAL": 1,
+    "LAVADO Y SECADO": 1,
+    "LAVADORAS": 14,
+    "LICUADORAS": 29,
+    "OLLAS DE PRESION": 2,
+    "REFRIGERACION": 62,
+    "SECADORAS": 4,
+    "VITRINAS": 3
+  },
+  "missingCodes": 9,
+  "sinZona": 2,
+  "pendientes": 0,
+  "items": [
+    {
+      "sku": "1926",
+      "nombre": "INTERUPTOR DE PLAFON PARA LUZ",
+      "categoria": "ABANICOS",
+      "estaEn": "Q1",
+      "deberiaEstar": "JJ"
+    },
+    {
+      "sku": "1927",
+      "nombre": "INTERRUPTOR DE PLAFON 3 VEL.",
+      "categoria": "ABANICOS",
+      "estaEn": "Q1",
+      "deberiaEstar": "JJ1"
+    },
+    {
+      "sku": "1930",
+      "nombre": "INTERRUPTOR DE PLAFON S/C",
+      "categoria": "ABANICOS",
+      "estaEn": "Q1",
+      "deberiaEstar": "JJ2"
+    },
+    {
+      "sku": "1770",
+      "nombre": "CAPACITOR PARA VENT. 2+5UF 250V",
+      "categoria": "ABANICOS",
+      "estaEn": "Z4",
+      "deberiaEstar": "KK1"
+    },
+    {
+      "sku": "1771",
+      "nombre": "CAPACITOR PARA VENT 2+6UF 250V",
+      "categoria": "ABANICOS",
+      "estaEn": "Z4",
+      "deberiaEstar": "LL1"
+    },
+    {
+      "sku": "1772",
+      "nombre": "CAPACITOR PARA VENT. 5+5UF 250V",
+      "categoria": "ABANICOS",
+      "estaEn": "Z4",
+      "deberiaEstar": "LL2"
+    },
+    {
+      "sku": "1938",
+      "nombre": "JGO CARBONES MD. CUBE 1ERA CALIDAD",
+      "categoria": "ACCESORIOS",
+      "estaEn": "HH",
+      "deberiaEstar": "LL3"
+    },
+    {
+      "sku": "7501206686997",
+      "nombre": "PIJA P/ LAMINA 10X 1-1/2 FIERO 150 PZS",
+      "categoria": "ACCESORIOS",
+      "estaEn": "HH2",
+      "deberiaEstar": "MM2"
+    },
+    {
+      "sku": "7503026192573",
+      "nombre": "BOMBA DISPENSADORA DE AGUA COLDTEK PARA REFRIGERADOR",
+      "categoria": "ACCESORIOS",
+      "estaEn": "N1",
+      "deberiaEstar": "NN1"
+    },
+    {
+      "sku": "1924",
+      "nombre": "CARBON UNIVERSAL PAR",
+      "categoria": "ACCESORIOS",
+      "estaEn": "Q1",
+      "deberiaEstar": "NN5"
+    },
+    {
+      "sku": "1925",
+      "nombre": "CARBONES PAR COMP 1ERA CALIDAD",
+      "categoria": "ACCESORIOS",
+      "estaEn": "Q1",
+      "deberiaEstar": "NN6"
+    },
+    {
+      "sku": "1935",
+      "nombre": "CARBONES DE PULIDOR C/ZAPATA BOSCH",
+      "categoria": "ACCESORIOS",
+      "estaEn": "Q1",
+      "deberiaEstar": "ÑÑ"
+    },
+    {
+      "sku": "1936",
+      "nombre": "CARBONES DE PULIDOR O ESMERIL",
+      "categoria": "ACCESORIOS",
+      "estaEn": "Q1",
+      "deberiaEstar": "ÑÑ2"
+    },
+    {
+      "sku": "1941",
+      "nombre": "FUSIBLE TERMICO 10A, 250V, 240C",
+      "categoria": "ACCESORIOS",
+      "estaEn": "Q1",
+      "deberiaEstar": "ÑÑ4"
+    },
+    {
+      "sku": "1942",
+      "nombre": "FUSIBLE TERMICO 117C",
+      "categoria": "ACCESORIOS",
+      "estaEn": "Q1",
+      "deberiaEstar": "OO"
+    },
+    {
+      "sku": "2008",
+      "nombre": "DIODO RECTIFICADOR PARA MICROONDAS",
+      "categoria": "ACCESORIOS",
+      "estaEn": "Q1",
+      "deberiaEstar": "PP"
+    },
+    {
+      "sku": "2230",
+      "nombre": "PUNTA POOL 6 CMS 312063",
+      "categoria": "ACCESORIOS",
+      "estaEn": "Q2",
+      "deberiaEstar": "PP2"
+    },
+    {
+      "sku": "2302",
+      "nombre": "VALVULA ESFERA ROSCABLE AZUL DE 1/2\"",
+      "categoria": "ACCESORIOS",
+      "estaEn": "Q2",
+      "deberiaEstar": "PP5"
+    },
+    {
+      "sku": "219",
+      "nombre": "CEDAZO Y EMPAQUE PARA MANGUERA JUEGO",
+      "categoria": "ACCESORIOS",
+      "estaEn": "W2",
+      "deberiaEstar": "OO3"
+    },
+    {
+      "sku": "2071",
+      "nombre": "LLAVE BCA C/PALANCA AZUL CUERDA INT 5/8\"",
+      "categoria": "ACCESORIOS",
+      "estaEn": "Z3",
+      "deberiaEstar": "OO3"
+    },
+    {
+      "sku": "2072",
+      "nombre": "LLAVE BCA C/PALANCA ROJA CUERDA EXT. 3/4\"",
+      "categoria": "ACCESORIOS",
+      "estaEn": "Z3",
+      "deberiaEstar": "OO3"
+    },
+    {
+      "sku": "2073",
+      "nombre": "LLAVE BCA C/BOTON AZUL CUERDA EXT. 3/4\"",
+      "categoria": "ACCESORIOS",
+      "estaEn": "Z3",
+      "deberiaEstar": "OO3"
+    },
+    {
+      "sku": "1986",
+      "nombre": "FLOTADOR SENSOR DE DISPENSADOR DE AGUA",
+      "categoria": "ACCESORIOS",
+      "estaEn": "Z6",
+      "deberiaEstar": "OO3"
+    },
+    {
+      "sku": "937",
+      "nombre": "CAPACITOR DE TRABAJO 75UF 440V",
+      "categoria": "AIRE ACONDICIONADO",
+      "estaEn": "HH2",
+      "deberiaEstar": "Y1"
+    },
+    {
+      "sku": "192",
+      "nombre": "RELAY P/TARJETA MS SFK-11DM",
+      "categoria": "AIRE ACONDICIONADO",
+      "estaEn": "N1",
+      "deberiaEstar": "Z1"
+    },
+    {
+      "sku": "932",
+      "nombre": "RELAY P/TARJETA 12V 240V DC1550",
+      "categoria": "AIRE ACONDICIONADO",
+      "estaEn": "N1",
+      "deberiaEstar": "Z10"
+    },
+    {
+      "sku": "7503026196458",
+      "nombre": "FILTRO DESHIDRATADOR 3/8 COLDTECK",
+      "categoria": "AIRE ACONDICIONADO",
+      "estaEn": "ÑÑ1",
+      "deberiaEstar": "BB3"
+    },
+    {
+      "sku": "7503026414521",
+      "nombre": "FILTRO DESHIDRATADOR SOLDABLE 2 COLILLAS 1/4",
+      "categoria": "AIRE ACONDICIONADO",
+      "estaEn": "ÑÑ3",
+      "deberiaEstar": "DD3"
+    },
+    {
+      "sku": "7503033971352",
+      "nombre": "CUBIERTA PARA MINISPLIT 105CM",
+      "categoria": "AIRE ACONDICIONADO",
+      "estaEn": "OO1",
+      "deberiaEstar": "EE"
+    },
+    {
+      "sku": "7503033971369",
+      "nombre": "CUBIERTA PARA MINISPLIT 120CM",
+      "categoria": "AIRE ACONDICIONADO",
+      "estaEn": "OO1",
+      "deberiaEstar": "EE"
+    },
+    {
+      "sku": "1671",
+      "nombre": "ACEITE MINERAL VSC 46 (SUS 200) 1LT",
+      "categoria": "AIRE ACONDICIONADO",
+      "estaEn": "OO2",
+      "deberiaEstar": "EE"
+    },
+    {
+      "sku": "1672",
+      "nombre": "ACEITE MINERAL VSC 68 (SUS 300) 1LT",
+      "categoria": "AIRE ACONDICIONADO",
+      "estaEn": "OO2",
+      "deberiaEstar": "EE"
+    },
+    {
+      "sku": "8033158076520",
+      "nombre": "LIQUIDO LIMPIADOR DE LINEAS SGP 1GAL.",
+      "categoria": "AIRE ACONDICIONADO",
+      "estaEn": "OO5",
+      "deberiaEstar": "EE"
+    },
+    {
+      "sku": "2202",
+      "nombre": "JUEGO FLARE EN CAJA WK-806AM-L",
+      "categoria": "AIRE ACONDICIONADO",
+      "estaEn": "PP3",
+      "deberiaEstar": "EE"
+    },
+    {
+      "sku": "6620132288042",
+      "nombre": "TERMOSTATO DE PARED ROBERTSHAW NO PROGRAMABLE RS8110",
+      "categoria": "AIRE ACONDICIONADO",
+      "estaEn": "PP3",
+      "deberiaEstar": "EE"
+    },
+    {
+      "sku": "2206",
+      "nombre": "ADAPTADOR PARA PIGTAIL 1/4",
+      "categoria": "BOILER",
+      "estaEn": "Q2",
+      "deberiaEstar": "FF1"
+    },
+    {
+      "sku": "2207",
+      "nombre": "TUERCA IZQUIERA 7/8 PARA PIG TAIL",
+      "categoria": "BOILER",
+      "estaEn": "Q2",
+      "deberiaEstar": "GG"
+    },
+    {
+      "sku": "1597",
+      "nombre": "TERMOSTATO BOILER IUSA ENTRADA 1/2 495066",
+      "categoria": "BOILER",
+      "estaEn": "Q3",
+      "deberiaEstar": "GG3"
+    },
+    {
+      "sku": "1598",
+      "nombre": "TERMOSTATO BOILER IUSA ENCENDIDO ELECTRONICO ENTRADA 3/8 212936",
+      "categoria": "BOILER",
+      "estaEn": "Q3",
+      "deberiaEstar": "GG4"
+    },
+    {
+      "sku": "1645",
+      "nombre": "TERMISTOR SENSOR P/ BOILER GEN UNIV,",
+      "categoria": "BOILER",
+      "estaEn": "Q3",
+      "deberiaEstar": "HH1"
+    },
+    {
+      "sku": "2215",
+      "nombre": "REGULADOR DE GAS SENCILLO R-5000",
+      "categoria": "BOILER",
+      "estaEn": "Q3",
+      "deberiaEstar": "HH4"
+    },
+    {
+      "sku": "2216",
+      "nombre": "REGULADOR DE GAS SENCILLO CON POOL R-3001-AS0",
+      "categoria": "BOILER",
+      "estaEn": "Q3",
+      "deberiaEstar": "FF1"
+    },
+    {
+      "sku": "1563",
+      "nombre": "VALVULA CONTROL DE GAS AMARILLA 3/8\" X 1/2\"",
+      "categoria": "ESTUFAS",
+      "estaEn": "Ñ1",
+      "deberiaEstar": "II1"
+    },
+    {
+      "sku": "1587",
+      "nombre": "PERILLA ESTUFA CASSETTE MABE GRAFITO 20\" (51 CM) 24\" (61 CM), WS01L14351",
+      "categoria": "ESTUFAS",
+      "estaEn": "P2",
+      "deberiaEstar": "II1"
+    },
+    {
+      "sku": "1588",
+      "nombre": "VALVULA QUEMADOR ESTUFA MABE ECLIPSE C/SOP V/LGO ORIGINAL",
+      "categoria": "ESTUFAS",
+      "estaEn": "P2",
+      "deberiaEstar": "II1"
+    },
+    {
+      "sku": "1589",
+      "nombre": "VÁLVULA QUEMADOR ESTUFA JUMBO MABE 6.5 CM WS01F03721",
+      "categoria": "ESTUFAS",
+      "estaEn": "P2",
+      "deberiaEstar": "II1"
+    },
+    {
+      "sku": "1590",
+      "nombre": "TERMOCONTROL DEL HORNO 5 POSICIONESPARA ESTUFA",
+      "categoria": "ESTUFAS",
+      "estaEn": "P2",
+      "deberiaEstar": "II1"
+    },
+    {
+      "sku": "1591",
+      "nombre": "VÁLVULA QUEMADOR ESTUFA MABE WS01F03720 223C4585P001",
+      "categoria": "ESTUFAS",
+      "estaEn": "P2",
+      "deberiaEstar": "II1"
+    },
+    {
+      "sku": "1719",
+      "nombre": "VALVULA PARA QUEMADOR 3 Y 4\" 223C5208P018",
+      "categoria": "ESTUFAS",
+      "estaEn": "P2",
+      "deberiaEstar": "II1"
+    },
+    {
+      "sku": "1909",
+      "nombre": "PERILLA ESTUFA TIPO PLACA MABE WS01L18850 259C1632G001",
+      "categoria": "ESTUFAS",
+      "estaEn": "P2",
+      "deberiaEstar": "II1"
+    },
+    {
+      "sku": "2266",
+      "nombre": "PERILLA ESTUFA MABE 295D1091P003 / WS01L14402",
+      "categoria": "ESTUFAS",
+      "estaEn": "P2",
+      "deberiaEstar": "II1"
+    },
+    {
+      "sku": "W10587906",
+      "nombre": "MODULO 6 SALIDAS WH ORG W10587906",
+      "categoria": "ESTUFAS",
+      "estaEn": "P2",
+      "deberiaEstar": "II1"
+    },
+    {
+      "sku": "1563",
+      "nombre": "VALVULA CONTROL DE GAS AMARILLA 3/8\" X 1/2\"",
+      "categoria": "ESTUFAS",
+      "estaEn": "Q2",
+      "deberiaEstar": "II1"
+    },
+    {
+      "sku": "2210",
+      "nombre": "FILTRO CAMPANA MABE-IEM COMPLETO 26X36CM",
+      "categoria": "ESTUFAS",
+      "estaEn": "Q2",
+      "deberiaEstar": "II1"
+    },
+    {
+      "sku": "2211",
+      "nombre": "FILTRO CAMPANA UNIVERSAL BLANCO 36X80CM",
+      "categoria": "ESTUFAS",
+      "estaEn": "Q2",
+      "deberiaEstar": "II1"
+    },
+    {
+      "sku": "1130",
+      "nombre": "TARJETA CONTROL TERMOSTATO LG ORG.",
+      "categoria": "GENERAL",
+      "estaEn": "U2",
+      "deberiaEstar": "JJ"
+    },
+    {
+      "sku": "2328",
+      "nombre": "ELECTROVALVULA REF. WH. 2210494",
+      "categoria": "LAVADO Y SECADO",
+      "estaEn": "P1",
+      "deberiaEstar": "D"
+    },
+    {
+      "sku": "1454",
+      "nombre": "CUBIERTA TINA Y SUSPENSIONES LAV MABE KIT ORIGINAL WW02L00002",
+      "categoria": "LAVADORAS",
+      "estaEn": "NN",
+      "deberiaEstar": "E"
+    },
+    {
+      "sku": "798",
+      "nombre": "MANGUERA DESAGUE WH ORG.",
+      "categoria": "LAVADORAS",
+      "estaEn": "NN2",
+      "deberiaEstar": "E5"
+    },
+    {
+      "sku": "W11518678",
+      "nombre": "TARJETA CONTROL PRINC. W11518678 WH ORG",
+      "categoria": "LAVADORAS",
+      "estaEn": "NN2",
+      "deberiaEstar": "F6"
+    },
+    {
+      "sku": "1305",
+      "nombre": "RESORTE ROJO/MOR. S/SUSP. MABE",
+      "categoria": "LAVADORAS",
+      "estaEn": "NN3",
+      "deberiaEstar": "F8"
+    },
+    {
+      "sku": "1306",
+      "nombre": "RESORTE CAFE S/SUSP. MABE",
+      "categoria": "LAVADORAS",
+      "estaEn": "NN3",
+      "deberiaEstar": "G"
+    },
+    {
+      "sku": "1307",
+      "nombre": "RESORTE VERDE S/SUSP. MABE",
+      "categoria": "LAVADORAS",
+      "estaEn": "NN3",
+      "deberiaEstar": "G4"
+    },
+    {
+      "sku": "1308",
+      "nombre": "RESORTE AZUL S/SUSP. MABE",
+      "categoria": "LAVADORAS",
+      "estaEn": "NN3",
+      "deberiaEstar": "G5"
+    },
+    {
+      "sku": "1424",
+      "nombre": "BUJE POSTE INF. MBOL.",
+      "categoria": "LAVADORAS",
+      "estaEn": "NN3",
+      "deberiaEstar": "G6"
+    },
+    {
+      "sku": "28",
+      "nombre": "BUJE CON HOMBRO MBOL CHICO",
+      "categoria": "LAVADORAS",
+      "estaEn": "NN3",
+      "deberiaEstar": "G7"
+    },
+    {
+      "sku": "1805",
+      "nombre": "TRANSMISION KRAKEN PLATO GRANDE S/BASE",
+      "categoria": "LAVADORAS",
+      "estaEn": "NN4",
+      "deberiaEstar": "G8"
+    },
+    {
+      "sku": "137513300",
+      "nombre": "ANILLO DESLIZADOR TAMBOR WW 131963900",
+      "categoria": "LAVADORAS",
+      "estaEn": "Ñ1",
+      "deberiaEstar": "I1"
+    },
+    {
+      "sku": "1764",
+      "nombre": "PERILLA SEC MABE BLANCA/GRIS ORG 253C1252G004",
+      "categoria": "LAVADORAS",
+      "estaEn": "Ñ1",
+      "deberiaEstar": "L1"
+    },
+    {
+      "sku": "279962",
+      "nombre": "LATERALES TABLERO LAV. SEC. WH. 279962",
+      "categoria": "LAVADORAS",
+      "estaEn": "Ñ1",
+      "deberiaEstar": "L1"
+    },
+    {
+      "sku": "W11454741",
+      "nombre": "TRANSMISION FLECHA LARGA WH. ORG. W11454741",
+      "categoria": "LAVADORAS",
+      "estaEn": "Z",
+      "deberiaEstar": "L1"
+    },
+    {
+      "sku": "1939",
+      "nombre": "INTERRUPTOR DE SEGURIDAD NB",
+      "categoria": "LICUADORAS",
+      "estaEn": "Q1",
+      "deberiaEstar": "HH"
+    },
+    {
+      "sku": "1940",
+      "nombre": "JUEGO DE CARBONES NB",
+      "categoria": "LICUADORAS",
+      "estaEn": "Q1",
+      "deberiaEstar": "HH"
+    },
+    {
+      "sku": "1815",
+      "nombre": "DIAFRAGMA WAVE STATION HAMILTON",
+      "categoria": "LICUADORAS",
+      "estaEn": "Z2",
+      "deberiaEstar": "HH"
+    },
+    {
+      "sku": "1816",
+      "nombre": "DIAFRAGMA WAVE HAMILTON",
+      "categoria": "LICUADORAS",
+      "estaEn": "Z2",
+      "deberiaEstar": "HH"
+    },
+    {
+      "sku": "1822",
+      "nombre": "DIAFRAGMA HR PHILLIPS",
+      "categoria": "LICUADORAS",
+      "estaEn": "Z2",
+      "deberiaEstar": "HH"
+    },
+    {
+      "sku": "1932",
+      "nombre": "BASE PARA PORTAVASO NB ORG",
+      "categoria": "LICUADORAS",
+      "estaEn": "Z2",
+      "deberiaEstar": "HH"
+    },
+    {
+      "sku": "1817",
+      "nombre": "DIAFRAGMA HOMETECH",
+      "categoria": "LICUADORAS",
+      "estaEn": "Z3",
+      "deberiaEstar": "HH"
+    },
+    {
+      "sku": "2059",
+      "nombre": "PORTAVASO DIGITAL GRANDE B&D",
+      "categoria": "LICUADORAS",
+      "estaEn": "Z3",
+      "deberiaEstar": "HH"
+    },
+    {
+      "sku": "1931",
+      "nombre": "CUCHILLA PORTA VASO NB",
+      "categoria": "LICUADORAS",
+      "estaEn": "Z4",
+      "deberiaEstar": "HH"
+    },
+    {
+      "sku": "1945",
+      "nombre": "CUCHILLA PORTAVASO NB TIPO 2",
+      "categoria": "LICUADORAS",
+      "estaEn": "Z4",
+      "deberiaEstar": "HH"
+    },
+    {
+      "sku": "2121",
+      "nombre": "CUCHILLA PORTAVASO NB TIPO C MAGIC",
+      "categoria": "LICUADORAS",
+      "estaEn": "Z4",
+      "deberiaEstar": "HH"
+    },
+    {
+      "sku": "2057",
+      "nombre": "PORTAVASO ENT. GRANDE CRUSH MASTER",
+      "categoria": "LICUADORAS",
+      "estaEn": "Z5",
+      "deberiaEstar": "HH"
+    },
+    {
+      "sku": "2058",
+      "nombre": "PORTAVASO DIGITAL MEDIANO B&D",
+      "categoria": "LICUADORAS",
+      "estaEn": "Z5",
+      "deberiaEstar": "HH"
+    },
+    {
+      "sku": "2061",
+      "nombre": "CUCHILLA CHICA BD",
+      "categoria": "LICUADORAS",
+      "estaEn": "Z5",
+      "deberiaEstar": "HH"
+    },
+    {
+      "sku": "2055",
+      "nombre": "PORTAVASO ENT, CHICA CRUSH MASTER",
+      "categoria": "LICUADORAS",
+      "estaEn": "Z6",
+      "deberiaEstar": "HH"
+    },
+    {
+      "sku": "2060",
+      "nombre": "CUCHILLA GRANDE BD",
+      "categoria": "LICUADORAS",
+      "estaEn": "Z6",
+      "deberiaEstar": "HH"
+    },
+    {
+      "sku": "1810",
+      "nombre": "DIAFRAGMA GRANDE B&D",
+      "categoria": "LICUADORAS",
+      "estaEn": "Z7",
+      "deberiaEstar": "HH"
+    },
+    {
+      "sku": "1811",
+      "nombre": "DIAFRAGMA HOME MODERNO B&D",
+      "categoria": "LICUADORAS",
+      "estaEn": "Z7",
+      "deberiaEstar": "HH"
+    },
+    {
+      "sku": "1812",
+      "nombre": "DIAFRAGMA HOME ANTIGUO B&D",
+      "categoria": "LICUADORAS",
+      "estaEn": "Z7",
+      "deberiaEstar": "HH"
+    },
+    {
+      "sku": "1823",
+      "nombre": "DIAFRAGMA TOOP ECONOMICO PHILLIPS",
+      "categoria": "LICUADORAS",
+      "estaEn": "Z7",
+      "deberiaEstar": "HH"
+    },
+    {
+      "sku": "1824",
+      "nombre": "DIAFRAGMA MODERNO TX2001 PHILLIPS",
+      "categoria": "LICUADORAS",
+      "estaEn": "Z7",
+      "deberiaEstar": "HH"
+    },
+    {
+      "sku": "1825",
+      "nombre": "DIAFRAGMA C/CDA DERECHO TAURUS",
+      "categoria": "LICUADORAS",
+      "estaEn": "Z7",
+      "deberiaEstar": "HH"
+    },
+    {
+      "sku": "1826",
+      "nombre": "DIAFRAGMA ISIS TAURUS",
+      "categoria": "LICUADORAS",
+      "estaEn": "Z7",
+      "deberiaEstar": "HH"
+    },
+    {
+      "sku": "1814",
+      "nombre": "DIAFRAGMA CUISINART",
+      "categoria": "LICUADORAS",
+      "estaEn": "Z8",
+      "deberiaEstar": "HH"
+    },
+    {
+      "sku": "1818",
+      "nombre": "DIAFRAGMA MITEK UNICO",
+      "categoria": "LICUADORAS",
+      "estaEn": "Z8",
+      "deberiaEstar": "HH"
+    },
+    {
+      "sku": "1820",
+      "nombre": "DIAFRAGMA TURBOBLENDER",
+      "categoria": "LICUADORAS",
+      "estaEn": "Z8",
+      "deberiaEstar": "HH"
+    },
+    {
+      "sku": "1827",
+      "nombre": "DIAFRAGMA RAGAZZA TAURUS",
+      "categoria": "LICUADORAS",
+      "estaEn": "Z8",
+      "deberiaEstar": "HH"
+    },
+    {
+      "sku": "1828",
+      "nombre": "DIAFRAGMA BONJOUR T-FAL",
+      "categoria": "LICUADORAS",
+      "estaEn": "Z8",
+      "deberiaEstar": "HH"
+    },
+    {
+      "sku": "2064",
+      "nombre": "CUCHULLA HAMILTON *STRONG* COPLE CHICO",
+      "categoria": "LICUADORAS",
+      "estaEn": "Z9",
+      "deberiaEstar": "HH"
+    },
+    {
+      "sku": "2118",
+      "nombre": "INDICADOR DE PRESION EKCO MODERNO",
+      "categoria": "OLLAS DE PRESION",
+      "estaEn": "Q3",
+      "deberiaEstar": "JJ1"
+    },
+    {
+      "sku": "2119",
+      "nombre": "INDICADOR DE PRESION EKCO CUISINE",
+      "categoria": "OLLAS DE PRESION",
+      "estaEn": "Q3",
+      "deberiaEstar": "JJ1"
+    },
+    {
+      "sku": "2260",
+      "nombre": "COMPRESOR SIKELAN 1/2 HP R404 110V GQR80KD",
+      "categoria": "REFRIGERACION",
+      "estaEn": "AA1",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "2301",
+      "nombre": "COMPRESOR SIKELAN 1/6 R600 110V QD110Y11G",
+      "categoria": "REFRIGERACION",
+      "estaEn": "AA1",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "1440",
+      "nombre": "COMPRESOR SIKELAN 1/2 HP R134 PESADO GQR14TD",
+      "categoria": "REFRIGERACION",
+      "estaEn": "AA2",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "2348",
+      "nombre": "COMPRESOR SIKELAN 1/3 LIVIANO QD153Y11G R600 110V",
+      "categoria": "REFRIGERACION",
+      "estaEn": "AA3",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "1918",
+      "nombre": "COMPRESOR 1/3 R290 HDL_QD75UHW",
+      "categoria": "REFRIGERACION",
+      "estaEn": "AA4",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "2104",
+      "nombre": "COMPRESOR SIKELAN 1/5HP 120V R600 QD128Y11G",
+      "categoria": "REFRIGERACION",
+      "estaEn": "AA4",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "2163",
+      "nombre": "COMPRESOR SIKELAN 1/4 R404 110V GQR45KD",
+      "categoria": "REFRIGERACION",
+      "estaEn": "AA4",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "1002",
+      "nombre": "JUEGO DE MANGUERAS PARA MANOMETRO 60\"",
+      "categoria": "REFRIGERACION",
+      "estaEn": "BB1",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "1064",
+      "nombre": "JUEGO DE MANGUERA PARA MANOMETRO 36 410",
+      "categoria": "REFRIGERACION",
+      "estaEn": "BB1",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "254",
+      "nombre": "CORTA TUBO MINI 1/8 A 5/8",
+      "categoria": "REFRIGERACION",
+      "estaEn": "BB1",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "256",
+      "nombre": "CORTATUBO TIPO MINI 1/8 A 1 1/8",
+      "categoria": "REFRIGERACION",
+      "estaEn": "BB1",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "7503026414866",
+      "nombre": "JUEGO DE MANGUERAS P/MANOMETRO 36\"",
+      "categoria": "REFRIGERACION",
+      "estaEn": "BB1",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "920",
+      "nombre": "VALVULA PARA LATA REFRIGERANTE CON LLAVE",
+      "categoria": "REFRIGERACION",
+      "estaEn": "BB1",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "037103570192",
+      "nombre": "ARRANCADOR REF. 3N1 DE 1/4- 1/3 HP",
+      "categoria": "REFRIGERACION",
+      "estaEn": "BB2",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "503",
+      "nombre": "ARRANCADOR 3N1 REF DE 1/2 4000 BTU COLDTEK",
+      "categoria": "REFRIGERACION",
+      "estaEn": "BB2",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "891",
+      "nombre": "CONTROL TEMP. C/BULBO DAEWOO",
+      "categoria": "REFRIGERACION",
+      "estaEn": "CC",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "1194",
+      "nombre": "COMPRESOR SIKELAN 1/4HP PESADO GQR80TD",
+      "categoria": "REFRIGERACION",
+      "estaEn": "CC2",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "187",
+      "nombre": "COMPRESOR SIKELAN 1/4 R134 ADW66T6",
+      "categoria": "REFRIGERACION",
+      "estaEn": "CC2",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "2300",
+      "nombre": "COMPRESOR SIKELAN 1/2HP GQR70KD R404 110V",
+      "categoria": "REFRIGERACION",
+      "estaEn": "CC2",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "1062",
+      "nombre": "ROLLO CAPILAR .31",
+      "categoria": "REFRIGERACION",
+      "estaEn": "DD",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "138",
+      "nombre": "ROLLO CAPILAR .28",
+      "categoria": "REFRIGERACION",
+      "estaEn": "DD",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "153",
+      "nombre": "ROLLO CAPILAR.54",
+      "categoria": "REFRIGERACION",
+      "estaEn": "DD",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "154",
+      "nombre": "ROLLO CAPILAR .46",
+      "categoria": "REFRIGERACION",
+      "estaEn": "DD",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "1917",
+      "nombre": "ROLLO CAPILAR .26 3M",
+      "categoria": "REFRIGERACION",
+      "estaEn": "DD",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "218",
+      "nombre": "ROLLO CAPILAR .42",
+      "categoria": "REFRIGERACION",
+      "estaEn": "DD",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "1726",
+      "nombre": "COMPRESOR 1/2 R290 HDQ_QD110UHW",
+      "categoria": "REFRIGERACION",
+      "estaEn": "DD4",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "1979",
+      "nombre": "COMPRESOR SIKELAN 1/9 QD35H11G 134A",
+      "categoria": "REFRIGERACION",
+      "estaEn": "DD4",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "2259",
+      "nombre": "COMPRESOR 1/4 R290 QD65UHW",
+      "categoria": "REFRIGERACION",
+      "estaEn": "DD4",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "2092",
+      "nombre": "CAPACITOR DE TRABAJO DUAL 50+6UF 440V",
+      "categoria": "REFRIGERACION",
+      "estaEn": "EE2",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "2185",
+      "nombre": "CAPACITOR DE ARRANQUE 100-125 UF. 110 V.",
+      "categoria": "REFRIGERACION",
+      "estaEn": "EE3",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "181",
+      "nombre": "COMPRESOR SIKELAN 1/5 LIV. 110V ADW51T6",
+      "categoria": "REFRIGERACION",
+      "estaEn": "EE4",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "1799",
+      "nombre": "SUSPENSION MABE ORG. 189D3916G005",
+      "categoria": "REFRIGERACION",
+      "estaEn": "H",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "W10440786",
+      "nombre": "SUSPENSION WH. 71CM ROSA W10440786 ORG",
+      "categoria": "REFRIGERACION",
+      "estaEn": "H",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "1799",
+      "nombre": "SUSPENSION MABE ORG. 189D3916G005",
+      "categoria": "REFRIGERACION",
+      "estaEn": "H1",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "W10440786",
+      "nombre": "SUSPENSION WH. 71CM ROSA W10440786 ORG",
+      "categoria": "REFRIGERACION",
+      "estaEn": "H1",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "295",
+      "nombre": "AISLAMIENTO FLEXIBLE ARMAFLEX P/TUBERIA 7/8",
+      "categoria": "REFRIGERACION",
+      "estaEn": "MM1",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "299",
+      "nombre": "AISLAMIENTO FLEXIBLE ARMAFLEX P/TUBERIA 5/8",
+      "categoria": "REFRIGERACION",
+      "estaEn": "MM1",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "788",
+      "nombre": "AISLAMIENTO FLEXIBLE ARMAFLEX P/TUBERIA 1 1/8\"",
+      "categoria": "REFRIGERACION",
+      "estaEn": "MM1",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "1583",
+      "nombre": "ICEMAKER MB 197D7636G003 / WR30X28700",
+      "categoria": "REFRIGERACION",
+      "estaEn": "ÑÑ1",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "2032",
+      "nombre": "SENSOR AMBIENTAL AMARILLO SAMSUNG DA32-00070A",
+      "categoria": "REFRIGERACION",
+      "estaEn": "ÑÑ3",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "7503026195246",
+      "nombre": "FUSIBLE REF. UNIVERSAL",
+      "categoria": "REFRIGERACION",
+      "estaEn": "ÑÑ3",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "7503026195734",
+      "nombre": "SENSOR AMBIENTAL SAMSUNG AZUL",
+      "categoria": "REFRIGERACION",
+      "estaEn": "ÑÑ3",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "1711",
+      "nombre": "DAMPER MBGE WR01F01713 / 200D1535P002",
+      "categoria": "REFRIGERACION",
+      "estaEn": "ÑÑ5",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "1720",
+      "nombre": "FOCO REFRAC. HORNO O REF. MBGE",
+      "categoria": "REFRIGERACION",
+      "estaEn": "ÑÑ5",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "2033",
+      "nombre": "ELECTROVALVULA REF. SAMSUNG ORG. AJU75632504",
+      "categoria": "REFRIGERACION",
+      "estaEn": "ÑÑ6",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "526",
+      "nombre": "ACEITE BOMBA VACIO 500 ML",
+      "categoria": "REFRIGERACION",
+      "estaEn": "OO2",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "1695",
+      "nombre": "ASPA DE ALUMINIO 10\" CCW",
+      "categoria": "REFRIGERACION",
+      "estaEn": "P1",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "403",
+      "nombre": "ASPA DE ALUMINIO 10\" CW",
+      "categoria": "REFRIGERACION",
+      "estaEn": "P1",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "1794",
+      "nombre": "METRO PERFIL DOBLE NEGRO",
+      "categoria": "REFRIGERACION",
+      "estaEn": "P3",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "2265",
+      "nombre": "PERIL ARPON NEGRO CENTRAL",
+      "categoria": "REFRIGERACION",
+      "estaEn": "P3",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "95",
+      "nombre": "METRO PERFIL ESTD. MOD. M BLCO.",
+      "categoria": "REFRIGERACION",
+      "estaEn": "P3",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "953",
+      "nombre": "METRO PERFIL NEGRO ALA DE VAMPIRO",
+      "categoria": "REFRIGERACION",
+      "estaEn": "P3",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "96",
+      "nombre": "METRO PERFIL DOBLE ALETA BLCO. REF.",
+      "categoria": "REFRIGERACION",
+      "estaEn": "P3",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "1794",
+      "nombre": "METRO PERFIL DOBLE NEGRO",
+      "categoria": "REFRIGERACION",
+      "estaEn": "P4",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "037103572264",
+      "nombre": "MANOMETRO CON MIRILLA R22/R134/R404, C/MANGUERA 60\" GB",
+      "categoria": "REFRIGERACION",
+      "estaEn": "PP1",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "7503026192535",
+      "nombre": "BIMETAL 72-44 MB",
+      "categoria": "REFRIGERACION",
+      "estaEn": "Q1",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "221",
+      "nombre": "LLAVE ENFRIADOR AZUL HEMBRA",
+      "categoria": "REFRIGERACION",
+      "estaEn": "Z3",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "222",
+      "nombre": "LLAVE ENFRIADOR ROJA HEMBRA",
+      "categoria": "REFRIGERACION",
+      "estaEn": "Z3",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "2137",
+      "nombre": "COMPRESOR SAMSUNG INVERTER NN34J9902APTT3 R600",
+      "categoria": "REFRIGERACION",
+      "estaEn": "ZZ",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "2299",
+      "nombre": "COMPRESOR SAMSUNG INVERTER NI34T9101AB R600",
+      "categoria": "REFRIGERACION",
+      "estaEn": "ZZ",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "EMC3140U",
+      "nombre": "COMPRESOR EMBRACO 1/2 INVERTER EMC3140U R290",
+      "categoria": "REFRIGERACION",
+      "estaEn": "ZZ",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "N21Q33K687",
+      "nombre": "COMPRESOR INVERTER LG ORG FMA102NBMA R600A",
+      "categoria": "REFRIGERACION",
+      "estaEn": "ZZ",
+      "deberiaEstar": "V1"
+    },
+    {
+      "sku": "50946009865",
+      "nombre": "KIT REPARACION SEC. WH ORG. 4392065,349241",
+      "categoria": "SECADORAS",
+      "estaEn": "N1",
+      "deberiaEstar": "Q5"
+    },
+    {
+      "sku": "WE4M416",
+      "nombre": "SWITCH ENCENDIDO MABE ORG WE4M416",
+      "categoria": "SECADORAS",
+      "estaEn": "N1",
+      "deberiaEstar": "Ñ3"
+    },
+    {
+      "sku": "1216",
+      "nombre": "RESISTENCIA CON TERMOSTATO WW ORG COMPLETA 137392700",
+      "categoria": "SECADORAS",
+      "estaEn": "NN",
+      "deberiaEstar": "Ñ3"
+    },
+    {
+      "sku": "2298",
+      "nombre": "COMPRESOR MABE 1/5 SU96XY1 115-127V R600",
+      "categoria": "SECADORAS",
+      "estaEn": "ZZ",
+      "deberiaEstar": "Ñ3"
+    },
+    {
+      "sku": "1972",
+      "nombre": "SENSOR MAGNETICO P/VITRINA",
+      "categoria": "VITRINAS",
+      "estaEn": "U2",
+      "deberiaEstar": "Y1"
+    },
+    {
+      "sku": "1649",
+      "nombre": "SWITCH PUERTA VITRINA 19MM 1 POL 1 TIR",
+      "categoria": "VITRINAS",
+      "estaEn": "U3",
+      "deberiaEstar": "Y1"
+    },
+    {
+      "sku": "1650",
+      "nombre": "SWITCH MAGNETICO PUERTA C/SENSOR 1POLO 1 TIRO",
+      "categoria": "VITRINAS",
+      "estaEn": "U3",
+      "deberiaEstar": "Y1"
+    }
+  ],
+  "pendientesItems": []
+}

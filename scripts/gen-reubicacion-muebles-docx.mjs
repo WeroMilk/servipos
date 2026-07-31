@@ -29,7 +29,7 @@ import {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 
-/** Letras simples A–Z (sin X) + dobles AA…PP / ÑÑ. */
+/** Letras simples A–Z (sin X en croquis) + dobles AA…PP / ÑÑ / ZZ. */
 const LETTERS_SINGLES = [
   'A',
   'B',
@@ -77,41 +77,72 @@ const LETTERS_DOUBLES = [
   'ÑÑ',
   'OO',
   'PP',
+  'ZZ',
 ];
 
 const LETTERS_APP = [...LETTERS_SINGLES, ...LETTERS_DOUBLES];
 
+/** A–N lavadoras */
+const ZONA_LAVADORAS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N'];
+/** Ñ–Q secadoras */
+const ZONA_SECADORAS = ['Ñ', 'O', 'P', 'Q'];
+/** R–W refrigeradores */
+const ZONA_REFRIGERADORES = ['R', 'S', 'T', 'U', 'V', 'W'];
 /**
- * Acomodo físico (A–PP; sin Mostrador/BANDAS/Cajonera):
- *   A–M  Lavadoras
- *   M–Q  Secadoras (M compartido con lavadoras)
- *   R–Z + AA–PP  Refrigeración
- *   AA–PP  Aire acondicionado
- * Pendientes (sin destino forzado): ESTUFAS, BOILER, LICUADORAS y demás.
+ * “X–EE” refrigeración general (en croquis no hay X: Y, Z, ZZ, AA–EE).
+ * EE es frontera compartida con boiler/licuadoras.
+ */
+const ZONA_REFRIGERACION_GENERAL = ['Y', 'Z', 'ZZ', 'AA', 'BB', 'CC', 'DD', 'EE'];
+/** EE–II boiler y licuadoras (EE e II compartidos con zonas vecinas). */
+const ZONA_BOILER_LICUADORAS = ['EE', 'FF', 'GG', 'HH', 'II'];
+/** II–PP miscelánea / sin estante propio (II compartido). */
+const ZONA_MISCELANEA = ['II', 'JJ', 'KK', 'LL', 'MM', 'NN', 'ÑÑ', 'OO', 'PP'];
+
+/**
+ * Acomodo físico según escaneo / plan de piso:
+ *   A–N     Lavadoras
+ *   Ñ–Q     Secadoras
+ *   R–W     Refrigeradores
+ *   Y–EE    Refrigeración general (aires, coolers, vitrinas…)
+ *   EE–II   Boiler y licuadoras
+ *   II–PP   Miscelánea (accesorios, estufas, gases, etc.)
  */
 const ZONA_POR_CATEGORIA = {
-  LAVADORAS: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M'],
-  SECADORAS: ['M', 'N', 'Ñ', 'O', 'P', 'Q'],
-  SECADORA: ['M', 'N', 'Ñ', 'O', 'P', 'Q'],
-  REFRIGERACION: ['R', 'S', 'T', 'U', 'V', 'W', 'Y', 'Z', ...LETTERS_DOUBLES],
-  REFRIGERACIÓN: ['R', 'S', 'T', 'U', 'V', 'W', 'Y', 'Z', ...LETTERS_DOUBLES],
-  'AIRE ACONDICIONADO': [...LETTERS_DOUBLES],
-  AIRE: [...LETTERS_DOUBLES],
+  LAVADORAS: ZONA_LAVADORAS,
+  'LAVADO Y SECADO': ZONA_LAVADORAS,
+  SECADORAS: ZONA_SECADORAS,
+  SECADORA: ZONA_SECADORAS,
+  REFRIGERACION: ZONA_REFRIGERADORES,
+  REFRIGERACIÓN: ZONA_REFRIGERADORES,
+  'AIRE ACONDICIONADO': ZONA_REFRIGERACION_GENERAL,
+  AIRE: ZONA_REFRIGERACION_GENERAL,
+  COOLER: ZONA_REFRIGERACION_GENERAL,
+  VITRINAS: ZONA_REFRIGERACION_GENERAL,
+  BOILER: ZONA_BOILER_LICUADORAS,
+  LICUADORAS: ZONA_BOILER_LICUADORAS,
+  // Miscelánea / sin estante propio
+  ACCESORIOS: ZONA_MISCELANEA,
+  ESTUFAS: ZONA_MISCELANEA,
+  GASES: ZONA_MISCELANEA,
+  ABANICOS: ZONA_MISCELANEA,
+  'OLLAS DE PRESION': ZONA_MISCELANEA,
+  'OLLAS DE PRESIÓN': ZONA_MISCELANEA,
+  'FILTROS Y ACCESORIOS': ZONA_MISCELANEA,
+  GENERAL: ZONA_MISCELANEA,
+  OTROS: ZONA_MISCELANEA,
 };
 
-/** Categorías que se listan como pendientes (no se sugiere “debería estar”). */
-const CATEGORIAS_PENDIENTES = new Set([
-  'ESTUFAS',
-  'BOILER',
-  'LICUADORAS',
-]);
+/** Ya no hay pendientes forzados: boiler/licuadoras/estufas tienen zona. */
+const CATEGORIAS_PENDIENTES = new Set([]);
 
 const ZONAS_RESUMEN = [
-  ['LAVADORAS', 'A–M'],
-  ['SECADORAS / SECADORA', 'M–Q'],
-  ['REFRIGERACION', 'R–Z y AA–PP'],
-  ['AIRE ACONDICIONADO', 'AA–PP'],
-  ['Pendientes', 'ESTUFAS, BOILER, LICUADORAS (sin destino forzado)'],
+  ['LAVADORAS', 'A–N'],
+  ['SECADORAS', 'Ñ–Q'],
+  ['REFRIGERADORES', 'R–W'],
+  ['REFRIGERACIÓN GENERAL (aires, coolers, vitrinas)', 'Y–Z / ZZ / AA–EE'],
+  ['BOILER Y LICUADORAS', 'EE–II'],
+  ['MISCELÁNEA (accesorios, estufas, gases, etc.)', 'II–PP'],
+  ['Nota', 'EE e II son fronteras compartidas. No hay letra X en el croquis (se usa Y/Z/ZZ).'],
 ];
 
 function normSkuBarcode(s) {
@@ -389,7 +420,7 @@ async function main() {
   const children = [
     new Paragraph({
       heading: HeadingLevel.TITLE,
-      children: [new TextRun({ text: 'Reubicación de muebles A–PP', bold: true })],
+      children: [new TextRun({ text: 'Reubicación de muebles A–PP (plan de piso)', bold: true })],
     }),
     new Paragraph({
       children: [
@@ -407,7 +438,7 @@ async function main() {
     new Paragraph({
       children: [
         new TextRun({
-          text: `Productos a reubicar: ${assigned.length}. Pendientes (estufas/boiler/licuadoras): ${pendientes.length}. Otras categorías sin zona: ${sinZona.length}. Códigos sin match en catálogo: ${missingCodes.length}.`,
+          text: `Productos a reubicar: ${assigned.length}. Otras categorías sin zona: ${sinZona.length}. Códigos sin match en catálogo: ${missingCodes.length}.`,
         }),
       ],
     }),
@@ -522,7 +553,7 @@ async function main() {
       new Paragraph({
         children: [
           new TextRun(
-            'ACCESORIOS, AIRE, VITRINAS, GENERAL, etc.: no se fuerza destino. Ubicación actual:'
+            'Categorías no cubiertas por el plan de piso. Se listan con ubicación actual:'
           ),
         ],
       })
