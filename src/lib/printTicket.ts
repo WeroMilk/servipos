@@ -102,14 +102,13 @@ const THERMAL_LOGO_WIDTH_MM = 12;
 
 /**
  * Papel real del ticket (rollo BBVA / terminal): 58 mm.
- * Un layout a 80 mm deja margen muerto a la izquierda y corta la derecha.
- * Columna ~47 mm con holgura lateral para que no se coma ningún borde.
+ * Columna estrecha + margen derecho generoso: los importes no se cortan en el borde.
  */
 const THERMAL_PAPER_WIDTH_MM = 58;
-const THERMAL_PAGE_MARGIN = '2mm 3mm 3mm 2.5mm'; // top right bottom left
-const THERMAL_BODY_WIDTH_MM = 47;
-/** Negativo = un poco a la izquierda (evita cortar centavos en el borde derecho). */
-const THERMAL_BODY_LEFT_SHIFT_MM = -0.5;
+const THERMAL_PAGE_MARGIN = '2mm 4mm 3mm 1.5mm'; // top right bottom left
+const THERMAL_BODY_WIDTH_MM = 45;
+/** Negativo = desplaza el bloque a la izquierda (centavos visibles en el borde derecho). */
+const THERMAL_BODY_LEFT_SHIFT_MM = -2;
 /** Ancho en CSS px ≈ mm * 96/25.4 para ventana/viewport de impresión. */
 const THERMAL_VIEWPORT_PX = Math.round((THERMAL_PAPER_WIDTH_MM * 96) / 25.4);
 
@@ -222,6 +221,9 @@ ${thermalTicketBodyShellCss('body.ticket-venta')}
     font-size: 12px;
     line-height: 1.25;
     font-weight: 500;
+    color: #000 !important;
+    -webkit-font-smoothing: none;
+    font-smooth: never;
   }
   body.ticket-venta h1,
   body.ticket-venta .ticket-brand-block h1 {
@@ -265,21 +267,38 @@ ${thermalTicketBodyShellCss('body.ticket-venta')}
     word-break: break-word;
   }
   body.ticket-venta td.desc { font-size: ${THERMAL_BODY_FONT_PX}px; font-weight: 700; padding-top: 3px; }
-  body.ticket-venta td.right { white-space: normal; text-align: right; }
+  body.ticket-venta td.right { white-space: nowrap; text-align: right; padding-right: 1.5mm; }
   body.ticket-venta .tot {
     font-size: ${THERMAL_BODY_FONT_PX}px;
     margin-top: 4px;
     padding-top: 4px;
+    padding-right: 1.5mm;
     line-height: 1.2;
     border-top: 1px dashed #333;
+    color: #000;
   }
-  body.ticket-venta .tot strong { font-size: 15px; font-weight: 800; }
+  body.ticket-venta .tot strong { font-size: 15px; font-weight: 800; color: #000; }
+  /* Misma densidad de tinta que el resto: nada de gris/ámbar (en térmica se ve borroso). */
+  body.ticket-venta .tot .saldo-pendiente,
+  body.ticket-venta .saldo-pendiente {
+    display: block;
+    margin-top: 3px;
+    color: #000 !important;
+    font-size: ${THERMAL_BODY_FONT_PX}px !important;
+    font-weight: 800 !important;
+    opacity: 1 !important;
+    -webkit-text-fill-color: #000 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
   body.ticket-venta .ticket-pagos {
     font-size: ${THERMAL_BODY_FONT_PX}px !important;
     line-height: 1.2;
     margin-top: 4px;
     padding-top: 4px;
+    padding-right: 1.5mm;
     border-top: 1px dashed #333;
+    color: #000;
   }
   body.ticket-venta .ticket-pagos .tit { font-weight: 700; margin-bottom: 2px; }
   body.ticket-venta .meta,
@@ -953,7 +972,7 @@ ${THERMAL_TICKET_VENTA_STYLES}
     ${payload.cambio != null && payload.cambio > 0 ? `<div>Cambio: ${formatMoney(payload.cambio)}</div>` : ''}
     ${
       payload.adeudoPendiente != null && payload.adeudoPendiente > 0.004
-        ? `<div style="margin-top:3px;font-size:${THERMAL_BODY_FONT_PX}px;font-weight:700;color:#000;">Saldo pendiente (cuenta cliente): ${formatMoney(payload.adeudoPendiente)}</div>`
+        ? `<div class="saldo-pendiente"><strong>Saldo pendiente: ${formatMoney(payload.adeudoPendiente)}</strong></div>`
         : ''
     }
   </div>
