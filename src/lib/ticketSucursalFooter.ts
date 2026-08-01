@@ -9,9 +9,11 @@ const CONTACT_LINES = [
   'Olivares, 83180 Hermosillo, Son.',
   'Horario',
   'Lunes a Viernes:',
-  '8:00 a.m. – 6:30 p.m.',
-  'Sábado: 8:00 a.m. – 2:00 p.m.',
-  'Domingo: Cerrado',
+  '8:00 am - 6:30 pm',
+  'Sábado:',
+  '8:00 am - 2:00 pm',
+  'Domingo:',
+  'Cerrado',
 ] as const;
 
 const MATRIZ_LINES = ['Matriz', ...CONTACT_LINES] as const;
