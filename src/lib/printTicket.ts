@@ -106,9 +106,10 @@ const THERMAL_LOGO_WIDTH_MM = 12;
  * Columna ~47 mm con holgura lateral para que no se coma ningún borde.
  */
 const THERMAL_PAPER_WIDTH_MM = 58;
-const THERMAL_PAGE_MARGIN = '2mm 2.5mm 3mm 3mm'; // top right bottom left
+const THERMAL_PAGE_MARGIN = '2mm 3mm 3mm 2.5mm'; // top right bottom left
 const THERMAL_BODY_WIDTH_MM = 47;
-const THERMAL_BODY_LEFT_SHIFT_MM = 0.5;
+/** Negativo = un poco a la izquierda (evita cortar centavos en el borde derecho). */
+const THERMAL_BODY_LEFT_SHIFT_MM = -0.5;
 /** Ancho en CSS px ≈ mm * 96/25.4 para ventana/viewport de impresión. */
 const THERMAL_VIEWPORT_PX = Math.round((THERMAL_PAPER_WIDTH_MM * 96) / 25.4);
 
@@ -952,7 +953,7 @@ ${THERMAL_TICKET_VENTA_STYLES}
     ${payload.cambio != null && payload.cambio > 0 ? `<div>Cambio: ${formatMoney(payload.cambio)}</div>` : ''}
     ${
       payload.adeudoPendiente != null && payload.adeudoPendiente > 0.004
-        ? `<div style="margin-top:3px;font-size:11px;font-weight:700;color:#92400e;">Saldo pendiente (cuenta cliente): ${formatMoney(payload.adeudoPendiente)}</div>`
+        ? `<div style="margin-top:3px;font-size:${THERMAL_BODY_FONT_PX}px;font-weight:700;color:#000;">Saldo pendiente (cuenta cliente): ${formatMoney(payload.adeudoPendiente)}</div>`
         : ''
     }
   </div>
@@ -1272,7 +1273,8 @@ export function printThermalDailySalesReport(input: {
   const completadasDia = list.filter((v) => v.estado === 'completada' || v.estado === 'facturada');
   const totalAdeudoDia = completadasDia.reduce((s, v) => s + computeSaleClienteAdeudo(v), 0);
   const adeudoRedondeado = Math.round(totalAdeudoDia * 100) / 100;
-  const adeudoStyle = adeudoRedondeado > 0.004 ? 'color:#92400e;' : '';
+  /** En térmica el color ámbar se ve borroso; mismo negro que el resto del ticket. */
+  const adeudoStyle = adeudoRedondeado > 0.004 ? 'color:#000;font-weight:700;' : '';
   const ticketsCount = list.filter((v) => v.estado !== 'cancelada').length;
 
   const pie = buildThermalPieSucursalHtml(input.sucursalId);
@@ -1376,7 +1378,7 @@ export type ThermalClientStatusReportInput = {
 export function printThermalClientStatusReport(input: ThermalClientStatusReportInput): void {
   const c = input.client;
   const st = input.stats;
-  const saldoStyle = st.saldoPendiente > 0.004 ? 'color:#92400e;font-weight:700;' : 'color:#166534;font-weight:700;';
+  const saldoStyle = 'color:#000;font-weight:700;';
   const saldoLabel = st.saldoPendiente > 0.004 ? 'Saldo pendiente' : 'Al corriente';
 
   const ventasRows = input.ventasRecientes
