@@ -105,10 +105,10 @@ const THERMAL_LOGO_WIDTH_MM = 12;
  * Columna estrecha + margen derecho generoso: los importes no se cortan en el borde.
  */
 const THERMAL_PAPER_WIDTH_MM = 58;
-const THERMAL_PAGE_MARGIN = '2mm 3.5mm 3mm 2mm'; // top right bottom left
+const THERMAL_PAGE_MARGIN = '2mm 3.5mm 3mm 2.5mm'; // top right bottom left
 const THERMAL_BODY_WIDTH_MM = 46;
-/** Negativo = un poco a la izquierda (evita cortar centavos sin pegarse al borde izquierdo). */
-const THERMAL_BODY_LEFT_SHIFT_MM = -1;
+/** 0 = centrado en la columna; positivo corre a la derecha (evita cortar «Folio» a la izquierda). */
+const THERMAL_BODY_LEFT_SHIFT_MM = 0.5;
 /** Ancho en CSS px ≈ mm * 96/25.4 para ventana/viewport de impresión. */
 const THERMAL_VIEWPORT_PX = Math.round((THERMAL_PAPER_WIDTH_MM * 96) / 25.4);
 
