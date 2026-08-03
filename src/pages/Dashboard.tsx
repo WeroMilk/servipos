@@ -149,32 +149,6 @@ const STAT_ACCENT: Record<
   },
 };
 
-function ListRowSkeleton() {
-  return (
-    <div className="h-11 animate-pulse rounded-xl bg-gradient-to-r from-slate-200/80 via-slate-100/90 to-slate-200/80 dark:from-slate-800/70 dark:via-slate-800/40 dark:to-slate-800/70" />
-  );
-}
-
-function EmptyStateBlock({
-  icon: Icon,
-  title,
-  hint,
-}: {
-  icon: React.ElementType;
-  title: string;
-  hint?: string;
-}) {
-  return (
-    <div className="flex min-h-[7rem] flex-1 flex-col items-center justify-center gap-2 px-3 py-5 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-200/70 ring-1 ring-slate-300/50 dark:bg-slate-800/60 dark:ring-slate-700/50">
-        <Icon className="h-6 w-6 text-slate-500 opacity-80 dark:text-slate-400" />
-      </div>
-      <p className="text-xs font-medium text-slate-700 dark:text-slate-300">{title}</p>
-      {hint ? <p className="max-w-[14rem] text-[10px] leading-snug text-slate-500 dark:text-slate-500">{hint}</p> : null}
-    </div>
-  );
-}
-
 function saleEstadoEtiqueta(s: Sale): string {
   if (s.estado === 'pendiente') return 'Pendiente de cobro';
   if (s.estado === 'cancelada') return 'Cancelada';
