@@ -124,7 +124,7 @@ export function Clientes() {
   const navigate = useNavigate();
   const location = useLocation();
   const { clients, loading, addClient, editClient, removeClient } = useClients();
-  const { sales } = useSales(500);
+  const { sales } = useSales(5000);
   const { addToast } = useAppStore();
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === 'admin';

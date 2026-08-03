@@ -24,6 +24,7 @@ import type { CajaAbonoCobro, CajaSesion, Sale } from '@/types';
 import {
   isValidCierreTerminalFolio,
   listCajaSesionesFirestore,
+  listCajaSesionesForMonthFirestore,
   registrarCierreTerminalFirestore,
 } from '@/lib/firestore/cajaFirestore';
 import { fetchSalesByCajaSesion, fetchSalesPoolForCajaSesion } from '@/lib/firestore/salesFirestore';
@@ -135,6 +136,8 @@ function SesionDetallePanel({
   ventas,
   abonosCobros,
   sesiones,
+  sesionesMes,
+  sesionesMesLoading,
   sucursalId,
   sucursalLabel,
   onSesionUpdated,
@@ -143,8 +146,11 @@ function SesionDetallePanel({
   metrics: SesionCierreMetrics;
   ventas: Sale[];
   abonosCobros: CajaAbonoCobro[];
-  /** Historial reciente de turnos (para sumar tarjetas del día / mes). */
+  /** Historial reciente de turnos (para sumar tarjetas del día). */
   sesiones: CajaSesion[];
+  /** Todas las sesiones del mes (fin de mes); null si no aplica. */
+  sesionesMes: CajaSesion[] | null;
+  sesionesMesLoading?: boolean;
   sucursalId: string;
   sucursalLabel?: string;
   onSesionUpdated?: () => void;
@@ -213,12 +219,12 @@ function SesionDetallePanel({
   const tarjetasDelMes = useMemo(
     () =>
       showMonthTarjetasTotal
-        ? resumenTarjetasPeriodo(sesiones, {
+        ? resumenTarjetasPeriodo(sesionesMes ?? sesiones, {
             monthKey: sesionMonthKey,
             liveBySesionId: liveTarjetasById,
           })
         : null,
-    [showMonthTarjetasTotal, sesiones, sesionMonthKey, liveTarjetasById]
+    [showMonthTarjetasTotal, sesionesMes, sesiones, sesionMonthKey, liveTarjetasById]
   );
   const fisicoTurno = conteoTarjetasShow ?? tarjetaFisicoDeSesion(sesion);
 
@@ -419,6 +425,66 @@ function SesionDetallePanel({
           </ul>
         ) : null}
       </div>
+
+      {showMonthTarjetasTotal ? (
+        <div className="rounded-lg border border-sky-500/40 bg-sky-500/[0.09] px-3 py-2.5 dark:border-sky-400/35 dark:bg-sky-950/40">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-sky-900 dark:text-sky-200">
+            Tarjetas · total del mes ({mexicoMonthLabelEs(sesion.openedAt)})
+          </p>
+          <p className="mt-0.5 text-[9px] leading-snug text-slate-600 dark:text-slate-400">
+            Último día del mes: suma de cobros con tarjeta de todos los turnos para comparar
+            sistema vs físico / banco.
+          </p>
+          {sesionesMesLoading && !tarjetasDelMes ? (
+            <p className="mt-2 text-[11px] text-slate-500">Sumando turnos del mes…</p>
+          ) : tarjetasDelMes ? (
+            <div className="mt-2 grid gap-1.5 sm:grid-cols-3">
+              <MetricRow
+                label="Mes completo (sistema)"
+                value={formatMoney(tarjetasDelMes.sistema)}
+                valueClassName="text-base text-sky-950 dark:text-sky-100"
+                hint={`${tarjetasDelMes.turnos} turno(s) del mes${
+                  tarjetasDelMes.turnosSinSistema > 0
+                    ? ` · ${tarjetasDelMes.turnosSinSistema} sin dato POS`
+                    : ''
+                }`}
+              />
+              <MetricRow
+                label="Mes completo (físico)"
+                value={
+                  tarjetasDelMes.turnosConFisico > 0
+                    ? formatMoney(tarjetasDelMes.fisico)
+                    : '—'
+                }
+                valueClassName="text-base text-sky-950 dark:text-sky-100"
+                hint={
+                  tarjetasDelMes.turnosConFisico > 0
+                    ? `${tarjetasDelMes.turnosConFisico} con corte de terminal`
+                    : 'Sin cortes en el mes'
+                }
+              />
+              <MetricRow
+                label="Diferencia mes"
+                value={
+                  tarjetasDelMes.diferencia != null
+                    ? formatMoney(tarjetasDelMes.diferencia)
+                    : '—'
+                }
+                valueClassName={
+                  tarjetasDelMes.diferencia != null
+                    ? tarjetasDelMes.diferencia > 0.005
+                      ? 'text-base text-emerald-700 dark:text-emerald-400'
+                      : tarjetasDelMes.diferencia < -0.005
+                        ? 'text-base text-red-600 dark:text-red-400'
+                        : 'text-base'
+                    : 'text-base'
+                }
+                hint="Físico − sistema"
+              />
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       <div>
           <SectionTitle>Abonos CxC del turno</SectionTitle>
@@ -736,8 +802,9 @@ function SesionDetallePanel({
               Total del mes · {mexicoMonthLabelEs(sesion.openedAt)}
             </p>
             <p className="mt-0.5 text-[9px] leading-snug text-slate-500 dark:text-slate-500">
-              Último día del mes: suma automática de todos los turnos para comparar con la
-              liquidación bancaria / físico.
+              {sesionesMesLoading
+                ? 'Actualizando suma de todos los turnos del mes…'
+                : `Suma de ${tarjetasDelMes.turnos} turno(s) · comparar con liquidación bancaria.`}
             </p>
             <div className="mt-2 grid gap-1.5 sm:grid-cols-3">
               <MetricRow
@@ -784,6 +851,10 @@ function SesionDetallePanel({
               />
             </div>
           </div>
+        ) : showMonthTarjetasTotal && sesionesMesLoading ? (
+          <p className="mt-2 text-[9px] leading-snug text-slate-500 dark:text-slate-500">
+            Cargando total de tarjetas del mes…
+          </p>
         ) : (
           <p className="mt-2 text-[9px] leading-snug text-slate-500 dark:text-slate-500">
             El total acumulado del mes aparece automáticamente al abrir el turno del último día
@@ -865,6 +936,8 @@ export function CajaCierreReportesDialog({
   presentation = 'dialog',
 }: CajaCierreReportesDialogProps) {
   const [sesiones, setSesiones] = useState<CajaSesion[]>([]);
+  const [sesionesMes, setSesionesMes] = useState<CajaSesion[] | null>(null);
+  const [sesionesMesLoading, setSesionesMesLoading] = useState(false);
   const [listLoading, setListLoading] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -887,7 +960,7 @@ export function CajaCierreReportesDialog({
     setListLoading(true);
     setListError(null);
     try {
-      const rows = await listCajaSesionesFirestore(sucursalId, { limit: 200 });
+      const rows = await listCajaSesionesFirestore(sucursalId, { limit: 500 });
       setSesiones(rows);
       setSelectedId((prev) => {
         if (prev && rows.some((r) => r.id === prev)) return prev;
@@ -905,6 +978,36 @@ export function CajaCierreReportesDialog({
     if (!open) return;
     void loadList();
   }, [open, loadList]);
+
+  useEffect(() => {
+    if (!open || !sucursalId || !selected) {
+      setSesionesMes(null);
+      setSesionesMesLoading(false);
+      return;
+    }
+    if (!isLastDayOfMexicoMonth(selected.openedAt)) {
+      setSesionesMes(null);
+      setSesionesMesLoading(false);
+      return;
+    }
+    const monthKey = getMexicoMonthKey(selected.openedAt);
+    let cancelled = false;
+    setSesionesMesLoading(true);
+    void (async () => {
+      try {
+        const rows = await listCajaSesionesForMonthFirestore(sucursalId, monthKey);
+        if (!cancelled) setSesionesMes(rows);
+      } catch (e) {
+        console.error('Sesiones del mes (tarjetas):', e);
+        if (!cancelled) setSesionesMes(null);
+      } finally {
+        if (!cancelled) setSesionesMesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, sucursalId, selected]);
 
   useEffect(() => {
     if (!open || !sucursalId || !selectedId || !selected) {
@@ -1074,13 +1177,15 @@ export function CajaCierreReportesDialog({
             <Loader2 className="h-5 w-5 animate-spin" />
             Calculando resumen…
           </div>
-        ) : metrics ? (
+        ) : metrics && sucursalId ? (
           <SesionDetallePanel
             sesion={selected}
             metrics={metrics}
             ventas={ventasDetalle}
             abonosCobros={abonosDetalle}
             sesiones={sesiones}
+            sesionesMes={sesionesMes}
+            sesionesMesLoading={sesionesMesLoading}
             sucursalId={sucursalId}
             sucursalLabel={sucursalLabel}
             onSesionUpdated={() => void loadList()}

@@ -13,14 +13,14 @@ import {
 import type { DevolucionLineInput } from '@/lib/salePartialReturnCompute';
 import { getEffectiveSucursalId } from '@/lib/effectiveSucursal';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
-import { subscribeSalesCatalog, subscribeSaleDocument, getSalesCatalogSnapshot } from '@/lib/firestore/salesFirestore';
+import { subscribeSalesCatalog, subscribeSaleDocument, getSalesCatalogSnapshot, fetchSalesInDateRangeFirestore } from '@/lib/firestore/salesFirestore';
 import { saleEnRangoHistorial } from '@/lib/saleHistorialFecha';
 
 // ============================================
 // HOOK DE VENTAS
 // ============================================
 
-export function useSales(limit: number = 100) {
+export function useSales(limit: number = 5000) {
   const { effectiveSucursalId: sucursalId } = useEffectiveSucursalId();
   const [sales, setSales] = useState<Sale[]>(() => {
     if (!sucursalId) return [];
@@ -190,68 +190,75 @@ export function useSales(limit: number = 100) {
 export function useSalesByDateRange(inicio: Date, fin: Date) {
   const { effectiveSucursalId: sucursalId } = useEffectiveSucursalId();
   const [sales, setSales] = useState<Sale[]>([]);
-  const [loading, setLoading] = useState(() => {
-    if (!sucursalId) return true;
-    return getSalesCatalogSnapshot().length === 0;
-  });
+  const [loading, setLoading] = useState(true);
   const [totals, setTotals] = useState({ total: 0, count: 0 });
 
-  const applyFilter = useCallback(
-    (all: Sale[]) => {
-      const normalized = all.map((s) => ({
-        ...s,
-        productos: Array.isArray(s.productos) ? s.productos : [],
-      }));
-      const filtered = normalized.filter((s) => saleEnRangoHistorial(s, inicio, fin));
-      const total = filtered.reduce((sum, sale) => sum + (Number(sale.total) || 0), 0);
-      setSales(filtered);
-      setTotals({ total, count: filtered.length });
-    },
-    [inicio, fin]
-  );
+  const applyList = useCallback((list: Sale[]) => {
+    const normalized = list.map((s) => ({
+      ...s,
+      productos: Array.isArray(s.productos) ? s.productos : [],
+    }));
+    const total = normalized.reduce((sum, sale) => sum + (Number(sale.total) || 0), 0);
+    setSales(normalized);
+    setTotals({ total, count: normalized.length });
+  }, []);
 
   const loadSalesLocal = useCallback(async () => {
     try {
       setLoading(true);
       const data = await getSalesByDateRange(inicio, fin);
-      const normalized = data.map((s) => ({
-        ...s,
-        productos: Array.isArray(s.productos) ? s.productos : [],
-      }));
-      setSales(normalized);
-      const total = normalized.reduce((sum, sale) => sum + (Number(sale.total) || 0), 0);
-      setTotals({ total, count: normalized.length });
+      applyList(data);
     } catch (err) {
       console.error('Error al cargar ventas:', err);
     } finally {
       setLoading(false);
     }
-  }, [inicio, fin]);
+  }, [inicio, fin, applyList]);
 
   useEffect(() => {
     if (sucursalId) {
-      const snap = getSalesCatalogSnapshot();
-      if (snap.length === 0) {
-        setLoading(true);
-      } else {
-        applyFilter(snap);
-      }
-      const unsub = subscribeSalesCatalog(sucursalId, (all) => {
-        applyFilter(all);
-        setLoading(false);
-      });
-      return unsub;
+      let cancelled = false;
+      setLoading(true);
+      void (async () => {
+        try {
+          const data = await fetchSalesInDateRangeFirestore(sucursalId, inicio, fin);
+          if (!cancelled) applyList(data);
+        } catch (err) {
+          console.error('Error al cargar ventas por rango:', err);
+          if (!cancelled) {
+            // Fallback: catálogo reciente filtrado (puede estar incompleto).
+            const snap = getSalesCatalogSnapshot().filter((s) =>
+              saleEnRangoHistorial(s, inicio, fin)
+            );
+            applyList(snap);
+          }
+        } finally {
+          if (!cancelled) setLoading(false);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
     }
 
     loadSalesLocal();
-  }, [sucursalId, loadSalesLocal, applyFilter]);
+  }, [sucursalId, inicio, fin, applyList, loadSalesLocal]);
 
   const refresh = useCallback(async () => {
     if (sucursalId) {
+      setLoading(true);
+      try {
+        const data = await fetchSalesInDateRangeFirestore(sucursalId, inicio, fin);
+        applyList(data);
+      } catch (err) {
+        console.error('Error al refrescar ventas por rango:', err);
+      } finally {
+        setLoading(false);
+      }
       return;
     }
     await loadSalesLocal();
-  }, [sucursalId, loadSalesLocal]);
+  }, [sucursalId, inicio, fin, applyList, loadSalesLocal]);
 
   return { sales, loading, totals, refresh };
 }

@@ -492,7 +492,7 @@ export function POS() {
     appendPagosToCompletedSale,
     cancelSale: ejecutarCancelacionVenta,
     partialReturnSale: ejecutarDevolucionParcial,
-  } = useSales(500);
+  } = useSales(2000);
   /** Evita depender de `salesCatalog` en el efecto de deep link (re-ejecución = doble toast). */
   const salesCatalogNavRef = useRef(salesCatalog);
   salesCatalogNavRef.current = salesCatalog;

@@ -17,6 +17,7 @@ import {
 } from '@/lib/cajaResumen';
 import { fetchSalesByCajaSesion } from '@/lib/firestore/salesFirestore';
 import { getSupabase } from '@/lib/supabaseClient';
+import { getMexicoDateKey, startOfDayFromDateKey } from '@/lib/quincenaMx';
 
 function firestoreTimestampToDate(value: unknown): Date {
   if (typeof value === 'string' && value.length > 0) {
@@ -373,7 +374,7 @@ export async function listCajaSesionesFirestore(
   sucursalId: string,
   options?: { limit?: number }
 ): Promise<CajaSesion[]> {
-  const limit = Math.min(Math.max(options?.limit ?? 80, 1), 200);
+  const limit = Math.min(Math.max(options?.limit ?? 80, 1), 500);
   const { data, error } = await getSupabase()
     .from('caja_sesiones')
     .select('id, doc')
@@ -386,6 +387,92 @@ export async function listCajaSesionesFirestore(
     mapCajaSesionDoc(sucursalId, row.id, row.doc as Record<string, unknown>)
   );
   return rows.sort((a, b) => b.openedAt.getTime() - a.openedAt.getTime());
+}
+
+const CAJA_SESIONES_PAGE = 200;
+
+/**
+ * Todas las sesiones de caja cuya apertura cae en el mes `YYYY-MM` (zona Hermosillo).
+ * Pagina hasta agotar; usado para el total de tarjetas a fin de mes.
+ */
+export async function listCajaSesionesForMonthFirestore(
+  sucursalId: string,
+  monthKey: string
+): Promise<CajaSesion[]> {
+  const sid = sucursalId.trim();
+  const mk = monthKey.trim().slice(0, 7);
+  if (!sid || !/^\d{4}-\d{2}$/.test(mk)) return [];
+
+  const [ys, ms] = mk.split('-');
+  const y = parseInt(ys!, 10);
+  const m = parseInt(ms!, 10);
+  const start = startOfDayFromDateKey(`${mk}-01`);
+  const nextMonth = m === 12 ? 1 : m + 1;
+  const nextYear = m === 12 ? y + 1 : y;
+  const endExclusive = startOfDayFromDateKey(
+    `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`
+  );
+  const startIso = start.toISOString();
+  const endIso = endExclusive.toISOString();
+
+  const supabase = getSupabase();
+  const out: CajaSesion[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await supabase
+      .from('caja_sesiones')
+      .select('id, doc')
+      .eq('sucursal_id', sid)
+      .gte('doc->>openedAt', startIso)
+      .lt('doc->>openedAt', endIso)
+      .order('doc->>openedAt', { ascending: false })
+      .range(from, from + CAJA_SESIONES_PAGE - 1);
+    if (error) {
+      console.warn('listCajaSesionesForMonthFirestore (filtro openedAt):', error.message);
+      return listCajaSesionesForMonthFallback(sid, mk);
+    }
+    const batch = data ?? [];
+    for (const row of batch) {
+      out.push(mapCajaSesionDoc(sid, row.id, row.doc as Record<string, unknown>));
+    }
+    if (batch.length < CAJA_SESIONES_PAGE) break;
+    from += CAJA_SESIONES_PAGE;
+  }
+  return out.sort((a, b) => b.openedAt.getTime() - a.openedAt.getTime());
+}
+
+async function listCajaSesionesForMonthFallback(
+  sucursalId: string,
+  monthKey: string
+): Promise<CajaSesion[]> {
+  const supabase = getSupabase();
+  const out: CajaSesion[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await supabase
+      .from('caja_sesiones')
+      .select('id, doc')
+      .eq('sucursal_id', sucursalId)
+      .order('updated_at', { ascending: false })
+      .range(from, from + CAJA_SESIONES_PAGE - 1);
+    if (error) throw new Error(error.message);
+    const batch = data ?? [];
+    if (!batch.length) break;
+    for (const row of batch) {
+      const sesion = mapCajaSesionDoc(sucursalId, row.id, row.doc as Record<string, unknown>);
+      if (getMexicoDateKey(sesion.openedAt).startsWith(monthKey)) {
+        out.push(sesion);
+      }
+    }
+    const allBeforeMonth = batch.every((row) => {
+      const sesion = mapCajaSesionDoc(sucursalId, row.id, row.doc as Record<string, unknown>);
+      return getMexicoDateKey(sesion.openedAt) < `${monthKey}-01`;
+    });
+    if (batch.length < CAJA_SESIONES_PAGE || allBeforeMonth) break;
+    from += CAJA_SESIONES_PAGE;
+    if (from > 5000) break;
+  }
+  return out.sort((a, b) => b.openedAt.getTime() - a.openedAt.getTime());
 }
 
 /**

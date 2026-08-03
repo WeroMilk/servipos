@@ -11,8 +11,8 @@ import { saleMatchesTicketSearch } from '@/lib/saleTicketUi';
 // VENTAS (Supabase + RPC atómicos)
 // ============================================
 
-const SALES_PAGE_SIZE = 500;
-const PENDING_OPEN_SALES_LIMIT = 500;
+const SALES_PAGE_SIZE = 5000;
+const PENDING_OPEN_SALES_LIMIT = 1000;
 
 function firestoreTimestampToDate(value: unknown): Date {
   if (typeof value === 'string' && value.length > 0) {
@@ -418,7 +418,7 @@ export async function fetchSalesPoolForCajaSesion(
 }
 
 const DAY_SALES_PAGE = 1000;
-const TICKET_SEARCH_LIMIT = 150;
+const TICKET_SEARCH_LIMIT = 500;
 
 async function fetchSalesByDocDateFieldInRange(
   sucursalId: string,
@@ -452,7 +452,7 @@ async function fetchSalesByDocDateFieldInRange(
   return out;
 }
 
-/** Todas las ventas del día (zona México) para historial / reimpresión; no usa el catálogo de 500. */
+/** Todas las ventas del día (zona México) para historial / reimpresión; no usa el catálogo reciente. */
 export async function fetchSalesForMexicoDateKey(sucursalId: string, dateKey: string): Promise<Sale[]> {
   const start = startOfDayFromDateKey(dateKey);
   const end = new Date(start);
@@ -467,6 +467,31 @@ export async function fetchSalesForMexicoDateKey(sucursalId: string, dateKey: st
   for (const s of byCreated) byId.set(s.id, s);
   for (const s of byCompleted) byId.set(s.id, s);
   const list = [...byId.values()].filter((s) => saleEnRangoHistorial(s, start, end));
+  list.sort((a, b) => saleFechaHistorial(b).getTime() - saleFechaHistorial(a).getTime());
+  return list;
+}
+
+/**
+ * Todas las ventas en un rango de fechas (paginado). Para KPIs / historial de periodo.
+ * No depende del catálogo reciente.
+ */
+export async function fetchSalesInDateRangeFirestore(
+  sucursalId: string,
+  inicio: Date,
+  fin: Date
+): Promise<Sale[]> {
+  const startIso = inicio.toISOString();
+  const finExclusive = new Date(fin);
+  // `fin` suele ser exclusivo en varios callers; si viene inclusivo por 1 ms, el lt sigue bien.
+  const endIso = finExclusive.toISOString();
+  const [byCreated, byCompleted] = await Promise.all([
+    fetchSalesByDocDateFieldInRange(sucursalId, 'createdAt', startIso, endIso),
+    fetchSalesByDocDateFieldInRange(sucursalId, 'completedAt', startIso, endIso),
+  ]);
+  const byId = new Map<string, Sale>();
+  for (const s of byCreated) byId.set(s.id, s);
+  for (const s of byCompleted) byId.set(s.id, s);
+  const list = [...byId.values()].filter((s) => saleEnRangoHistorial(s, inicio, fin));
   list.sort((a, b) => saleFechaHistorial(b).getTime() - saleFechaHistorial(a).getTime());
   return list;
 }
@@ -500,7 +525,7 @@ async function fetchSalesIlikeDocPath(
 
 /**
  * Busca tickets en toda la sucursal (folio, cajero, cliente) para reimpresión.
- * No está limitado al catálogo reciente de 500.
+ * No está limitado al catálogo reciente.
  */
 export async function searchSalesForTicketReprintFirestore(
   sucursalId: string,
@@ -510,7 +535,7 @@ export async function searchSalesForTicketReprintFirestore(
   const q = rawQuery.trim();
   if (!q) return [];
   const pattern = `%${escapeIlikeToken(q)}%`;
-  const cap = Math.max(20, Math.min(limit, 300));
+  const cap = Math.max(20, Math.min(limit, 1000));
 
   const [byFolio, byCajero, byCliente] = await Promise.all([
     fetchSalesIlikeDocPath(sucursalId, 'doc->>folio', pattern, cap),
@@ -525,7 +550,7 @@ export async function searchSalesForTicketReprintFirestore(
   return list.slice(0, cap);
 }
 
-const CLIENT_SALES_QUERY_LIMIT = 500;
+const CLIENT_SALES_QUERY_LIMIT = 5000;
 
 export async function fetchSalesByClienteIdFirestore(
   sucursalId: string,
@@ -534,18 +559,32 @@ export async function fetchSalesByClienteIdFirestore(
   const cid = clienteId.trim();
   if (!cid || cid === 'mostrador') return [];
   const supabase = getSupabase();
-  const { data: rows } = await supabase
-    .from('sales')
-    .select('id, doc')
-    .eq('sucursal_id', sucursalId)
-    .eq('doc->>clienteId', cid)
-    .order('doc->>createdAt', { ascending: false })
-    .limit(CLIENT_SALES_QUERY_LIMIT);
-  const list = (rows ?? [])
-    .map((r) => saleDataToSale(r.id, r.doc as Record<string, unknown>, sucursalId))
-    .filter((s): s is Sale => s != null);
-  list.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-  return list;
+  const out: Sale[] = [];
+  const PAGE = 1000;
+  let from = 0;
+  for (;;) {
+    const { data: rows, error } = await supabase
+      .from('sales')
+      .select('id, doc')
+      .eq('sucursal_id', sucursalId)
+      .eq('doc->>clienteId', cid)
+      .order('doc->>createdAt', { ascending: false })
+      .range(from, from + PAGE - 1);
+    if (error) {
+      console.error('Supabase sales by cliente:', error);
+      break;
+    }
+    const batch = rows ?? [];
+    for (const r of batch) {
+      const sale = saleDataToSale(r.id, r.doc as Record<string, unknown>, sucursalId);
+      if (sale) out.push(sale);
+    }
+    if (batch.length < PAGE) break;
+    from += PAGE;
+    if (from >= CLIENT_SALES_QUERY_LIMIT) break;
+  }
+  out.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  return out;
 }
 
 export async function getSaleByIdFirestore(sucursalId: string, saleId: string): Promise<Sale | undefined> {

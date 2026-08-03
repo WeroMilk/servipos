@@ -170,7 +170,7 @@ export function ClientePerfil() {
 
   const { clients, emitirCreditoTienda } = useClients();
   const { client: clientFromDb, loading: loadingDetails } = useClientDetails(clientId ?? null);
-  const { sales } = useSales(500);
+  const { sales } = useSales(5000);
   const { quotations, loading: loadingQuotations } = useQuotations();
   const { invoices, loading: loadingInvoices } = useInvoices();
   const { effectiveSucursalId } = useEffectiveSucursalId();

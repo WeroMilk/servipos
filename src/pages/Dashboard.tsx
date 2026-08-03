@@ -517,7 +517,7 @@ export function Dashboard() {
               .sort(
                 (a, b) => saleFechaHistorial(b).getTime() - saleFechaHistorial(a).getTime()
               )
-              .slice(0, 150);
+              .slice(0, 500);
           }
           if (!cancelled) setReprintSearchResults(rows);
         } catch (err) {

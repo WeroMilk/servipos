@@ -140,7 +140,7 @@ function saleMatchesInvoicePickerQuery(sale: Sale, raw: string): boolean {
 export function Facturas() {
   const { invoices, loading, addInvoice, cancelInvoice, removeInvoice, markInvoiceEnviada } =
     useInvoices();
-  const { sales } = useSales(100);
+  const { sales } = useSales(5000);
   const { clients } = useClients();
   const { config: fiscalConfig } = useFiscalConfig();
   const { generateXML } = useCFDIGenerator();

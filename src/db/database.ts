@@ -634,7 +634,7 @@ export async function appendCatalogInventoryMovementLocal(input: {
 // FUNCIONES DE VENTAS
 // ============================================
 
-export async function getSales(limit: number = 100): Promise<Sale[]> {
+export async function getSales(limit: number = 5000): Promise<Sale[]> {
   return await db.sales
     .orderBy('createdAt')
     .reverse()
