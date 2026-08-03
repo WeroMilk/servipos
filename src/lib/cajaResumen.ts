@@ -670,11 +670,17 @@ export function resumenTarjetasPeriodo(
     /** Incluir sesión si `getMexicoDateKey(openedAt)` está en este set, o empieza con `monthKey`. */
     dateKeys?: ReadonlySet<string>;
     monthKey?: string;
+    /** Inclusive YYYY-MM-DD (zona MX). */
+    fromDateKey?: string;
+    /** Inclusive YYYY-MM-DD (zona MX). */
+    toDateKey?: string;
     liveBySesionId?: Record<string, number> | Map<string, number> | null;
   }
 ): ResumenTarjetasPeriodo {
   const monthKey = opts.monthKey?.trim() || '';
   const dateKeys = opts.dateKeys;
+  const fromKey = opts.fromDateKey?.trim() || '';
+  const toKey = opts.toDateKey?.trim() || '';
   const live = opts.liveBySesionId;
 
   const getLive = (id: string): number | undefined => {
@@ -697,6 +703,8 @@ export function resumenTarjetasPeriodo(
     const dk = getMexicoDateKey(s.openedAt);
     if (dateKeys && !dateKeys.has(dk)) continue;
     if (monthKey && !dk.startsWith(monthKey)) continue;
+    if (fromKey && dk < fromKey) continue;
+    if (toKey && dk > toKey) continue;
     turnos += 1;
     const liveT = getLive(s.id);
     const hasStored =

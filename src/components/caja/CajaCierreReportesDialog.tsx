@@ -16,7 +16,6 @@ import { formatInAppTimezone } from '@/lib/appTimezone';
 import {
   getMexicoDateKey,
   getMexicoMonthKey,
-  isLastDayOfMexicoMonth,
   mexicoMonthLabelEs,
   startOfDayFromDateKey,
 } from '@/lib/quincenaMx';
@@ -24,7 +23,7 @@ import type { CajaAbonoCobro, CajaSesion, Sale } from '@/types';
 import {
   isValidCierreTerminalFolio,
   listCajaSesionesFirestore,
-  listCajaSesionesForMonthFirestore,
+  listCajaSesionesInDateRangeFirestore,
   registrarCierreTerminalFirestore,
 } from '@/lib/firestore/cajaFirestore';
 import { fetchSalesByCajaSesion, fetchSalesPoolForCajaSesion } from '@/lib/firestore/salesFirestore';
@@ -136,8 +135,6 @@ function SesionDetallePanel({
   ventas,
   abonosCobros,
   sesiones,
-  sesionesMes,
-  sesionesMesLoading,
   sucursalId,
   sucursalLabel,
   onSesionUpdated,
@@ -148,9 +145,6 @@ function SesionDetallePanel({
   abonosCobros: CajaAbonoCobro[];
   /** Historial reciente de turnos (para sumar tarjetas del día). */
   sesiones: CajaSesion[];
-  /** Todas las sesiones del mes (fin de mes); null si no aplica. */
-  sesionesMes: CajaSesion[] | null;
-  sesionesMesLoading?: boolean;
   sucursalId: string;
   sucursalLabel?: string;
   onSesionUpdated?: () => void;
@@ -160,6 +154,47 @@ function SesionDetallePanel({
   const [terminalTotalInput, setTerminalTotalInput] = useState('');
   const [terminalFolioInput, setTerminalFolioInput] = useState('');
   const [terminalBusy, setTerminalBusy] = useState(false);
+
+  const sesionDateKey = getMexicoDateKey(sesion.openedAt);
+  const sesionMonthKey = getMexicoMonthKey(sesion.openedAt);
+  const [tarjetaFromKey, setTarjetaFromKey] = useState(() => `${sesionMonthKey}-01`);
+  const [tarjetaToKey, setTarjetaToKey] = useState(() => sesionDateKey);
+  const [sesionesRango, setSesionesRango] = useState<CajaSesion[]>([]);
+  const [rangoLoading, setRangoLoading] = useState(false);
+
+  useEffect(() => {
+    const mk = getMexicoMonthKey(sesion.openedAt);
+    const dk = getMexicoDateKey(sesion.openedAt);
+    setTarjetaFromKey(`${mk}-01`);
+    setTarjetaToKey(dk);
+  }, [sesion.id, sesion.openedAt]);
+
+  useEffect(() => {
+    let from = tarjetaFromKey.trim().slice(0, 10);
+    let to = tarjetaToKey.trim().slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) return;
+    if (from > to) {
+      const t = from;
+      from = to;
+      to = t;
+    }
+    let cancelled = false;
+    setRangoLoading(true);
+    void (async () => {
+      try {
+        const rows = await listCajaSesionesInDateRangeFirestore(sucursalId, from, to);
+        if (!cancelled) setSesionesRango(rows);
+      } catch (e) {
+        console.error('Sesiones rango tarjetas:', e);
+        if (!cancelled) setSesionesRango([]);
+      } finally {
+        if (!cancelled) setRangoLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sucursalId, tarjetaFromKey, tarjetaToKey]);
 
   const completadas = metrics.tickets;
   const { esperadoEnCaja: esperadoBruto } = computeCajaEfectivoEsperado(
@@ -201,9 +236,6 @@ function SesionDetallePanel({
         ? Math.round((conteoTarjetasShow - tarjetasEsperadasShow) * 100) / 100
         : null;
 
-  const sesionDateKey = getMexicoDateKey(sesion.openedAt);
-  const sesionMonthKey = getMexicoMonthKey(sesion.openedAt);
-  const showMonthTarjetasTotal = isLastDayOfMexicoMonth(sesion.openedAt);
   const liveTarjetasById = useMemo(
     () => ({ [sesion.id]: tarjetasPos }),
     [sesion.id, tarjetasPos]
@@ -216,17 +248,44 @@ function SesionDetallePanel({
       }),
     [sesiones, sesionDateKey, liveTarjetasById]
   );
-  const tarjetasDelMes = useMemo(
+  const rangoFrom =
+    tarjetaFromKey <= tarjetaToKey ? tarjetaFromKey : tarjetaToKey;
+  const rangoTo = tarjetaFromKey <= tarjetaToKey ? tarjetaToKey : tarjetaFromKey;
+  const tarjetasDelRango = useMemo(
     () =>
-      showMonthTarjetasTotal
-        ? resumenTarjetasPeriodo(sesionesMes ?? sesiones, {
-            monthKey: sesionMonthKey,
-            liveBySesionId: liveTarjetasById,
-          })
-        : null,
-    [showMonthTarjetasTotal, sesionesMes, sesiones, sesionMonthKey, liveTarjetasById]
+      resumenTarjetasPeriodo(sesionesRango, {
+        fromDateKey: rangoFrom,
+        toDateKey: rangoTo,
+        liveBySesionId: liveTarjetasById,
+      }),
+    [sesionesRango, rangoFrom, rangoTo, liveTarjetasById]
   );
   const fisicoTurno = conteoTarjetasShow ?? tarjetaFisicoDeSesion(sesion);
+
+  const rangoLabel = useMemo(() => {
+    if (rangoFrom === rangoTo) {
+      return formatInAppTimezone(startOfDayFromDateKey(rangoFrom), {
+        dateStyle: 'medium',
+      });
+    }
+    const a = formatInAppTimezone(startOfDayFromDateKey(rangoFrom), { dateStyle: 'medium' });
+    const b = formatInAppTimezone(startOfDayFromDateKey(rangoTo), { dateStyle: 'medium' });
+    return `${a} → ${b}`;
+  }, [rangoFrom, rangoTo]);
+
+  const applyPresetDia = () => {
+    setTarjetaFromKey(sesionDateKey);
+    setTarjetaToKey(sesionDateKey);
+  };
+  const applyPresetMes = () => {
+    const mk = getMexicoMonthKey(sesion.openedAt);
+    const [ys, ms] = mk.split('-');
+    const y = parseInt(ys!, 10);
+    const m = parseInt(ms!, 10);
+    const last = new Date(y, m, 0).getDate();
+    setTarjetaFromKey(`${mk}-01`);
+    setTarjetaToKey(`${mk}-${String(last).padStart(2, '0')}`);
+  };
 
   const handlePrint = () => {
     if (sesion.estado !== 'cerrada' || declarado == null || esperadoStored == null || diferencia == null) {
@@ -426,65 +485,109 @@ function SesionDetallePanel({
         ) : null}
       </div>
 
-      {showMonthTarjetasTotal ? (
-        <div className="rounded-lg border border-sky-500/40 bg-sky-500/[0.09] px-3 py-2.5 dark:border-sky-400/35 dark:bg-sky-950/40">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-sky-900 dark:text-sky-200">
-            Tarjetas · total del mes ({mexicoMonthLabelEs(sesion.openedAt)})
-          </p>
-          <p className="mt-0.5 text-[9px] leading-snug text-slate-600 dark:text-slate-400">
-            Último día del mes: suma de cobros con tarjeta de todos los turnos para comparar
-            sistema vs físico / banco.
-          </p>
-          {sesionesMesLoading && !tarjetasDelMes ? (
-            <p className="mt-2 text-[11px] text-slate-500">Sumando turnos del mes…</p>
-          ) : tarjetasDelMes ? (
-            <div className="mt-2 grid gap-1.5 sm:grid-cols-3">
-              <MetricRow
-                label="Mes completo (sistema)"
-                value={formatMoney(tarjetasDelMes.sistema)}
-                valueClassName="text-base text-sky-950 dark:text-sky-100"
-                hint={`${tarjetasDelMes.turnos} turno(s) del mes${
-                  tarjetasDelMes.turnosSinSistema > 0
-                    ? ` · ${tarjetasDelMes.turnosSinSistema} sin dato POS`
-                    : ''
-                }`}
-              />
-              <MetricRow
-                label="Mes completo (físico)"
-                value={
-                  tarjetasDelMes.turnosConFisico > 0
-                    ? formatMoney(tarjetasDelMes.fisico)
-                    : '—'
-                }
-                valueClassName="text-base text-sky-950 dark:text-sky-100"
-                hint={
-                  tarjetasDelMes.turnosConFisico > 0
-                    ? `${tarjetasDelMes.turnosConFisico} con corte de terminal`
-                    : 'Sin cortes en el mes'
-                }
-              />
-              <MetricRow
-                label="Diferencia mes"
-                value={
-                  tarjetasDelMes.diferencia != null
-                    ? formatMoney(tarjetasDelMes.diferencia)
-                    : '—'
-                }
-                valueClassName={
-                  tarjetasDelMes.diferencia != null
-                    ? tarjetasDelMes.diferencia > 0.005
-                      ? 'text-base text-emerald-700 dark:text-emerald-400'
-                      : tarjetasDelMes.diferencia < -0.005
-                        ? 'text-base text-red-600 dark:text-red-400'
-                        : 'text-base'
-                    : 'text-base'
-                }
-                hint="Físico − sistema"
-              />
-            </div>
-          ) : null}
+      <div className="rounded-lg border border-sky-500/40 bg-sky-500/[0.09] px-3 py-2.5 dark:border-sky-400/35 dark:bg-sky-950/40">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-sky-900 dark:text-sky-200">
+          Tarjetas · rango de fechas
+        </p>
+        <p className="mt-0.5 text-[9px] leading-snug text-slate-600 dark:text-slate-400">
+          Elige de qué día a qué día sumar cobros con terminal (débito/crédito) para comparar
+          sistema vs físico.
+        </p>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          <div className="space-y-1">
+            <Label htmlFor={`tarjeta-from-${sesion.id}`} className="text-[10px]">
+              Desde
+            </Label>
+            <Input
+              id={`tarjeta-from-${sesion.id}`}
+              type="date"
+              value={tarjetaFromKey}
+              onChange={(e) => setTarjetaFromKey(e.target.value)}
+              className="h-8 border-sky-500/30 bg-white text-xs dark:border-sky-500/25 dark:bg-slate-950"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor={`tarjeta-to-${sesion.id}`} className="text-[10px]">
+              Hasta
+            </Label>
+            <Input
+              id={`tarjeta-to-${sesion.id}`}
+              type="date"
+              value={tarjetaToKey}
+              onChange={(e) => setTarjetaToKey(e.target.value)}
+              className="h-8 border-sky-500/30 bg-white text-xs dark:border-sky-500/25 dark:bg-slate-950"
+            />
+          </div>
         </div>
-      ) : null}
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 px-2 text-[10px]"
+            onClick={applyPresetDia}
+          >
+            Solo este día
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 px-2 text-[10px]"
+            onClick={applyPresetMes}
+          >
+            Todo el mes ({mexicoMonthLabelEs(sesion.openedAt)})
+          </Button>
+        </div>
+        <p className="mt-2 text-[9px] font-medium text-sky-900/80 dark:text-sky-200/80">
+          Periodo: {rangoLabel}
+          {rangoLoading ? ' · cargando…' : ''}
+        </p>
+        <div className="mt-2 grid gap-1.5 sm:grid-cols-3">
+          <MetricRow
+            label="Rango (sistema)"
+            value={formatMoney(tarjetasDelRango.sistema)}
+            valueClassName="text-base text-sky-950 dark:text-sky-100"
+            hint={`${tarjetasDelRango.turnos} turno(s)${
+              tarjetasDelRango.turnosSinSistema > 0
+                ? ` · ${tarjetasDelRango.turnosSinSistema} sin dato POS`
+                : ''
+            }`}
+          />
+          <MetricRow
+            label="Rango (físico)"
+            value={
+              tarjetasDelRango.turnosConFisico > 0
+                ? formatMoney(tarjetasDelRango.fisico)
+                : '—'
+            }
+            valueClassName="text-base text-sky-950 dark:text-sky-100"
+            hint={
+              tarjetasDelRango.turnosConFisico > 0
+                ? `${tarjetasDelRango.turnosConFisico} con corte de terminal`
+                : 'Sin cortes en el rango'
+            }
+          />
+          <MetricRow
+            label="Diferencia rango"
+            value={
+              tarjetasDelRango.diferencia != null
+                ? formatMoney(tarjetasDelRango.diferencia)
+                : '—'
+            }
+            valueClassName={
+              tarjetasDelRango.diferencia != null
+                ? tarjetasDelRango.diferencia > 0.005
+                  ? 'text-base text-emerald-700 dark:text-emerald-400'
+                  : tarjetasDelRango.diferencia < -0.005
+                    ? 'text-base text-red-600 dark:text-red-400'
+                    : 'text-base'
+                : 'text-base'
+            }
+            hint="Físico − sistema"
+          />
+        </div>
+      </div>
 
       <div>
           <SectionTitle>Abonos CxC del turno</SectionTitle>
@@ -796,71 +899,60 @@ function SesionDetallePanel({
           </div>
         ) : null}
 
-        {tarjetasDelMes ? (
-          <div className="mt-2.5 rounded-md border border-sky-600/35 bg-white/70 px-2.5 py-2 dark:border-sky-400/30 dark:bg-slate-950/40">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-sky-900 dark:text-sky-200">
-              Total del mes · {mexicoMonthLabelEs(sesion.openedAt)}
-            </p>
-            <p className="mt-0.5 text-[9px] leading-snug text-slate-500 dark:text-slate-500">
-              {sesionesMesLoading
-                ? 'Actualizando suma de todos los turnos del mes…'
-                : `Suma de ${tarjetasDelMes.turnos} turno(s) · comparar con liquidación bancaria.`}
-            </p>
-            <div className="mt-2 grid gap-1.5 sm:grid-cols-3">
-              <MetricRow
-                label="Mes (sistema)"
-                value={formatMoney(tarjetasDelMes.sistema)}
-                valueClassName="text-sky-900 dark:text-sky-200"
-                hint={`${tarjetasDelMes.turnos} turno(s)${
-                  tarjetasDelMes.turnosSinSistema > 0
-                    ? ` · ${tarjetasDelMes.turnosSinSistema} sin dato POS`
-                    : ''
-                }`}
-              />
-              <MetricRow
-                label="Mes (físico)"
-                value={
-                  tarjetasDelMes.turnosConFisico > 0
-                    ? formatMoney(tarjetasDelMes.fisico)
-                    : '—'
-                }
-                valueClassName="text-sky-900 dark:text-sky-200"
-                hint={
-                  tarjetasDelMes.turnosConFisico > 0
-                    ? `${tarjetasDelMes.turnosConFisico} con corte`
-                    : 'Sin cortes registrados en el mes'
-                }
-              />
-              <MetricRow
-                label="Diferencia mes"
-                value={
-                  tarjetasDelMes.diferencia != null
-                    ? formatMoney(tarjetasDelMes.diferencia)
-                    : '—'
-                }
-                valueClassName={
-                  tarjetasDelMes.diferencia != null
-                    ? tarjetasDelMes.diferencia > 0.005
-                      ? 'text-emerald-700 dark:text-emerald-400'
-                      : tarjetasDelMes.diferencia < -0.005
-                        ? 'text-red-600 dark:text-red-400'
-                        : undefined
-                    : undefined
-                }
-                hint="Físico − sistema"
-              />
-            </div>
+        <div className="mt-2.5 rounded-md border border-sky-600/35 bg-white/70 px-2.5 py-2 dark:border-sky-400/30 dark:bg-slate-950/40">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-sky-900 dark:text-sky-200">
+            Total del rango · {rangoLabel}
+          </p>
+          <p className="mt-0.5 text-[9px] leading-snug text-slate-500 dark:text-slate-500">
+            {rangoLoading
+              ? 'Cargando turnos del rango…'
+              : `Suma de ${tarjetasDelRango.turnos} turno(s) · ajustar fechas arriba a la izquierda.`}
+          </p>
+          <div className="mt-2 grid gap-1.5 sm:grid-cols-3">
+            <MetricRow
+              label="Rango (sistema)"
+              value={formatMoney(tarjetasDelRango.sistema)}
+              valueClassName="text-sky-900 dark:text-sky-200"
+              hint={`${tarjetasDelRango.turnos} turno(s)${
+                tarjetasDelRango.turnosSinSistema > 0
+                  ? ` · ${tarjetasDelRango.turnosSinSistema} sin dato POS`
+                  : ''
+              }`}
+            />
+            <MetricRow
+              label="Rango (físico)"
+              value={
+                tarjetasDelRango.turnosConFisico > 0
+                  ? formatMoney(tarjetasDelRango.fisico)
+                  : '—'
+              }
+              valueClassName="text-sky-900 dark:text-sky-200"
+              hint={
+                tarjetasDelRango.turnosConFisico > 0
+                  ? `${tarjetasDelRango.turnosConFisico} con corte`
+                  : 'Sin cortes en el rango'
+              }
+            />
+            <MetricRow
+              label="Diferencia rango"
+              value={
+                tarjetasDelRango.diferencia != null
+                  ? formatMoney(tarjetasDelRango.diferencia)
+                  : '—'
+              }
+              valueClassName={
+                tarjetasDelRango.diferencia != null
+                  ? tarjetasDelRango.diferencia > 0.005
+                    ? 'text-emerald-700 dark:text-emerald-400'
+                    : tarjetasDelRango.diferencia < -0.005
+                      ? 'text-red-600 dark:text-red-400'
+                      : undefined
+                  : undefined
+              }
+              hint="Físico − sistema"
+            />
           </div>
-        ) : showMonthTarjetasTotal && sesionesMesLoading ? (
-          <p className="mt-2 text-[9px] leading-snug text-slate-500 dark:text-slate-500">
-            Cargando total de tarjetas del mes…
-          </p>
-        ) : (
-          <p className="mt-2 text-[9px] leading-snug text-slate-500 dark:text-slate-500">
-            El total acumulado del mes aparece automáticamente al abrir el turno del último día
-            del mes ({mexicoMonthLabelEs(sesion.openedAt)}).
-          </p>
-        )}
+        </div>
       </div>
 
       <div
@@ -936,8 +1028,6 @@ export function CajaCierreReportesDialog({
   presentation = 'dialog',
 }: CajaCierreReportesDialogProps) {
   const [sesiones, setSesiones] = useState<CajaSesion[]>([]);
-  const [sesionesMes, setSesionesMes] = useState<CajaSesion[] | null>(null);
-  const [sesionesMesLoading, setSesionesMesLoading] = useState(false);
   const [listLoading, setListLoading] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -978,36 +1068,6 @@ export function CajaCierreReportesDialog({
     if (!open) return;
     void loadList();
   }, [open, loadList]);
-
-  useEffect(() => {
-    if (!open || !sucursalId || !selected) {
-      setSesionesMes(null);
-      setSesionesMesLoading(false);
-      return;
-    }
-    if (!isLastDayOfMexicoMonth(selected.openedAt)) {
-      setSesionesMes(null);
-      setSesionesMesLoading(false);
-      return;
-    }
-    const monthKey = getMexicoMonthKey(selected.openedAt);
-    let cancelled = false;
-    setSesionesMesLoading(true);
-    void (async () => {
-      try {
-        const rows = await listCajaSesionesForMonthFirestore(sucursalId, monthKey);
-        if (!cancelled) setSesionesMes(rows);
-      } catch (e) {
-        console.error('Sesiones del mes (tarjetas):', e);
-        if (!cancelled) setSesionesMes(null);
-      } finally {
-        if (!cancelled) setSesionesMesLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [open, sucursalId, selected]);
 
   useEffect(() => {
     if (!open || !sucursalId || !selectedId || !selected) {
@@ -1184,8 +1244,6 @@ export function CajaCierreReportesDialog({
             ventas={ventasDetalle}
             abonosCobros={abonosDetalle}
             sesiones={sesiones}
-            sesionesMes={sesionesMes}
-            sesionesMesLoading={sesionesMesLoading}
             sucursalId={sucursalId}
             sucursalLabel={sucursalLabel}
             onSesionUpdated={() => void loadList()}
