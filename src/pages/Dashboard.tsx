@@ -83,6 +83,10 @@ import {
   type PeriodGranularity,
 } from '@/components/ui-custom/DashboardPeriodPopover';
 import { useAuthStore, useAppStore, getResolvedIsDark } from '@/stores';
+import {
+  LowStockDialog,
+  useVisibleLowStockCount,
+} from '@/components/ui-custom/LowStockDialog';
 import { saleListaCancelacionEtiqueta } from '@/lib/saleCancelacion';
 import { saleIsInvoiced } from '@/lib/saleInvoiced';
 import { parrafosAyudaCancelacionVentaAdmin } from '@/lib/cancelacionVentaAdminUi';
@@ -640,10 +644,10 @@ export function Dashboard() {
     return mediasPorCliente.reduce((a, b) => a + b, 0) / mediasPorCliente.length;
   }, [kpiVentasParaTotales]);
   const { products: lowStockProducts, loading: stockLoading } = useLowStockProducts();
-  const lowStockHasZero = useMemo(
-    () => lowStockProducts.some((p) => p.existencia === 0),
-    [lowStockProducts]
-  );
+  const {
+    visibleCount: lowStockVisibleCount,
+    hasZero: lowStockHasZero,
+  } = useVisibleLowStockCount(lowStockProducts, effectiveSucursalId);
   const outgoingTransferPendingIds = useOutgoingPendingTransferIds();
 
   const reprintSalesSorted = useMemo(
@@ -1180,7 +1184,7 @@ export function Dashboard() {
               <span className="truncate text-xs font-semibold text-slate-900 dark:text-slate-100 sm:text-sm">
                 Stock bajo
               </span>
-              {!stockLoading && lowStockProducts.length > 0 ? (
+              {!stockLoading && lowStockVisibleCount > 0 ? (
                 <span
                   className={cn(
                     'rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums',
@@ -1189,14 +1193,14 @@ export function Dashboard() {
                       : 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
                   )}
                 >
-                  {lowStockProducts.length}
+                  {lowStockVisibleCount}
                 </span>
               ) : null}
             </span>
             <span className="mt-0.5 block truncate text-[10px] text-slate-500 dark:text-slate-400">
               {stockLoading
                 ? 'Cargando…'
-                : lowStockProducts.length === 0
+                : lowStockVisibleCount === 0
                   ? 'Sin alertas'
                   : 'Ver productos'}
             </span>
@@ -1450,104 +1454,14 @@ export function Dashboard() {
         </CardContent>
       </Card>
 
-      <Dialog open={stockDialogOpen} onOpenChange={setStockDialogOpen}>
-        <DialogContent className="flex w-full min-w-0 max-h-[92dvh] flex-col gap-0 overflow-hidden border-slate-200 bg-slate-100 p-0 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 md:max-w-[min(92vw,36rem)]">
-          <DialogHeader className="shrink-0 space-y-1 border-b border-slate-200 px-4 pb-3 pt-4 pr-14 text-left dark:border-slate-800/80">
-            <DialogTitle className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-md shadow-amber-500/25">
-                <AlertTriangle className="h-4 w-4 text-white" />
-              </span>
-              Stock bajo
-              {!stockLoading && lowStockProducts.length > 0 ? (
-                <span
-                  className={cn(
-                    'rounded-full px-2 py-0.5 text-xs font-bold tabular-nums',
-                    lowStockHasZero
-                      ? 'bg-red-500/15 text-red-700 dark:text-red-300'
-                      : 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
-                  )}
-                >
-                  {lowStockProducts.length}
-                </span>
-              ) : null}
-            </DialogTitle>
-            <p className="text-sm font-normal text-slate-600 dark:text-slate-500">
-              Productos en o por debajo del mínimo de existencia.
-            </p>
-          </DialogHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 py-3">
-            {stockLoading ? (
-              <div className="space-y-2">
-                {[1, 2, 3, 4].map((i) => (
-                  <ListRowSkeleton key={i} />
-                ))}
-              </div>
-            ) : lowStockProducts.length === 0 ? (
-              <EmptyStateBlock
-                icon={Package}
-                title="Sin alertas de stock"
-                hint="Todo el inventario está por encima del mínimo"
-              />
-            ) : (
-              <div className="space-y-1.5">
-                {lowStockProducts.map((product) => (
-                  <div
-                    key={product.id}
-                    className="flex items-center justify-between gap-2 rounded-xl border border-transparent bg-white/80 px-2.5 py-2 dark:bg-slate-800/40"
-                  >
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span
-                        className={cn(
-                          'h-2.5 w-2.5 shrink-0 rounded-full ring-2 ring-offset-1 ring-offset-transparent',
-                          product.existencia === 0
-                            ? 'bg-red-500 ring-red-500/30'
-                            : 'bg-amber-400 ring-amber-400/30'
-                        )}
-                      />
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-200">
-                          {product.nombre}
-                        </p>
-                        <p className="text-[11px] text-slate-500">{product.sku}</p>
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <p
-                        className={cn(
-                          'text-sm font-bold tabular-nums',
-                          product.existencia === 0
-                            ? 'text-red-500 dark:text-red-400'
-                            : 'text-amber-600 dark:text-amber-400'
-                        )}
-                      >
-                        {product.existencia}
-                      </p>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-8 px-2 text-[11px]"
-                        onClick={goInventarioStock}
-                      >
-                        Ver en inventario
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          <DialogFooter className="shrink-0 border-t border-slate-200 px-4 py-3 dark:border-slate-800/80 sm:justify-between">
-            <Button type="button" variant="ghost" onClick={() => setStockDialogOpen(false)}>
-              Cerrar
-            </Button>
-            <Button type="button" onClick={goInventarioStock} className="gap-1.5">
-              Abrir inventario
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <LowStockDialog
+        open={stockDialogOpen}
+        onOpenChange={setStockDialogOpen}
+        products={lowStockProducts}
+        loading={stockLoading}
+        sucursalId={effectiveSucursalId}
+        onOpenInventario={goInventarioStock}
+      />
 
       <Dialog
         open={todaySalesOpen}

@@ -9,3 +9,9 @@ export { useSyncStore } from './syncStore';
 export { useCartStore } from './cartStore';
 export { useClientPriceListStore } from './clientPriceListStore';
 export { useInventoryListsStore } from './inventoryListsStore';
+export {
+  useLowStockAlertStore,
+  lowStockAlertSucursalKey,
+  selectLowStockBucket,
+} from './lowStockAlertStore';
+export type { LowStockAlertBucket } from './lowStockAlertStore';

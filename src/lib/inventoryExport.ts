@@ -63,6 +63,91 @@ export function downloadInventarioStockBajo(opts: {
   });
 }
 
+/**
+ * CSV para pedir a proveedores los artículos seleccionados del alert «Stock bajo» del panel.
+ */
+export function downloadPedidoStockBajo(opts: {
+  products: Product[];
+  sucursalNombre?: string;
+}): void {
+  const products = opts.products.filter((p) => p && p.id);
+  const sorted = [...products].sort((a, b) => {
+    const prov = (a.proveedor || '').localeCompare(b.proveedor || '', 'es');
+    if (prov !== 0) return prov;
+    return (a.nombre || '').localeCompare(b.nombre || '', 'es');
+  });
+
+  const headers = [
+    '#',
+    'SKU',
+    'Nombre',
+    'Proveedor',
+    'Categoría',
+    'Existencia',
+    'Existencia mínima',
+    'Cantidad sugerida',
+  ];
+
+  const now = new Date();
+  const fechaStr = formatInAppTimezone(now, { dateStyle: 'long', timeStyle: 'short' });
+  const fechaArchivo = formatInAppTimezone(now, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+    .replace(/[/:]/g, '-')
+    .replace(/\s+/g, '_');
+
+  const metaLine = [
+    opts.sucursalNombre?.trim() ? `Sucursal: ${opts.sucursalNombre.trim()}` : 'Sucursal: modo local',
+    `Generado: ${fechaStr}`,
+    `Artículos a pedir: ${sorted.length}`,
+  ].join(' · ');
+
+  const lines: string[] = [];
+  lines.push(csvField('PEDIDO A PROVEEDORES — STOCK BAJO — SERVIPARTZ POS'));
+  lines.push(csvField(metaLine));
+  lines.push('');
+  lines.push(headers.map(csvField).join(','));
+
+  let idx = 0;
+  for (const p of sorted) {
+    idx++;
+    const exist = Number(p.existencia) || 0;
+    const min = Number(p.existenciaMinima) || 0;
+    const sugerida = Math.max(min - exist, 1);
+    lines.push(
+      [
+        idx,
+        p.sku,
+        p.nombre,
+        p.proveedor ?? '',
+        p.categoria ?? '',
+        exist,
+        min,
+        sugerida,
+      ]
+        .map(csvField)
+        .join(',')
+    );
+  }
+
+  const csvBody = lines.join('\r\n');
+  const blob = new Blob(['\uFEFF', csvBody], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const suf = opts.sucursalNombre?.trim() ? `_${slugArchivo(opts.sucursalNombre.trim())}` : '';
+  a.href = url;
+  a.download = `Pedido_stock_bajo${suf}_${fechaArchivo}.csv`;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 function downloadInventarioCsv(opts: {
   products: Product[];
   sucursalNombre?: string;

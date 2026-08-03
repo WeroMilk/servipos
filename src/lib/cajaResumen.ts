@@ -2,6 +2,7 @@ import type { CajaAbonoCobro, CajaSesion, FormaPago, Sale } from '@/types';
 import { FORMAS_PAGO } from '@/types';
 import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
 import { saleFechaHistorial } from '@/lib/saleHistorialFecha';
+import { getMexicoDateKey } from '@/lib/quincenaMx';
 
 const FORMAS_SIN_COBRO_CIERRE = new Set<FormaPago>(['TTS', 'DEV', 'COT', 'PPC', 'STC']);
 
@@ -194,6 +195,10 @@ export function resumenBrutoSesion(ventas: Sale[]): { tickets: number; total: nu
 export type GananciaSesionResult = {
   /** Suma (subtotal línea − costo × cantidad) sin IVA. */
   ganancia: number;
+  /** Suma de subtotales de líneas (venta sin IVA). */
+  ventaNeta: number;
+  /** Suma de costo de compra × cantidad. */
+  costoTotal: number;
   /** Líneas de tickets del turno sin costo en línea ni en catálogo. */
   lineasSinCosto: number;
   lineas: number;
@@ -218,6 +223,8 @@ export function computeGananciaSesion(
   };
 
   let ganancia = 0;
+  let ventaNeta = 0;
+  let costoTotal = 0;
   let lineasSinCosto = 0;
   let lineas = 0;
 
@@ -236,12 +243,16 @@ export function computeGananciaSesion(
       const costoUnit = fromLine ?? fromCat;
       if (costoUnit == null) lineasSinCosto += 1;
       const costo = (costoUnit ?? 0) * qty;
+      ventaNeta += ingreso;
+      costoTotal += costo;
       ganancia += ingreso - costo;
     }
   }
 
   return {
     ganancia: Math.round(ganancia * 100) / 100,
+    ventaNeta: Math.round(ventaNeta * 100) / 100,
+    costoTotal: Math.round(costoTotal * 100) / 100,
     lineasSinCosto,
     lineas,
   };
@@ -610,5 +621,103 @@ export function computeSesionCierreMetrics(
     creditoTiendaUsado: sumCreditoTiendaUsadoSesion(pool, sesion.id),
     creditoTiendaEmitido: totalCreditosTiendaEmitidosSesion(sesion.creditosTiendaEmitidos),
     lineasMedio: lineasMediosPagoSesion(pool, abonos, sesion.id),
+  };
+}
+
+/** Total declarado de cortes de terminal de un turno (o null si no hay dato). */
+export function tarjetaFisicoDeSesion(sesion: Pick<CajaSesion, 'conteoTarjetasDeclarado' | 'cierresTerminal'>): number | null {
+  if (sesion.conteoTarjetasDeclarado != null && Number.isFinite(Number(sesion.conteoTarjetasDeclarado))) {
+    return Math.round(Number(sesion.conteoTarjetasDeclarado) * 100) / 100;
+  }
+  const cierres = sesion.cierresTerminal ?? [];
+  if (!cierres.length) return null;
+  const sum = cierres.reduce((s, c) => s + (Number(c.total) || 0), 0);
+  return Math.round(sum * 100) / 100;
+}
+
+/** Total POS (sistema) de tarjetas guardado al cierre; `liveTarjetas` para turno abierto. */
+export function tarjetaSistemaDeSesion(
+  sesion: Pick<CajaSesion, 'tarjetasEsperadas'>,
+  liveTarjetas?: number | null
+): number {
+  if (liveTarjetas != null && Number.isFinite(liveTarjetas)) {
+    return Math.round(liveTarjetas * 100) / 100;
+  }
+  if (sesion.tarjetasEsperadas != null && Number.isFinite(Number(sesion.tarjetasEsperadas))) {
+    return Math.round(Number(sesion.tarjetasEsperadas) * 100) / 100;
+  }
+  return 0;
+}
+
+export type ResumenTarjetasPeriodo = {
+  sistema: number;
+  fisico: number;
+  /** Turnos con al menos un corte / conteo físico. */
+  turnosConFisico: number;
+  turnos: number;
+  /** Sesiones sin `tarjetasEsperadas` ni override (dato incompleto). */
+  turnosSinSistema: number;
+  diferencia: number | null;
+};
+
+/**
+ * Suma cobros con tarjeta (sistema) y cortes físicos de turnos en un rango de fechas MX.
+ * `liveBySesionId` permite inyectar el total en vivo del turno abierto.
+ */
+export function resumenTarjetasPeriodo(
+  sesiones: CajaSesion[],
+  opts: {
+    /** Incluir sesión si `getMexicoDateKey(openedAt)` está en este set, o empieza con `monthKey`. */
+    dateKeys?: ReadonlySet<string>;
+    monthKey?: string;
+    liveBySesionId?: Record<string, number> | Map<string, number> | null;
+  }
+): ResumenTarjetasPeriodo {
+  const monthKey = opts.monthKey?.trim() || '';
+  const dateKeys = opts.dateKeys;
+  const live = opts.liveBySesionId;
+
+  const getLive = (id: string): number | undefined => {
+    if (!live) return undefined;
+    if (live instanceof Map) {
+      const v = live.get(id);
+      return v != null && Number.isFinite(v) ? v : undefined;
+    }
+    const v = live[id];
+    return v != null && Number.isFinite(v) ? v : undefined;
+  };
+
+  let sistema = 0;
+  let fisico = 0;
+  let turnos = 0;
+  let turnosConFisico = 0;
+  let turnosSinSistema = 0;
+
+  for (const s of sesiones) {
+    const dk = getMexicoDateKey(s.openedAt);
+    if (dateKeys && !dateKeys.has(dk)) continue;
+    if (monthKey && !dk.startsWith(monthKey)) continue;
+    turnos += 1;
+    const liveT = getLive(s.id);
+    const hasStored =
+      s.tarjetasEsperadas != null && Number.isFinite(Number(s.tarjetasEsperadas));
+    if (liveT == null && !hasStored) turnosSinSistema += 1;
+    sistema += tarjetaSistemaDeSesion(s, liveT ?? null);
+    const fis = tarjetaFisicoDeSesion(s);
+    if (fis != null) {
+      fisico += fis;
+      turnosConFisico += 1;
+    }
+  }
+
+  const sistemaR = Math.round(sistema * 100) / 100;
+  const fisicoR = Math.round(fisico * 100) / 100;
+  return {
+    sistema: sistemaR,
+    fisico: fisicoR,
+    turnosConFisico,
+    turnos,
+    turnosSinSistema,
+    diferencia: turnosConFisico > 0 ? Math.round((fisicoR - sistemaR) * 100) / 100 : null,
   };
 }

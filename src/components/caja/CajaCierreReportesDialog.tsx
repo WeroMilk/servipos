@@ -13,7 +13,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn, formatMoney } from '@/lib/utils';
 import { formatInAppTimezone } from '@/lib/appTimezone';
-import { getMexicoDateKey, startOfDayFromDateKey } from '@/lib/quincenaMx';
+import {
+  getMexicoDateKey,
+  getMexicoMonthKey,
+  isLastDayOfMexicoMonth,
+  mexicoMonthLabelEs,
+  startOfDayFromDateKey,
+} from '@/lib/quincenaMx';
 import type { CajaAbonoCobro, CajaSesion, Sale } from '@/types';
 import {
   isValidCierreTerminalFolio,
@@ -30,6 +36,8 @@ import {
   filterVentasCompletadasSesion,
   labelFormaPagoCaja,
   resolveAbonosCobrosSesion,
+  resumenTarjetasPeriodo,
+  tarjetaFisicoDeSesion,
   totalAbonosEfectivoSesion,
   type SesionCierreMetrics,
 } from '@/lib/cajaResumen';
@@ -126,6 +134,7 @@ function SesionDetallePanel({
   metrics,
   ventas,
   abonosCobros,
+  sesiones,
   sucursalId,
   sucursalLabel,
   onSesionUpdated,
@@ -134,6 +143,8 @@ function SesionDetallePanel({
   metrics: SesionCierreMetrics;
   ventas: Sale[];
   abonosCobros: CajaAbonoCobro[];
+  /** Historial reciente de turnos (para sumar tarjetas del día / mes). */
+  sesiones: CajaSesion[];
   sucursalId: string;
   sucursalLabel?: string;
   onSesionUpdated?: () => void;
@@ -183,6 +194,33 @@ function SesionDetallePanel({
       : conteoTarjetasShow != null
         ? Math.round((conteoTarjetasShow - tarjetasEsperadasShow) * 100) / 100
         : null;
+
+  const sesionDateKey = getMexicoDateKey(sesion.openedAt);
+  const sesionMonthKey = getMexicoMonthKey(sesion.openedAt);
+  const showMonthTarjetasTotal = isLastDayOfMexicoMonth(sesion.openedAt);
+  const liveTarjetasById = useMemo(
+    () => ({ [sesion.id]: tarjetasPos }),
+    [sesion.id, tarjetasPos]
+  );
+  const tarjetasDelDia = useMemo(
+    () =>
+      resumenTarjetasPeriodo(sesiones, {
+        dateKeys: new Set([sesionDateKey]),
+        liveBySesionId: liveTarjetasById,
+      }),
+    [sesiones, sesionDateKey, liveTarjetasById]
+  );
+  const tarjetasDelMes = useMemo(
+    () =>
+      showMonthTarjetasTotal
+        ? resumenTarjetasPeriodo(sesiones, {
+            monthKey: sesionMonthKey,
+            liveBySesionId: liveTarjetasById,
+          })
+        : null,
+    [showMonthTarjetasTotal, sesiones, sesionMonthKey, liveTarjetasById]
+  );
+  const fisicoTurno = conteoTarjetasShow ?? tarjetaFisicoDeSesion(sesion);
 
   const handlePrint = () => {
     if (sesion.estado !== 'cerrada' || declarado == null || esperadoStored == null || diferencia == null) {
@@ -619,6 +657,182 @@ function SesionDetallePanel({
         </div>
       </div>
 
+      <div
+        className={cn(
+          'rounded-lg border px-3 py-2.5',
+          'border-sky-500/30 bg-sky-500/[0.06] dark:border-sky-500/25 dark:bg-sky-950/30'
+        )}
+      >
+        <SectionTitle>Reporte de tarjetas</SectionTitle>
+        <p className="mb-2 text-[9px] leading-snug text-slate-500 dark:text-slate-500">
+          Cobros con tarjeta en el sistema (POS) vs cortes físicos del terminal.
+        </p>
+        <div className="grid gap-1.5 sm:grid-cols-3">
+          <MetricRow
+            label="Este turno (sistema)"
+            value={formatMoney(tarjetasEsperadasShow)}
+            hint="04 / 28 / 29 + abonos tarjeta"
+          />
+          <MetricRow
+            label="Este turno (físico)"
+            value={fisicoTurno != null ? formatMoney(fisicoTurno) : '—'}
+            hint="Suma de cortes registrados"
+          />
+          <MetricRow
+            label="Diferencia turno"
+            value={diferenciaTarjetasShow != null ? formatMoney(diferenciaTarjetasShow) : '—'}
+            valueClassName={
+              diferenciaTarjetasShow != null
+                ? diferenciaTarjetasShow > 0.005
+                  ? 'text-emerald-700 dark:text-emerald-400'
+                  : diferenciaTarjetasShow < -0.005
+                    ? 'text-red-600 dark:text-red-400'
+                    : undefined
+                : undefined
+            }
+            hint="Físico − sistema"
+          />
+        </div>
+        {tarjetasDelDia.turnos > 1 ? (
+          <div className="mt-2 grid gap-1.5 sm:grid-cols-3">
+            <MetricRow
+              label="Día completo (sistema)"
+              value={formatMoney(tarjetasDelDia.sistema)}
+              hint={`${tarjetasDelDia.turnos} turnos del día`}
+            />
+            <MetricRow
+              label="Día completo (físico)"
+              value={
+                tarjetasDelDia.turnosConFisico > 0 ? formatMoney(tarjetasDelDia.fisico) : '—'
+              }
+              hint={
+                tarjetasDelDia.turnosConFisico > 0
+                  ? `${tarjetasDelDia.turnosConFisico} con corte`
+                  : 'Sin cortes en el día'
+              }
+            />
+            <MetricRow
+              label="Diferencia día"
+              value={
+                tarjetasDelDia.diferencia != null ? formatMoney(tarjetasDelDia.diferencia) : '—'
+              }
+              valueClassName={
+                tarjetasDelDia.diferencia != null
+                  ? tarjetasDelDia.diferencia > 0.005
+                    ? 'text-emerald-700 dark:text-emerald-400'
+                    : tarjetasDelDia.diferencia < -0.005
+                      ? 'text-red-600 dark:text-red-400'
+                      : undefined
+                  : undefined
+              }
+              hint="Físico − sistema"
+            />
+          </div>
+        ) : null}
+
+        {tarjetasDelMes ? (
+          <div className="mt-2.5 rounded-md border border-sky-600/35 bg-white/70 px-2.5 py-2 dark:border-sky-400/30 dark:bg-slate-950/40">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-sky-900 dark:text-sky-200">
+              Total del mes · {mexicoMonthLabelEs(sesion.openedAt)}
+            </p>
+            <p className="mt-0.5 text-[9px] leading-snug text-slate-500 dark:text-slate-500">
+              Último día del mes: suma automática de todos los turnos para comparar con la
+              liquidación bancaria / físico.
+            </p>
+            <div className="mt-2 grid gap-1.5 sm:grid-cols-3">
+              <MetricRow
+                label="Mes (sistema)"
+                value={formatMoney(tarjetasDelMes.sistema)}
+                valueClassName="text-sky-900 dark:text-sky-200"
+                hint={`${tarjetasDelMes.turnos} turno(s)${
+                  tarjetasDelMes.turnosSinSistema > 0
+                    ? ` · ${tarjetasDelMes.turnosSinSistema} sin dato POS`
+                    : ''
+                }`}
+              />
+              <MetricRow
+                label="Mes (físico)"
+                value={
+                  tarjetasDelMes.turnosConFisico > 0
+                    ? formatMoney(tarjetasDelMes.fisico)
+                    : '—'
+                }
+                valueClassName="text-sky-900 dark:text-sky-200"
+                hint={
+                  tarjetasDelMes.turnosConFisico > 0
+                    ? `${tarjetasDelMes.turnosConFisico} con corte`
+                    : 'Sin cortes registrados en el mes'
+                }
+              />
+              <MetricRow
+                label="Diferencia mes"
+                value={
+                  tarjetasDelMes.diferencia != null
+                    ? formatMoney(tarjetasDelMes.diferencia)
+                    : '—'
+                }
+                valueClassName={
+                  tarjetasDelMes.diferencia != null
+                    ? tarjetasDelMes.diferencia > 0.005
+                      ? 'text-emerald-700 dark:text-emerald-400'
+                      : tarjetasDelMes.diferencia < -0.005
+                        ? 'text-red-600 dark:text-red-400'
+                        : undefined
+                    : undefined
+                }
+                hint="Físico − sistema"
+              />
+            </div>
+          </div>
+        ) : (
+          <p className="mt-2 text-[9px] leading-snug text-slate-500 dark:text-slate-500">
+            El total acumulado del mes aparece automáticamente al abrir el turno del último día
+            del mes ({mexicoMonthLabelEs(sesion.openedAt)}).
+          </p>
+        )}
+      </div>
+
+      <div
+        className={cn(
+          'rounded-lg border px-3 py-2.5',
+          gananciaInfo.ganancia >= 0
+            ? 'border-emerald-500/35 bg-emerald-500/[0.08] dark:border-emerald-500/30 dark:bg-emerald-950/35'
+            : 'border-red-500/35 bg-red-500/[0.08] dark:border-red-500/30 dark:bg-red-950/35'
+        )}
+      >
+        <SectionTitle>Ganancia del turno</SectionTitle>
+        <p
+          className={cn(
+            'text-lg font-bold tabular-nums leading-tight',
+            gananciaInfo.ganancia >= 0
+              ? 'text-emerald-800 dark:text-emerald-300'
+              : 'text-red-700 dark:text-red-400'
+          )}
+        >
+          {formatMoney(gananciaInfo.ganancia)}
+        </p>
+        <div className="mt-1.5 grid gap-1 sm:grid-cols-2">
+          <p className="text-[10px] leading-snug text-slate-600 dark:text-slate-400">
+            Vendido (sin IVA)
+            <span className="mt-0.5 block font-semibold tabular-nums text-slate-800 dark:text-slate-200">
+              {formatMoney(gananciaInfo.ventaNeta)}
+            </span>
+          </p>
+          <p className="text-[10px] leading-snug text-slate-600 dark:text-slate-400">
+            Costo artículos
+            <span className="mt-0.5 block font-semibold tabular-nums text-slate-800 dark:text-slate-200">
+              {formatMoney(gananciaInfo.costoTotal)}
+            </span>
+          </p>
+        </div>
+        <p className="mt-1.5 text-[9px] leading-snug text-slate-500 dark:text-slate-500">
+          Venta − costo
+          {gananciaInfo.lineasSinCosto > 0
+            ? ` · ${gananciaInfo.lineasSinCosto} línea(s) sin costo en catálogo`
+            : ''}
+        </p>
+      </div>
+
       {sesion.notasCierre?.trim() ? (
         <div className="rounded-md border border-slate-200/80 bg-slate-50/80 px-2 py-1.5 dark:border-slate-800/60 dark:bg-slate-900/40">
           <SectionTitle>Notas de cierre</SectionTitle>
@@ -673,7 +887,7 @@ export function CajaCierreReportesDialog({
     setListLoading(true);
     setListError(null);
     try {
-      const rows = await listCajaSesionesFirestore(sucursalId, { limit: 100 });
+      const rows = await listCajaSesionesFirestore(sucursalId, { limit: 200 });
       setSesiones(rows);
       setSelectedId((prev) => {
         if (prev && rows.some((r) => r.id === prev)) return prev;
@@ -866,6 +1080,7 @@ export function CajaCierreReportesDialog({
             metrics={metrics}
             ventas={ventasDetalle}
             abonosCobros={abonosDetalle}
+            sesiones={sesiones}
             sucursalId={sucursalId}
             sucursalLabel={sucursalLabel}
             onSesionUpdated={() => void loadList()}

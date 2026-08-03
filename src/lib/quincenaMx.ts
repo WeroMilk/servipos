@@ -190,3 +190,40 @@ export function getBimonthCycleInfo(dateKey: string): {
     cycleId,
   };
 }
+
+/** `YYYY-MM` en zona Hermosillo. */
+export function getMexicoMonthKey(d: Date = new Date()): string {
+  return getMexicoDateKey(d).slice(0, 7);
+}
+
+/** Número de días del mes calendario `YYYY-MM` (o de la fecha dada). */
+export function daysInMexicoMonth(dateOrMonthKey: Date | string): number {
+  const key =
+    typeof dateOrMonthKey === 'string'
+      ? dateOrMonthKey.length >= 7
+        ? dateOrMonthKey.slice(0, 7)
+        : getMexicoMonthKey()
+      : getMexicoMonthKey(dateOrMonthKey);
+  const [ys, ms] = key.split('-');
+  const y = parseInt(ys!, 10);
+  const m = parseInt(ms!, 10);
+  if (!Number.isFinite(y) || !Number.isFinite(m) || m < 1 || m > 12) return 30;
+  return new Date(y, m, 0).getDate();
+}
+
+/** True si la fecha cae en el último día calendario del mes (zona Hermosillo). */
+export function isLastDayOfMexicoMonth(d: Date = new Date()): boolean {
+  const dateKey = getMexicoDateKey(d);
+  const day = parseInt(dateKey.slice(8, 10), 10);
+  return day === daysInMexicoMonth(dateKey);
+}
+
+/** Ej. `Agosto 2026`. */
+export function mexicoMonthLabelEs(d: Date | string): string {
+  const key = typeof d === 'string' ? d.slice(0, 7) : getMexicoMonthKey(d);
+  const [ys, ms] = key.split('-');
+  const y = parseInt(ys!, 10);
+  const m = parseInt(ms!, 10);
+  const name = MONTHS_ES[m - 1] ?? ms;
+  return `${name} ${y}`;
+}
