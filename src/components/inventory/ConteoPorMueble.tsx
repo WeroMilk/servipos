@@ -78,16 +78,41 @@ export function ConteoPorMueble({
   const popupOpen = pending != null;
   const scannerPaused = popupOpen || saving;
 
-  const previewMap = useMemo(() => {
-    if (!pending || !mueble) return {};
+  const previewQtyHere = useMemo(() => {
+    if (!mueble) return 0;
     const raw = qtyStr.trim().replace(',', '.');
     const n = Number(raw);
-    const qtyHere = Number.isFinite(n) && Number.isInteger(n) && n >= 0 ? n : qtyEnUbicacion(pending.existenciaPorUbicacion, mueble);
-    return mergeExistenciaEnUbicacion(pending.existenciaPorUbicacion, mueble, qtyHere);
+    if (Number.isFinite(n) && Number.isInteger(n) && n >= 0) return n;
+    return qtyEnUbicacion(pending?.existenciaPorUbicacion, mueble);
   }, [pending, mueble, qtyStr]);
 
-  const previewEntries = useMemo(() => entriesExistenciaPorUbicacion(previewMap), [previewMap]);
-  const previewTotal = useMemo(() => sumExistenciaPorUbicacion(previewMap), [previewMap]);
+  const previewMap = useMemo(() => {
+    if (!pending || !mueble) return {};
+    return mergeExistenciaEnUbicacion(pending.existenciaPorUbicacion, mueble, previewQtyHere);
+  }, [pending, mueble, previewQtyHere]);
+
+  const previewEntries = useMemo(() => {
+    const entries = entriesExistenciaPorUbicacion(previewMap);
+    if (!mueble) return entries;
+    const key = normalizeUbicacionKey(mueble);
+    if (!key) return entries;
+    if (entries.some((e) => e.ubicacion === key)) return entries;
+    // Incluir la ubicación actual aunque la cantidad sea 0, para que siempre se vea el desglose.
+    return [
+      ...entries,
+      { ubicacion: key, cantidad: previewQtyHere, label: labelUbicacionInventario(key) },
+    ];
+  }, [previewMap, mueble, previewQtyHere]);
+
+  const previewTotal = useMemo(() => {
+    if (!mueble) return sumExistenciaPorUbicacion(previewMap);
+    const key = normalizeUbicacionKey(mueble);
+    if (previewMap[key] != null) return sumExistenciaPorUbicacion(previewMap);
+    return sumExistenciaPorUbicacion(previewMap) + Math.max(0, previewQtyHere);
+  }, [previewMap, mueble, previewQtyHere]);
+
+  const sistemaTotal = Math.trunc(Number(pending?.existencia) || 0);
+  const tieneDesglosePrevio = Object.keys(pending?.existenciaPorUbicacion ?? {}).length > 0;
 
   const focusGun = useCallback(() => {
     if (isMobile || popupOpen) return;
@@ -453,32 +478,45 @@ export function ConteoPorMueble({
               className="h-12 border-slate-300 bg-white text-center text-xl font-semibold tabular-nums dark:border-slate-700 dark:bg-slate-800"
               disabled={saving}
             />
-            {previewEntries.length > 0 ? (
-              <div className="rounded-md border border-slate-200 bg-white/70 px-2.5 py-2 text-xs dark:border-slate-700 dark:bg-slate-950/40">
-                <p className="mb-1 font-medium text-slate-600 dark:text-slate-400">Desglose por ubicación</p>
-                <ul className="space-y-0.5 text-slate-800 dark:text-slate-200">
-                  {previewEntries.map((e) => (
+            <div className="rounded-md border border-slate-200 bg-white/70 px-2.5 py-2 text-xs dark:border-slate-700 dark:bg-slate-950/40">
+              <p className="mb-1 font-medium text-slate-600 dark:text-slate-400">
+                Cantidad en cada lugar
+              </p>
+              <ul className="space-y-0.5 text-slate-800 dark:text-slate-200">
+                {previewEntries.map((e) => {
+                  const esActual = mueble != null && e.ubicacion === normalizeUbicacionKey(mueble);
+                  return (
                     <li key={e.ubicacion} className="flex justify-between gap-2 tabular-nums">
-                      <span>{e.label}</span>
+                      <span>
+                        {e.label}
+                        {esActual ? (
+                          <span className="ml-1 text-[10px] font-normal text-brand">(aquí)</span>
+                        ) : null}
+                      </span>
                       <span className="font-semibold">{e.cantidad}</span>
                     </li>
-                  ))}
-                  <li className="mt-1 flex justify-between gap-2 border-t border-slate-200 pt-1 font-semibold tabular-nums dark:border-slate-700">
-                    <span>total</span>
-                    <span>{previewTotal}</span>
-                  </li>
-                </ul>
-              </div>
-            ) : (
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Sistema (total): {Math.trunc(Number(pending?.existencia) || 0)}. La cantidad que captures
-                aquí es solo de esta ubicación; al contar en otros muebles se suman.
-              </p>
-            )}
+                  );
+                })}
+                <li className="mt-1 flex justify-between gap-2 border-t border-slate-200 pt-1 font-semibold tabular-nums dark:border-slate-700">
+                  <span>total</span>
+                  <span>{previewTotal}</span>
+                </li>
+              </ul>
+              {!tieneDesglosePrevio && sistemaTotal > 0 ? (
+                <p className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                  Sistema aún tiene {sistemaTotal} en total (sin desglose previo). Al confirmar, el total pasa a la
+                  suma de lo contado por ubicaciones.
+                </p>
+              ) : sistemaTotal !== previewTotal ? (
+                <p className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                  Sistema (existencia actual): {sistemaTotal}
+                </p>
+              ) : null}
+            </div>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               {needsApproval
-                ? ' Si cambia la cantidad, se enviará a aprobación de Gabriel o Zavala.'
-                : ' Modifica si el conteo físico es distinto.'}
+                ? 'Si cambia la cantidad, se enviará a aprobación de Gabriel o Zavala.'
+                : 'Modifica la cantidad de esta ubicación si el conteo físico es distinto.'}
             </p>
           </div>
           <DialogFooter className="gap-2 sm:justify-end">
