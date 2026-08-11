@@ -3255,11 +3255,18 @@ export function Inventario() {
           }
         }}
       >
-        <DialogContent className="bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-h-[92dvh] overflow-auto md:max-w-[min(92vw,64rem)] lg:max-w-[min(92vw,80rem)]">
+        <DialogContent
+          className={cn(
+            'border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 md:max-w-[min(92vw,64rem)] lg:max-w-[min(92vw,80rem)]',
+            editDialogView === 'historial'
+              ? 'flex max-h-[min(92dvh,40rem)] flex-col gap-0 overflow-hidden p-0'
+              : 'max-h-[92dvh] overflow-auto'
+          )}
+        >
           {editDialogView === 'historial' ? (
             <>
-              <DialogHeader>
-                <DialogTitle className="flex flex-wrap items-center gap-2">
+              <DialogHeader className="shrink-0 space-y-1 border-b border-slate-200 px-4 pb-3 pt-4 dark:border-slate-800/80">
+                <DialogTitle className="flex flex-wrap items-center gap-2 pr-6">
                   <Button
                     type="button"
                     variant="outline"
@@ -3282,7 +3289,7 @@ export function Inventario() {
                   ) : null}
                 </DialogDescription>
               </DialogHeader>
-              <div className="min-h-[14rem] py-2">
+              <div className="min-h-0 flex-1 overflow-auto overscroll-contain [-webkit-overflow-scrolling:touch] touch-pan-y px-4 py-3">
                 {productHistorialLoading ? (
                   <div className="space-y-2">
                     {[1, 2, 3, 4, 5].map((i) => (
@@ -3295,7 +3302,7 @@ export function Inventario() {
                     <p className="text-sm">No hay movimientos registrados para este SKU</p>
                   </div>
                 ) : (
-                  <div className="min-w-0 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800/70">
+                  <div className="min-w-0 rounded-lg border border-slate-200 dark:border-slate-800/70">
                     <Table>
                       <TableHeader>
                         <TableRow className="border-slate-200 dark:border-slate-800 hover:bg-transparent">
@@ -3370,7 +3377,7 @@ export function Inventario() {
                   </div>
                 )}
               </div>
-              <DialogFooter>
+              <DialogFooter className="shrink-0 flex-col gap-2 border-t border-slate-200 px-4 py-3 dark:border-slate-800/80 sm:flex-row sm:justify-end">
                 <Button
                   type="button"
                   variant="outline"
