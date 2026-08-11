@@ -6,6 +6,7 @@ import {
   pickBestPrecioVentaRawFromFirestoreDoc,
   coalescePreciosPorListaClienteInputs,
 } from '@/lib/precioListaNorm';
+import { parseExistenciaPorUbicacion } from '@/lib/existenciaPorUbicacion';
 
 /** Evita throws en sort/UI cuando IndexedDB u orígenes devuelven campos incompletos. */
 export function coerceProduct(p: Product): Product {
@@ -41,6 +42,9 @@ export function coerceProduct(p: Product): Product {
     unidadMedida: p.unidadMedida != null ? String(p.unidadMedida) : 'H87',
     preciosPorListaCliente,
     preciosListaIncluyenIva,
+    existenciaPorUbicacion: parseExistenciaPorUbicacion(
+      p.existenciaPorUbicacion ?? rawDoc.existenciaPorUbicacion
+    ),
   };
 }
 

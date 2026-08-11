@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, MapPin, ScanLine } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,14 @@ import {
   productoPerteneceAMueble,
   resolveUbicacionesProducto,
 } from '@/data/ubicacionesMuebleA';
+import {
+  entriesExistenciaPorUbicacion,
+  labelUbicacionInventario,
+  mergeExistenciaEnUbicacion,
+  normalizeUbicacionKey,
+  qtyEnUbicacion,
+  sumExistenciaPorUbicacion,
+} from '@/lib/existenciaPorUbicacion';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useProductSearch, useProducts } from '@/hooks/useProducts';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
@@ -29,7 +37,14 @@ import {
 import { cn } from '@/lib/utils';
 import type { Product } from '@/types';
 
-type CountedLine = { id: string; nombre: string; sku: string; cantidad: number };
+type CountedLine = {
+  id: string;
+  nombre: string;
+  sku: string;
+  mueble: string;
+  cantidadUbicacion: number;
+  total: number;
+};
 
 export function ConteoPorMueble({
   onPendingAdjustCreated,
@@ -42,7 +57,7 @@ export function ConteoPorMueble({
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const canAdjust = hasPermission('inventario:editar') || hasPermission('inventario:mision_ajustar_stock');
   const needsApproval = userNeedsMissionStockAdjustApproval(user);
-  const { adjustStock } = useProducts();
+  const { adjustStock, editProduct } = useProducts();
   const { searchByBarcode } = useProductSearch();
   const { effectiveSucursalId } = useEffectiveSucursalId();
 
@@ -62,6 +77,17 @@ export function ConteoPorMueble({
   const sessionActive = mueble != null;
   const popupOpen = pending != null;
   const scannerPaused = popupOpen || saving;
+
+  const previewMap = useMemo(() => {
+    if (!pending || !mueble) return {};
+    const raw = qtyStr.trim().replace(',', '.');
+    const n = Number(raw);
+    const qtyHere = Number.isFinite(n) && Number.isInteger(n) && n >= 0 ? n : qtyEnUbicacion(pending.existenciaPorUbicacion, mueble);
+    return mergeExistenciaEnUbicacion(pending.existenciaPorUbicacion, mueble, qtyHere);
+  }, [pending, mueble, qtyStr]);
+
+  const previewEntries = useMemo(() => entriesExistenciaPorUbicacion(previewMap), [previewMap]);
+  const previewTotal = useMemo(() => sumExistenciaPorUbicacion(previewMap), [previewMap]);
 
   const focusGun = useCallback(() => {
     if (isMobile || popupOpen) return;
@@ -85,21 +111,42 @@ export function ConteoPorMueble({
   }, [popupOpen, pending?.id]);
 
   const openProductPopup = useCallback(
-    (product: Product, muebleLetra: string) => {
-      if (!productoPerteneceAMueble(product, muebleLetra)) {
-        const slots = resolveUbicacionesProducto(product);
+    async (product: Product, muebleLetra: string) => {
+      const muebleKey = normalizeUbicacionKey(muebleLetra);
+      const slots = resolveUbicacionesProducto(product);
+      let productForPopup = product;
+
+      if (slots.length === 0 && muebleKey) {
+        try {
+          await editProduct(product.id, { ubicacionFisica: muebleKey });
+          productForPopup = { ...product, ubicacionFisica: muebleKey };
+          addToast({
+            type: 'success',
+            message: `Sin ubicación previa: se asignó a ${labelUbicacionInventario(muebleKey)}.`,
+          });
+        } catch (e) {
+          addToast({
+            type: 'warning',
+            message:
+              e instanceof Error
+                ? e.message
+                : `No se pudo guardar la ubicación en ${labelUbicacionInventario(muebleKey)}.`,
+          });
+        }
+      } else if (!productoPerteneceAMueble(product, muebleLetra)) {
         addToast({
           type: 'warning',
           message: slots.length
-            ? `Este artículo está en ${slots.join(', ')}, no en mueble ${muebleLetra}. Igual puedes contarlo.`
-            : `Sin ubicación registrada; se contará en la sesión del mueble ${muebleLetra}.`,
+            ? `Este artículo está en ${slots.join(', ')}, no en ${labelUbicacionInventario(muebleKey)}. Igual puedes contarlo.`
+            : `Sin ubicación registrada; se contará en ${labelUbicacionInventario(muebleKey)}.`,
         });
       }
+
       playBarcodeScannerFeedback('success');
-      setPending(product);
-      setQtyStr(String(Math.max(0, Math.trunc(Number(product.existencia) || 0))));
+      setPending(productForPopup);
+      setQtyStr(String(qtyEnUbicacion(productForPopup.existenciaPorUbicacion, muebleKey)));
     },
-    [addToast]
+    [addToast, editProduct]
   );
 
   const handleScannedCode = useCallback(
@@ -122,7 +169,7 @@ export function ConteoPorMueble({
           setAwaitHint('No encontrado. Escanea otro SKU con la pistola');
           return;
         }
-        openProductPopup(product, mueble);
+        await openProductPopup(product, mueble);
       } finally {
         processingRef.current = false;
       }
@@ -154,8 +201,12 @@ export function ConteoPorMueble({
   const confirmPending = async () => {
     if (!pending || !mueble || !user?.id) return;
     const raw = qtyStr.trim().replace(',', '.');
-    const nueva = Number(raw);
-    if (!Number.isFinite(nueva) || !Number.isInteger(nueva) || nueva < 0) {
+    const nuevaEnUbicacion = Number(raw);
+    if (
+      !Number.isFinite(nuevaEnUbicacion) ||
+      !Number.isInteger(nuevaEnUbicacion) ||
+      nuevaEnUbicacion < 0
+    ) {
       addToast({ type: 'error', message: 'Indique una cantidad entera válida (≥ 0).' });
       return;
     }
@@ -164,44 +215,94 @@ export function ConteoPorMueble({
       return;
     }
 
-    const actual = Math.trunc(Number(pending.existencia) || 0);
+    const muebleKey = normalizeUbicacionKey(mueble);
+    const prevEnUbicacion = qtyEnUbicacion(pending.existenciaPorUbicacion, muebleKey);
+    const nextMap = mergeExistenciaEnUbicacion(
+      pending.existenciaPorUbicacion,
+      muebleKey,
+      nuevaEnUbicacion
+    );
+    const totalAnterior = Math.trunc(Number(pending.existencia) || 0);
+    const totalNuevo = sumExistenciaPorUbicacion(nextMap);
+    const ubicacionCambio = prevEnUbicacion !== nuevaEnUbicacion;
+    const totalCambio = totalNuevo !== totalAnterior;
+
+    if (!ubicacionCambio && !totalCambio) {
+      addToast({ type: 'info', message: 'Cantidad sin cambios.' });
+      setCounted((prev) =>
+        [
+          {
+            id: pending.id,
+            nombre: pending.nombre,
+            sku: pending.sku,
+            mueble: muebleKey,
+            cantidadUbicacion: nuevaEnUbicacion,
+            total: totalNuevo,
+          },
+          ...prev.filter((x) => !(x.id === pending.id && x.mueble === muebleKey)),
+        ].slice(0, 12)
+      );
+      setPending(null);
+      setAwaitHint('Listo. Escanea el siguiente SKU con la pistola');
+      focusGun();
+      return;
+    }
+
+    const label = labelUbicacionInventario(muebleKey);
+    const comentario = `Conteo ${label}: ${nuevaEnUbicacion} (total ${totalNuevo})`;
+
     setSaving(true);
     try {
-      if (nueva !== actual) {
-        if (needsApproval) {
-          if (!effectiveSucursalId) {
-            addToast({ type: 'error', message: 'No hay sucursal activa para registrar la solicitud.' });
-            return;
-          }
-          await createMissionStockAdjustRequest({
-            sucursalId: effectiveSucursalId,
-            productId: pending.id,
-            productNombre: pending.nombre,
-            productSku: pending.sku,
-            cantidadAnterior: actual,
-            cantidadNueva: nueva,
-            comentario: `Conteo mueble ${mueble}`,
-            origen: 'conteo_mueble',
-            mueble,
-            solicitadoPorId: user.id,
-            solicitadoPorNombre: user.name?.trim() || user.username?.trim() || user.email || 'Cajero',
-          });
-          addToast({
-            type: 'success',
-            message: 'Solicitud enviada. Pendiente de aprobación de Gabriel o Zavala.',
-          });
-          onPendingAdjustCreated?.();
-        } else {
-          await adjustStock(pending.id, nueva, 'ajuste', `Conteo mueble ${mueble}`, undefined, user.id);
-          addToast({ type: 'success', message: 'Existencia actualizada.' });
+      if (needsApproval) {
+        if (!effectiveSucursalId) {
+          addToast({ type: 'error', message: 'No hay sucursal activa para registrar la solicitud.' });
+          return;
         }
+        await createMissionStockAdjustRequest({
+          sucursalId: effectiveSucursalId,
+          productId: pending.id,
+          productNombre: pending.nombre,
+          productSku: pending.sku,
+          cantidadAnterior: totalAnterior,
+          cantidadNueva: totalNuevo,
+          comentario,
+          origen: 'conteo_mueble',
+          mueble: muebleKey,
+          cantidadEnUbicacion: nuevaEnUbicacion,
+          existenciaPorUbicacion: nextMap,
+          solicitadoPorId: user.id,
+          solicitadoPorNombre: user.name?.trim() || user.username?.trim() || user.email || 'Cajero',
+        });
+        addToast({
+          type: 'success',
+          message: 'Solicitud enviada. Pendiente de aprobación de Gabriel o Zavala.',
+        });
+        onPendingAdjustCreated?.();
       } else {
-        addToast({ type: 'info', message: 'Cantidad sin cambios.' });
+        await editProduct(pending.id, { existenciaPorUbicacion: nextMap });
+        if (totalCambio) {
+          await adjustStock(pending.id, totalNuevo, 'ajuste', comentario, undefined, user.id);
+        }
+        addToast({
+          type: 'success',
+          message: totalCambio
+            ? `Guardado: ${label} ${nuevaEnUbicacion} · total ${totalNuevo}`
+            : `Desglose actualizado: ${label} ${nuevaEnUbicacion}`,
+        });
       }
-      setCounted((prev) => [
-        { id: pending.id, nombre: pending.nombre, sku: pending.sku, cantidad: nueva },
-        ...prev.filter((x) => x.id !== pending.id),
-      ].slice(0, 12));
+      setCounted((prev) =>
+        [
+          {
+            id: pending.id,
+            nombre: pending.nombre,
+            sku: pending.sku,
+            mueble: muebleKey,
+            cantidadUbicacion: nuevaEnUbicacion,
+            total: totalNuevo,
+          },
+          ...prev.filter((x) => !(x.id === pending.id && x.mueble === muebleKey)),
+        ].slice(0, 12)
+      );
       setPending(null);
       setAwaitHint('Listo. Escanea el siguiente SKU con la pistola');
       focusGun();
@@ -221,7 +322,8 @@ export function ConteoPorMueble({
         <div>
           <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Conteo por mueble</h2>
           <p className="mt-0.5 text-sm text-slate-600 dark:text-slate-400">
-            Elige el mueble a inventariar. En móvil usa la cámara; en PC, la pistola escaneadora.
+            Elige el mueble a inventariar. Al contar el mismo SKU en otro lugar, las cantidades se suman al
+            total. En móvil usa la cámara; en PC, la pistola escaneadora.
           </p>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain rounded-xl border border-slate-200 bg-slate-50/80 p-2 dark:border-slate-800 dark:bg-slate-950/40 sm:p-3">
@@ -251,7 +353,7 @@ export function ConteoPorMueble({
         </Button>
         <span className="inline-flex items-center gap-1.5 rounded-full bg-brand/15 px-2.5 py-1 text-sm font-semibold text-brand-to dark:text-brand">
           <MapPin className="h-3.5 w-3.5" aria-hidden />
-          Mueble {mueble}
+          {labelUbicacionInventario(mueble)}
         </span>
         <span className="text-xs text-slate-500 dark:text-slate-400">{counted.length} contado(s) en esta sesión</span>
       </div>
@@ -295,11 +397,15 @@ export function ConteoPorMueble({
           <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-slate-500">Últimos contados</p>
           <ul className="max-h-24 space-y-0.5 overflow-y-auto text-xs text-slate-700 dark:text-slate-300">
             {counted.map((c) => (
-              <li key={`${c.id}-${c.cantidad}`} className="flex justify-between gap-2">
+              <li key={`${c.id}-${c.mueble}-${c.cantidadUbicacion}`} className="flex justify-between gap-2">
                 <span className="min-w-0 truncate">
                   {c.nombre} <span className="font-mono text-slate-500">({c.sku})</span>
+                  <span className="text-slate-500"> · {labelUbicacionInventario(c.mueble)}</span>
                 </span>
-                <span className="shrink-0 tabular-nums font-semibold">{c.cantidad}</span>
+                <span className="shrink-0 tabular-nums font-semibold">
+                  {c.cantidadUbicacion}
+                  <span className="font-normal text-slate-500"> / tot {c.total}</span>
+                </span>
               </li>
             ))}
           </ul>
@@ -322,14 +428,16 @@ export function ConteoPorMueble({
               {pending ? (
                 <>
                   {' '}
-                  · Ubicación:{' '}
+                  · Ubicación ficha:{' '}
                   {resolveUbicacionesProducto(pending).join(', ') || 'sin registrar'}
                 </>
               ) : null}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2 py-1">
-            <Label htmlFor="conteo-mueble-qty">Cantidad en existencia</Label>
+            <Label htmlFor="conteo-mueble-qty">
+              Cantidad en {mueble ? labelUbicacionInventario(mueble) : 'esta ubicación'}
+            </Label>
             <Input
               id="conteo-mueble-qty"
               ref={qtyInputRef}
@@ -345,8 +453,29 @@ export function ConteoPorMueble({
               className="h-12 border-slate-300 bg-white text-center text-xl font-semibold tabular-nums dark:border-slate-700 dark:bg-slate-800"
               disabled={saving}
             />
+            {previewEntries.length > 0 ? (
+              <div className="rounded-md border border-slate-200 bg-white/70 px-2.5 py-2 text-xs dark:border-slate-700 dark:bg-slate-950/40">
+                <p className="mb-1 font-medium text-slate-600 dark:text-slate-400">Desglose por ubicación</p>
+                <ul className="space-y-0.5 text-slate-800 dark:text-slate-200">
+                  {previewEntries.map((e) => (
+                    <li key={e.ubicacion} className="flex justify-between gap-2 tabular-nums">
+                      <span>{e.label}</span>
+                      <span className="font-semibold">{e.cantidad}</span>
+                    </li>
+                  ))}
+                  <li className="mt-1 flex justify-between gap-2 border-t border-slate-200 pt-1 font-semibold tabular-nums dark:border-slate-700">
+                    <span>total</span>
+                    <span>{previewTotal}</span>
+                  </li>
+                </ul>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Sistema (total): {Math.trunc(Number(pending?.existencia) || 0)}. La cantidad que captures
+                aquí es solo de esta ubicación; al contar en otros muebles se suman.
+              </p>
+            )}
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Sistema: {Math.trunc(Number(pending?.existencia) || 0)}.
               {needsApproval
                 ? ' Si cambia la cantidad, se enviará a aprobación de Gabriel o Zavala.'
                 : ' Modifica si el conteo físico es distinto.'}

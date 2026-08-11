@@ -52,11 +52,34 @@ describe('missionStockAdjustRequests', () => {
           solicitadoPorNombre: 'Alfonso',
           createdAt: '2026-07-25T12:00:00.000Z',
         },
+        {
+          id: 'r2',
+          productId: 'p2',
+          productNombre: 'Tornillo',
+          productSku: '123',
+          cantidadAnterior: 15,
+          cantidadNueva: 525,
+          comentario: 'Conteo bodega: 500 (total 525)',
+          origen: 'conteo_mueble',
+          mueble: 'bodega',
+          cantidadEnUbicacion: 500,
+          existenciaPorUbicacion: { Mostrador: 15, B: 10, Bodega: 500 },
+          solicitadoPorId: 'u-alfonso',
+          solicitadoPorNombre: 'Alfonso',
+          createdAt: '2026-07-25T12:05:00.000Z',
+        },
         { id: '', productId: 'bad' },
       ],
       updatedAt: '2026-07-25T12:00:00.000Z',
     });
-    expect(doc.items).toHaveLength(1);
+    expect(doc.items).toHaveLength(2);
     expect(doc.items[0]?.cantidadNueva).toBe(560);
+    expect(doc.items[1]?.mueble).toBe('Bodega');
+    expect(doc.items[1]?.cantidadEnUbicacion).toBe(500);
+    expect(doc.items[1]?.existenciaPorUbicacion).toEqual({
+      Mostrador: 15,
+      B: 10,
+      Bodega: 500,
+    });
   });
 });

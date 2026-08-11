@@ -70,7 +70,7 @@ export function MisionInventario() {
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const navigate = useNavigate();
   const { addToast } = useAppStore();
-  const { products, loading, adjustStock } = useProducts();
+  const { products, loading, adjustStock, editProduct } = useProducts();
   const { effectiveSucursalId } = useEffectiveSucursalId();
 
   const [missionTab, setMissionTab] = useState<MissionTab>('mueble');
@@ -415,14 +415,21 @@ export function MisionInventario() {
           removed.solicitadoPorNombre ? `por ${removed.solicitadoPorNombre}` : '',
           removed.comentario ? `: ${removed.comentario}` : '',
         ].filter(Boolean);
-        await adjustStock(
-          removed.productId,
-          removed.cantidadNueva,
-          'ajuste',
-          motivoParts.join(' '),
-          undefined,
-          user.id
-        );
+        if (removed.existenciaPorUbicacion) {
+          await editProduct(removed.productId, {
+            existenciaPorUbicacion: removed.existenciaPorUbicacion,
+          });
+        }
+        if (removed.cantidadAnterior !== removed.cantidadNueva) {
+          await adjustStock(
+            removed.productId,
+            removed.cantidadNueva,
+            'ajuste',
+            motivoParts.join(' '),
+            undefined,
+            user.id
+          );
+        }
         addToast({
           type: 'success',
           message: `Ajuste aprobado: ${removed.productNombre || removed.productSku}`,
@@ -443,6 +450,7 @@ export function MisionInventario() {
       user?.id,
       canApproveStockAdjust,
       adjustStock,
+      editProduct,
       addToast,
       refreshStockAdjustRequests,
     ]
@@ -618,8 +626,12 @@ export function MisionInventario() {
                         {req.productNombre || 'Producto'}
                       </p>
                       <p className="text-xs text-slate-600 dark:text-slate-400">
-                        SKU {req.productSku || '—'} · {req.cantidadAnterior} → {req.cantidadNueva}
-                        {req.mueble ? ` · mueble ${req.mueble}` : ''}
+                        SKU {req.productSku || '—'} · total {req.cantidadAnterior} → {req.cantidadNueva}
+                        {req.mueble
+                          ? ` · ${req.mueble}${
+                              req.cantidadEnUbicacion != null ? `: ${req.cantidadEnUbicacion}` : ''
+                            }`
+                          : ''}
                       </p>
                       <p className="text-xs text-slate-500 dark:text-slate-500">
                         Solicitó {req.solicitadoPorNombre}

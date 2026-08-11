@@ -1943,7 +1943,7 @@ export const MUEBLE_LETRAS: readonly string[] = (() => {
       return `${ch}${ch}`;
     }),
   ];
-  return ['Mostrador', 'BANDAS', 'Cajonera', ...singles, ...doubles];
+  return ['Mostrador', 'BANDAS', 'Cajonera', 'Bodega', ...singles, ...doubles];
 })();
 
 /** ¿El slot (A3, AA, PP1…) pertenece al mueble elegido (A, AA, PP…)? */

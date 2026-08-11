@@ -196,6 +196,12 @@ export interface Product {
    * Si falta, la UI infiere desde el mapa estático por SKU.
    */
   ubicacionFisica?: string;
+  /**
+   * Cantidades contadas por ubicación de inventario (Mostrador, BANDAS, Cajonera, Bodega, A–Z…).
+   * La existencia vendible (`existencia`) debe coincidir con la suma de este mapa tras un conteo.
+   * Las ventas solo mueven `existencia`; este desglose es para inventario físico.
+   */
+  existenciaPorUbicacion?: Record<string, number>;
   activo: boolean;
   createdAt: Date;
   updatedAt: Date;

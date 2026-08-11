@@ -4,6 +4,10 @@ import {
 } from '@/lib/firestore/stateDocsFirestore';
 import { isGabrielUser, isZavalaUser } from '@/lib/gabrielEasterEgg';
 import { userIsGerenteOrAdmin } from '@/lib/userPermissions';
+import {
+  normalizeUbicacionKey,
+  parseExistenciaPorUbicacion,
+} from '@/lib/existenciaPorUbicacion';
 import type { User } from '@/types';
 
 export const MISSION_STOCK_ADJUST_REQUESTS_DOC_KEY = 'mission_stock_adjust_requests';
@@ -20,6 +24,10 @@ export type MissionStockAdjustRequest = {
   comentario: string;
   origen: MissionStockAdjustOrigen;
   mueble?: string;
+  /** Cantidad contada en el mueble (solo conteo por ubicación). */
+  cantidadEnUbicacion?: number;
+  /** Desglose resultante tras el conteo; al aprobar se persiste en el producto. */
+  existenciaPorUbicacion?: Record<string, number>;
   solicitadoPorId: string;
   solicitadoPorNombre: string;
   createdAt: string;
@@ -74,8 +82,14 @@ function normalizeRequest(raw: unknown): MissionStockAdjustRequest | null {
     createdAt: typeof o.createdAt === 'string' ? o.createdAt : new Date().toISOString(),
   };
   if (typeof o.mueble === 'string' && o.mueble.trim()) {
-    item.mueble = o.mueble.trim().toUpperCase();
+    item.mueble = normalizeUbicacionKey(o.mueble);
   }
+  const qtyUbic = Math.trunc(Number(o.cantidadEnUbicacion));
+  if (Number.isFinite(qtyUbic) && qtyUbic >= 0) {
+    item.cantidadEnUbicacion = qtyUbic;
+  }
+  const map = parseExistenciaPorUbicacion(o.existenciaPorUbicacion);
+  if (map) item.existenciaPorUbicacion = map;
   return item;
 }
 
@@ -129,6 +143,8 @@ export type CreateMissionStockAdjustInput = {
   comentario?: string;
   origen: MissionStockAdjustOrigen;
   mueble?: string;
+  cantidadEnUbicacion?: number;
+  existenciaPorUbicacion?: Record<string, number>;
   solicitadoPorId: string;
   solicitadoPorNombre: string;
 };
@@ -146,7 +162,8 @@ export async function createMissionStockAdjustRequest(
   if (!Number.isFinite(cantidadAnterior) || !Number.isFinite(cantidadNueva) || cantidadNueva < 0) {
     throw new Error('Cantidades inválidas');
   }
-  if (cantidadAnterior === cantidadNueva) {
+  const map = parseExistenciaPorUbicacion(input.existenciaPorUbicacion);
+  if (cantidadAnterior === cantidadNueva && !map) {
     throw new Error('La cantidad no cambió');
   }
 
@@ -168,7 +185,12 @@ export async function createMissionStockAdjustRequest(
     solicitadoPorNombre: input.solicitadoPorNombre.trim() || 'Cajero',
     createdAt: now,
   };
-  if (input.mueble?.trim()) request.mueble = input.mueble.trim().toUpperCase();
+  if (input.mueble?.trim()) request.mueble = normalizeUbicacionKey(input.mueble);
+  const qtyUbic = Math.trunc(Number(input.cantidadEnUbicacion));
+  if (Number.isFinite(qtyUbic) && qtyUbic >= 0) {
+    request.cantidadEnUbicacion = qtyUbic;
+  }
+  if (map) request.existenciaPorUbicacion = map;
 
   const items = current.items.filter(
     (x) => !(x.productId === productId && x.solicitadoPorId === request.solicitadoPorId)

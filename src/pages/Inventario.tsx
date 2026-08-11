@@ -15,8 +15,10 @@ import {
   CircleDollarSign,
   ArrowDown,
   ArrowUp,
+  ArrowLeft,
   Download,
   MapPin,
+  History,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -692,6 +694,9 @@ export function Inventario() {
   const [productEntradasHist, setProductEntradasHist] = useState<InventoryMovement[]>([]);
   const [productEntradasHistLoading, setProductEntradasHistLoading] = useState(false);
   const [editPreciosSectionOpen, setEditPreciosSectionOpen] = useState(false);
+  const [editDialogView, setEditDialogView] = useState<'edit' | 'historial'>('edit');
+  const [productHistorialMovs, setProductHistorialMovs] = useState<InventoryMovement[]>([]);
+  const [productHistorialLoading, setProductHistorialLoading] = useState(false);
   const [addPrecioIvaMode, setAddPrecioIvaMode] = useState<InventarioPrecioIvaMode>('sin');
   const [editPrecioIvaMode, setEditPrecioIvaMode] = useState<InventarioPrecioIvaMode>('sin');
   const [editPreciosListaIvaMode, setEditPreciosListaIvaMode] = useState<InventarioPrecioIvaMode>('sin');
@@ -1303,6 +1308,8 @@ export function Inventario() {
     });
     setStockQtyFocus(false);
     setEditPreciosSectionOpen(false);
+    setEditDialogView('edit');
+    setProductHistorialMovs([]);
     setEditPrecioIvaMode('sin');
     setEditPreciosListaIvaMode('sin');
     setShowEditDialog(true);
@@ -1410,6 +1417,33 @@ export function Inventario() {
       cancelled = true;
     };
   }, [preciosDialogOpen, preciosDialogProduct?.id, effectiveSucursalId]);
+
+  useEffect(() => {
+    if (!showEditDialog || editDialogView !== 'historial' || !selectedProduct) {
+      if (editDialogView !== 'historial') {
+        setProductHistorialMovs([]);
+        setProductHistorialLoading(false);
+      }
+      return;
+    }
+    const pid = selectedProduct.id;
+    let cancelled = false;
+    setProductHistorialLoading(true);
+    setProductHistorialMovs([]);
+    void getInventoryMovementsByProductId(pid, { sucursalId: effectiveSucursalId, limit: 500 })
+      .then((rows: InventoryMovement[]) => {
+        if (!cancelled) setProductHistorialMovs(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setProductHistorialMovs([]);
+      })
+      .finally(() => {
+        if (!cancelled) setProductHistorialLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showEditDialog, editDialogView, selectedProduct?.id, effectiveSucursalId]);
 
   const valorInventarioTotal = useMemo(
     () =>
@@ -3207,6 +3241,8 @@ export function Inventario() {
           if (!open) {
             setSelectedProduct(null);
             setEditPreciosSectionOpen(false);
+            setEditDialogView('edit');
+            setProductHistorialMovs([]);
             setEditPrecioIvaMode('sin');
             setEditPreciosListaIvaMode('sin');
             setStockAdjustment({
@@ -3220,6 +3256,140 @@ export function Inventario() {
         }}
       >
         <DialogContent className="bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-h-[92dvh] overflow-auto md:max-w-[min(92vw,64rem)] lg:max-w-[min(92vw,80rem)]">
+          {editDialogView === 'historial' ? (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 border-slate-300 dark:border-slate-600"
+                    onClick={() => setEditDialogView('edit')}
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    Volver
+                  </Button>
+                  <span>Historial del SKU</span>
+                </DialogTitle>
+                <DialogDescription className="text-left text-slate-600 dark:text-slate-400">
+                  Llegadas, salidas, ventas, ajustes y cambios de catálogo de este artículo.
+                  {selectedProduct ? (
+                    <span className="mt-1 block font-medium text-slate-800 dark:text-slate-200">
+                      {selectedProduct.nombre}
+                      <span className="font-normal text-slate-500"> · SKU {selectedProduct.sku}</span>
+                    </span>
+                  ) : null}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="min-h-[14rem] py-2">
+                {productHistorialLoading ? (
+                  <div className="space-y-2">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-200/80 dark:bg-slate-800/50" />
+                    ))}
+                  </div>
+                ) : productHistorialMovs.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-slate-600 dark:text-slate-500">
+                    <Clock className="mb-2 h-10 w-10 opacity-50" />
+                    <p className="text-sm">No hay movimientos registrados para este SKU</p>
+                  </div>
+                ) : (
+                  <div className="min-w-0 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800/70">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-slate-200 dark:border-slate-800 hover:bg-transparent">
+                          <TableHead className="whitespace-nowrap text-slate-600 dark:text-slate-400">
+                            Fecha y hora
+                          </TableHead>
+                          <TableHead className="whitespace-nowrap text-slate-600 dark:text-slate-400">Tipo</TableHead>
+                          <TableHead className="whitespace-nowrap text-right text-slate-600 dark:text-slate-400">
+                            Antes
+                          </TableHead>
+                          <TableHead className="whitespace-nowrap text-right text-slate-600 dark:text-slate-400">
+                            Después
+                          </TableHead>
+                          <TableHead className="min-w-[6rem] text-slate-600 dark:text-slate-400">Proveedor</TableHead>
+                          <TableHead className="whitespace-nowrap text-right text-slate-600 dark:text-slate-400">
+                            P. compra
+                          </TableHead>
+                          <TableHead className="min-w-[8rem] text-slate-600 dark:text-slate-400">Motivo</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {productHistorialMovs.map((mov) => {
+                          const when = mov.createdAt instanceof Date ? mov.createdAt : new Date(mov.createdAt);
+                          const motivo = mov.motivo?.trim() || '—';
+                          const pu = mov.precioUnitarioCompra;
+                          const cat = isCatalogInventoryMovement(mov.tipo);
+                          return (
+                            <TableRow
+                              key={mov.id}
+                              className="border-slate-200 dark:border-slate-800/80 hover:bg-slate-200/40 dark:hover:bg-slate-800/30"
+                            >
+                              <TableCell className="whitespace-nowrap text-xs text-slate-700 dark:text-slate-300">
+                                {formatInAppTimezone(when, {
+                                  dateStyle: 'short',
+                                  timeStyle: 'short',
+                                })}
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap text-xs text-slate-600 dark:text-slate-400">
+                                {tipoMovimientoLabel(mov.tipo)}
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap text-right tabular-nums text-slate-800 dark:text-slate-200">
+                                {cat ? '—' : mov.cantidadAnterior}
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap text-right tabular-nums font-medium text-brand dark:text-brand">
+                                {cat ? '—' : mov.cantidadNueva}
+                              </TableCell>
+                              <TableCell className="max-w-[12rem] text-xs text-slate-700 dark:text-slate-300">
+                                {cat
+                                  ? '—'
+                                  : formatProveedorHistorialLineaResuelto(
+                                      mov.proveedor,
+                                      mov.proveedorCodigo,
+                                      proveedoresLista
+                                    ) || '—'}
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap text-right text-xs tabular-nums text-slate-700 dark:text-slate-300">
+                                {cat ? '—' : pu != null && Number.isFinite(pu) ? formatMoney(pu) : '—'}
+                              </TableCell>
+                              <TableCell
+                                className="max-w-[14rem] text-xs text-slate-700 dark:text-slate-300"
+                                title={motivo !== '—' ? motivo : undefined}
+                              >
+                                <span className={cat ? 'line-clamp-4 whitespace-pre-wrap' : 'line-clamp-2'}>
+                                  {motivo}
+                                </span>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setEditDialogView('edit')}
+                  className="border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400"
+                >
+                  Volver a editar
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => setShowEditDialog(false)}
+                  className="bg-brand-gradient text-white"
+                >
+                  Cerrar
+                </Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
           <DialogHeader>
             <DialogTitle>Editar producto</DialogTitle>
             <DialogDescription className="text-left text-slate-600 dark:text-slate-400">
@@ -3536,17 +3706,29 @@ export function Inventario() {
           </div>
 
           <div className="mt-3 border-t border-slate-200 pt-4 dark:border-slate-800">
-            <Button
-              type="button"
-              variant={editPreciosSectionOpen ? 'secondary' : 'outline'}
-              size="sm"
-              className="gap-2 border-slate-300 dark:border-slate-600"
-              aria-expanded={editPreciosSectionOpen}
-              onClick={() => setEditPreciosSectionOpen((v) => !v)}
-            >
-              <CircleDollarSign className="h-4 w-4 shrink-0" />
-              Precios
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant={editPreciosSectionOpen ? 'secondary' : 'outline'}
+                size="sm"
+                className="gap-2 border-slate-300 dark:border-slate-600"
+                aria-expanded={editPreciosSectionOpen}
+                onClick={() => setEditPreciosSectionOpen((v) => !v)}
+              >
+                <CircleDollarSign className="h-4 w-4 shrink-0" />
+                Precios
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-2 border-slate-300 dark:border-slate-600"
+                onClick={() => setEditDialogView('historial')}
+              >
+                <History className="h-4 w-4 shrink-0" />
+                Historial
+              </Button>
+            </div>
             {editPreciosSectionOpen ? (
               <div className="mt-3 space-y-3">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -3807,6 +3989,8 @@ export function Inventario() {
               Actualizar Producto
             </Button>
           </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 

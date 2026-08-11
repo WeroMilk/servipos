@@ -10,6 +10,7 @@ import { normalizeClaveUnidadSat, resolveClaveProdServ } from '@/lib/satCatalog'
 import { normSkuBarcode } from '@/lib/productCatalogUniqueness';
 import { createDebouncedAsyncFn } from '@/lib/debouncedAsync';
 import { getSupabase } from '@/lib/supabaseClient';
+import { parseExistenciaPorUbicacion } from '@/lib/existenciaPorUbicacion';
 import {
   buildProductSearchIndex,
   findProductByBarcodeInIndex,
@@ -201,6 +202,7 @@ export function docToProduct(row: { id: string; doc: Record<string, unknown> }):
       const u = d.ubicacionFisica != null ? String(d.ubicacionFisica).trim() : '';
       return u || undefined;
     })(),
+    existenciaPorUbicacion: parseExistenciaPorUbicacion(d.existenciaPorUbicacion),
     activo: d.activo !== false,
     createdAt: firestoreTimestampToDate(d.createdAt),
     updatedAt: firestoreTimestampToDate(d.updatedAt),
@@ -233,6 +235,10 @@ function productToDocPayload(
     claveProdServ: resolveClaveProdServ(product.claveProdServ),
     esServicio: product.esServicio === true ? true : null,
     ubicacionFisica: product.ubicacionFisica?.trim() ? product.ubicacionFisica.trim() : null,
+    existenciaPorUbicacion:
+      product.existenciaPorUbicacion && Object.keys(product.existenciaPorUbicacion).length > 0
+        ? product.existenciaPorUbicacion
+        : null,
     activo: product.activo,
   };
 }
@@ -463,6 +469,11 @@ export async function updateProductFirestore(
   if ('ubicacionFisica' in updates) {
     const u = updates.ubicacionFisica?.trim() ?? '';
     doc.ubicacionFisica = u || null;
+  }
+  if ('existenciaPorUbicacion' in updates) {
+    const m = updates.existenciaPorUbicacion;
+    doc.existenciaPorUbicacion =
+      m && typeof m === 'object' && Object.keys(m).length > 0 ? m : null;
   }
   if ('preciosPorListaCliente' in updates && updates.preciosPorListaCliente !== undefined) {
     const m = updates.preciosPorListaCliente;
