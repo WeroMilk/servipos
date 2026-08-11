@@ -20,12 +20,17 @@ import {
 } from '@/data/ubicacionesMuebleA';
 import {
   entriesExistenciaPorUbicacion,
+  isUbicacionConteoInicial,
   labelUbicacionInventario,
   mergeExistenciaEnUbicacion,
   normalizeUbicacionKey,
+  parseExistenciaPorUbicacion,
   qtyEnUbicacion,
+  resolveExistenciaPorUbicacionEfectiva,
   sumExistenciaPorUbicacion,
+  UBICACIONES_CONTEO_INICIAL,
 } from '@/lib/existenciaPorUbicacion';
+import { productEsServicio } from '@/lib/productServicio';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useProductSearch, useProducts } from '@/hooks/useProducts';
 import { useEffectiveSucursalId } from '@/hooks/useEffectiveSucursalId';
@@ -57,9 +62,10 @@ export function ConteoPorMueble({
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const canAdjust = hasPermission('inventario:editar') || hasPermission('inventario:mision_ajustar_stock');
   const needsApproval = userNeedsMissionStockAdjustApproval(user);
-  const { adjustStock, editProduct } = useProducts();
+  const { products, adjustStock, editProduct } = useProducts();
   const { searchByBarcode } = useProductSearch();
   const { effectiveSucursalId } = useEffectiveSucursalId();
+  const seededMueblesRef = useRef(new Set<string>());
 
   const [mueble, setMueble] = useState<string | null>(null);
   const [pending, setPending] = useState<Product | null>(null);
@@ -78,18 +84,23 @@ export function ConteoPorMueble({
   const popupOpen = pending != null;
   const scannerPaused = popupOpen || saving;
 
+  const pendingMapEfectivo = useMemo(() => {
+    if (!pending) return undefined;
+    return resolveExistenciaPorUbicacionEfectiva(pending, { sesionMueble: mueble });
+  }, [pending, mueble]);
+
   const previewQtyHere = useMemo(() => {
     if (!mueble) return 0;
     const raw = qtyStr.trim().replace(',', '.');
     const n = Number(raw);
     if (Number.isFinite(n) && Number.isInteger(n) && n >= 0) return n;
-    return qtyEnUbicacion(pending?.existenciaPorUbicacion, mueble);
-  }, [pending, mueble, qtyStr]);
+    return qtyEnUbicacion(pendingMapEfectivo, mueble);
+  }, [pendingMapEfectivo, mueble, qtyStr]);
 
   const previewMap = useMemo(() => {
     if (!pending || !mueble) return {};
-    return mergeExistenciaEnUbicacion(pending.existenciaPorUbicacion, mueble, previewQtyHere);
-  }, [pending, mueble, previewQtyHere]);
+    return mergeExistenciaEnUbicacion(pendingMapEfectivo, mueble, previewQtyHere);
+  }, [pending, mueble, pendingMapEfectivo, previewQtyHere]);
 
   const previewEntries = useMemo(() => {
     const entries = entriesExistenciaPorUbicacion(previewMap);
@@ -135,29 +146,53 @@ export function ConteoPorMueble({
     return () => window.clearTimeout(t);
   }, [popupOpen, pending?.id]);
 
+  const seedExistenciaInicialMueble = useCallback(
+    async (muebleLetra: string) => {
+      const muebleKey = normalizeUbicacionKey(muebleLetra);
+      if (!isUbicacionConteoInicial(muebleKey) || seededMueblesRef.current.has(muebleKey)) return;
+      seededMueblesRef.current.add(muebleKey);
+      let seeded = 0;
+      for (const p of products) {
+        if (productEsServicio(p)) continue;
+        if (parseExistenciaPorUbicacion(p.existenciaPorUbicacion)) continue;
+        if (!productoPerteneceAMueble(p, muebleKey)) continue;
+        const map = resolveExistenciaPorUbicacionEfectiva(p, { sesionMueble: muebleKey });
+        if (!map) continue;
+        try {
+          await editProduct(p.id, { existenciaPorUbicacion: map });
+          seeded += 1;
+        } catch {
+          /* sigue con el siguiente */
+        }
+      }
+      if (seeded > 0) {
+        addToast({
+          type: 'success',
+          message: `Inventario de ${labelUbicacionInventario(muebleKey)}: se cargó el total en ${seeded} artículo(s).`,
+        });
+      }
+    },
+    [products, editProduct, addToast]
+  );
+
+  useEffect(() => {
+    if (products.length === 0) return;
+    void (async () => {
+      for (const u of UBICACIONES_CONTEO_INICIAL) {
+        await seedExistenciaInicialMueble(u);
+      }
+    })();
+  }, [products.length, seedExistenciaInicialMueble]);
+
   const openProductPopup = useCallback(
     async (product: Product, muebleLetra: string) => {
       const muebleKey = normalizeUbicacionKey(muebleLetra);
       const slots = resolveUbicacionesProducto(product);
       let productForPopup = product;
+      const updates: Partial<Product> = {};
 
       if (slots.length === 0 && muebleKey) {
-        try {
-          await editProduct(product.id, { ubicacionFisica: muebleKey });
-          productForPopup = { ...product, ubicacionFisica: muebleKey };
-          addToast({
-            type: 'success',
-            message: `Sin ubicación previa: se asignó a ${labelUbicacionInventario(muebleKey)}.`,
-          });
-        } catch (e) {
-          addToast({
-            type: 'warning',
-            message:
-              e instanceof Error
-                ? e.message
-                : `No se pudo guardar la ubicación en ${labelUbicacionInventario(muebleKey)}.`,
-          });
-        }
+        updates.ubicacionFisica = muebleKey;
       } else if (!productoPerteneceAMueble(product, muebleLetra)) {
         addToast({
           type: 'warning',
@@ -167,9 +202,47 @@ export function ConteoPorMueble({
         });
       }
 
+      const mapEfectivo = resolveExistenciaPorUbicacionEfectiva(
+        { ...product, ...updates },
+        { sesionMueble: muebleKey }
+      );
+      if (mapEfectivo && !parseExistenciaPorUbicacion(product.existenciaPorUbicacion)) {
+        updates.existenciaPorUbicacion = mapEfectivo;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        try {
+          await editProduct(product.id, updates);
+          productForPopup = { ...product, ...updates };
+          if (updates.ubicacionFisica) {
+            addToast({
+              type: 'success',
+              message: `Sin ubicación previa: se asignó a ${labelUbicacionInventario(muebleKey)}.`,
+            });
+          }
+        } catch (e) {
+          addToast({
+            type: 'warning',
+            message:
+              e instanceof Error
+                ? e.message
+                : `No se pudo guardar datos de ubicación en ${labelUbicacionInventario(muebleKey)}.`,
+          });
+          if (mapEfectivo) {
+            productForPopup = { ...product, existenciaPorUbicacion: mapEfectivo, ...updates };
+          }
+        }
+      }
+
+      const effective = resolveExistenciaPorUbicacionEfectiva(productForPopup, {
+        sesionMueble: muebleKey,
+      });
       playBarcodeScannerFeedback('success');
-      setPending(productForPopup);
-      setQtyStr(String(qtyEnUbicacion(productForPopup.existenciaPorUbicacion, muebleKey)));
+      setPending({
+        ...productForPopup,
+        existenciaPorUbicacion: effective ?? productForPopup.existenciaPorUbicacion,
+      });
+      setQtyStr(String(qtyEnUbicacion(effective, muebleKey)));
     },
     [addToast, editProduct]
   );
@@ -208,6 +281,7 @@ export function ConteoPorMueble({
     setPending(null);
     setGunBuffer('');
     setAwaitHint('Escanea un SKU o código de barras con la pistola');
+    void seedExistenciaInicialMueble(letra);
   };
 
   const endMueble = () => {
@@ -241,12 +315,11 @@ export function ConteoPorMueble({
     }
 
     const muebleKey = normalizeUbicacionKey(mueble);
-    const prevEnUbicacion = qtyEnUbicacion(pending.existenciaPorUbicacion, muebleKey);
-    const nextMap = mergeExistenciaEnUbicacion(
-      pending.existenciaPorUbicacion,
-      muebleKey,
-      nuevaEnUbicacion
-    );
+    const baseMap =
+      resolveExistenciaPorUbicacionEfectiva(pending, { sesionMueble: muebleKey }) ??
+      pending.existenciaPorUbicacion;
+    const prevEnUbicacion = qtyEnUbicacion(baseMap, muebleKey);
+    const nextMap = mergeExistenciaEnUbicacion(baseMap, muebleKey, nuevaEnUbicacion);
     const totalAnterior = Math.trunc(Number(pending.existencia) || 0);
     const totalNuevo = sumExistenciaPorUbicacion(nextMap);
     const ubicacionCambio = prevEnUbicacion !== nuevaEnUbicacion;
@@ -502,10 +575,18 @@ export function ConteoPorMueble({
                   <span>{previewTotal}</span>
                 </li>
               </ul>
-              {!tieneDesglosePrevio && sistemaTotal > 0 ? (
+              {!tieneDesglosePrevio &&
+              mueble &&
+              isUbicacionConteoInicial(mueble) &&
+              sistemaTotal === previewTotal ? (
                 <p className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-                  Sistema aún tiene {sistemaTotal} en total (sin desglose previo). Al confirmar, el total pasa a la
-                  suma de lo contado por ubicaciones.
+                  El total del sistema ({sistemaTotal}) se tomó como cantidad de{' '}
+                  {labelUbicacionInventario(mueble)} (inventario de ayer).
+                </p>
+              ) : !tieneDesglosePrevio && sistemaTotal > 0 && sistemaTotal !== previewTotal ? (
+                <p className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                  Sistema aún tiene {sistemaTotal} en total. Al confirmar, el total pasa a la suma por ubicaciones (
+                  {previewTotal}).
                 </p>
               ) : sistemaTotal !== previewTotal ? (
                 <p className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">

@@ -1,14 +1,26 @@
-import { MUEBLE_LETRAS } from '@/data/ubicacionesMuebleA';
+import {
+  MUEBLE_LETRAS,
+  productoPerteneceAMueble,
+  resolveUbicacionesProducto,
+} from '@/data/ubicacionesMuebleA';
 
 const KNOWN_UBICACION_BY_UPPER = new Map(
   MUEBLE_LETRAS.map((letra) => [letra.trim().toUpperCase(), letra] as const)
 );
+
+/** Ubicaciones del primer inventario físico: el total del sistema es lo contado ahí. */
+export const UBICACIONES_CONTEO_INICIAL = ['Mostrador', 'BANDAS', 'Cajonera'] as const;
 
 /** Normaliza la clave de ubicación al casing canónico de `MUEBLE_LETRAS` cuando existe. */
 export function normalizeUbicacionKey(raw: string): string {
   const t = (raw ?? '').trim();
   if (!t) return '';
   return KNOWN_UBICACION_BY_UPPER.get(t.toUpperCase()) ?? t;
+}
+
+export function isUbicacionConteoInicial(ubicacion: string): boolean {
+  const key = normalizeUbicacionKey(ubicacion);
+  return (UBICACIONES_CONTEO_INICIAL as readonly string[]).includes(key);
 }
 
 /** Etiqueta legible para el desglose de inventario. */
@@ -69,7 +81,50 @@ export function qtyEnUbicacion(
   const key = normalizeUbicacionKey(ubicacion);
   if (!key || !map) return 0;
   const n = Math.trunc(Number(map[key]));
-  return Number.isFinite(n) && n > 0 ? n : 0;
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+type ProductUbicacionSeed = {
+  existencia: number;
+  existenciaPorUbicacion?: Record<string, number>;
+  sku: string;
+  codigoBarras?: string | null;
+  ubicacionFisica?: string | null;
+};
+
+/**
+ * Si aún no hay desglose por ubicación y el artículo es de Mostrador / BANDAS / Cajonera,
+ * el total de sistema se toma como la cantidad de ese mueble (inventario inicial).
+ */
+export function resolveExistenciaPorUbicacionEfectiva(
+  product: ProductUbicacionSeed,
+  opts?: { sesionMueble?: string | null }
+): Record<string, number> | undefined {
+  const existing = parseExistenciaPorUbicacion(product.existenciaPorUbicacion);
+  if (existing) return existing;
+
+  const qty = Math.max(0, Math.trunc(Number(product.existencia) || 0));
+  const slots = resolveUbicacionesProducto(product)
+    .map(normalizeUbicacionKey)
+    .filter(Boolean);
+  const specialSlots = slots.filter(isUbicacionConteoInicial);
+  const sesion = opts?.sesionMueble ? normalizeUbicacionKey(opts.sesionMueble) : '';
+
+  if (specialSlots.length === 1) {
+    return { [specialSlots[0]]: qty };
+  }
+  if (specialSlots.length > 1) {
+    if (sesion && specialSlots.includes(sesion)) return { [sesion]: qty };
+    return { [specialSlots[0]]: qty };
+  }
+
+  if (sesion && isUbicacionConteoInicial(sesion)) {
+    if (slots.length === 0 || productoPerteneceAMueble(product, sesion)) {
+      return { [sesion]: qty };
+    }
+  }
+
+  return undefined;
 }
 
 /** Entradas ordenadas para UI (especiales primero, luego alfabético). */
