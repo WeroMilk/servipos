@@ -80,7 +80,14 @@ async function listPromotionsForSucursal(sucursalId: string): Promise<Promotion[
     .from('promotions')
     .select('id, doc')
     .eq('sucursal_id', sucursalId);
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (isPromotionsRelationMissing(error)) {
+      markPromotionsRelationMissing();
+      throw new Error(promotionsMissingUserMessage());
+    }
+    throw new Error(error.message);
+  }
+  clearPromotionsRelationMissing();
   return (data ?? []).map((r) => mapPromotion(sucursalId, r.id, r.doc as Record<string, unknown>));
 }
 
@@ -102,7 +109,14 @@ export async function createPromotionFirestore(
     doc,
     updated_at: now,
   });
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (isPromotionsRelationMissing(error)) {
+      markPromotionsRelationMissing();
+      throw new Error(promotionsMissingUserMessage());
+    }
+    throw new Error(error.message);
+  }
+  clearPromotionsRelationMissing();
   return id;
 }
 
@@ -158,9 +172,12 @@ let reloadDebounced: (() => void) | null = null;
 const PROMOTIONS_MISSING_KEY = 'servipos:promotionsRelationMissing';
 let promotionsRelationMissing =
   typeof sessionStorage !== 'undefined' && sessionStorage.getItem(PROMOTIONS_MISSING_KEY) === '1';
+/** Evita reintentar en bucle si la tabla sigue ausente; permite recuperarse tras migrar. */
+let promotionsMissingRetryAt = 0;
 
 function markPromotionsRelationMissing() {
   promotionsRelationMissing = true;
+  promotionsMissingRetryAt = Date.now() + 60_000;
   try {
     sessionStorage.setItem(PROMOTIONS_MISSING_KEY, '1');
   } catch {
@@ -168,10 +185,34 @@ function markPromotionsRelationMissing() {
   }
 }
 
+function clearPromotionsRelationMissing() {
+  promotionsRelationMissing = false;
+  promotionsMissingRetryAt = 0;
+  try {
+    sessionStorage.removeItem(PROMOTIONS_MISSING_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+function shouldSkipPromotionsLoad(): boolean {
+  if (!promotionsRelationMissing) return false;
+  if (Date.now() >= promotionsMissingRetryAt) {
+    // Reintentar: la migración pudo haberse aplicado después del 404 cacheado.
+    promotionsRelationMissing = false;
+    return false;
+  }
+  return true;
+}
+
 function isPromotionsRelationMissing(error: { code?: string; message?: string } | null | undefined): boolean {
   if (!error) return false;
   if (error.code === 'PGRST205') return true;
   return /Could not find the table ['"]public\.promotions['"]/i.test(error.message ?? '');
+}
+
+function promotionsMissingUserMessage(): string {
+  return 'La tabla de promociones no está disponible en el servidor. Ejecute la migración de promociones (supabase db push) o contacte al administrador.';
 }
 
 function emitPromotions(rows: Promotion[]) {
@@ -198,7 +239,7 @@ export function subscribePromotionsCatalog(
   const supabase = getSupabase();
 
   const load = async () => {
-    if (promotionsRelationMissing) {
+    if (shouldSkipPromotionsLoad()) {
       emitPromotions([]);
       return;
     }
@@ -219,6 +260,7 @@ export function subscribePromotionsCatalog(
       console.error('Promotions:', error);
       return;
     }
+    clearPromotionsRelationMissing();
     emitPromotions(
       (data ?? [])
         .map((r) => mapPromotion(sucursalId, r.id, r.doc as Record<string, unknown>))
@@ -227,7 +269,7 @@ export function subscribePromotionsCatalog(
   };
 
   const ensureRealtime = () => {
-    if (promotionsRelationMissing || channel || sid !== sucursalId) return;
+    if (shouldSkipPromotionsLoad() || channel || sid !== sucursalId) return;
     channel = supabase
       .channel(`promotions-${sucursalId}`)
       .on(
