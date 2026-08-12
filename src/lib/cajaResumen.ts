@@ -419,10 +419,10 @@ export function buildHistorialCobrosMovimientos(
 ): HistorialCobroMovimiento[] {
   const rows: HistorialCobroMovimiento[] = [];
   for (const sale of ventas) {
-    if (sale.estado === 'cancelada') continue;
+    // Canceladas se listan (etiqueta/tachado en UI) pero no aportan cobrado al corte.
     const at = saleFechaHistorial(sale);
     const monto =
-      sale.estado === 'pendiente'
+      sale.estado === 'pendiente' || sale.estado === 'cancelada'
         ? 0
         : cobradoEnVenta(sale);
     rows.push({

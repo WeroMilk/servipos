@@ -1294,7 +1294,7 @@ export function printThermalDailySalesReport(input: {
   const adeudoRedondeado = Math.round(totalAdeudoDia * 100) / 100;
   /** En térmica el color ámbar se ve borroso; mismo negro que el resto del ticket. */
   const adeudoStyle = adeudoRedondeado > 0.004 ? 'color:#000;font-weight:700;' : '';
-  const ticketsCount = list.filter((v) => v.estado !== 'cancelada').length;
+  const ticketsCount = list.length;
 
   const pie = buildThermalPieSucursalHtml(input.sucursalId);
   void openThermalPrintDocument({
