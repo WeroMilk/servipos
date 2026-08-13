@@ -1,0 +1,801 @@
+{
+  "dryRun": true,
+  "sucursal": "olivares",
+  "wanted": [
+    "1050",
+    "1105",
+    "1107",
+    "1136",
+    "1181",
+    "1221",
+    "1222",
+    "1338",
+    "1344",
+    "1361",
+    "1370",
+    "1402",
+    "1408",
+    "144",
+    "1545",
+    "1705",
+    "1714",
+    "1715",
+    "1866",
+    "1874",
+    "1876",
+    "1898",
+    "1957",
+    "197D2038P025",
+    "2090",
+    "2199",
+    "2232",
+    "2269",
+    "2276",
+    "2281",
+    "2294",
+    "2295",
+    "239D5453G001",
+    "32132",
+    "7503026192399",
+    "7503028596454",
+    "7503044381683",
+    "9741",
+    "EAU65089706",
+    "SAMREF02",
+    "W10236142"
+  ],
+  "missing": [],
+  "hits": 41,
+  "toUpdate": 0,
+  "report": [
+    {
+      "sucursal": "olivares",
+      "id": "b5255cb27e1db2467eb0da47937b4a07",
+      "sku": "1221",
+      "cb": "",
+      "existencia": 32,
+      "ubicacionFisica": "W2",
+      "beforeMap": {
+        "W": 32
+      },
+      "afterMap": {
+        "W": 32
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "c7bf1faa804fbdb541db3a22f53099a7",
+      "sku": "2294",
+      "cb": "",
+      "existencia": 1,
+      "ubicacionFisica": null,
+      "beforeMap": {
+        "W": 1
+      },
+      "afterMap": {
+        "W": 1
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "76c1ddd3625d45ce86693e555294b3b3",
+      "sku": "239D5453G001",
+      "cb": "239D5453G001",
+      "existencia": 13,
+      "ubicacionFisica": null,
+      "beforeMap": {},
+      "afterMap": {},
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "b42eb6391b64c63861cc6e13d12cc15c",
+      "sku": "2295",
+      "cb": "",
+      "existencia": 3,
+      "ubicacionFisica": null,
+      "beforeMap": {
+        "W": 3
+      },
+      "afterMap": {
+        "W": 3
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "d0b9864c048653b87a988cce28f466c8",
+      "sku": "1545",
+      "cb": "",
+      "existencia": 6,
+      "ubicacionFisica": "W2",
+      "beforeMap": {
+        "W": 6
+      },
+      "afterMap": {
+        "W": 6
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "d343d91f304303d0d50043ecc0e94a2b",
+      "sku": "1105",
+      "cb": "",
+      "existencia": 8,
+      "ubicacionFisica": "W2",
+      "beforeMap": {
+        "W": 8
+      },
+      "afterMap": {
+        "W": 8
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "86359c682fdec29bc96ef38b105fbe8b",
+      "sku": "W10236142",
+      "cb": "",
+      "existencia": 6,
+      "ubicacionFisica": null,
+      "beforeMap": {
+        "W": 6
+      },
+      "afterMap": {
+        "W": 6
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "0bb98c9c8a4916d5abe5b54e61d26007",
+      "sku": "1705",
+      "cb": "",
+      "existencia": 2,
+      "ubicacionFisica": null,
+      "beforeMap": {
+        "W": 2
+      },
+      "afterMap": {
+        "W": 2
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "4238390888260d7a70c28def904b5de6",
+      "sku": "1715",
+      "cb": "",
+      "existencia": 12,
+      "ubicacionFisica": null,
+      "beforeMap": {},
+      "afterMap": {},
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "04fb5ee1bf8d857cf91b85284f72cb6d",
+      "sku": "2090",
+      "cb": "",
+      "existencia": 6,
+      "ubicacionFisica": null,
+      "beforeMap": {},
+      "afterMap": {},
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "5cf85224120d193d22ead85f100b2796",
+      "sku": "1957",
+      "cb": "",
+      "existencia": 5,
+      "ubicacionFisica": null,
+      "beforeMap": {
+        "W": 5
+      },
+      "afterMap": {
+        "W": 5
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "4eb1cf7560ec01c292cc43cd0b73c9ac",
+      "sku": "1402",
+      "cb": "",
+      "existencia": 9,
+      "ubicacionFisica": null,
+      "beforeMap": {
+        "W": 9
+      },
+      "afterMap": {
+        "W": 9
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "59d8d4687ed8d952e0ea1f403b76180a",
+      "sku": "1361",
+      "cb": "",
+      "existencia": 1,
+      "ubicacionFisica": null,
+      "beforeMap": {
+        "W": 1
+      },
+      "afterMap": {
+        "W": 1
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "332f6fa39f4ea02015296f630bfa0015",
+      "sku": "32132",
+      "cb": "",
+      "existencia": 21,
+      "ubicacionFisica": null,
+      "beforeMap": {},
+      "afterMap": {},
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "96612c4b5728d60d2e9d1b822bc0e7fe",
+      "sku": "1107",
+      "cb": "",
+      "existencia": 13,
+      "ubicacionFisica": null,
+      "beforeMap": {
+        "W": 13
+      },
+      "afterMap": {
+        "W": 13
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "fffc977723db5660052694878b200378",
+      "sku": "1338",
+      "cb": "",
+      "existencia": 37,
+      "ubicacionFisica": null,
+      "beforeMap": {
+        "W": 37
+      },
+      "afterMap": {
+        "W": 37
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "734b49772064a115b38083e4b9cda677",
+      "sku": "2276",
+      "cb": "",
+      "existencia": 18,
+      "ubicacionFisica": null,
+      "beforeMap": {
+        "W": 18
+      },
+      "afterMap": {
+        "W": 18
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "f208acb3f3fed73ca90f27a095423ad6",
+      "sku": "2281",
+      "cb": "",
+      "existencia": 21,
+      "ubicacionFisica": "W2",
+      "beforeMap": {
+        "W": 21
+      },
+      "afterMap": {
+        "W": 21
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "8b7a39f224f242e436f163f28fa2833b",
+      "sku": "1344",
+      "cb": "",
+      "existencia": 7,
+      "ubicacionFisica": null,
+      "beforeMap": {
+        "W": 7
+      },
+      "afterMap": {
+        "W": 7
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "b8d980738a89ecd89e47d94cd4377ee5",
+      "sku": "2199",
+      "cb": "",
+      "existencia": 18,
+      "ubicacionFisica": "W2",
+      "beforeMap": {
+        "W": 18
+      },
+      "afterMap": {
+        "W": 18
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "368fbaaf782445d833f0f110dafa7a4b",
+      "sku": "SAMREF02",
+      "cb": "",
+      "existencia": 6,
+      "ubicacionFisica": null,
+      "beforeMap": {},
+      "afterMap": {},
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "65fc285f165daeb1a9edbae75a3bf760",
+      "sku": "9741",
+      "cb": "",
+      "existencia": 5,
+      "ubicacionFisica": null,
+      "beforeMap": {
+        "W": 5
+      },
+      "afterMap": {
+        "W": 5
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "f6fcf56a8f82b7a22a64f7b343c659f0",
+      "sku": "1898",
+      "cb": "",
+      "existencia": 5,
+      "ubicacionFisica": null,
+      "beforeMap": {
+        "W": 5
+      },
+      "afterMap": {
+        "W": 5
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "2c82f9810b3bed1b57e4c591b0c89a06",
+      "sku": "144",
+      "cb": "",
+      "existencia": 3,
+      "ubicacionFisica": null,
+      "beforeMap": {
+        "W": 3
+      },
+      "afterMap": {
+        "W": 3
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "d68f8a75e7896c32631ee863f95d5c75",
+      "sku": "1408",
+      "cb": "",
+      "existencia": 5,
+      "ubicacionFisica": null,
+      "beforeMap": {
+        "W": 5
+      },
+      "afterMap": {
+        "W": 5
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "dcf5c0683f190280c8e8bb719839461b",
+      "sku": "1714",
+      "cb": "",
+      "existencia": 7,
+      "ubicacionFisica": null,
+      "beforeMap": {
+        "W": 7
+      },
+      "afterMap": {
+        "W": 7
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "b16d9d71f2b77236286d54d37bbc662d",
+      "sku": "1050",
+      "cb": "",
+      "existencia": 5,
+      "ubicacionFisica": null,
+      "beforeMap": {},
+      "afterMap": {},
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "072e2ad6da0c02eef0885bf2d60f9741",
+      "sku": "1874",
+      "cb": "",
+      "existencia": 11,
+      "ubicacionFisica": "W",
+      "beforeMap": {
+        "W": 11
+      },
+      "afterMap": {
+        "W": 11
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "ad7d85801d5678009f51c7fc17a4288c",
+      "sku": "1866",
+      "cb": "",
+      "existencia": 0,
+      "ubicacionFisica": null,
+      "beforeMap": {},
+      "afterMap": {},
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "50f9a332c78771e6bf402e7e371c2236",
+      "sku": "1181",
+      "cb": "",
+      "existencia": 2,
+      "ubicacionFisica": null,
+      "beforeMap": {
+        "W": 2
+      },
+      "afterMap": {
+        "W": 2
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "1e0753cfe7fe693cd3caa4aabcadb2f9",
+      "sku": "EAU65089706",
+      "cb": "",
+      "existencia": 2,
+      "ubicacionFisica": null,
+      "beforeMap": {
+        "W": 2
+      },
+      "afterMap": {
+        "W": 2
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "7623930ca2ae378491b1b8c8df37b698",
+      "sku": "1136",
+      "cb": "",
+      "existencia": 10,
+      "ubicacionFisica": null,
+      "beforeMap": {
+        "W": 10
+      },
+      "afterMap": {
+        "W": 10
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "4dc93b71dabf71798ef27be131152faf",
+      "sku": "2232",
+      "cb": "",
+      "existencia": 3,
+      "ubicacionFisica": null,
+      "beforeMap": {
+        "W": 3
+      },
+      "afterMap": {
+        "W": 3
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "ca111ed15b6a55c09c04f5bf2f7d880f",
+      "sku": "7503044381683",
+      "cb": "",
+      "existencia": 2,
+      "ubicacionFisica": null,
+      "beforeMap": {
+        "W": 2
+      },
+      "afterMap": {
+        "W": 2
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "432989d298d6d69f91a7a4e366fda3ec",
+      "sku": "197D2038P025",
+      "cb": "",
+      "existencia": 5,
+      "ubicacionFisica": "W",
+      "beforeMap": {},
+      "afterMap": {},
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "a76460d7d1eb79e4338c387e44344902",
+      "sku": "1876",
+      "cb": "",
+      "existencia": 25,
+      "ubicacionFisica": "W3",
+      "beforeMap": {
+        "W": 25
+      },
+      "afterMap": {
+        "W": 25
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "30c733d13ffcecf817713a37082cd332",
+      "sku": "2269",
+      "cb": "",
+      "existencia": 4,
+      "ubicacionFisica": "W",
+      "beforeMap": {
+        "W": 4
+      },
+      "afterMap": {
+        "W": 4
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "7dd59af30d13ae358ad58e281adc170f",
+      "sku": "7503026192399",
+      "cb": "",
+      "existencia": 1,
+      "ubicacionFisica": null,
+      "beforeMap": {
+        "W": 1
+      },
+      "afterMap": {
+        "W": 1
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "d839ffa5ce36857a42c5be4e2b958f82",
+      "sku": "7503028596454",
+      "cb": "",
+      "existencia": 17,
+      "ubicacionFisica": null,
+      "beforeMap": {
+        "W": 17
+      },
+      "afterMap": {
+        "W": 17
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "70a5ef391f47e7a84ff4dbf63057ae75",
+      "sku": "1222",
+      "cb": "",
+      "existencia": 12,
+      "ubicacionFisica": null,
+      "beforeMap": {
+        "W": 12
+      },
+      "afterMap": {
+        "W": 12
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    },
+    {
+      "sucursal": "olivares",
+      "id": "b29ad0922bfb9fcae196ebe4225cfd21",
+      "sku": "1370",
+      "cb": "",
+      "existencia": 8,
+      "ubicacionFisica": null,
+      "beforeMap": {
+        "W": 6,
+        "Mostrador": 3
+      },
+      "afterMap": {
+        "W": 6,
+        "Mostrador": 3
+      },
+      "movedQty": 0,
+      "fromKeys": [],
+      "note": "sin_V",
+      "fixUbic": null,
+      "willUpdate": false
+    }
+  ]
+}
