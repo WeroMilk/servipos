@@ -53,6 +53,8 @@ interface CartState {
   addItem: (product: Product, quantity?: number) => void;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
+  /** Actualiza el producto embebido en la línea (p. ej. existencia tras conteo en caja). */
+  patchLineProduct: (product: Product) => void;
   updateDiscount: (productId: string, discount: number) => void;
   updateLineUnitPrice: (productId: string, precioUnitarioSinIva: number) => void;
   /** Catálogo por lista en esta línea (quita precio manual). */
@@ -240,6 +242,14 @@ export const useCartStore = create<CartState>((set, get) => ({
         get().items.map((item) =>
           item.product.id === productId ? { ...item, quantity: next } : item
         )
+      ),
+    });
+  },
+
+  patchLineProduct: (product: Product) => {
+    set({
+      items: get().items.map((item) =>
+        item.product.id === product.id ? { ...item, product } : item
       ),
     });
   },

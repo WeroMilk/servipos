@@ -1,6 +1,6 @@
 import type { Invoice, InvoiceItem } from '@/types';
 import { describeClaveUnidadSat, resolveClaveProdServ } from '@/lib/satCatalog';
-import { mapInvoiceTaxesToFacturama, money2facturama } from '@/lib/facturama/taxes';
+import { mapInvoiceTaxesToFacturama, money2facturama, conceptoImportesCfdi, roundMoney2 } from '@/lib/facturama/taxes';
 import { assertPagoCfdi, assertReceiverFiscal } from '@/lib/facturama/validateCfdi';
 
 function qtyStr(n: number, unitCode: string): string {
@@ -28,21 +28,52 @@ export function mapInvoiceToFacturama(invoice: Invoice): Record<string, unknown>
 
   const items = (invoice.productos ?? []).map((p: InvoiceItem) => {
     const unitCode = String(p.claveUnidad || 'H87');
-    const taxes = mapInvoiceTaxesToFacturama(p);
+    const imp = conceptoImportesCfdi(p);
+    const tasa0 = p.impuestosTrasladados?.[0]?.tasaOCuota;
+    const tasa = Number(tasa0) > 0 ? Number(tasa0) : 0;
+    const iva = tasa > 0 ? roundMoney2(imp.base * tasa) : 0;
+    const itemForTaxes: InvoiceItem = {
+      ...p,
+      subtotal: imp.subtotal,
+      descuento: imp.descuento,
+      total: roundMoney2(imp.base + iva),
+      impuestosTrasladados:
+        tasa > 0
+          ? [
+              {
+                tipo: 'Traslado',
+                impuesto: '002',
+                tipoFactor: 'Tasa',
+                tasaOCuota: tasa,
+                base: imp.base,
+                importe: iva,
+              },
+            ]
+          : [],
+    };
+    const taxes = mapInvoiceTaxesToFacturama(itemForTaxes);
     const hasTaxes = taxes.length > 0;
+    const idNum = p.productId ? String(p.productId).trim() : '';
+    const identification =
+      idNum &&
+      idNum.length <= 40 &&
+      !idNum.includes(' ') &&
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(idNum)
+        ? idNum
+        : undefined;
     return {
       Quantity: qtyStr(p.cantidad, unitCode),
       ProductCode: resolveClaveProdServ(p.claveProdServ),
       UnitCode: unitCode,
       Unit: describeClaveUnidadSat(unitCode),
       Description: String(p.descripcion || 'Concepto').slice(0, 1000),
-      IdentificationNumber: p.productId ? String(p.productId).slice(0, 100) : undefined,
+      IdentificationNumber: identification,
       UnitPrice: money2facturama(p.precioUnitario),
-      Subtotal: money2facturama(p.subtotal),
-      Discount: p.descuento > 0 ? money2facturama(p.descuento) : undefined,
+      Subtotal: money2facturama(imp.subtotal),
+      Discount: imp.descuento > 0 ? money2facturama(imp.descuento) : undefined,
       TaxObject: hasTaxes ? '02' : '01',
       Taxes: hasTaxes ? taxes : undefined,
-      Total: money2facturama(p.total),
+      Total: money2facturama(imp.base + iva),
     };
   });
 
@@ -50,12 +81,10 @@ export function mapInvoiceToFacturama(invoice: Invoice): Record<string, unknown>
 
   const email = String(cliente?.email ?? '').trim();
 
-  return {
+  const payload: Record<string, unknown> = {
     NameId: 1,
     CfdiType: 'I',
     ExpeditionPlace: expeditionPlace,
-    Serie: invoice.serie || undefined,
-    Folio: String(invoice.folio || ''),
     PaymentForm: String(invoice.formaPago || '01'),
     PaymentMethod: String(invoice.metodoPago || 'PUE'),
     Currency: 'MXN',
@@ -70,4 +99,6 @@ export function mapInvoiceToFacturama(invoice: Invoice): Record<string, unknown>
     },
     Items: items,
   };
+  /** Folio/serie los asigna Facturama (sucursal del CP). Enviar los locales suele impedir el timbre. */
+  return payload;
 }

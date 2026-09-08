@@ -159,6 +159,12 @@ import {
   satFormaPagoParaCfdi,
 } from '@/lib/facturama/buildInvoiceFromSale';
 import { invoiceAndStampCompletedSale } from '@/lib/facturama/invoiceAtCheckout';
+import {
+  cartQtyForProduct,
+  stockFisicoProducto,
+  ventaExcedeExistencia,
+} from '@/lib/posStockGuard';
+import { updateStockUnified } from '@/data/stockBridge';
 import { clientReachedCreditLimit } from '@/lib/clientCreditLimit';
 import { saldoCreditoCliente, sumCreditoTiendaEnPagosParcial } from '@/lib/clientCreditoTienda';
 
@@ -437,6 +443,8 @@ type PosTicketSnapshot = {
   cfdiUuid?: string;
   cfdiError?: string;
   cfdiPrueba?: boolean;
+  cfdiFolio?: string;
+  cfdiSerie?: string;
 };
 
 /** Imprime el ticket térmico con el snapshot ya construido (evita estado React desactualizado). */
@@ -565,6 +573,7 @@ export function POS() {
       addItem: s.addItem,
       removeItem: s.removeItem,
       updateQuantity: s.updateQuantity,
+      patchLineProduct: s.patchLineProduct,
       updateDiscount: s.updateDiscount,
       updateLineUnitPrice: s.updateLineUnitPrice,
       applyLinePrecioFromLista: s.applyLinePrecioFromLista,
@@ -603,6 +612,7 @@ export function POS() {
     addItem,
     removeItem,
     updateQuantity,
+    patchLineProduct,
     updateDiscount,
     updateLineUnitPrice,
     applyLinePrecioFromLista,
@@ -952,6 +962,13 @@ export function POS() {
   const [checkoutClienteNombre, setCheckoutClienteNombre] = useState('');
   const [checkoutFacturarCfdi, setCheckoutFacturarCfdi] = useState(false);
   const [checkoutUsoCfdi, setCheckoutUsoCfdi] = useState('G03');
+  const [stockPrompt, setStockPrompt] = useState<null | {
+    product: Product;
+    desiredCartQty: number;
+    phase: 'ask' | 'count';
+  }>(null);
+  const [stockCountInput, setStockCountInput] = useState('');
+  const [stockPromptBusy, setStockPromptBusy] = useState(false);
   /** En parcialidades (PPD), medio del próximo abono (mezcla efectivo + tarjetas sin cambiar el selector lateral). */
   const [ppdAbonoFormaPago, setPpdAbonoFormaPago] = useState('01');
   /** Se incrementa al abrir el diálogo de cobro para inicializar `ppdAbonoFormaPago` sin pisar cambios al mover el selector lateral. */
@@ -1669,11 +1686,12 @@ export function POS() {
     }
   };
 
-  const handleAddProduct = useCallback((product: Product, quantityArg?: number) => {
-    try {
-      const parsed = parsePosQuantityPrefix(searchQuery.trim());
-      const rawQty = quantityArg ?? parsed.quantity;
-      const qty = snapCantidadLineaVenta(product.unidadMedida, rawQty);
+  const liveCatalogProduct = useCallback((product: Product): Product => {
+    return getProductCatalogSnapshot().find((p) => p.id === product.id) ?? product;
+  }, []);
+
+  const finishAddProductToCart = useCallback(
+    (product: Product, qty: number) => {
       addItem(product, qty);
       setSearchQuery('');
       posSearchPrevKeyTsRef.current = 0;
@@ -1693,13 +1711,124 @@ export function POS() {
       requestAnimationFrame(() => {
         searchInputRef.current?.focus();
       });
-    } catch (error: unknown) {
+    },
+    [addItem, addToast]
+  );
+
+  const requestCartQuantity = useCallback(
+    (product: Product, desiredCartQty: number) => {
+      const live = liveCatalogProduct(product);
+      const nextQty = snapCantidadLineaVenta(live.unidadMedida, desiredCartQty);
+      if (productEsServicio(live)) {
+        updateQuantity(live.id, nextQty);
+        return;
+      }
+      const stock = stockFisicoProducto(live);
+      if (nextQty <= stock + 1e-9) {
+        updateQuantity(live.id, nextQty);
+        return;
+      }
+      setStockCountInput('');
+      setStockPrompt({ product: live, desiredCartQty: nextQty, phase: 'ask' });
+    },
+    [liveCatalogProduct, updateQuantity]
+  );
+
+  const handleAddProduct = useCallback(
+    (product: Product, quantityArg?: number) => {
+      try {
+        const live = liveCatalogProduct(product);
+        const parsed = parsePosQuantityPrefix(searchQuery.trim());
+        const rawQty = quantityArg ?? parsed.quantity;
+        const qty = snapCantidadLineaVenta(live.unidadMedida, rawQty);
+        const cartQty = cartQtyForProduct(items, live.id);
+        if (ventaExcedeExistencia({ product: live, cartQty, addQty: qty })) {
+          setStockCountInput('');
+          setStockPrompt({
+            product: live,
+            desiredCartQty: snapCantidadLineaVenta(live.unidadMedida, cartQty + qty),
+            phase: 'ask',
+          });
+          return;
+        }
+        finishAddProductToCart(live, qty);
+      } catch (error: unknown) {
+        addToast({
+          type: 'error',
+          message: error instanceof Error ? error.message : 'Error al agregar',
+        });
+      }
+    },
+    [addToast, finishAddProductToCart, items, liveCatalogProduct, searchQuery]
+  );
+
+  const confirmPosStockCount = useCallback(async () => {
+    if (!stockPrompt) return;
+    const raw = stockCountInput.replace(',', '.').trim();
+    const counted = parseFloat(raw);
+    if (!Number.isFinite(counted) || counted < 0) {
+      addToast({ type: 'error', message: 'Indique un número de unidades válido' });
+      return;
+    }
+    const product = stockPrompt.product;
+    const desired = snapCantidadLineaVenta(product.unidadMedida, stockPrompt.desiredCartQty);
+    setStockPromptBusy(true);
+    try {
+      await updateStockUnified(
+        effectiveSucursalId ?? undefined,
+        product.id,
+        counted,
+        'ajuste',
+        'Conteo al agregar en POS (sin existencia)',
+        undefined,
+        user?.id
+      );
+      const refreshed: Product = {
+        ...liveCatalogProduct(product),
+        existencia: counted,
+      };
+      patchLineProduct(refreshed);
+      setStockPrompt(null);
+      setStockCountInput('');
+      if (counted <= 0) {
+        addToast({
+          type: 'warning',
+          message: 'Inventario en 0. No se agregó al carrito.',
+        });
+        return;
+      }
+      const inCart = cartQtyForProduct(items, refreshed.id);
+      const toSell = Math.min(desired, counted);
+      if (inCart > 0) {
+        updateQuantity(refreshed.id, toSell);
+        addToast({
+          type: 'success',
+          message: `Inventario: ${counted}. Carrito: ${formatearCantidadLineaVentaSat(refreshed.unidadMedida, toSell)}`,
+        });
+      } else {
+        const addQty = snapCantidadLineaVenta(refreshed.unidadMedida, toSell);
+        finishAddProductToCart(refreshed, addQty);
+      }
+    } catch (e) {
       addToast({
         type: 'error',
-        message: error instanceof Error ? error.message : 'Error al agregar',
+        message: e instanceof Error ? e.message : 'No se pudo actualizar el inventario',
       });
+    } finally {
+      setStockPromptBusy(false);
     }
-  }, [addItem, addToast, searchQuery]);
+  }, [
+    addToast,
+    effectiveSucursalId,
+    finishAddProductToCart,
+    items,
+    liveCatalogProduct,
+    patchLineProduct,
+    stockCountInput,
+    stockPrompt,
+    updateQuantity,
+    user?.id,
+  ]);
 
   /** Escáner USB: Enter o silencio breve; cola para lecturas seguidas (incluye las que llegan durante un `await`). */
   const processPosScanQueue = useCallback(async () => {
@@ -2677,6 +2806,21 @@ export function POS() {
       return;
     }
 
+    if (formaPago !== 'DEV' && openSaleResume?.sale.estado !== 'pendiente') {
+      const catalog = getProductCatalogSnapshot();
+      for (const line of items) {
+        if (productEsServicio(line.product)) continue;
+        const live = catalog.find((p) => p.id === line.product.id) ?? line.product;
+        if (ventaExcedeExistencia({ product: live, cartQty: 0, addQty: line.quantity })) {
+          addToast({
+            type: 'error',
+            message: `${live.nombre}: no hay existencia suficiente (${stockFisicoProducto(live)}). Al escanear el SKU puede actualizar el inventario.`,
+          });
+          return;
+        }
+      }
+    }
+
     const cobroTarjetaPueLocal =
       !esTraspasoTienda && esFormaTarjeta(formaPago) && metodoPago === 'PUE';
 
@@ -2881,7 +3025,7 @@ export function POS() {
             /* el ticket térmico ya se imprime */
           }
         }
-        return { cfdiUuid: r.uuid, cfdiPrueba: r.esPrueba };
+        return { cfdiUuid: r.uuid, cfdiPrueba: r.esPrueba, cfdiFolio: r.folio, cfdiSerie: r.serie };
       } catch (e) {
         return {
           cfdiError: e instanceof Error ? e.message : 'No se pudo timbrar el CFDI',
@@ -3777,7 +3921,7 @@ export function POS() {
                                     setQtyLineEdit(null);
                                     if (raw === '' || !Number.isFinite(n) || n <= 0) return;
                                     try {
-                                      updateQuantity(item.product.id, n);
+                                      requestCartQuantity(item.product, n);
                                     } catch (err: unknown) {
                                       addToast({
                                         type: 'error',
@@ -3800,7 +3944,7 @@ export function POS() {
                                       const step = deltaCantidadBotonMasMenosSat(
                                         item.product.unidadMedida
                                       );
-                                      updateQuantity(item.product.id, item.quantity + step);
+                                      requestCartQuantity(item.product, item.quantity + step);
                                     } catch (err: unknown) {
                                       addToast({
                                         type: 'error',
@@ -3848,7 +3992,7 @@ export function POS() {
                                   type="button"
                                   onClick={() => {
                                     try {
-                                      updateQuantity(item.product.id, item.quantity + 1);
+                                      requestCartQuantity(item.product, item.quantity + 1);
                                     } catch (err: unknown) {
                                       addToast({
                                         type: 'error',
@@ -5142,7 +5286,12 @@ export function POS() {
                 ) : null}
                 {ticketSnapshot?.cfdiUuid ? (
                   <p className="mt-3 break-all text-xs font-medium text-emerald-800 dark:text-emerald-300 sm:text-sm">
-                    CFDI timbrado · UUID {ticketSnapshot.cfdiUuid}
+                    CFDI timbrado
+                    {ticketSnapshot.cfdiSerie || ticketSnapshot.cfdiFolio
+                      ? ` · ${[ticketSnapshot.cfdiSerie, ticketSnapshot.cfdiFolio].filter(Boolean).join('-')}`
+                      : ''}
+                    {' '}
+                    · UUID {ticketSnapshot.cfdiUuid}
                   </p>
                 ) : null}
                 {ticketSnapshot?.cfdiError ? (
@@ -5254,6 +5403,103 @@ export function POS() {
               </p>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={stockPrompt != null}
+        onOpenChange={(open) => {
+          if (!open && !stockPromptBusy) {
+            setStockPrompt(null);
+            setStockCountInput('');
+          }
+        }}
+      >
+        <DialogContent className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:max-w-md">
+          {!stockPrompt ? null : stockPrompt.phase === 'count' ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Unidades reales en inventario</DialogTitle>
+                <DialogDescription className="text-slate-600 dark:text-slate-400">
+                  {stockPrompt.product.nombre} · SKU {stockPrompt.product.sku}. Escriba cuántas
+                  piezas hay realmente; se actualizará el inventario y se agregará al carrito.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2 py-2">
+                <Label htmlFor="pos-stock-count">Cantidad en existencia</Label>
+                <Input
+                  id="pos-stock-count"
+                  inputMode="decimal"
+                  autoFocus
+                  value={stockCountInput}
+                  onChange={(e) => setStockCountInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      void confirmPosStockCount();
+                    }
+                  }}
+                  className="h-11 border-slate-300 bg-slate-200 text-center text-lg tabular-nums dark:border-slate-700 dark:bg-slate-800"
+                />
+              </div>
+              <DialogFooter className="gap-2 sm:gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={stockPromptBusy}
+                  onClick={() => {
+                    setStockPrompt(null);
+                    setStockCountInput('');
+                  }}
+                >
+                  No
+                </Button>
+                <Button
+                  type="button"
+                  className="bg-brand-gradient text-white"
+                  disabled={stockPromptBusy}
+                  onClick={() => void confirmPosStockCount()}
+                >
+                  {stockPromptBusy ? 'Guardando…' : 'Sí, actualizar'}
+                </Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>
+                  {stockFisicoProducto(stockPrompt.product) <= 0
+                    ? 'No hay productos en existencia'
+                    : 'Existencia insuficiente'}
+                </DialogTitle>
+                <DialogDescription className="text-slate-600 dark:text-slate-400">
+                  {stockPrompt.product.nombre} · SKU {stockPrompt.product.sku}.{' '}
+                  {stockFisicoProducto(stockPrompt.product) <= 0
+                    ? 'No hay productos en existencia. ¿Deseas agregar?'
+                    : `Solo hay ${stockFisicoProducto(stockPrompt.product)} en existencia. ¿Deseas agregar (actualizar inventario)?`}
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="gap-2 sm:gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setStockPrompt(null);
+                    setStockCountInput('');
+                  }}
+                >
+                  No
+                </Button>
+                <Button
+                  type="button"
+                  className="bg-brand-gradient text-white"
+                  onClick={() => setStockPrompt((p) => (p ? { ...p, phase: 'count' } : p))}
+                >
+                  Sí
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 

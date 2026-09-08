@@ -1,6 +1,6 @@
 import type { Client, FiscalConfig, FormaPago, Invoice, MetodoPago, Sale } from '@/types';
 import { normalizeClaveUnidadSat, resolveClaveProdServ } from '@/lib/satCatalog';
-import { ivaTasaFromPercentOrRate } from '@/lib/facturama/taxes';
+import { ivaTasaFromPercentOrRate, roundMoney2 } from '@/lib/facturama/taxes';
 import { isValidCpMx, isValidRfcSat } from '@/lib/facturama/validateCfdi';
 
 export function checkoutFormaPagoPermiteCfdi(formaPago: string): boolean {
@@ -47,46 +47,61 @@ export function buildInvoiceFromSale(opts: {
     ? { ...opts.client, usoCfdi: opts.usoCfdi || opts.client.usoCfdi || 'G03' }
     : null;
 
+  const productos = (sale.productos ?? []).map((item) => {
+    const tasa = ivaTasaFromPercentOrRate(item.impuesto ?? item.producto?.impuesto ?? 16);
+    const qty = Number(item.cantidad) || 0;
+    const unit = Number(item.precioUnitario) || 0;
+    const pct = Number(item.descuento) || 0;
+    const bruto = roundMoney2(qty * unit);
+    const descMoney = pct > 0 ? roundMoney2(bruto * (pct / 100)) : 0;
+    const base = roundMoney2(Math.max(0, bruto - descMoney));
+    const iva = roundMoney2(base * tasa);
+    return {
+      id: crypto.randomUUID(),
+      productId: item.productId,
+      claveProdServ: resolveClaveProdServ(item.producto?.claveProdServ),
+      claveUnidad: normalizeClaveUnidadSat(item.producto?.unidadMedida),
+      cantidad: qty,
+      descripcion: item.producto?.nombre?.trim() || item.productoNombre?.trim() || '',
+      precioUnitario: unit,
+      descuento: descMoney,
+      impuestosTrasladados:
+        tasa <= 0
+          ? []
+          : [
+              {
+                tipo: 'Traslado' as const,
+                impuesto: '002' as const,
+                tipoFactor: 'Tasa' as const,
+                tasaOCuota: tasa,
+                base,
+                importe: iva,
+              },
+            ],
+      impuestosRetenidos: [],
+      subtotal: bruto,
+      total: roundMoney2(base + iva),
+    };
+  });
+
+  const subtotal = roundMoney2(productos.reduce((s, p) => s + p.subtotal, 0));
+  const descuento = roundMoney2(productos.reduce((s, p) => s + p.descuento, 0));
+  const impuestosTrasladados = roundMoney2(
+    productos.reduce((s, p) => s + (p.impuestosTrasladados[0]?.importe ?? 0), 0)
+  );
+  const total = roundMoney2(productos.reduce((s, p) => s + p.total, 0));
+
   return {
     clienteId: client?.id || 'mostrador',
     cliente: client ?? undefined,
     emisor: fiscalConfig,
     ventaId: sale.id,
-    productos: (sale.productos ?? []).map((item) => {
-      const tasa = ivaTasaFromPercentOrRate(item.impuesto ?? item.producto?.impuesto ?? 16);
-      const base = Math.max(0, (Number(item.subtotal) || 0) - (Number(item.descuento) || 0));
-      return {
-        id: crypto.randomUUID(),
-        productId: item.productId,
-        claveProdServ: resolveClaveProdServ(item.producto?.claveProdServ),
-        claveUnidad: normalizeClaveUnidadSat(item.producto?.unidadMedida),
-        cantidad: item.cantidad,
-        descripcion: item.producto?.nombre?.trim() || item.productoNombre?.trim() || '',
-        precioUnitario: item.precioUnitario,
-        descuento: item.descuento,
-        impuestosTrasladados:
-          tasa <= 0
-            ? []
-            : [
-                {
-                  tipo: 'Traslado' as const,
-                  impuesto: '002' as const,
-                  tipoFactor: 'Tasa' as const,
-                  tasaOCuota: tasa,
-                  base,
-                  importe: Math.round(base * tasa * 100) / 100,
-                },
-              ],
-        impuestosRetenidos: [],
-        subtotal: item.subtotal,
-        total: item.total,
-      };
-    }),
-    subtotal: sale.subtotal,
-    descuento: sale.descuento,
-    impuestosTrasladados: sale.impuestos,
+    productos,
+    subtotal,
+    descuento,
+    impuestosTrasladados,
     impuestosRetenidos: 0,
-    total: sale.total,
+    total,
     formaPago: opts.formaPago,
     metodoPago: opts.metodoPago,
     lugarExpedicion: fiscalConfig.lugarExpedicion,

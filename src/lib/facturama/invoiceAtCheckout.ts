@@ -15,7 +15,14 @@ export async function invoiceAndStampCompletedSale(opts: {
   addInvoice: (
     invoice: Omit<Invoice, 'id' | 'folio' | 'serie' | 'createdAt' | 'updatedAt' | 'syncStatus' | 'esPrueba'>
   ) => Promise<string>;
-}): Promise<{ invoiceId: string; stamped: boolean; esPrueba: boolean; uuid?: string }> {
+}): Promise<{
+  invoiceId: string;
+  stamped: boolean;
+  esPrueba: boolean;
+  uuid?: string;
+  folio?: string;
+  serie?: string;
+}> {
   const draft = buildInvoiceFromSale({
     sale: opts.sale,
     client: opts.client,
@@ -55,5 +62,7 @@ export async function invoiceAndStampCompletedSale(opts: {
     stamped: true,
     esPrueba: false,
     uuid: stamped.uuid,
+    folio: stamped.folio,
+    serie: stamped.serie,
   };
 }

@@ -3,7 +3,8 @@ import { expect, test } from 'vitest';
 import type { Invoice, InvoiceItem } from '@/types';
 import { mapInvoiceToFacturama } from '@/lib/facturama/mapInvoiceToFacturama';
 import { mapPaymentComplementToFacturama } from '@/lib/facturama/mapPaymentComplementToFacturama';
-import { ivaTasaFromPercentOrRate, mapInvoiceTaxesToFacturama } from '@/lib/facturama/taxes';
+import { pickFacturamaStampMeta } from '@/lib/facturama/client';
+import { ivaTasaFromPercentOrRate, mapInvoiceTaxesToFacturama, conceptoImportesCfdi } from '@/lib/facturama/taxes';
 import { assertPagoCfdi, isValidRfcSat } from '@/lib/facturama/validateCfdi';
 
 function item(partial: Partial<InvoiceItem> = {}): InvoiceItem {
@@ -68,6 +69,31 @@ function invoice(partial: Partial<Invoice> = {}): Invoice {
   };
 }
 
+describe('conceptoImportesCfdi', () => {
+  test('convierte descuento porcentual de línea POS', () => {
+    const r = conceptoImportesCfdi({
+      cantidad: 2,
+      precioUnitario: 100,
+      descuento: 10,
+      subtotal: 180,
+    });
+    expect(r.subtotal).toBe(200);
+    expect(r.descuento).toBe(20);
+    expect(r.base).toBe(180);
+  });
+  test('respeta descuento en pesos si el subtotal es bruto', () => {
+    const r = conceptoImportesCfdi({
+      cantidad: 2,
+      precioUnitario: 100,
+      descuento: 10,
+      subtotal: 200,
+    });
+    expect(r.subtotal).toBe(200);
+    expect(r.descuento).toBe(10);
+    expect(r.base).toBe(190);
+  });
+});
+
 describe('ivaTasaFromPercentOrRate', () => {
   test('acepta porcentaje 16 y tasa 0.16', () => {
     expect(ivaTasaFromPercentOrRate(16)).toBe(0.16);
@@ -92,6 +118,8 @@ describe('mapInvoiceToFacturama', () => {
     const payload = mapInvoiceToFacturama(invoice());
     expect(payload.NameId).toBe(1);
     expect(payload.CfdiType).toBe('I');
+    expect(payload.Folio).toBeUndefined();
+    expect(payload.Serie).toBeUndefined();
     const items = payload.Items as Array<Record<string, unknown>>;
     expect(items[0]?.Unit).toBe('Pieza');
     expect(items[0]?.Discount).toBe('10.00');
@@ -99,6 +127,9 @@ describe('mapInvoiceToFacturama', () => {
     expect(recv.Email).toBe('cliente@example.com');
     const tax0 = (items[0]?.Taxes as Array<Record<string, unknown>>)[0];
     expect(tax0?.IsRetention).toBe(false);
+    expect(items[0]?.Subtotal).toBe('200.00');
+    expect(items[0]?.Discount).toBe('10.00');
+    expect(items[0]?.Total).toBe('220.40');
   });
 
   test('rechaza PUE con forma 99', () => {
@@ -127,6 +158,21 @@ describe('mapPaymentComplementToFacturama', () => {
     expect(payload.CfdiType).toBe('P');
     const pay = (payload.Complemento as { Payments: Array<{ Amount: string }> }).Payments[0];
     expect(pay?.Amount).toBe('50.00');
+  });
+});
+
+describe('pickFacturamaStampMeta', () => {
+  test('lee folio serie y UUID anidado', () => {
+    const meta = pickFacturamaStampMeta({
+      Id: 'abc',
+      Folio: 158,
+      Serie: 'F',
+      Complement: { TaxStamp: { Uuid: '11111111-1111-1111-1111-111111111111' } },
+    });
+    expect(meta.facturamaId).toBe('abc');
+    expect(meta.folio).toBe('158');
+    expect(meta.serie).toBe('F');
+    expect(meta.uuid).toBe('11111111-1111-1111-1111-111111111111');
   });
 });
 

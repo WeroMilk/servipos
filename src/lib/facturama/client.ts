@@ -166,14 +166,39 @@ export function facturamaEmail(opts: {
   });
 }
 
+function pickNestedStampUuid(cfdi: Record<string, unknown>): string | undefined {
+  const complement = (cfdi.Complement ?? cfdi.complement) as Record<string, unknown> | undefined;
+  const stamp = (complement?.TaxStamp ?? complement?.taxStamp) as Record<string, unknown> | undefined;
+  const u = String(stamp?.Uuid ?? stamp?.uuid ?? '').trim();
+  return u || undefined;
+}
+
+/** Extrae Id, UUID y folio/serie que asigna Facturama al timbrar. */
+export function pickFacturamaStampMeta(cfdi: Record<string, unknown>): {
+  facturamaId: string;
+  uuid?: string;
+  folio?: string;
+  serie?: string;
+} {
+  const facturamaId = String(cfdi.Id ?? cfdi.id ?? '').trim();
+  const uuid =
+    String(cfdi.Uuid ?? cfdi.uuid ?? '').trim() || pickNestedStampUuid(cfdi) || undefined;
+  const folioRaw = cfdi.Folio ?? cfdi.folio;
+  const serieRaw = cfdi.Serie ?? cfdi.serie;
+  const folio =
+    folioRaw != null && String(folioRaw).trim() !== '' ? String(folioRaw).trim() : undefined;
+  const serie =
+    serieRaw != null && String(serieRaw).trim() !== '' ? String(serieRaw).trim() : undefined;
+  if (!facturamaId) throw new Error('Facturama no devolvió Id del CFDI');
+  return { facturamaId, uuid, folio, serie };
+}
+
 /** Extrae Id / Uuid del objeto de respuesta de create. */
 export function pickFacturamaIds(cfdi: Record<string, unknown>): {
   facturamaId: string;
   uuid?: string;
 } {
-  const facturamaId = String(cfdi.Id ?? cfdi.id ?? '').trim();
-  const uuid = String(cfdi.Uuid ?? cfdi.uuid ?? '').trim() || undefined;
-  if (!facturamaId) throw new Error('Facturama no devolvió Id del CFDI');
+  const { facturamaId, uuid } = pickFacturamaStampMeta(cfdi);
   return { facturamaId, uuid };
 }
 

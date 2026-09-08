@@ -8,6 +8,7 @@ import {
   facturamaDetail,
   facturamaStatus,
   pickFacturamaIds,
+  pickFacturamaStampMeta,
 } from '@/lib/facturama/client';
 import { mapInvoiceToFacturama } from '@/lib/facturama/mapInvoiceToFacturama';
 import { mapCreditNoteToFacturama } from '@/lib/facturama/mapCreditNoteToFacturama';
@@ -51,18 +52,39 @@ export async function stampInvoiceWithFacturama(invoice: Invoice): Promise<Invoi
 
   const payload = mapInvoiceToFacturama(invoice);
   const { cfdi } = await facturamaCreate(payload);
-  const { facturamaId, uuid: uuidFromCreate } = pickFacturamaIds(cfdi as Record<string, unknown>);
-  const artifacts = await downloadStampedArtifacts(facturamaId, 'issued');
-  const uuid = (artifacts.uuid || uuidFromCreate || '').toUpperCase();
-  if (!uuid) throw new Error('No se obtuvo UUID del timbre');
+  const meta = pickFacturamaStampMeta(cfdi as Record<string, unknown>);
+  let xml: string | undefined;
+  let uuidFromXml: string | undefined;
+  let selloDigital: string | undefined;
+  try {
+    const artifacts = await downloadStampedArtifacts(meta.facturamaId, 'issued');
+    xml = artifacts.xml || undefined;
+    uuidFromXml = artifacts.uuid;
+    selloDigital = artifacts.selloDigital;
+  } catch {
+    /* el CFDI ya se creó en Facturama; el XML se puede descargar después */
+  }
+  const uuid = (uuidFromXml || meta.uuid || '').toUpperCase();
+  if (!uuid) {
+    await persistInvoiceUpdate(invoice.id, {
+      facturamaId: meta.facturamaId,
+      ...(meta.folio ? { folio: meta.folio } : {}),
+      ...(meta.serie ? { serie: meta.serie } : {}),
+    });
+    throw new Error(
+      'Facturama emitió el CFDI pero no devolvió UUID. Abra Facturación y consulte o reintente descargar el XML.'
+    );
+  }
 
   const updates: Partial<Invoice> = {
-    facturamaId,
+    facturamaId: meta.facturamaId,
     uuid,
-    xml: artifacts.xml || undefined,
-    selloDigital: artifacts.selloDigital,
+    xml,
+    selloDigital,
     fechaTimbrado: new Date(),
     estado: 'timbrada',
+    ...(meta.folio ? { folio: meta.folio } : {}),
+    ...(meta.serie ? { serie: meta.serie } : {}),
   };
   await persistInvoiceUpdate(invoice.id, updates);
   return { ...invoice, ...updates };
