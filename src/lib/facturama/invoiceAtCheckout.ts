@@ -3,6 +3,7 @@ import { getInvoiceById } from '@/db/database';
 import { getInvoiceFirestore } from '@/lib/firestore/invoicesFirestore';
 import { buildInvoiceFromSale } from '@/lib/facturama/buildInvoiceFromSale';
 import { stampInvoiceWithFacturama, sendInvoiceEmailWithFacturama } from '@/hooks/useFacturama';
+import { mergeClienteDatosFiscales, resolveLiveClient } from '@/lib/facturama/hydrateInvoiceCliente';
 
 export async function invoiceAndStampCompletedSale(opts: {
   sale: Sale;
@@ -23,9 +24,11 @@ export async function invoiceAndStampCompletedSale(opts: {
   folio?: string;
   serie?: string;
 }> {
+  const live = await resolveLiveClient(opts.client.id || opts.sale.clienteId);
+  const client = mergeClienteDatosFiscales(opts.client, live) ?? opts.client;
   const draft = buildInvoiceFromSale({
     sale: opts.sale,
-    client: opts.client,
+    client,
     fiscalConfig: opts.fiscalConfig,
     formaPago: opts.formaPago,
     metodoPago: opts.metodoPago,
@@ -45,7 +48,7 @@ export async function invoiceAndStampCompletedSale(opts: {
   }
 
   const stamped = await stampInvoiceWithFacturama(created);
-  const email = String(opts.client.email ?? '').trim();
+  const email = String(client.email ?? opts.client.email ?? '').trim();
   if (email.includes('@') && stamped.facturamaId) {
     try {
       await sendInvoiceEmailWithFacturama({

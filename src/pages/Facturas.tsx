@@ -78,7 +78,9 @@ import {
   sendInvoiceEmailWithFacturama,
   refreshInvoiceSatStatusWithFacturama,
 } from '@/hooks/useFacturama';
-import { buildInvoiceFromSale } from '@/lib/facturama/buildInvoiceFromSale';
+import { buildInvoiceFromSale, clientListoParaCfdi } from '@/lib/facturama/buildInvoiceFromSale';
+import { invoiceAndStampCompletedSale } from '@/lib/facturama/invoiceAtCheckout';
+import { mergeClienteDatosFiscales, resolveLiveClient } from '@/lib/facturama/hydrateInvoiceCliente';
 import { saldoInsolutoFacturaPpd, siguienteParcialidad } from '@/lib/facturama/ppdSaldo';
 import {
   Select,
@@ -338,6 +340,34 @@ export function Facturas() {
   const [salePickerQuery, setSalePickerQuery] = useState('');
   /** Tras crear la factura, abre el diálogo de impresión (representación impresa CFDI). */
   const [printAfterCreate, setPrintAfterCreate] = useState(true);
+  const [generatingInvoice, setGeneratingInvoice] = useState(false);
+
+  const printInvoiceAfterCreate = async (newId: string) => {
+    if (!printAfterCreate) return;
+    const created = effectiveSucursalId
+      ? await getInvoiceFirestore(effectiveSucursalId, newId)
+      : await getInvoiceById(newId);
+    if (created?.emisor?.rfc) {
+      printInvoiceCfdiRepresentacion(created);
+      void markInvoiceEnviada(newId).then(() => {
+        setSelectedInvoice((prev) =>
+          prev?.id === newId ? { ...prev, estado: 'enviada' } : prev
+        );
+      });
+    } else if (created) {
+      addToast({
+        type: 'error',
+        message:
+          'Factura guardada pero faltan datos del emisor para imprimir. Use Imprimir en el menú de la factura.',
+      });
+    } else {
+      addToast({
+        type: 'error',
+        message:
+          'Factura creada; no se pudo cargar para imprimir de inmediato. Use «Imprimir representación» en la lista.',
+      });
+    }
+  };
 
   const handleGenerateInvoice = async () => {
     if (!selectedSale) {
@@ -350,58 +380,77 @@ export function Facturas() {
       return;
     }
 
-    try {
-      const clientBase = selectedClient || selectedSale.cliente;
-      const client = clientBase
-        ? { ...clientBase, usoCfdi: formData.usoCfdi || clientBase.usoCfdi }
-        : null;
+    const clientBase = selectedClient || selectedSale.cliente;
+    const live = await resolveLiveClient(clientBase?.id || selectedSale.clienteId);
+    const merged = mergeClienteDatosFiscales(clientBase, live);
+    const client = merged
+      ? { ...merged, usoCfdi: formData.usoCfdi || merged.usoCfdi }
+      : null;
 
-      const invoiceData = buildInvoiceFromSale({
+    if (!fiscalConfig.modoPruebaFiscal) {
+      if (!canTimbrar) {
+        addToast({ type: 'error', message: 'Sin permiso para timbrar' });
+        return;
+      }
+      const listo = clientListoParaCfdi(client);
+      if (!listo.ok) {
+        addToast({ type: 'error', message: listo.reason });
+        return;
+      }
+    }
+
+    setGeneratingInvoice(true);
+    try {
+      if (fiscalConfig.modoPruebaFiscal) {
+        const invoiceData = buildInvoiceFromSale({
+          sale: selectedSale,
+          client,
+          fiscalConfig,
+          formaPago: formData.formaPago as Invoice['formaPago'],
+          metodoPago: formData.metodoPago as Invoice['metodoPago'],
+          usoCfdi: formData.usoCfdi,
+        });
+        const newId = await addInvoice(invoiceData);
+        setShowAddDialog(false);
+        resetForm();
+        addToast({
+          type: 'success',
+          message: 'Factura de prueba creada (serie PRUEBA, sin validez fiscal)',
+        });
+        await printInvoiceAfterCreate(newId);
+        return;
+      }
+
+      const r = await invoiceAndStampCompletedSale({
         sale: selectedSale,
-        client,
+        client: client as Client,
         fiscalConfig,
+        usoCfdi: formData.usoCfdi,
         formaPago: formData.formaPago as Invoice['formaPago'],
         metodoPago: formData.metodoPago as Invoice['metodoPago'],
-        usoCfdi: formData.usoCfdi,
+        sucursalId: effectiveSucursalId,
+        addInvoice,
       });
-
-      const newId = await addInvoice(invoiceData);
-
       setShowAddDialog(false);
       resetForm();
       addToast({
         type: 'success',
-        message: fiscalConfig.modoPruebaFiscal
-          ? 'Factura de prueba creada (serie PRUEBA, sin validez fiscal)'
-          : 'Factura generada exitosamente',
+        message: r.uuid
+          ? `Factura timbrada. Folio ${[r.serie, r.folio].filter(Boolean).join('-')}. UUID: ${r.uuid}`
+          : 'Factura timbrada con Facturama',
       });
-
-      if (printAfterCreate) {
-        const created = effectiveSucursalId
-          ? await getInvoiceFirestore(effectiveSucursalId, newId)
-          : await getInvoiceById(newId);
-        if (created?.emisor?.rfc) {
-          printInvoiceCfdiRepresentacion(created);
-          void markInvoiceEnviada(newId).then(() => {
-            setSelectedInvoice((prev) =>
-              prev?.id === newId ? { ...prev, estado: 'enviada' } : prev
-            );
-          });
-        } else if (created) {
-          addToast({
-            type: 'error',
-            message: 'Factura guardada pero faltan datos del emisor para imprimir. Use Imprimir en el menú de la factura.',
-          });
-        } else {
-          addToast({
-            type: 'error',
-            message:
-              'Factura creada; no se pudo cargar para imprimir de inmediato. Use «Imprimir representación» en la lista.',
-          });
-        }
-      }
-    } catch (error: any) {
-      addToast({ type: 'error', message: error.message});
+      await printInvoiceAfterCreate(r.invoiceId);
+    } catch (error: unknown) {
+      const detail =
+        error instanceof Error ? error.message : 'No se pudo generar o timbrar la factura';
+      addToast({
+        type: 'error',
+        message: `${detail} Si quedó en la lista sin UUID, use «Timbrar (Facturama)» para reintentar.`,
+      });
+      setShowAddDialog(false);
+      resetForm();
+    } finally {
+      setGeneratingInvoice(false);
     }
   };
 
@@ -932,7 +981,12 @@ export function Facturas() {
                     usa tu folio oficial). Úsala para revisar impresión y XML; la validez ante el SAT requiere timbrado
                     con PAC y folios autorizados.
                   </div>
-                ) : null}
+                ) : (
+                  <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-950 dark:text-emerald-100">
+                    Al generar se timbra automáticamente con Facturama (CFDI 4.0). El menú de tres puntos queda para
+                    reintentar si el PAC falla, cancelar o emitir nota de crédito.
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label>Seleccionar venta *</Label>
                   <p className="text-[11px] text-slate-600 dark:text-slate-500">
@@ -1071,7 +1125,7 @@ export function Facturas() {
                           Imprimir representación al crear
                         </span>
                         <span className="mt-0.5 block text-xs text-slate-600 dark:text-slate-500">
-                          Abre la ventana de impresión en cuanto se genere la factura (mismo formato que «Imprimir
+                          Abre la ventana de impresión al terminar de timbrar (mismo formato que «Imprimir
                           representación» en la lista).
                         </span>
                       </span>
@@ -1100,16 +1154,27 @@ export function Facturas() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddDialog(false)} className="border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400">
+            <Button
+              variant="outline"
+              onClick={() => setShowAddDialog(false)}
+              disabled={generatingInvoice}
+              className="border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400"
+            >
               Cancelar
             </Button>
-            <Button 
-              onClick={handleGenerateInvoice}
-              disabled={!selectedSale || !fiscalConfig}
+            <Button
+              onClick={() => void handleGenerateInvoice()}
+              disabled={!selectedSale || !fiscalConfig || generatingInvoice}
               className="bg-brand-gradient text-white"
             >
               <Check className="w-4 h-4 mr-2" />
-              Generar Factura
+              {generatingInvoice
+                ? fiscalConfig?.modoPruebaFiscal
+                  ? 'Generando…'
+                  : 'Timbrando…'
+                : fiscalConfig?.modoPruebaFiscal
+                  ? 'Generar Factura'
+                  : 'Generar y timbrar'}
             </Button>
           </DialogFooter>
         </DialogContent>

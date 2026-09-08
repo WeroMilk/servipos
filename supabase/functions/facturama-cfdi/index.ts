@@ -17,6 +17,7 @@ import {
   type FacturamaCancelType,
   type FacturamaDownloadFormat,
 } from '../_shared/facturamaClient.ts';
+import { ensureCfdiSerieOnBranch } from '../_shared/facturamaSeries.ts';
 
 function json(body: unknown, status = 200, headers?: Record<string, string>) {
   return new Response(JSON.stringify(body), {
@@ -170,7 +171,11 @@ Deno.serve(async (req) => {
         if (body.payload == null || typeof body.payload !== 'object') {
           return json({ error: 'Falta payload del CFDI' }, 400, corsHeaders);
         }
-        const created = await facturamaCreateCfdi(cfg, body.payload);
+        const payload = await ensureCfdiSerieOnBranch(
+          cfg,
+          body.payload as Record<string, unknown>
+        );
+        const created = await facturamaCreateCfdi(cfg, payload);
         return json({ ok: true, cfdi: created }, 200, corsHeaders);
       }
 

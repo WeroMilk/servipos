@@ -227,6 +227,20 @@ export function getClientsCatalogSnapshot(): Client[] {
   return lastClients;
 }
 
+export async function getClientFirestore(sucursalId: string, id: string): Promise<Client | null> {
+  const cached = lastClients.find((c) => c.id === id);
+  if (cached && String(cached.regimenFiscal ?? '').trim()) return cached;
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('clients')
+    .select('id, doc')
+    .eq('sucursal_id', sucursalId)
+    .eq('id', id)
+    .maybeSingle();
+  if (error || !data?.doc) return cached ?? null;
+  return docToClient(sucursalId, data.id, data.doc as Record<string, unknown>);
+}
+
 function notifyClientsListeners(list: Client[]): void {
   lastClients = list;
   clientsListeners.forEach((fn) => {

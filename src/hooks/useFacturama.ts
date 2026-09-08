@@ -10,7 +10,9 @@ import {
   pickFacturamaIds,
   pickFacturamaStampMeta,
 } from '@/lib/facturama/client';
+import { hydrateInvoiceClienteFiscal } from '@/lib/facturama/hydrateInvoiceCliente';
 import { mapInvoiceToFacturama } from '@/lib/facturama/mapInvoiceToFacturama';
+import { normalizeFacturamaSerieName } from '@/lib/facturama/pickFacturamaBranchSerie';
 import { mapCreditNoteToFacturama } from '@/lib/facturama/mapCreditNoteToFacturama';
 import { mapPaymentComplementToFacturama } from '@/lib/facturama/mapPaymentComplementToFacturama';
 import { mapNominaToFacturama, type NominaPayloadInput } from '@/lib/facturama/mapNominaToFacturama';
@@ -50,7 +52,10 @@ export async function stampInvoiceWithFacturama(invoice: Invoice): Promise<Invoi
     throw new Error('No se puede timbrar una factura cancelada o en cancelación SAT');
   }
 
-  const payload = mapInvoiceToFacturama(invoice);
+  const ready = await hydrateInvoiceClienteFiscal(invoice);
+  const payload = mapInvoiceToFacturama(ready);
+  const serieHint = normalizeFacturamaSerieName(cfg?.serie);
+  if (serieHint) payload.Serie = serieHint;
   const { cfdi } = await facturamaCreate(payload);
   const meta = pickFacturamaStampMeta(cfdi as Record<string, unknown>);
   let xml: string | undefined;
@@ -83,11 +88,12 @@ export async function stampInvoiceWithFacturama(invoice: Invoice): Promise<Invoi
     selloDigital,
     fechaTimbrado: new Date(),
     estado: 'timbrada',
+    cliente: ready.cliente,
     ...(meta.folio ? { folio: meta.folio } : {}),
     ...(meta.serie ? { serie: meta.serie } : {}),
   };
   await persistInvoiceUpdate(invoice.id, updates);
-  return { ...invoice, ...updates };
+  return { ...ready, ...updates };
 }
 
 export async function cancelStampedInvoiceWithFacturama(opts: {
@@ -164,8 +170,9 @@ export async function stampCreditNoteWithFacturama(opts: {
   if (cfg?.modoPruebaFiscal) {
     throw new Error('Modo prueba fiscal: no se emiten notas de crédito ante el SAT');
   }
+  const ready = await hydrateInvoiceClienteFiscal(opts.original);
   const payload = mapCreditNoteToFacturama({
-    original: opts.original,
+    original: ready,
     serie: opts.serie,
     folio: opts.folio,
   });
@@ -209,8 +216,9 @@ export async function stampPaymentComplementWithFacturama(opts: {
     throw new Error('Modo prueba fiscal: no se emiten complementos de pago ante el SAT');
   }
 
+  const ready = await hydrateInvoiceClienteFiscal(opts.invoice);
   const payload = mapPaymentComplementToFacturama({
-    invoice: opts.invoice,
+    invoice: ready,
     paymentDate: opts.paymentDate,
     paymentForm: opts.paymentForm,
     amountPaid: opts.amountPaid,

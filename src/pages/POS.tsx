@@ -159,6 +159,7 @@ import {
   satFormaPagoParaCfdi,
 } from '@/lib/facturama/buildInvoiceFromSale';
 import { invoiceAndStampCompletedSale } from '@/lib/facturama/invoiceAtCheckout';
+import { mergeClienteDatosFiscales, resolveLiveClient } from '@/lib/facturama/hydrateInvoiceCliente';
 import {
   cartQtyForProduct,
   stockFisicoProducto,
@@ -1485,7 +1486,7 @@ export function POS() {
           ? openSaleResume.sale.cliente.nombre.trim()
           : '';
     setCheckoutClienteNombre(nombreInicial);
-    setCheckoutFacturarCfdi(false);
+    setCheckoutFacturarCfdi(clientListoParaCfdi(client).ok);
     setCheckoutUsoCfdi(client?.usoCfdi?.trim() || 'G03');
     setCheckoutPhase('payment');
     setCheckoutOpen(true);
@@ -1497,6 +1498,11 @@ export function POS() {
       setMontoRecibidoInput('');
     }
   }, [checkoutOpen, checkoutPhase]);
+
+  useEffect(() => {
+    if (!checkoutOpen || checkoutPhase !== 'payment') return;
+    setCheckoutFacturarCfdi(clientListoParaCfdi(client).ok);
+  }, [checkoutOpen, checkoutPhase, client?.id]);
 
   const formaPagoRef = useRef(formaPago);
   formaPagoRef.current = formaPago;
@@ -2980,6 +2986,9 @@ export function POS() {
 
     const facturarAhora =
       checkoutFacturarCfdi && checkoutFormaPagoPermiteCfdi(String(formaPago)) && !esTraspasoTienda;
+    const clienteCfdi = facturarAhora
+      ? (mergeClienteDatosFiscales(client, await resolveLiveClient(client?.id)) ?? client)
+      : client;
     if (facturarAhora) {
       if (!fiscalConfig) {
         addToast({
@@ -2995,7 +3004,7 @@ export function POS() {
         });
         return;
       }
-      const listo = clientListoParaCfdi(client);
+      const listo = clientListoParaCfdi(clienteCfdi);
       if (!listo.ok) {
         addToast({ type: 'error', message: listo.reason });
         return;
@@ -3003,13 +3012,13 @@ export function POS() {
     }
 
     const runCfdiAlCobrar = async (sale: Sale) => {
-      if (!facturarAhora || !client || !fiscalConfig) {
+      if (!facturarAhora || !clienteCfdi || !fiscalConfig) {
         return {} as { cfdiUuid?: string; cfdiError?: string; cfdiPrueba?: boolean };
       }
       try {
         const r = await invoiceAndStampCompletedSale({
           sale,
-          client,
+          client: clienteCfdi,
           fiscalConfig,
           usoCfdi: checkoutUsoCfdi,
           formaPago: satFormaPagoParaCfdi(String(sale.formaPago), sale.metodoPago),
@@ -4945,8 +4954,9 @@ export function POS() {
                     {checkoutFacturarCfdi ? (
                       <div className="space-y-2">
                         <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-400 sm:text-xs">
-                          Al completar se timbra el CFDI 4.0 con Facturama (XML/PDF). El cliente debe tener RFC, régimen
-                          y código postal.
+                          Al completar se timbra el CFDI 4.0 con Facturama (XML/PDF). Si el cliente de la venta ya
+                          tiene RFC, régimen y CP, el interruptor se activa solo. Puede apagarlo para dejar solo el
+                          ticket.
                         </p>
                         {!cfdiClienteListo.ok ? (
                           <p className="text-xs font-medium text-amber-800 dark:text-amber-300">

@@ -153,6 +153,10 @@ function mapClientEmbedded(raw: Record<string, unknown>): Client {
     rfc: raw.rfc != null ? String(raw.rfc) : undefined,
     nombre: String(raw.nombre ?? ''),
     razonSocial: raw.razonSocial != null ? String(raw.razonSocial) : undefined,
+    codigoPostal: raw.codigoPostal != null ? String(raw.codigoPostal) : undefined,
+    regimenFiscal: raw.regimenFiscal != null ? String(raw.regimenFiscal) : undefined,
+    usoCfdi: raw.usoCfdi != null ? String(raw.usoCfdi) : undefined,
+    email: raw.email != null ? String(raw.email) : undefined,
     isMostrador: raw.isMostrador === true,
     listaPreciosId:
       raw.listaPreciosId != null && raw.listaPreciosId !== ''
@@ -249,6 +253,10 @@ function clientSnapshotToFirestorePayload(cliente: Client | null | undefined): R
     rfc: cliente.rfc ?? null,
     nombre: cliente.nombre,
     razonSocial: cliente.razonSocial ?? null,
+    codigoPostal: cliente.codigoPostal ?? cliente.direccion?.codigoPostal ?? null,
+    regimenFiscal: cliente.regimenFiscal ?? null,
+    usoCfdi: cliente.usoCfdi ?? null,
+    email: cliente.email ?? null,
     isMostrador: cliente.isMostrador,
     listaPreciosId: cliente.listaPreciosId ?? null,
     createdAt: cliente.createdAt instanceof Date ? cliente.createdAt.toISOString() : cliente.createdAt,
