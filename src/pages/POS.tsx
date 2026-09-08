@@ -65,7 +65,6 @@ import {
   clearVentasAbiertasPosHeaderBridge,
 } from '@/stores/ventasAbiertasPosHeaderStore';
 import { useProductSearch, useSales, useClients, useEffectiveSucursalId, useCajaSesion, useFiscalConfig, useInvoices } from '@/hooks';
-import { useEmployees, useNominaRecibos } from '@/hooks/useNominas';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { usePosCartCloudSync } from '@/hooks/usePosCartCloudSync';
 import { CajaPosToolbar, type CajaPosToolbarHandle } from '@/components/caja/CajaPosToolbar';
@@ -101,7 +100,6 @@ import {
 } from '@/db/database';
 import { getSaleByIdFirestore } from '@/lib/firestore/salesFirestore';
 import { getInvoiceFirestore } from '@/lib/firestore/invoicesFirestore';
-import { getNominaReciboFirestore } from '@/lib/firestore/nominaRecibosFirestore';
 import { registrarAbonoCobroCajaFirestore } from '@/lib/firestore/cajaFirestore';
 import { getProductCatalogSnapshot, updateProductFirestore } from '@/lib/firestore/productsFirestore';
 import { commitEmptyPosCartDraft } from '@/lib/firestore/posCartDraftFirestore';
@@ -154,18 +152,13 @@ import {
   type DevolucionLineInput,
 } from '@/lib/salePartialReturnCompute';
 import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
-import { printInvoiceCfdiRepresentacion, printNominaTimbradaCfdiLetter } from '@/lib/cfdiRepresentacionImpresa';
+import { printInvoiceCfdiRepresentacion } from '@/lib/cfdiRepresentacionImpresa';
 import {
   checkoutFormaPagoPermiteCfdi,
   clientListoParaCfdi,
   satFormaPagoParaCfdi,
 } from '@/lib/facturama/buildInvoiceFromSale';
 import { invoiceAndStampCompletedSale } from '@/lib/facturama/invoiceAtCheckout';
-import {
-  buildNominaBorradorFromSueldo,
-  defaultQuincenaLocal,
-  employeeListoParaNomina,
-} from '@/lib/nominaPosCheckout';
 import { clientReachedCreditLimit } from '@/lib/clientCreditLimit';
 import { saldoCreditoCliente, sumCreditoTiendaEnPagosParcial } from '@/lib/clientCreditoTienda';
 
@@ -444,8 +437,6 @@ type PosTicketSnapshot = {
   cfdiUuid?: string;
   cfdiError?: string;
   cfdiPrueba?: boolean;
-  nominaUuid?: string;
-  nominaError?: string;
 };
 
 /** Imprime el ticket térmico con el snapshot ya construido (evita estado React desactualizado). */
@@ -961,13 +952,6 @@ export function POS() {
   const [checkoutClienteNombre, setCheckoutClienteNombre] = useState('');
   const [checkoutFacturarCfdi, setCheckoutFacturarCfdi] = useState(false);
   const [checkoutUsoCfdi, setCheckoutUsoCfdi] = useState('G03');
-  const [checkoutNomina, setCheckoutNomina] = useState(false);
-  const [checkoutNominaEmpleadoId, setCheckoutNominaEmpleadoId] = useState('');
-  const [checkoutNominaSueldo, setCheckoutNominaSueldo] = useState('');
-  const [checkoutNominaFechaPago, setCheckoutNominaFechaPago] = useState('');
-  const [checkoutNominaFechaIni, setCheckoutNominaFechaIni] = useState('');
-  const [checkoutNominaFechaFin, setCheckoutNominaFechaFin] = useState('');
-  const [checkoutNominaDias, setCheckoutNominaDias] = useState('15');
   /** En parcialidades (PPD), medio del próximo abono (mezcla efectivo + tarjetas sin cambiar el selector lateral). */
   const [ppdAbonoFormaPago, setPpdAbonoFormaPago] = useState('01');
   /** Se incrementa al abrir el diálogo de cobro para inicializar `ppdAbonoFormaPago` sin pisar cambios al mover el selector lateral. */
@@ -1031,73 +1015,7 @@ export function POS() {
   const { clients, refresh: refreshClients, emitirCreditoTienda } = useClients();
   const { config: fiscalConfig } = useFiscalConfig();
   const { addInvoice } = useInvoices();
-  const { employees } = useEmployees();
-  const { createBorrador: createNominaBorrador, timbrar: timbrarNomina } = useNominaRecibos();
-  const empleadosNominaActivos = useMemo(() => employees.filter((e) => e.activo), [employees]);
-  const checkoutNominaEmp = useMemo(
-    () => empleadosNominaActivos.find((e) => e.id === checkoutNominaEmpleadoId) ?? null,
-    [empleadosNominaActivos, checkoutNominaEmpleadoId]
-  );
-  const nominaEmpListo = useMemo(() => employeeListoParaNomina(checkoutNominaEmp), [checkoutNominaEmp]);
   const cfdiClienteListo = useMemo(() => clientListoParaCfdi(client), [client]);
-
-  useEffect(() => {
-    if (!checkoutNominaEmp) return;
-    const s = checkoutNominaEmp.salarioBaseCotApor;
-    setCheckoutNominaSueldo(s != null && s > 0 ? String(s) : '');
-  }, [checkoutNominaEmpleadoId, checkoutNominaEmp]);
-
-  const stampNominaFromCheckout = useCallback(async (): Promise<{
-    nominaUuid?: string;
-    nominaError?: string;
-  }> => {
-    if (!fiscalConfig) {
-      return { nominaError: 'Configure los datos fiscales antes de timbrar nómina.' };
-    }
-    if (fiscalConfig.modoPruebaFiscal) {
-      return { nominaError: 'Modo prueba fiscal activo: no se timbra nómina.' };
-    }
-    const emp = checkoutNominaEmp;
-    const listo = employeeListoParaNomina(emp);
-    if (!listo.ok) return { nominaError: listo.reason };
-    if (!emp) return { nominaError: 'Seleccione un empleado activo (alta en Nómina).' };
-    try {
-      const sueldoN = parseFloat(checkoutNominaSueldo.replace(',', '.'));
-      const draft = buildNominaBorradorFromSueldo({
-        employee: emp,
-        fiscalConfig,
-        sueldo: sueldoN,
-        fechaPago: checkoutNominaFechaPago,
-        fechaInicialPago: checkoutNominaFechaIni,
-        fechaFinalPago: checkoutNominaFechaFin,
-        numDiasPagados: parseInt(checkoutNominaDias, 10) || 15,
-      });
-      const id = await createNominaBorrador(draft);
-      const stamped = await timbrarNomina(id);
-      if (effectiveSucursalId) {
-        try {
-          const rec = await getNominaReciboFirestore(effectiveSucursalId, id);
-          if (rec) printNominaTimbradaCfdiLetter({ config: fiscalConfig, recibo: rec });
-        } catch {
-          /* la representación impresa es opcional */
-        }
-      }
-      return { nominaUuid: stamped.uuid };
-    } catch (e) {
-      return { nominaError: e instanceof Error ? e.message : 'No se pudo timbrar la nómina' };
-    }
-  }, [
-    fiscalConfig,
-    checkoutNominaEmp,
-    checkoutNominaSueldo,
-    checkoutNominaFechaPago,
-    checkoutNominaFechaIni,
-    checkoutNominaFechaFin,
-    checkoutNominaDias,
-    createNominaBorrador,
-    timbrarNomina,
-    effectiveSucursalId,
-  ]);
 
   const clientesFiltradosParaCxc = useMemo(
     () => filterClientesRegistrados(clients, pasarCxcClienteSearch),
@@ -1221,9 +1139,6 @@ export function POS() {
       setCheckoutClienteNombre('');
       setCheckoutFacturarCfdi(false);
       setCheckoutUsoCfdi('G03');
-      setCheckoutNomina(false);
-      setCheckoutNominaEmpleadoId('');
-      setCheckoutNominaSueldo('');
       setMobileTab('cart');
     }
   }, [finalizePosCartAfterSale]);
@@ -1555,14 +1470,6 @@ export function POS() {
     setCheckoutClienteNombre(nombreInicial);
     setCheckoutFacturarCfdi(false);
     setCheckoutUsoCfdi(client?.usoCfdi?.trim() || 'G03');
-    const q = defaultQuincenaLocal();
-    setCheckoutNomina(false);
-    setCheckoutNominaEmpleadoId('');
-    setCheckoutNominaSueldo('');
-    setCheckoutNominaFechaPago(q.fechaPago);
-    setCheckoutNominaFechaIni(q.fechaIni);
-    setCheckoutNominaFechaFin(q.fechaFin);
-    setCheckoutNominaDias(String(q.dias));
     setCheckoutPhase('payment');
     setCheckoutOpen(true);
     setCheckoutPaymentKey((k) => k + 1);
@@ -2765,66 +2672,8 @@ export function POS() {
       return;
     }
 
-    /** Sin líneas: solo se permite timbrar nómina desde caja. */
     if (items.length === 0) {
-      if (!checkoutNomina) {
-        addToast({ type: 'error', message: 'Agregue productos al carrito' });
-        return;
-      }
-      if (!fiscalConfig) {
-        addToast({ type: 'error', message: 'Configure los datos fiscales antes de timbrar nómina.' });
-        return;
-      }
-      if (fiscalConfig.modoPruebaFiscal) {
-        addToast({
-          type: 'error',
-          message: 'Modo prueba fiscal activo: no se timbra nómina. Desactívelo en Configuración.',
-        });
-        return;
-      }
-      if (!nominaEmpListo.ok) {
-        addToast({ type: 'error', message: nominaEmpListo.reason });
-        return;
-      }
-      setProcessingSale(true);
-      try {
-        const nominaRes = await stampNominaFromCheckout();
-        if (nominaRes.nominaError) {
-          addToast({ type: 'error', message: nominaRes.nominaError });
-          return;
-        }
-        const empN = checkoutNominaEmp;
-        setTicketSnapshot({
-          clienteNombre: empN?.nombre?.trim() || 'Nómina',
-          cajeroNombre: user?.name?.trim() || user?.username?.trim() || user?.email?.trim() || undefined,
-          lineas: [
-            {
-              descripcion: `Recibo de nómina · ${empN?.nombre ?? ''}`.trim(),
-              cantidad: 1,
-              precioUnit: 0,
-              total: 0,
-            },
-          ],
-          subtotal: 0,
-          impuestos: 0,
-          total: 0,
-          cambio: 0,
-          sucursalId: effectiveSucursalId,
-          ...nominaRes,
-        });
-        setCheckoutPhase('success');
-        addToast({
-          type: 'success',
-          message: `Nómina timbrada. UUID ${nominaRes.nominaUuid}`,
-        });
-      } catch (error: unknown) {
-        addToast({
-          type: 'error',
-          message: error instanceof Error ? error.message : 'No se pudo timbrar la nómina',
-        });
-      } finally {
-        setProcessingSale(false);
-      }
+      addToast({ type: 'error', message: 'Agregue productos al carrito' });
       return;
     }
 
@@ -3005,24 +2854,6 @@ export function POS() {
       const listo = clientListoParaCfdi(client);
       if (!listo.ok) {
         addToast({ type: 'error', message: listo.reason });
-        return;
-      }
-    }
-
-    if (checkoutNomina) {
-      if (!fiscalConfig) {
-        addToast({ type: 'error', message: 'Configure los datos fiscales antes de timbrar nómina.' });
-        return;
-      }
-      if (fiscalConfig.modoPruebaFiscal) {
-        addToast({
-          type: 'error',
-          message: 'Modo prueba fiscal activo: no se timbra nómina. Desactívelo en Configuración.',
-        });
-        return;
-      }
-      if (!nominaEmpListo.ok) {
-        addToast({ type: 'error', message: nominaEmpListo.reason });
         return;
       }
     }
@@ -3212,7 +3043,6 @@ export function POS() {
           ? await getSaleByIdFirestore(effectiveSucursalId, pend.id)
           : await getSaleById(pend.id);
         const cfdiRes = saleCerrada ? await runCfdiAlCobrar(saleCerrada) : {};
-        const nominaRes = checkoutNomina ? await stampNominaFromCheckout() : {};
 
         const clienteNombre = clienteNombreVenta;
         const lineas = items.map((item) => {
@@ -3249,7 +3079,6 @@ export function POS() {
           resumenPagos: resumenPagosAbierta,
           ocultarIvaEnTicket: ocultarIvaEnTicket || pend.ocultarIvaEnTicket === true,
           ...cfdiRes,
-          ...nominaRes,
         };
         setTicketSnapshot(ticketSnapAbierta);
         printPosTicketSnapshot(ticketSnapAbierta);
@@ -3333,7 +3162,6 @@ export function POS() {
         syncStatus: 'synced',
       };
       const cfdiRes = await runCfdiAlCobrar(saleNueva);
-      const nominaRes = checkoutNomina ? await stampNominaFromCheckout() : {};
 
       const clienteNombre = clienteNombreVenta;
       const lineas = items.map((item) => {
@@ -3373,7 +3201,6 @@ export function POS() {
         resumenPagos,
         ocultarIvaEnTicket: ocultarIvaEnTicket === true,
         ...cfdiRes,
-        ...nominaRes,
       };
       setTicketSnapshot(ticketSnapVenta);
       printPosTicketSnapshot(ticketSnapVenta);
@@ -4869,8 +4696,7 @@ export function POS() {
               cobroTarjetaPue ||
               esTraspasoTienda ||
               checkoutDevolucionListo ||
-              formaPago === 'PPC' ||
-              items.length === 0
+              formaPago === 'PPC'
             ) {
               return;
             }
@@ -4904,22 +4730,14 @@ export function POS() {
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
                   <Receipt className="h-5 w-5 text-brand sm:h-6 sm:w-6" />
-                  {checkoutDevolucionListo
-                    ? 'Confirmar devolución'
-                    : items.length === 0 && checkoutNomina
-                      ? 'Timbrar nómina'
-                      : formaPago === 'PPC'
-                        ? 'Pendiente de pago'
-                        : 'Procesar pago'}
+                  {checkoutDevolucionListo ? 'Confirmar devolución' : formaPago === 'PPC' ? 'Pendiente de pago' : 'Procesar pago'}
                 </DialogTitle>
               </DialogHeader>
 
               <div className="space-y-3 py-1 sm:space-y-4 sm:py-2">
                 <div className="rounded-xl bg-slate-200/80 dark:bg-slate-800/50 p-3 text-center sm:p-4">
                   <p className="mb-1 text-xs text-slate-600 dark:text-slate-400 sm:text-sm">
-                    {items.length === 0 && checkoutNomina
-                      ? 'Recibo de nómina (sin venta)'
-                      : etiquetaImporteCobroDialogo}
+                    {etiquetaImporteCobroDialogo}
                   </p>
                   <p className="text-2xl font-bold text-brand sm:text-4xl">
                     {formatMoney(importeDestacadoCobroDialogo)}
@@ -4967,7 +4785,6 @@ export function POS() {
                 ) : null}
 
                 {!checkoutDevolucionListo &&
-                items.length > 0 &&
                 checkoutFormaPagoPermiteCfdi(String(formaPago)) &&
                 !esTraspasoTienda ? (
                   <div className="space-y-2 rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-3">
@@ -5019,102 +4836,6 @@ export function POS() {
                               ))}
                             </SelectContent>
                           </Select>
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                {!checkoutDevolucionListo && !esTraspasoTienda && !esFormaCotizacion && formaPago !== 'DEV' ? (
-                  <div className="space-y-2 rounded-lg border border-violet-500/25 bg-violet-500/5 p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <Label htmlFor="checkout-nomina" className="text-sm font-medium">
-                        Timbrar nómina ahora
-                      </Label>
-                      <Switch
-                        id="checkout-nomina"
-                        checked={checkoutNomina}
-                        onCheckedChange={setCheckoutNomina}
-                      />
-                    </div>
-                    {checkoutNomina ? (
-                      <div className="space-y-2">
-                        <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-400 sm:text-xs">
-                          Recibo CFDI tipo N (sueldo + ISR/IMSS estimados). Confirme montos. Puede timbrar sin productos
-                          en el carrito.
-                        </p>
-                        <div className="space-y-1">
-                          <Label className="text-xs">Empleado</Label>
-                          <Select
-                            value={checkoutNominaEmpleadoId || undefined}
-                            onValueChange={setCheckoutNominaEmpleadoId}
-                          >
-                            <SelectTrigger className="h-10">
-                              <SelectValue placeholder="Seleccione empleado" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {empleadosNominaActivos.map((e) => (
-                                <SelectItem key={e.id} value={e.id}>
-                                  {e.numeroEmpleado} · {e.nombre}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        {!nominaEmpListo.ok ? (
-                          <p className="text-xs font-medium text-amber-800 dark:text-amber-300">
-                            {nominaEmpListo.reason}
-                          </p>
-                        ) : null}
-                        <div className="space-y-1">
-                          <Label className="text-xs" htmlFor="checkout-nomina-sueldo">
-                            Sueldo del periodo
-                          </Label>
-                          <Input
-                            id="checkout-nomina-sueldo"
-                            inputMode="decimal"
-                            value={checkoutNominaSueldo}
-                            onChange={(e) => setCheckoutNominaSueldo(e.target.value)}
-                            className="h-10"
-                          />
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="space-y-1">
-                            <Label className="text-xs">Inicio</Label>
-                            <Input
-                              type="date"
-                              value={checkoutNominaFechaIni}
-                              onChange={(e) => setCheckoutNominaFechaIni(e.target.value)}
-                              className="h-10"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">Fin</Label>
-                            <Input
-                              type="date"
-                              value={checkoutNominaFechaFin}
-                              onChange={(e) => setCheckoutNominaFechaFin(e.target.value)}
-                              className="h-10"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">Fecha pago</Label>
-                            <Input
-                              type="date"
-                              value={checkoutNominaFechaPago}
-                              onChange={(e) => setCheckoutNominaFechaPago(e.target.value)}
-                              className="h-10"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">Días</Label>
-                            <Input
-                              inputMode="numeric"
-                              value={checkoutNominaDias}
-                              onChange={(e) => setCheckoutNominaDias(e.target.value)}
-                              className="h-10"
-                            />
-                          </div>
                         </div>
                       </div>
                     ) : null}
@@ -5177,11 +4898,7 @@ export function POS() {
                   </p>
                 ) : null}
 
-                {items.length > 0 &&
-                !cobroTarjetaPue &&
-                !esTraspasoTienda &&
-                !checkoutDevolucionListo &&
-                formaPago !== 'PPC' ? (
+                {!cobroTarjetaPue && !esTraspasoTienda && !checkoutDevolucionListo && formaPago !== 'PPC' ? (
                   <div className="space-y-2">
                     {metodoPago === 'PPD' ? (
                       <div className="space-y-1.5">
@@ -5273,8 +4990,7 @@ export function POS() {
                   </div>
                 ) : null}
 
-                {items.length > 0 &&
-                esFormaEfectivo(formaPagoAbono) &&
+                {esFormaEfectivo(formaPagoAbono) &&
                 !esTraspasoTienda &&
                 !checkoutDevolucionListo &&
                 formaPago !== 'PPC' ? (
@@ -5292,8 +5008,7 @@ export function POS() {
                   </div>
                 ) : null}
 
-                {items.length > 0 &&
-                pagos.length > 0 &&
+                {pagos.length > 0 &&
                 !cobroTarjetaPue &&
                 !checkoutDevolucionListo &&
                 formaPago !== 'PPC' && (
@@ -5325,8 +5040,7 @@ export function POS() {
                   </div>
                 )}
 
-                {items.length > 0 &&
-                !esTraspasoTienda &&
+                {!esTraspasoTienda &&
                 !checkoutDevolucionListo &&
                 formaPago !== 'PPC' &&
                 cambioVenta > 0 && (
@@ -5356,7 +5070,7 @@ export function POS() {
                     (checkoutDevolucionListo
                       ? false
                       : items.length === 0
-                        ? !checkoutNomina || !nominaEmpListo.ok
+                        ? true
                         : cobroTarjetaPue
                           ? false
                           : puedeVentaConSaldoPendiente
@@ -5373,21 +5087,13 @@ export function POS() {
                   )}
                   {checkoutDevolucionListo
                     ? 'Confirmar devolución'
-                    : items.length === 0 && checkoutNomina
-                      ? 'Timbrar nómina'
-                      : puedeVentaConSaldoPendiente &&
-                          !hayCampoMontoParaAbonoValido &&
-                          totalPagadoIncluyeCampoMonto + 0.004 < cobroReferencia
-                        ? 'Completar dejando saldo'
-                        : checkoutFacturarCfdi &&
-                            checkoutNomina &&
-                            checkoutFormaPagoPermiteCfdi(String(formaPago))
-                          ? 'Completar, CFDI y nómina'
-                          : checkoutNomina
-                            ? 'Completar y timbrar nómina'
-                            : checkoutFacturarCfdi && checkoutFormaPagoPermiteCfdi(String(formaPago))
-                              ? 'Completar y timbrar CFDI'
-                              : 'Completar venta'}
+                    : puedeVentaConSaldoPendiente &&
+                        !hayCampoMontoParaAbonoValido &&
+                        totalPagadoIncluyeCampoMonto + 0.004 < cobroReferencia
+                      ? 'Completar dejando saldo'
+                      : checkoutFacturarCfdi && checkoutFormaPagoPermiteCfdi(String(formaPago))
+                        ? 'Completar y timbrar CFDI'
+                        : 'Completar venta'}
                 </Button>
               </DialogFooter>
             </>
@@ -5397,9 +5103,7 @@ export function POS() {
                 <DialogTitle className="text-center text-lg sm:text-xl">
                   {ticketSnapshot?.modoDevolucion
                     ? 'Devolución registrada'
-                    : ticketSnapshot?.nominaUuid && !ticketSnapshot.folio
-                      ? 'Nómina timbrada'
-                      : '¡Venta completada!'}
+                    : '¡Venta completada!'}
                 </DialogTitle>
               </DialogHeader>
 
@@ -5445,17 +5149,6 @@ export function POS() {
                   <p className="mt-3 text-xs font-medium text-amber-800 dark:text-amber-300 sm:text-sm">
                     La venta se cobró, pero el CFDI no se timbró: {ticketSnapshot.cfdiError}. Puede timbrarlo en
                     Facturación.
-                  </p>
-                ) : null}
-                {ticketSnapshot?.nominaUuid ? (
-                  <p className="mt-3 break-all text-xs font-medium text-violet-800 dark:text-violet-300 sm:text-sm">
-                    Nómina timbrada · UUID {ticketSnapshot.nominaUuid}
-                  </p>
-                ) : null}
-                {ticketSnapshot?.nominaError ? (
-                  <p className="mt-3 text-xs font-medium text-amber-800 dark:text-amber-300 sm:text-sm">
-                    La venta se cobró, pero la nómina no se timbró: {ticketSnapshot.nominaError}. Puede timbrarla en
-                    Nómina.
                   </p>
                 ) : null}
               </div>
