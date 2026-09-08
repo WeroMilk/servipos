@@ -7,10 +7,10 @@ import {
   buildInvoiceCfdiQrUrl,
   buildNominaCfdiQrUrl,
   buildNominaPruebaCfdiQrUrl,
-  buildSatVerificacionCfdiUrl,
   CFDI_MUESTRA_UUID,
 } from '@/lib/satVerificacionCfdi';
 import { openCfdiLetterPrint } from '@/lib/openLetterPrint';
+import { getFiscalConfig } from '@/db/database';
 import {
   CLAVES_UNIDAD,
   FORMAS_PAGO,
@@ -94,7 +94,7 @@ function unidadCortaSat(clave: string | undefined): string {
 }
 
 const FACTURA_PRINT_STYLES = `
-@page { size: letter; margin: 9mm 11mm; }
+@page { size: letter; margin: 0; }
 * { box-sizing: border-box; }
 html.cfdi-letter-root {
   height: 100%;
@@ -106,7 +106,7 @@ body.cfdi-letter-doc {
   line-height: 1.38;
   margin: 0 auto;
   max-width: 7.5in;
-  padding: 0;
+  padding: 10mm 12mm 12mm;
   min-height: 1056px;
   display: flex;
   flex-direction: column;
@@ -224,6 +224,7 @@ body.cfdi-letter-doc .doc-brand-foot {
   }
   body.cfdi-letter-doc {
     min-height: 10.25in !important;
+    max-width: none !important;
   }
   .sellos .mono {
     font-family: "Courier New", Courier, monospace !important;
@@ -232,7 +233,10 @@ body.cfdi-letter-doc .doc-brand-foot {
 `;
 
 export async function buildInvoiceCfdiPrintDocumentHtml(inv: Invoice): Promise<string> {
+  const fiscalFallback = await getFiscalConfig();
   const emisor = inv.emisor;
+  const rfcEmisor =
+    (emisor?.rfc || fiscalFallback?.rfc || '').trim().toUpperCase();
   const rfcRec = (inv.cliente?.rfc || 'XAXX010101000').trim().toUpperCase();
   const nombreRec =
     inv.cliente?.razonSocial?.trim() ||
@@ -245,19 +249,15 @@ export async function buildInvoiceCfdiPrintDocumentHtml(inv: Invoice): Promise<s
   const uso = inv.cliente?.usoCfdi || 'S01';
   const regRec = inv.cliente?.regimenFiscal || '616';
 
-  const qrUrlReal =
-    inv.uuid && inv.selloDigital
-      ? buildSatVerificacionCfdiUrl({
-          uuid: inv.uuid,
-          rfcEmisor: emisor.rfc,
-          rfcReceptor: rfcRec,
-          total: inv.total,
-          selloDigitalEmisor: inv.selloDigital,
-        })
-      : null;
+  const qrUrl = buildInvoiceCfdiQrUrl(inv, rfcEmisor);
+  const qrUrlReal = Boolean(
+    inv.uuid &&
+      qrUrl &&
+      !qrUrl.toUpperCase().includes(CFDI_MUESTRA_UUID) &&
+      qrUrl.toLowerCase().includes(inv.uuid.replace(/[{}]/g, '').toLowerCase())
+  );
   const brandLogoUrl = escHtml(getBrandLogoAbsoluteUrl());
   const qrEsMuestra = !qrUrlReal;
-  const qrUrl = buildInvoiceCfdiQrUrl(inv);
 
   let qrBlock: string;
   if (qrUrl) {
@@ -272,7 +272,11 @@ export async function buildInvoiceCfdiPrintDocumentHtml(inv: Invoice): Promise<s
       : 'Verificacion SAT (CBB).';
     qrBlock = `<div class="qr-zona"><img src="${dataUrl}" width="92" height="92" alt="QR CFDI" /><div class="qr-caption">${escHtml(cap)}</div></div>`;
   } else {
-    qrBlock = `<div class="qr-zona"><div class="qr-caption">${escHtml('Sin RFC emisor no se puede generar el QR.')}</div></div>`;
+    qrBlock = `<div class="qr-zona"><div class="qr-caption">${escHtml(
+      rfcEmisor
+        ? 'No se pudo generar el QR de verificación SAT.'
+        : 'Sin RFC emisor no se puede generar el QR.'
+    )}</div></div>`;
   }
 
   const productos = inv.productos ?? [];
@@ -347,7 +351,7 @@ ${aviso}
 <div class="hdr-row">
   <div class="hdr-logo"><img src="${brandLogoUrl}" alt="SERVIPARTZ" /></div>
   <div class="hdr-emisor">
-    <div class="rfc-line">RFC: ${escHtml(emisor.rfc)}</div>
+    <div class="rfc-line">RFC: ${escHtml(rfcEmisor || emisor.rfc || '-')}</div>
     <div class="nombre-emisor">${escHtml(emisor.nombreComercial?.trim() || emisor.razonSocial || '-')}</div>
     <div class="addr-line">${addrClassica}</div>
     <div class="lugar-fecha">${lugarFechaLinea}</div>
@@ -419,12 +423,11 @@ ${selloSatBlock}
 `;
 
   const foot = buildLetterFooterHtml(inv.sucursalId ?? null);
-  const title = `Factura ${inv.serie}-${inv.folio}`;
 
   return `<!DOCTYPE html><html lang="es-MX" class="cfdi-letter-root"><head>
 <meta charset="utf-8"/>
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
-<title>${escHtml(title)}</title>
+<title>&nbsp;</title>
 <style>${FACTURA_PRINT_STYLES}</style></head><body class="cfdi-letter-doc">
 <div class="cfdi-letter-main">
 ${inner}
@@ -553,9 +556,9 @@ function mergeNominaPruebaInput(input: NominaPruebaPrintInput): NominaPruebaDraf
 }
 
 const NOMINA_ONE_PAGE_STYLES = `
-@page { size: letter; margin: 5mm 7mm; }
+@page { size: letter; margin: 0; }
 * { box-sizing: border-box; }
-body { font-family: Arial, Helvetica, sans-serif; font-size: 7.5pt; line-height: 1.22; color: #111; margin: 0; }
+body { font-family: Arial, Helvetica, sans-serif; font-size: 7.5pt; line-height: 1.22; color: #111; margin: 0; padding: 8mm 10mm 10mm; }
 .brand-top { display: flex; align-items: flex-start; gap: 10px; margin: 0 0 6px; }
 .brand-top .brand-logo { width: 54px; height: 54px; object-fit: contain; flex: 0 0 54px; }
 .brand-top .brand-title { font-size: 9pt; font-weight: 700; letter-spacing: 0.03em; margin-top: 4px; }
@@ -725,7 +728,7 @@ ${qrRowHtml}
 </p>
 `;
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Recibo de nómina</title>
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>&nbsp;</title>
 <style>${NOMINA_ONE_PAGE_STYLES}</style></head><body>
 ${inner}
 ${foot}
@@ -832,9 +835,7 @@ ${qrRowHtml}
 <p class="muted">Documento timbrado. El QR enlaza al verificador oficial del SAT con UUID y sello reales.</p>
 `;
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Nómina ${escHtml(
-    recibo.serie
-  )}-${escHtml(String(recibo.folio))}</title>
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>&nbsp;</title>
 <style>${NOMINA_ONE_PAGE_STYLES}</style></head><body>
 ${inner}
 ${foot}

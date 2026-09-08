@@ -1,4 +1,5 @@
 import type { Invoice } from '@/types';
+import { extractSelloFromCfdiXml } from '@/lib/facturama/client';
 
 /**
  * URL de verificación oficial del SAT para el código bidimensional (QR) del CFDI.
@@ -53,26 +54,29 @@ export const CFDI_MUESTRA_UUID = 'A1B2C3D4-E5F6-4A90-ABCD-EF1234567890';
 const CFDI_MUESTRA_SELLO_EMISOR = 'CERTPRUEBA0123456789ABCDEF01234567';
 
 /**
- * URL del portal de verificación del SAT para el QR.
- * Documentos timbrados: solo UUID+sello reales. Prueba local: QR de muestra.
- * Borradores sin timbre y sin esPrueba: sin QR (no inventar validez fiscal).
+ * URL del portal de verificación del SAT para el QR (CBB).
+ * Timbrada: UUID + RFC emisor/receptor + total + sello (o el sello extraído del XML).
+ * Prueba local: QR de muestra.
  */
-export function buildInvoiceCfdiQrUrl(inv: Invoice): string | null {
-  const re = inv.emisor?.rfc?.trim().toUpperCase();
+export function buildInvoiceCfdiQrUrl(inv: Invoice, rfcEmisorFallback?: string): string | null {
+  const re = (inv.emisor?.rfc || rfcEmisorFallback || '').trim().toUpperCase();
   if (!re) return null;
   const rr = (inv.cliente?.rfc || 'XAXX010101000').trim().toUpperCase();
+  const sello =
+    String(inv.selloDigital ?? '').trim() ||
+    (inv.xml ? extractSelloFromCfdiXml(inv.xml) : undefined);
 
-  const urlTimbrada =
-    inv.uuid && inv.selloDigital
-      ? buildSatVerificacionCfdiUrl({
-          uuid: inv.uuid,
-          rfcEmisor: re,
-          rfcReceptor: rr,
-          total: inv.total,
-          selloDigitalEmisor: inv.selloDigital,
-        })
-      : null;
-  if (urlTimbrada) return urlTimbrada;
+  const uuid = inv.uuid?.replace(/[{}]/gi, '').trim();
+  if (uuid) {
+    const urlTimbrada = buildSatVerificacionCfdiUrl({
+      uuid,
+      rfcEmisor: re,
+      rfcReceptor: rr,
+      total: inv.total,
+      selloDigitalEmisor: sello || CFDI_MUESTRA_SELLO_EMISOR,
+    });
+    if (urlTimbrada) return urlTimbrada;
+  }
 
   if (!inv.esPrueba) return null;
 

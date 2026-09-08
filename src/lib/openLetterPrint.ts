@@ -1,8 +1,9 @@
 /**
  * Impresión tamaño carta (CFDI, cotizaciones carta, etc.).
- * Usa URL `blob:` en lugar de `about:blank` + `document.write` para que el navegador
- * no muestre "about:blank" en cabecera/pie o marca al imprimir.
+ * Escritorio: `about:blank` + `document.write` (no URL `blob:`) para que el pie
+ * de Chrome no muestre `blob:https://servipos.vercel.app/…`.
  */
+
 function attachLetterPrintHandlers(win: Window, onAfterPrint?: () => void): void {
   const safeClose = () => {
     try {
@@ -27,24 +28,27 @@ function attachLetterPrintHandlers(win: Window, onAfterPrint?: () => void): void
   );
 }
 
-function printFromHiddenIframeBlob(blobUrl: string, printDelayMs: number, revoke: () => void): void {
+function printFromHiddenIframeHtml(html: string, printDelayMs: number): void {
   const iframe = document.createElement('iframe');
   iframe.setAttribute('title', 'Impresión');
   iframe.style.cssText =
     'position:absolute;width:1px;height:1px;left:-9999px;top:0;border:0;opacity:0;pointer-events:none';
 
   const tearDown = () => {
-    try {
-      revoke();
-    } catch {
-      /* noop */
-    }
     if (iframe.parentNode) document.body.removeChild(iframe);
   };
 
   iframe.onload = () => {
     const cw = iframe.contentWindow;
     if (!cw) {
+      tearDown();
+      return;
+    }
+    try {
+      cw.document.open();
+      cw.document.write(html);
+      cw.document.close();
+    } catch {
       tearDown();
       return;
     }
@@ -60,7 +64,7 @@ function printFromHiddenIframeBlob(blobUrl: string, printDelayMs: number, revoke
     }, printDelayMs);
   };
 
-  iframe.src = blobUrl;
+  iframe.src = 'about:blank';
   document.body.appendChild(iframe);
 }
 
@@ -69,20 +73,10 @@ export type OpenCfdiLetterPrintOptions = {
   printDelayMs?: number;
 };
 
-/** Documento tamaño carta (CFDI / nómina / carta desde `printLetterDocument`). */
+/** Documento tamaño carta (CFDI / nómina / carta). */
 export function openCfdiLetterPrint(html: string, options?: OpenCfdiLetterPrintOptions): void {
   const printDelayMs = options?.printDelayMs ?? 380;
-  /** BOM UTF-8: en Windows muchas impresoras/PDF drivers asumen ANSI si no hay BOM y arruinan acentos y símbolos. */
   const htmlUtf8 = html.startsWith('\uFEFF') ? html : `\uFEFF${html}`;
-  const blob = new Blob([htmlUtf8], { type: 'text/html;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const revoke = () => {
-    try {
-      URL.revokeObjectURL(url);
-    } catch {
-      /* noop */
-    }
-  };
 
   const runPrint = (target: Window) => {
     target.focus();
@@ -95,14 +89,26 @@ export function openCfdiLetterPrint(html: string, options?: OpenCfdiLetterPrintO
     }, printDelayMs);
   };
 
-  const w = window.open(url, '_blank', 'width=816,height=1056');
+  const w = window.open('about:blank', '_blank', 'width=816,height=1056');
   if (w) {
-    attachLetterPrintHandlers(w, revoke);
-    const start = () => runPrint(w);
-    if (w.document.readyState === 'complete') start();
-    else w.addEventListener('load', start, { once: true });
+    try {
+      w.document.open();
+      w.document.write(htmlUtf8);
+      w.document.close();
+    } catch {
+      try {
+        w.close();
+      } catch {
+        /* noop */
+      }
+      printFromHiddenIframeHtml(htmlUtf8, printDelayMs);
+      return;
+    }
+    attachLetterPrintHandlers(w);
+    if (w.document.readyState === 'complete') runPrint(w);
+    else w.addEventListener('load', () => runPrint(w), { once: true });
     return;
   }
 
-  printFromHiddenIframeBlob(url, printDelayMs, revoke);
+  printFromHiddenIframeHtml(htmlUtf8, printDelayMs);
 }
