@@ -1,4 +1,5 @@
 import type { Invoice } from '@/types';
+import { assertReceiverFiscal } from '@/lib/facturama/validateCfdi';
 
 function money2(n: number): string {
   return (Math.round((Number(n) || 0) * 100) / 100).toFixed(2);
@@ -26,12 +27,13 @@ export function mapPaymentComplementToFacturama(opts: {
   }
 
   const cliente = invoice.cliente;
-  if (!cliente?.rfc?.trim()) throw new Error('Receptor sin RFC');
-
-  const name = (cliente.razonSocial || cliente.nombre || '').trim().toUpperCase();
-  const taxZip =
-    String(cliente.codigoPostal ?? cliente.direccion?.codigoPostal ?? '').trim() ||
-    String(invoice.lugarExpedicion ?? '').trim();
+  const { rfc, name, regimen, taxZip, expeditionPlace } = assertReceiverFiscal({
+    rfc: cliente?.rfc,
+    name: cliente?.razonSocial || cliente?.nombre,
+    regimen: cliente?.regimenFiscal,
+    taxZip: cliente?.codigoPostal ?? cliente?.direccion?.codigoPostal,
+    expeditionPlace: invoice.lugarExpedicion,
+  });
 
   const amount = Math.round((Number(opts.amountPaid) || 0) * 100) / 100;
   const prev = Math.round((Number(opts.previousBalance) || 0) * 100) / 100;
@@ -52,18 +54,21 @@ export function mapPaymentComplementToFacturama(opts: {
   const paymentDateStr = `${yyyy}-${mm}-${dd}`;
 
   return {
-    NameId: '14',
+    NameId: 14,
     CfdiType: 'P',
-    ExpeditionPlace: String(invoice.lugarExpedicion).trim(),
+    ExpeditionPlace: expeditionPlace,
     Serie: opts.serie || undefined,
     Folio: opts.folio ? String(opts.folio) : undefined,
     Exportation: '01',
     Receiver: {
-      Rfc: cliente.rfc.trim().toUpperCase(),
+      Rfc: rfc,
       Name: name,
       CfdiUse: 'CP01',
-      FiscalRegime: String(cliente.regimenFiscal || ''),
+      FiscalRegime: regimen,
       TaxZipCode: taxZip,
+      ...(String(cliente?.email ?? '').trim().includes('@')
+        ? { Email: String(cliente?.email).trim() }
+        : {}),
     },
     Complemento: {
       Payments: [

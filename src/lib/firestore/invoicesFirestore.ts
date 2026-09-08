@@ -17,6 +17,7 @@ function parseInvoiceStatus(v: unknown): Invoice['estado'] {
     s === 'pendiente' ||
     s === 'enviada' ||
     s === 'timbrada' ||
+    s === 'cancelacion_pendiente' ||
     s === 'cancelada' ||
     s === 'error'
   )

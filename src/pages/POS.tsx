@@ -64,7 +64,8 @@ import {
   setVentasAbiertasPosHeaderBridge,
   clearVentasAbiertasPosHeaderBridge,
 } from '@/stores/ventasAbiertasPosHeaderStore';
-import { useProductSearch, useSales, useClients, useEffectiveSucursalId, useCajaSesion } from '@/hooks';
+import { useProductSearch, useSales, useClients, useEffectiveSucursalId, useCajaSesion, useFiscalConfig, useInvoices } from '@/hooks';
+import { useEmployees, useNominaRecibos } from '@/hooks/useNominas';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { usePosCartCloudSync } from '@/hooks/usePosCartCloudSync';
 import { CajaPosToolbar, type CajaPosToolbarHandle } from '@/components/caja/CajaPosToolbar';
@@ -77,6 +78,7 @@ import type {
   Client,
   Product,
   FormaPago,
+  MetodoPago,
   Payment,
   Sale,
   SaleItem,
@@ -84,7 +86,7 @@ import type {
   CartItem,
   QuotationItem,
 } from '@/types';
-import { FORMAS_PAGO_UI } from '@/types';
+import { FORMAS_PAGO_UI, USOS_CFDI } from '@/types';
 import {
   getSaleByFolio,
   getSaleById,
@@ -98,6 +100,8 @@ import {
   updateProduct,
 } from '@/db/database';
 import { getSaleByIdFirestore } from '@/lib/firestore/salesFirestore';
+import { getInvoiceFirestore } from '@/lib/firestore/invoicesFirestore';
+import { getNominaReciboFirestore } from '@/lib/firestore/nominaRecibosFirestore';
 import { registrarAbonoCobroCajaFirestore } from '@/lib/firestore/cajaFirestore';
 import { getProductCatalogSnapshot, updateProductFirestore } from '@/lib/firestore/productsFirestore';
 import { commitEmptyPosCartDraft } from '@/lib/firestore/posCartDraftFirestore';
@@ -150,6 +154,18 @@ import {
   type DevolucionLineInput,
 } from '@/lib/salePartialReturnCompute';
 import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
+import { printInvoiceCfdiRepresentacion, printNominaTimbradaCfdiLetter } from '@/lib/cfdiRepresentacionImpresa';
+import {
+  checkoutFormaPagoPermiteCfdi,
+  clientListoParaCfdi,
+  satFormaPagoParaCfdi,
+} from '@/lib/facturama/buildInvoiceFromSale';
+import { invoiceAndStampCompletedSale } from '@/lib/facturama/invoiceAtCheckout';
+import {
+  buildNominaBorradorFromSueldo,
+  defaultQuincenaLocal,
+  employeeListoParaNomina,
+} from '@/lib/nominaPosCheckout';
 import { clientReachedCreditLimit } from '@/lib/clientCreditLimit';
 import { saldoCreditoCliente, sumCreditoTiendaEnPagosParcial } from '@/lib/clientCreditoTienda';
 
@@ -425,6 +441,11 @@ type PosTicketSnapshot = {
   devolucionParcial?: boolean;
   /** Si true, el ticket no muestra Subtotal/IVA (solo TOTAL). */
   ocultarIvaEnTicket?: boolean;
+  cfdiUuid?: string;
+  cfdiError?: string;
+  cfdiPrueba?: boolean;
+  nominaUuid?: string;
+  nominaError?: string;
 };
 
 /** Imprime el ticket térmico con el snapshot ya construido (evita estado React desactualizado). */
@@ -938,6 +959,15 @@ export function POS() {
   const [montoRecibidoInput, setMontoRecibidoInput] = useState('');
   const montoRecibidoInputRef = useRef<HTMLInputElement>(null);
   const [checkoutClienteNombre, setCheckoutClienteNombre] = useState('');
+  const [checkoutFacturarCfdi, setCheckoutFacturarCfdi] = useState(false);
+  const [checkoutUsoCfdi, setCheckoutUsoCfdi] = useState('G03');
+  const [checkoutNomina, setCheckoutNomina] = useState(false);
+  const [checkoutNominaEmpleadoId, setCheckoutNominaEmpleadoId] = useState('');
+  const [checkoutNominaSueldo, setCheckoutNominaSueldo] = useState('');
+  const [checkoutNominaFechaPago, setCheckoutNominaFechaPago] = useState('');
+  const [checkoutNominaFechaIni, setCheckoutNominaFechaIni] = useState('');
+  const [checkoutNominaFechaFin, setCheckoutNominaFechaFin] = useState('');
+  const [checkoutNominaDias, setCheckoutNominaDias] = useState('15');
   /** En parcialidades (PPD), medio del próximo abono (mezcla efectivo + tarjetas sin cambiar el selector lateral). */
   const [ppdAbonoFormaPago, setPpdAbonoFormaPago] = useState('01');
   /** Se incrementa al abrir el diálogo de cobro para inicializar `ppdAbonoFormaPago` sin pisar cambios al mover el selector lateral. */
@@ -999,6 +1029,75 @@ export function POS() {
     searchByBarcode,
   } = useProductSearch({ maxResults: 80 });
   const { clients, refresh: refreshClients, emitirCreditoTienda } = useClients();
+  const { config: fiscalConfig } = useFiscalConfig();
+  const { addInvoice } = useInvoices();
+  const { employees } = useEmployees();
+  const { createBorrador: createNominaBorrador, timbrar: timbrarNomina } = useNominaRecibos();
+  const empleadosNominaActivos = useMemo(() => employees.filter((e) => e.activo), [employees]);
+  const checkoutNominaEmp = useMemo(
+    () => empleadosNominaActivos.find((e) => e.id === checkoutNominaEmpleadoId) ?? null,
+    [empleadosNominaActivos, checkoutNominaEmpleadoId]
+  );
+  const nominaEmpListo = useMemo(() => employeeListoParaNomina(checkoutNominaEmp), [checkoutNominaEmp]);
+  const cfdiClienteListo = useMemo(() => clientListoParaCfdi(client), [client]);
+
+  useEffect(() => {
+    if (!checkoutNominaEmp) return;
+    const s = checkoutNominaEmp.salarioBaseCotApor;
+    setCheckoutNominaSueldo(s != null && s > 0 ? String(s) : '');
+  }, [checkoutNominaEmpleadoId, checkoutNominaEmp]);
+
+  const stampNominaFromCheckout = useCallback(async (): Promise<{
+    nominaUuid?: string;
+    nominaError?: string;
+  }> => {
+    if (!fiscalConfig) {
+      return { nominaError: 'Configure los datos fiscales antes de timbrar nómina.' };
+    }
+    if (fiscalConfig.modoPruebaFiscal) {
+      return { nominaError: 'Modo prueba fiscal activo: no se timbra nómina.' };
+    }
+    const emp = checkoutNominaEmp;
+    const listo = employeeListoParaNomina(emp);
+    if (!listo.ok) return { nominaError: listo.reason };
+    if (!emp) return { nominaError: 'Seleccione un empleado activo (alta en Nómina).' };
+    try {
+      const sueldoN = parseFloat(checkoutNominaSueldo.replace(',', '.'));
+      const draft = buildNominaBorradorFromSueldo({
+        employee: emp,
+        fiscalConfig,
+        sueldo: sueldoN,
+        fechaPago: checkoutNominaFechaPago,
+        fechaInicialPago: checkoutNominaFechaIni,
+        fechaFinalPago: checkoutNominaFechaFin,
+        numDiasPagados: parseInt(checkoutNominaDias, 10) || 15,
+      });
+      const id = await createNominaBorrador(draft);
+      const stamped = await timbrarNomina(id);
+      if (effectiveSucursalId) {
+        try {
+          const rec = await getNominaReciboFirestore(effectiveSucursalId, id);
+          if (rec) printNominaTimbradaCfdiLetter({ config: fiscalConfig, recibo: rec });
+        } catch {
+          /* la representación impresa es opcional */
+        }
+      }
+      return { nominaUuid: stamped.uuid };
+    } catch (e) {
+      return { nominaError: e instanceof Error ? e.message : 'No se pudo timbrar la nómina' };
+    }
+  }, [
+    fiscalConfig,
+    checkoutNominaEmp,
+    checkoutNominaSueldo,
+    checkoutNominaFechaPago,
+    checkoutNominaFechaIni,
+    checkoutNominaFechaFin,
+    checkoutNominaDias,
+    createNominaBorrador,
+    timbrarNomina,
+    effectiveSucursalId,
+  ]);
 
   const clientesFiltradosParaCxc = useMemo(
     () => filterClientesRegistrados(clients, pasarCxcClienteSearch),
@@ -1120,6 +1219,11 @@ export function POS() {
       setCheckoutPhase('payment');
       setTicketSnapshot(null);
       setCheckoutClienteNombre('');
+      setCheckoutFacturarCfdi(false);
+      setCheckoutUsoCfdi('G03');
+      setCheckoutNomina(false);
+      setCheckoutNominaEmpleadoId('');
+      setCheckoutNominaSueldo('');
       setMobileTab('cart');
     }
   }, [finalizePosCartAfterSale]);
@@ -1449,6 +1553,16 @@ export function POS() {
           ? openSaleResume.sale.cliente.nombre.trim()
           : '';
     setCheckoutClienteNombre(nombreInicial);
+    setCheckoutFacturarCfdi(false);
+    setCheckoutUsoCfdi(client?.usoCfdi?.trim() || 'G03');
+    const q = defaultQuincenaLocal();
+    setCheckoutNomina(false);
+    setCheckoutNominaEmpleadoId('');
+    setCheckoutNominaSueldo('');
+    setCheckoutNominaFechaPago(q.fechaPago);
+    setCheckoutNominaFechaIni(q.fechaIni);
+    setCheckoutNominaFechaFin(q.fechaFin);
+    setCheckoutNominaDias(String(q.dias));
     setCheckoutPhase('payment');
     setCheckoutOpen(true);
     setCheckoutPaymentKey((k) => k + 1);
@@ -2651,9 +2765,66 @@ export function POS() {
       return;
     }
 
-    /** Sin líneas no debe registrarse cobro: antes se llamaba `addPago` y luego se abortaba, dejando `pagos` huérfanos que se sumaban al siguiente ticket. */
+    /** Sin líneas: solo se permite timbrar nómina desde caja. */
     if (items.length === 0) {
-      addToast({ type: 'error', message: 'Agregue productos al carrito' });
+      if (!checkoutNomina) {
+        addToast({ type: 'error', message: 'Agregue productos al carrito' });
+        return;
+      }
+      if (!fiscalConfig) {
+        addToast({ type: 'error', message: 'Configure los datos fiscales antes de timbrar nómina.' });
+        return;
+      }
+      if (fiscalConfig.modoPruebaFiscal) {
+        addToast({
+          type: 'error',
+          message: 'Modo prueba fiscal activo: no se timbra nómina. Desactívelo en Configuración.',
+        });
+        return;
+      }
+      if (!nominaEmpListo.ok) {
+        addToast({ type: 'error', message: nominaEmpListo.reason });
+        return;
+      }
+      setProcessingSale(true);
+      try {
+        const nominaRes = await stampNominaFromCheckout();
+        if (nominaRes.nominaError) {
+          addToast({ type: 'error', message: nominaRes.nominaError });
+          return;
+        }
+        const empN = checkoutNominaEmp;
+        setTicketSnapshot({
+          clienteNombre: empN?.nombre?.trim() || 'Nómina',
+          cajeroNombre: user?.name?.trim() || user?.username?.trim() || user?.email?.trim() || undefined,
+          lineas: [
+            {
+              descripcion: `Recibo de nómina · ${empN?.nombre ?? ''}`.trim(),
+              cantidad: 1,
+              precioUnit: 0,
+              total: 0,
+            },
+          ],
+          subtotal: 0,
+          impuestos: 0,
+          total: 0,
+          cambio: 0,
+          sucursalId: effectiveSucursalId,
+          ...nominaRes,
+        });
+        setCheckoutPhase('success');
+        addToast({
+          type: 'success',
+          message: `Nómina timbrada. UUID ${nominaRes.nominaUuid}`,
+        });
+      } catch (error: unknown) {
+        addToast({
+          type: 'error',
+          message: error instanceof Error ? error.message : 'No se pudo timbrar la nómina',
+        });
+      } finally {
+        setProcessingSale(false);
+      }
       return;
     }
 
@@ -2814,6 +2985,79 @@ export function POS() {
       }
     }
 
+    const facturarAhora =
+      checkoutFacturarCfdi && checkoutFormaPagoPermiteCfdi(String(formaPago)) && !esTraspasoTienda;
+    if (facturarAhora) {
+      if (!fiscalConfig) {
+        addToast({
+          type: 'error',
+          message: 'Configure los datos fiscales antes de facturar en caja.',
+        });
+        return;
+      }
+      if (fiscalConfig.modoPruebaFiscal) {
+        addToast({
+          type: 'error',
+          message: 'Modo prueba fiscal activo: no se timbra CFDI en caja. Desactívelo en Configuración.',
+        });
+        return;
+      }
+      const listo = clientListoParaCfdi(client);
+      if (!listo.ok) {
+        addToast({ type: 'error', message: listo.reason });
+        return;
+      }
+    }
+
+    if (checkoutNomina) {
+      if (!fiscalConfig) {
+        addToast({ type: 'error', message: 'Configure los datos fiscales antes de timbrar nómina.' });
+        return;
+      }
+      if (fiscalConfig.modoPruebaFiscal) {
+        addToast({
+          type: 'error',
+          message: 'Modo prueba fiscal activo: no se timbra nómina. Desactívelo en Configuración.',
+        });
+        return;
+      }
+      if (!nominaEmpListo.ok) {
+        addToast({ type: 'error', message: nominaEmpListo.reason });
+        return;
+      }
+    }
+
+    const runCfdiAlCobrar = async (sale: Sale) => {
+      if (!facturarAhora || !client || !fiscalConfig) {
+        return {} as { cfdiUuid?: string; cfdiError?: string; cfdiPrueba?: boolean };
+      }
+      try {
+        const r = await invoiceAndStampCompletedSale({
+          sale,
+          client,
+          fiscalConfig,
+          usoCfdi: checkoutUsoCfdi,
+          formaPago: satFormaPagoParaCfdi(String(sale.formaPago), sale.metodoPago),
+          metodoPago: sale.metodoPago as MetodoPago,
+          sucursalId: effectiveSucursalId,
+          addInvoice,
+        });
+        if (r.stamped && r.uuid && effectiveSucursalId) {
+          try {
+            const inv = await getInvoiceFirestore(effectiveSucursalId, r.invoiceId);
+            if (inv) printInvoiceCfdiRepresentacion(inv);
+          } catch {
+            /* el ticket térmico ya se imprime */
+          }
+        }
+        return { cfdiUuid: r.uuid, cfdiPrueba: r.esPrueba };
+      } catch (e) {
+        return {
+          cfdiError: e instanceof Error ? e.message : 'No se pudo timbrar el CFDI',
+        };
+      }
+    };
+
     setProcessingSale(true);
 
     try {
@@ -2964,6 +3208,12 @@ export function POS() {
           console.error(e);
         }
 
+        const saleCerrada = effectiveSucursalId
+          ? await getSaleByIdFirestore(effectiveSucursalId, pend.id)
+          : await getSaleById(pend.id);
+        const cfdiRes = saleCerrada ? await runCfdiAlCobrar(saleCerrada) : {};
+        const nominaRes = checkoutNomina ? await stampNominaFromCheckout() : {};
+
         const clienteNombre = clienteNombreVenta;
         const lineas = items.map((item) => {
           const unitSinIva = cartLineUnitSinIva(item, precioClienteListaId);
@@ -2998,6 +3248,8 @@ export function POS() {
           notas: pend.notas ? String(pend.notas) : undefined,
           resumenPagos: resumenPagosAbierta,
           ocultarIvaEnTicket: ocultarIvaEnTicket || pend.ocultarIvaEnTicket === true,
+          ...cfdiRes,
+          ...nominaRes,
         };
         setTicketSnapshot(ticketSnapAbierta);
         printPosTicketSnapshot(ticketSnapAbierta);
@@ -3072,6 +3324,17 @@ export function POS() {
         setQuotationLoadedFolio(null);
       }
 
+      const saleNueva: Sale = {
+        id: ventaIdNueva,
+        folio: folioVenta?.trim() || '',
+        ...saleData,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        syncStatus: 'synced',
+      };
+      const cfdiRes = await runCfdiAlCobrar(saleNueva);
+      const nominaRes = checkoutNomina ? await stampNominaFromCheckout() : {};
+
       const clienteNombre = clienteNombreVenta;
       const lineas = items.map((item) => {
         const unitSinIva = cartLineUnitSinIva(item, precioClienteListaId);
@@ -3109,6 +3372,8 @@ export function POS() {
         notas: saleData.notas?.trim() ? String(saleData.notas) : undefined,
         resumenPagos,
         ocultarIvaEnTicket: ocultarIvaEnTicket === true,
+        ...cfdiRes,
+        ...nominaRes,
       };
       setTicketSnapshot(ticketSnapVenta);
       printPosTicketSnapshot(ticketSnapVenta);
@@ -3846,7 +4111,7 @@ export function POS() {
             </div>
             <Button
               type="button"
-              disabled={items.length === 0}
+              disabled={false}
               onClick={() => setMobileTab('checkout')}
               className="h-10 shrink-0 bg-brand-gradient px-4 text-sm font-semibold text-white shadow-lg shadow-brand/20 disabled:opacity-50"
             >
@@ -4390,8 +4655,7 @@ export function POS() {
                   previewDevolucion.reembolso <= 0
                 : esFormaCotizacion
                   ? true
-                  : items.length === 0 ||
-                    (formaPago === 'TTS' && isAdmin && !transferenciaDestinoSucursalId?.trim()) ||
+                  : (formaPago === 'TTS' && isAdmin && !transferenciaDestinoSucursalId?.trim()) ||
                     (formaPago === 'PPC' &&
                       (!client || client.id === 'mostrador' || client.isMostrador))
               }
@@ -4605,7 +4869,8 @@ export function POS() {
               cobroTarjetaPue ||
               esTraspasoTienda ||
               checkoutDevolucionListo ||
-              formaPago === 'PPC'
+              formaPago === 'PPC' ||
+              items.length === 0
             ) {
               return;
             }
@@ -4639,14 +4904,22 @@ export function POS() {
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
                   <Receipt className="h-5 w-5 text-brand sm:h-6 sm:w-6" />
-                  {checkoutDevolucionListo ? 'Confirmar devolución' : formaPago === 'PPC' ? 'Pendiente de pago' : 'Procesar pago'}
+                  {checkoutDevolucionListo
+                    ? 'Confirmar devolución'
+                    : items.length === 0 && checkoutNomina
+                      ? 'Timbrar nómina'
+                      : formaPago === 'PPC'
+                        ? 'Pendiente de pago'
+                        : 'Procesar pago'}
                 </DialogTitle>
               </DialogHeader>
 
               <div className="space-y-3 py-1 sm:space-y-4 sm:py-2">
                 <div className="rounded-xl bg-slate-200/80 dark:bg-slate-800/50 p-3 text-center sm:p-4">
                   <p className="mb-1 text-xs text-slate-600 dark:text-slate-400 sm:text-sm">
-                    {etiquetaImporteCobroDialogo}
+                    {items.length === 0 && checkoutNomina
+                      ? 'Recibo de nómina (sin venta)'
+                      : etiquetaImporteCobroDialogo}
                   </p>
                   <p className="text-2xl font-bold text-brand sm:text-4xl">
                     {formatMoney(importeDestacadoCobroDialogo)}
@@ -4690,6 +4963,161 @@ export function POS() {
                     <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-500 sm:text-xs">
                       Solo para este ticket; no crea ni modifica clientes en el catálogo.
                     </p>
+                  </div>
+                ) : null}
+
+                {!checkoutDevolucionListo &&
+                items.length > 0 &&
+                checkoutFormaPagoPermiteCfdi(String(formaPago)) &&
+                !esTraspasoTienda ? (
+                  <div className="space-y-2 rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <Label htmlFor="checkout-facturar-cfdi" className="text-sm font-medium">
+                        Facturar CFDI ahora
+                      </Label>
+                      <Switch
+                        id="checkout-facturar-cfdi"
+                        checked={checkoutFacturarCfdi}
+                        onCheckedChange={setCheckoutFacturarCfdi}
+                      />
+                    </div>
+                    {checkoutFacturarCfdi ? (
+                      <div className="space-y-2">
+                        <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-400 sm:text-xs">
+                          Al completar se timbra el CFDI 4.0 con Facturama (XML/PDF). El cliente debe tener RFC, régimen
+                          y código postal.
+                        </p>
+                        {!cfdiClienteListo.ok ? (
+                          <p className="text-xs font-medium text-amber-800 dark:text-amber-300">
+                            {cfdiClienteListo.reason}
+                          </p>
+                        ) : (
+                          <p className="text-xs text-emerald-800 dark:text-emerald-300">
+                            Receptor: {client?.rfc} · {client?.razonSocial || client?.nombre}
+                          </p>
+                        )}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-9 w-full"
+                          onClick={() => setShowClientDialog(true)}
+                        >
+                          Elegir cliente fiscal
+                        </Button>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Uso de CFDI</Label>
+                          <Select value={checkoutUsoCfdi} onValueChange={setCheckoutUsoCfdi}>
+                            <SelectTrigger className="h-10">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {USOS_CFDI.map((u) => (
+                                <SelectItem key={u.clave} value={u.clave}>
+                                  {u.clave} — {u.descripcion}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {!checkoutDevolucionListo && !esTraspasoTienda && !esFormaCotizacion && formaPago !== 'DEV' ? (
+                  <div className="space-y-2 rounded-lg border border-violet-500/25 bg-violet-500/5 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <Label htmlFor="checkout-nomina" className="text-sm font-medium">
+                        Timbrar nómina ahora
+                      </Label>
+                      <Switch
+                        id="checkout-nomina"
+                        checked={checkoutNomina}
+                        onCheckedChange={setCheckoutNomina}
+                      />
+                    </div>
+                    {checkoutNomina ? (
+                      <div className="space-y-2">
+                        <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-400 sm:text-xs">
+                          Recibo CFDI tipo N (sueldo + ISR/IMSS estimados). Confirme montos. Puede timbrar sin productos
+                          en el carrito.
+                        </p>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Empleado</Label>
+                          <Select
+                            value={checkoutNominaEmpleadoId || undefined}
+                            onValueChange={setCheckoutNominaEmpleadoId}
+                          >
+                            <SelectTrigger className="h-10">
+                              <SelectValue placeholder="Seleccione empleado" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {empleadosNominaActivos.map((e) => (
+                                <SelectItem key={e.id} value={e.id}>
+                                  {e.numeroEmpleado} · {e.nombre}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {!nominaEmpListo.ok ? (
+                          <p className="text-xs font-medium text-amber-800 dark:text-amber-300">
+                            {nominaEmpListo.reason}
+                          </p>
+                        ) : null}
+                        <div className="space-y-1">
+                          <Label className="text-xs" htmlFor="checkout-nomina-sueldo">
+                            Sueldo del periodo
+                          </Label>
+                          <Input
+                            id="checkout-nomina-sueldo"
+                            inputMode="decimal"
+                            value={checkoutNominaSueldo}
+                            onChange={(e) => setCheckoutNominaSueldo(e.target.value)}
+                            className="h-10"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Inicio</Label>
+                            <Input
+                              type="date"
+                              value={checkoutNominaFechaIni}
+                              onChange={(e) => setCheckoutNominaFechaIni(e.target.value)}
+                              className="h-10"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Fin</Label>
+                            <Input
+                              type="date"
+                              value={checkoutNominaFechaFin}
+                              onChange={(e) => setCheckoutNominaFechaFin(e.target.value)}
+                              className="h-10"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Fecha pago</Label>
+                            <Input
+                              type="date"
+                              value={checkoutNominaFechaPago}
+                              onChange={(e) => setCheckoutNominaFechaPago(e.target.value)}
+                              className="h-10"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Días</Label>
+                            <Input
+                              inputMode="numeric"
+                              value={checkoutNominaDias}
+                              onChange={(e) => setCheckoutNominaDias(e.target.value)}
+                              className="h-10"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
 
@@ -4749,7 +5177,11 @@ export function POS() {
                   </p>
                 ) : null}
 
-                {!cobroTarjetaPue && !esTraspasoTienda && !checkoutDevolucionListo && formaPago !== 'PPC' ? (
+                {items.length > 0 &&
+                !cobroTarjetaPue &&
+                !esTraspasoTienda &&
+                !checkoutDevolucionListo &&
+                formaPago !== 'PPC' ? (
                   <div className="space-y-2">
                     {metodoPago === 'PPD' ? (
                       <div className="space-y-1.5">
@@ -4841,7 +5273,8 @@ export function POS() {
                   </div>
                 ) : null}
 
-                {esFormaEfectivo(formaPagoAbono) &&
+                {items.length > 0 &&
+                esFormaEfectivo(formaPagoAbono) &&
                 !esTraspasoTienda &&
                 !checkoutDevolucionListo &&
                 formaPago !== 'PPC' ? (
@@ -4859,7 +5292,8 @@ export function POS() {
                   </div>
                 ) : null}
 
-                {pagos.length > 0 &&
+                {items.length > 0 &&
+                pagos.length > 0 &&
                 !cobroTarjetaPue &&
                 !checkoutDevolucionListo &&
                 formaPago !== 'PPC' && (
@@ -4891,7 +5325,8 @@ export function POS() {
                   </div>
                 )}
 
-                {!esTraspasoTienda &&
+                {items.length > 0 &&
+                !esTraspasoTienda &&
                 !checkoutDevolucionListo &&
                 formaPago !== 'PPC' &&
                 cambioVenta > 0 && (
@@ -4920,12 +5355,14 @@ export function POS() {
                     processingSale ||
                     (checkoutDevolucionListo
                       ? false
-                      : cobroTarjetaPue
-                        ? false
-                        : puedeVentaConSaldoPendiente
+                      : items.length === 0
+                        ? !checkoutNomina || !nominaEmpListo.ok
+                        : cobroTarjetaPue
                           ? false
-                          : totalPagadoIncluyeCampoMonto + 0.004 < cobroReferencia &&
-                            !puedeRegistrarAbonoParcialMixto)
+                          : puedeVentaConSaldoPendiente
+                            ? false
+                            : totalPagadoIncluyeCampoMonto + 0.004 < cobroReferencia &&
+                              !puedeRegistrarAbonoParcialMixto)
                   }
                   className="w-full bg-brand-gradient text-white sm:w-auto"
                 >
@@ -4936,11 +5373,21 @@ export function POS() {
                   )}
                   {checkoutDevolucionListo
                     ? 'Confirmar devolución'
-                    : puedeVentaConSaldoPendiente &&
-                        !hayCampoMontoParaAbonoValido &&
-                        totalPagadoIncluyeCampoMonto + 0.004 < cobroReferencia
-                      ? 'Completar dejando saldo'
-                      : 'Completar venta'}
+                    : items.length === 0 && checkoutNomina
+                      ? 'Timbrar nómina'
+                      : puedeVentaConSaldoPendiente &&
+                          !hayCampoMontoParaAbonoValido &&
+                          totalPagadoIncluyeCampoMonto + 0.004 < cobroReferencia
+                        ? 'Completar dejando saldo'
+                        : checkoutFacturarCfdi &&
+                            checkoutNomina &&
+                            checkoutFormaPagoPermiteCfdi(String(formaPago))
+                          ? 'Completar, CFDI y nómina'
+                          : checkoutNomina
+                            ? 'Completar y timbrar nómina'
+                            : checkoutFacturarCfdi && checkoutFormaPagoPermiteCfdi(String(formaPago))
+                              ? 'Completar y timbrar CFDI'
+                              : 'Completar venta'}
                 </Button>
               </DialogFooter>
             </>
@@ -4948,7 +5395,11 @@ export function POS() {
             <>
               <DialogHeader>
                 <DialogTitle className="text-center text-lg sm:text-xl">
-                  {ticketSnapshot?.modoDevolucion ? 'Devolución registrada' : '¡Venta completada!'}
+                  {ticketSnapshot?.modoDevolucion
+                    ? 'Devolución registrada'
+                    : ticketSnapshot?.nominaUuid && !ticketSnapshot.folio
+                      ? 'Nómina timbrada'
+                      : '¡Venta completada!'}
                 </DialogTitle>
               </DialogHeader>
 
@@ -4983,6 +5434,28 @@ export function POS() {
                 ticketSnapshot.adeudoPendiente > 0.004 ? (
                   <p className="mt-2 text-sm font-semibold text-amber-700 dark:text-amber-400">
                     Saldo pendiente en cuenta: {formatMoney(ticketSnapshot.adeudoPendiente)}
+                  </p>
+                ) : null}
+                {ticketSnapshot?.cfdiUuid ? (
+                  <p className="mt-3 break-all text-xs font-medium text-emerald-800 dark:text-emerald-300 sm:text-sm">
+                    CFDI timbrado · UUID {ticketSnapshot.cfdiUuid}
+                  </p>
+                ) : null}
+                {ticketSnapshot?.cfdiError ? (
+                  <p className="mt-3 text-xs font-medium text-amber-800 dark:text-amber-300 sm:text-sm">
+                    La venta se cobró, pero el CFDI no se timbró: {ticketSnapshot.cfdiError}. Puede timbrarlo en
+                    Facturación.
+                  </p>
+                ) : null}
+                {ticketSnapshot?.nominaUuid ? (
+                  <p className="mt-3 break-all text-xs font-medium text-violet-800 dark:text-violet-300 sm:text-sm">
+                    Nómina timbrada · UUID {ticketSnapshot.nominaUuid}
+                  </p>
+                ) : null}
+                {ticketSnapshot?.nominaError ? (
+                  <p className="mt-3 text-xs font-medium text-amber-800 dark:text-amber-300 sm:text-sm">
+                    La venta se cobró, pero la nómina no se timbró: {ticketSnapshot.nominaError}. Puede timbrarla en
+                    Nómina.
                   </p>
                 ) : null}
               </div>

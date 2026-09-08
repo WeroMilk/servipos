@@ -139,6 +139,12 @@ export function abrevCantidadVentaPorUnidadSat(clave: string | undefined | null)
   }
 }
 
+/** Descripción SAT de c_ClaveUnidad para el campo Unit de Facturama. */
+export function describeClaveUnidadSat(clave: string | undefined | null): string {
+  const c = normalizeClaveUnidadSat(clave);
+  return SAT_CLAVES_UNIDAD.find((u) => u.clave === c)?.descripcion ?? 'Pieza';
+}
+
 /** Texto estable para cantidad en carrito (decimales solo metro/cm). */
 export function formatearCantidadLineaVentaSat(clave: string | undefined | null, qty: number): string {
   const u = normalizeClaveUnidadSat(clave);

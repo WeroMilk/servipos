@@ -869,14 +869,20 @@ export interface InvoiceItem {
 
 export interface InvoiceTax {
   tipo: 'Traslado' | 'Retencion';
-  impuesto: '002' | '003'; // IVA o IEPS
+  impuesto: '001' | '002' | '003'; // ISR, IVA o IEPS
   tipoFactor: 'Tasa' | 'Cuota' | 'Exento';
   tasaOCuota: number;
   base: number;
   importe: number;
 }
 
-export type InvoiceStatus = 'pendiente' | 'enviada' | 'timbrada' | 'cancelada' | 'error';
+export type InvoiceStatus =
+  | 'pendiente'
+  | 'enviada'
+  | 'timbrada'
+  | 'cancelacion_pendiente'
+  | 'cancelada'
+  | 'error';
 
 // ============================================
 // SINCRONIZACIÓN

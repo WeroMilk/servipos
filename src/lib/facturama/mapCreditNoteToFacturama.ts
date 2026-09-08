@@ -1,24 +1,7 @@
 import type { Invoice, InvoiceItem } from '@/types';
-
-function money2(n: number): string {
-  return (Math.round((Number(n) || 0) * 100) / 100).toFixed(2);
-}
-
-function itemTaxes(item: InvoiceItem): Array<Record<string, string>> {
-  const taxes: Array<Record<string, string>> = [];
-  for (const t of item.impuestosTrasladados ?? []) {
-    const name = t.impuesto === '003' ? 'IEPS' : 'IVA';
-    taxes.push({
-      Name: name,
-      Rate: String(t.tasaOCuota ?? 0),
-      Total: money2(t.importe),
-      Base: money2(t.base),
-      IsRetention: 'false',
-      IsFederalTax: 'true',
-    });
-  }
-  return taxes;
-}
+import { describeClaveUnidadSat } from '@/lib/satCatalog';
+import { mapInvoiceTaxesToFacturama, money2facturama } from '@/lib/facturama/taxes';
+import { assertReceiverFiscal } from '@/lib/facturama/validateCfdi';
 
 /**
  * Nota de crédito (CfdiType E) relacionada a una factura timbrada.
@@ -38,38 +21,42 @@ export function mapCreditNoteToFacturama(opts: {
     throw new Error('La factura original debe estar timbrada (UUID)');
   }
   const cliente = original.cliente;
-  if (!cliente?.rfc?.trim()) throw new Error('Receptor sin RFC');
+  const { rfc, name, regimen, taxZip, expeditionPlace } = assertReceiverFiscal({
+    rfc: cliente?.rfc,
+    name: cliente?.razonSocial || cliente?.nombre,
+    regimen: cliente?.regimenFiscal,
+    taxZip: cliente?.codigoPostal ?? cliente?.direccion?.codigoPostal,
+    expeditionPlace: original.lugarExpedicion,
+  });
 
   const productos = opts.productos?.length ? opts.productos : original.productos;
   const items = productos.map((p) => {
-    const taxes = itemTaxes(p);
+    const unitCode = String(p.claveUnidad || 'ACT');
+    const taxes = mapInvoiceTaxesToFacturama(p);
     const hasTaxes = taxes.length > 0;
     return {
-      Quantity: money2(p.cantidad),
+      Quantity: money2facturama(p.cantidad),
       ProductCode: String(p.claveProdServ || '84111506'),
-      UnitCode: String(p.claveUnidad || 'ACT'),
-      Unit: 'Actividad',
+      UnitCode: unitCode,
+      Unit: unitCode === 'ACT' ? 'Actividad' : describeClaveUnidadSat(unitCode),
       Description: String(p.descripcion || 'Nota de crédito').slice(0, 1000),
-      UnitPrice: money2(p.precioUnitario),
-      Subtotal: money2(p.subtotal),
-      Discount: p.descuento > 0 ? money2(p.descuento) : undefined,
+      UnitPrice: money2facturama(p.precioUnitario),
+      Subtotal: money2facturama(p.subtotal),
+      Discount: p.descuento > 0 ? money2facturama(p.descuento) : undefined,
       TaxObject: hasTaxes ? '02' : '01',
       Taxes: hasTaxes ? taxes : undefined,
-      Total: money2(p.total),
+      Total: money2facturama(p.total),
     };
   });
 
   if (!items.length) throw new Error('La nota de crédito no tiene conceptos');
 
-  const name = (cliente.razonSocial || cliente.nombre || '').trim().toUpperCase();
-  const taxZip =
-    String(cliente.codigoPostal ?? cliente.direccion?.codigoPostal ?? '').trim() ||
-    String(original.lugarExpedicion ?? '').trim();
+  const email = String(cliente?.email ?? '').trim();
 
   return {
-    NameId: '2',
+    NameId: 2,
     CfdiType: 'E',
-    ExpeditionPlace: String(original.lugarExpedicion).trim(),
+    ExpeditionPlace: expeditionPlace,
     Serie: opts.serie || original.serie || undefined,
     Folio: opts.folio ? String(opts.folio) : undefined,
     PaymentForm: opts.formaPago || '99',
@@ -81,11 +68,12 @@ export function mapCreditNoteToFacturama(opts: {
       Cfdis: [{ Uuid: original.uuid.trim().toUpperCase() }],
     },
     Receiver: {
-      Rfc: cliente.rfc.trim().toUpperCase(),
+      Rfc: rfc,
       Name: name,
-      CfdiUse: String(cliente.usoCfdi || 'G02'),
-      FiscalRegime: String(cliente.regimenFiscal || ''),
+      CfdiUse: String(cliente?.usoCfdi || 'G02'),
+      FiscalRegime: regimen,
       TaxZipCode: taxZip,
+      ...(email && email.includes('@') ? { Email: email } : {}),
     },
     Items: items,
   };

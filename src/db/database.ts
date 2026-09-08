@@ -2413,7 +2413,7 @@ export async function deleteQuotation(id: string): Promise<void> {
 export async function deleteInvoiceRecord(id: string): Promise<void> {
   const inv = await db.invoices.get(id);
   if (!inv) return;
-  if (inv.estado === 'timbrada') {
+  if (inv.estado === 'timbrada' || inv.estado === 'cancelacion_pendiente') {
     throw new Error('No se puede eliminar una factura ya timbrada ante el SAT.');
   }
   await db.invoices.delete(id);

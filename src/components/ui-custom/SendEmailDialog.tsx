@@ -19,6 +19,12 @@ type SendEmailDialogProps = {
   subject: string;
   body: string;
   title?: string;
+  /** Prefill del destinatario (p. ej. email del cliente). */
+  defaultTo?: string;
+  /**
+   * Si se define, envía el CFDI oficial (XML+PDF) por esa vía en lugar de abrir Outlook.
+   */
+  onSendOfficial?: (email: string) => Promise<void>;
   /** Tras validar y abrir el cliente de correo (p. ej. marcar factura como enviada). */
   onAfterSend?: () => void;
 };
@@ -29,19 +35,43 @@ export function SendEmailDialog({
   subject,
   body,
   title = 'Enviar por correo',
+  defaultTo = '',
+  onSendOfficial,
   onAfterSend,
 }: SendEmailDialogProps) {
   const { addToast } = useAppStore();
   const [to, setTo] = useState('');
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (open) setTo('');
-  }, [open]);
+    if (open) setTo(defaultTo.trim());
+  }, [open, defaultTo]);
 
   const handleSend = () => {
     const email = to.trim();
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       addToast({ type: 'error', message: 'Ingrese un correo válido' });
+      return;
+    }
+    if (onSendOfficial) {
+      setBusy(true);
+      void onSendOfficial(email)
+        .then(() => {
+          onAfterSend?.();
+          addToast({
+            type: 'success',
+            message: `CFDI (XML y PDF) enviado a ${email} vía Facturama`,
+          });
+          onOpenChange(false);
+          setTo('');
+        })
+        .catch((e) => {
+          addToast({
+            type: 'error',
+            message: e instanceof Error ? e.message : 'No se pudo enviar el CFDI',
+          });
+        })
+        .finally(() => setBusy(false));
       return;
     }
     openHotmailCompose(email, subject, body);
@@ -60,10 +90,17 @@ export function SendEmailDialog({
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        <p className="text-xs text-slate-600 dark:text-slate-500">
-          Remitente previsto: <span className="text-brand/90">{SERVIPARTZ_SENDER_EMAIL}</span> — inicie sesión en Outlook
-          con esa cuenta en el navegador para que el envío salga desde ella.
-        </p>
+        {onSendOfficial ? (
+          <p className="text-xs text-slate-600 dark:text-slate-500">
+            Se enviará el XML y el PDF oficiales del SAT desde Facturama al correo indicado.
+          </p>
+        ) : (
+          <p className="text-xs text-slate-600 dark:text-slate-500">
+            Remitente previsto: <span className="text-brand/90">{SERVIPARTZ_SENDER_EMAIL}</span> — inicie sesión en
+            Outlook con esa cuenta en el navegador para que el envío salga desde ella. Sin timbre SAT no hay
+            adjuntos XML/PDF oficiales.
+          </p>
+        )}
         <div className="space-y-2 py-2">
           <Label htmlFor="send-email-to">Correo del destinatario</Label>
           <Input
@@ -82,11 +119,12 @@ export function SendEmailDialog({
           </Button>
           <Button
             type="button"
+            disabled={busy}
             className="bg-brand-gradient text-white"
             onClick={handleSend}
           >
             <Send className="mr-2 h-4 w-4" />
-            Enviar
+            {busy ? 'Enviando…' : onSendOfficial ? 'Enviar XML y PDF' : 'Enviar'}
           </Button>
         </DialogFooter>
       </DialogContent>

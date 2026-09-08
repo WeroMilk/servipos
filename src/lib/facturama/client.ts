@@ -32,6 +32,28 @@ type FacturamaErrorBody = {
   detail?: unknown;
 };
 
+function formatFacturamaClientError(json: FacturamaErrorBody, status: number): string {
+  const parts: string[] = [];
+  if (typeof json.error === 'string' && json.error.trim()) parts.push(json.error.trim());
+  const detail = json.detail;
+  if (typeof detail === 'string' && detail.trim() && detail.trim() !== json.error) {
+    parts.push(detail.trim());
+  } else if (detail && typeof detail === 'object') {
+    const o = detail as Record<string, unknown>;
+    if (typeof o.Message === 'string' && o.Message.trim() && o.Message.trim() !== json.error) {
+      parts.push(o.Message.trim());
+    }
+    if (o.ModelState && typeof o.ModelState === 'object') {
+      for (const [k, v] of Object.entries(o.ModelState as Record<string, unknown>)) {
+        if (Array.isArray(v)) parts.push(`${k}: ${v.join(', ')}`);
+        else if (v != null) parts.push(`${k}: ${String(v)}`);
+      }
+    }
+  }
+  if (!parts.length) return `Error Facturama (${status})`;
+  return parts.join(' — ');
+}
+
 async function invokeFacturama<T>(body: Record<string, unknown>): Promise<T> {
   const base = import.meta.env.VITE_SUPABASE_URL as string | undefined;
   if (!base) throw new Error('Falta VITE_SUPABASE_URL');
@@ -75,7 +97,7 @@ async function invokeFacturama<T>(body: Record<string, unknown>): Promise<T> {
         'Origen no permitido: agregue la URL de la app a FACTURAMA_CFDI_ALLOWED_ORIGINS o ADMIN_CREATE_USER_ALLOWED_ORIGINS.'
       );
     }
-    throw new Error(json.error ?? `Error Facturama (${res.status})`);
+    throw new Error(formatFacturamaClientError(json, res.status));
   }
 
   return json as T;
@@ -122,6 +144,25 @@ export function facturamaDetail(opts: { id: string; type?: FacturamaCancelType }
     action: 'detail',
     id: opts.id,
     type: opts.type ?? 'issued',
+  });
+}
+
+export function facturamaEmail(opts: {
+  id: string;
+  type?: FacturamaCancelType;
+  email: string;
+  subject?: string;
+  comments?: string;
+  issuerEmail?: string;
+}) {
+  return invokeFacturama<{ ok: true; sent: unknown }>({
+    action: 'email',
+    id: opts.id,
+    type: opts.type ?? 'issued',
+    email: opts.email,
+    subject: opts.subject,
+    comments: opts.comments,
+    issuerEmail: opts.issuerEmail,
   });
 }
 

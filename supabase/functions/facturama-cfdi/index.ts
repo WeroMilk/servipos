@@ -12,6 +12,7 @@ import {
   facturamaCreateCfdi,
   facturamaDownload,
   facturamaGetCfdiDetail,
+  facturamaSendCfdiEmail,
   loadFacturamaConfigFromEnv,
   type FacturamaCancelType,
   type FacturamaDownloadFormat,
@@ -34,10 +35,14 @@ function normalizeRole(r: unknown): string {
 function canUseFacturama(
   role: string | null | undefined,
   customPermissions: unknown,
-  useCustom: unknown
+  useCustom: unknown,
+  action: string
 ): boolean {
   const r = normalizeRole(role);
   if (r === 'admin' || r === 'administrador' || r === 'gerente') return true;
+
+  const cashierCan = new Set(['status', 'create', 'download', 'detail', 'email']);
+  if ((r === 'cashier' || r === 'cajero') && cashierCan.has(action)) return true;
 
   const fiscalPerms = new Set([
     'facturas:crear',
@@ -51,7 +56,6 @@ function canUseFacturama(
     return customPermissions.some((p) => typeof p === 'string' && fiscalPerms.has(p));
   }
 
-  // Cajero con permisos por defecto del rol no incluye facturas; solo si tiene custom.
   return false;
 }
 
@@ -63,6 +67,10 @@ type ActionBody = {
   motive?: string;
   uuidReplacement?: string;
   format?: FacturamaDownloadFormat;
+  email?: string;
+  subject?: string;
+  comments?: string;
+  issuerEmail?: string;
 };
 
 Deno.serve(async (req) => {
@@ -117,16 +125,6 @@ Deno.serve(async (req) => {
     return json({ error: 'Perfil no encontrado' }, 403, corsHeaders);
   }
 
-  if (
-    !canUseFacturama(
-      profile.role as string | undefined,
-      (profile as { custom_permissions?: unknown }).custom_permissions,
-      (profile as { use_custom_permissions?: unknown }).use_custom_permissions
-    )
-  ) {
-    return json({ error: 'Sin permiso para operar Facturama' }, 403, corsHeaders);
-  }
-
   let body: ActionBody;
   try {
     body = (await req.json()) as ActionBody;
@@ -137,6 +135,17 @@ Deno.serve(async (req) => {
   const action = typeof body.action === 'string' ? body.action.trim() : '';
   if (!action) {
     return json({ error: 'Falta action' }, 400, corsHeaders);
+  }
+
+  if (
+    !canUseFacturama(
+      profile.role as string | undefined,
+      (profile as { custom_permissions?: unknown }).custom_permissions,
+      (profile as { use_custom_permissions?: unknown }).use_custom_permissions,
+      action
+    )
+  ) {
+    return json({ error: 'Sin permiso para operar Facturama' }, 403, corsHeaders);
   }
 
   let cfg;
@@ -214,6 +223,25 @@ Deno.serve(async (req) => {
         if (!id) return json({ error: 'Falta id del CFDI' }, 400, corsHeaders);
         const detail = await facturamaGetCfdiDetail(cfg, type, id);
         return json({ ok: true, detail }, 200, corsHeaders);
+      }
+
+      case 'email': {
+        const id = typeof body.id === 'string' ? body.id.trim() : '';
+        const email = typeof body.email === 'string' ? body.email.trim() : '';
+        const type: FacturamaCancelType = body.type === 'payroll' ? 'payroll' : 'issued';
+        if (!id) return json({ error: 'Falta id del CFDI' }, 400, corsHeaders);
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          return json({ error: 'Correo del destinatario inválido' }, 400, corsHeaders);
+        }
+        const sent = await facturamaSendCfdiEmail(cfg, {
+          id,
+          type,
+          email,
+          subject: typeof body.subject === 'string' ? body.subject : undefined,
+          comments: typeof body.comments === 'string' ? body.comments : undefined,
+          issuerEmail: typeof body.issuerEmail === 'string' ? body.issuerEmail : undefined,
+        });
+        return json({ ok: true, sent }, 200, corsHeaders);
       }
 
       default:

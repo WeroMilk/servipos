@@ -4,6 +4,8 @@ import {
   facturamaCancel,
   facturamaCreate,
   facturamaDownload,
+  facturamaEmail,
+  facturamaDetail,
   facturamaStatus,
   pickFacturamaIds,
 } from '@/lib/facturama/client';
@@ -43,8 +45,8 @@ export async function stampInvoiceWithFacturama(invoice: Invoice): Promise<Invoi
   if (invoice.estado === 'timbrada' && invoice.uuid) {
     throw new Error('La factura ya está timbrada');
   }
-  if (invoice.estado === 'cancelada') {
-    throw new Error('No se puede timbrar una factura cancelada');
+  if (invoice.estado === 'cancelada' || invoice.estado === 'cancelacion_pendiente') {
+    throw new Error('No se puede timbrar una factura cancelada o en cancelación SAT');
   }
 
   const payload = mapInvoiceToFacturama(invoice);
@@ -95,15 +97,15 @@ export async function cancelStampedInvoiceWithFacturama(opts: {
       : JSON.stringify(cancel);
 
   const status = String((cancel as { Status?: string }).Status ?? '').toLowerCase();
+  const isPending = status === 'pending' || status === 'pendiente';
+  const isCanceled = status === 'canceled' || status === 'cancelled' || status === 'cancelado';
   const updates: Partial<Invoice> = {
     motivoCancelacion: motive,
     fechaCancelacion: new Date(),
     acuseCancelacion: acuse,
-    estado: status === 'pending' ? 'timbrada' : 'cancelada',
+    estado: isPending ? 'cancelacion_pendiente' : 'cancelada',
   };
-  // Si queda pending de aceptación, marcamos cancelada solo cuando Status=canceled;
-  // para pending dejamos timbrada pero guardamos acuse/motivo.
-  if (status === 'canceled' || status === 'cancelled' || !status) {
+  if (isCanceled || (!isPending && !status)) {
     updates.estado = 'cancelada';
   }
 
@@ -261,6 +263,44 @@ export async function cancelNominaWithFacturama(opts: {
     motive: opts.motive,
     uuidReplacement: opts.uuidReplacement,
   });
+}
+
+export async function sendInvoiceEmailWithFacturama(opts: {
+  invoice: Invoice;
+  email: string;
+  subject?: string;
+  comments?: string;
+}): Promise<void> {
+  if (!opts.invoice.facturamaId) {
+    throw new Error('La factura no está timbrada en Facturama; no se puede enviar el CFDI oficial');
+  }
+  await facturamaEmail({
+    id: opts.invoice.facturamaId,
+    type: 'issued',
+    email: opts.email,
+    subject: opts.subject,
+    comments: opts.comments,
+  });
+}
+
+export async function refreshInvoiceSatStatusWithFacturama(invoice: Invoice): Promise<Invoice> {
+  if (!invoice.facturamaId) throw new Error('Sin Id Facturama');
+  const { detail } = await facturamaDetail({ id: invoice.facturamaId, type: 'issued' });
+  const status = String(detail.Status ?? detail.status ?? '').toLowerCase();
+  if (status === 'canceled' || status === 'cancelled' || status === 'cancelado') {
+    const updates: Partial<Invoice> = {
+      estado: 'cancelada',
+      fechaCancelacion: invoice.fechaCancelacion ?? new Date(),
+    };
+    await persistInvoiceUpdate(invoice.id, updates);
+    return { ...invoice, ...updates };
+  }
+  if (status === 'pending' || status === 'pendiente') {
+    const updates: Partial<Invoice> = { estado: 'cancelacion_pendiente' };
+    await persistInvoiceUpdate(invoice.id, updates);
+    return { ...invoice, ...updates };
+  }
+  return invoice;
 }
 
 export async function testFacturamaConnection() {

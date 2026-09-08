@@ -106,6 +106,7 @@ const INVOICE_ESTADO_LABEL: Record<Invoice['estado'], string> = {
   pendiente: 'Pendiente',
   enviada: 'Enviada',
   timbrada: 'Timbrada',
+  cancelacion_pendiente: 'Cancelación SAT pendiente',
   cancelada: 'Cancelada',
   error: 'Error',
 };

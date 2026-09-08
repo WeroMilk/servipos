@@ -173,7 +173,7 @@ export function mapNominaToFacturama(input: NominaPayloadInput): Record<string, 
   }
 
   return {
-    NameId: '1',
+    NameId: 1,
     CfdiType: 'N',
     ExpeditionPlace: String(input.expeditionPlace).trim(),
     Serie: input.serie || undefined,

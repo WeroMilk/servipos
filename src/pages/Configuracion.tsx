@@ -962,9 +962,23 @@ export function Configuracion() {
                       setFacturamaStatusMsg(null);
                       void testFacturamaConnection()
                         .then((r) => {
-                          const acc = r.account as { Email?: string; Name?: string } | null;
+                          const acc = r.account as {
+                            Email?: string;
+                            Name?: string;
+                            UserName?: string;
+                            Rfc?: string;
+                            TaxName?: string;
+                            FiscalRegime?: string;
+                          } | null;
+                          const bits = [
+                            acc?.UserName,
+                            acc?.Rfc,
+                            acc?.TaxName ?? acc?.Name,
+                            acc?.Email,
+                            acc?.FiscalRegime ? `régimen ${acc.FiscalRegime}` : null,
+                          ].filter(Boolean);
                           setFacturamaStatusMsg(
-                            `Conexión OK${acc?.Email ? ` · ${acc.Email}` : ''}${acc?.Name ? ` · ${acc.Name}` : ''}`
+                            bits.length ? `Conexión OK · ${bits.join(' · ')}` : 'Conexión OK'
                           );
                           addToast({ type: 'success', message: 'Facturama respondió correctamente' });
                         })

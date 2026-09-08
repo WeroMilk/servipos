@@ -31,10 +31,10 @@ import {
 import { useEmployees, useNominaRecibos, reportNominaHookError } from '@/hooks/useNominas';
 import { useFiscalConfig } from '@/hooks';
 import { useAppStore, useAuthStore } from '@/stores';
-import type { Employee, NominaConceptoLinea } from '@/types';
+import type { Employee } from '@/types';
 import { formatMoney, cn } from '@/lib/utils';
 import { printNominaTimbradaCfdiLetter } from '@/lib/cfdiRepresentacionImpresa';
-import { estimarIsrImssDesdePercepciones } from '@/lib/nominaDeduccionesEstimadas';
+import { buildNominaBorradorFromSueldo } from '@/lib/nominaPosCheckout';
 
 const emptyEmp = (): Omit<Employee, 'id' | 'createdAt' | 'updatedAt' | 'sucursalId'> => ({
   numeroEmpleado: '',
@@ -114,56 +114,20 @@ export function Nominas() {
       addToast({ type: 'warning', message: 'Sueldo inválido' });
       return;
     }
-    const est = estimarIsrImssDesdePercepciones([
-      { clave: '001', concepto: 'Sueldo', gravado: sueldoN, exento: 0 },
-    ]);
-    const percepciones: NominaConceptoLinea[] = [
-      {
-        tipo: '001',
-        clave: '001',
-        concepto: 'Sueldo',
-        importeGravado: sueldoN,
-        importeExento: 0,
-      },
-    ];
-    const deducciones: NominaConceptoLinea[] = [
-      {
-        tipo: '002',
-        clave: '002',
-        concepto: 'ISR',
-        importe: est.isr,
-      },
-      {
-        tipo: '001',
-        clave: '003',
-        concepto: 'Seguridad social',
-        importe: est.imss,
-      },
-    ];
-    const totalPercepciones = sueldoN;
-    const totalDeducciones = Math.round((est.isr + est.imss) * 100) / 100;
-    const neto = Math.round((totalPercepciones - totalDeducciones) * 100) / 100;
 
     try {
       setBusy(true);
-      await createBorrador({
-        empleadoId: emp.id,
-        empleado: emp,
-        tipoNomina: 'O',
-        fechaPago,
-        fechaInicialPago: fechaIni,
-        fechaFinalPago: fechaFin,
-        numDiasPagados: parseInt(dias, 10) || 15,
-        formaPago: '99',
-        lugarExpedicion: fiscalConfig.lugarExpedicion,
-        percepciones,
-        deducciones,
-        otrosPagos: [],
-        totalPercepciones,
-        totalDeducciones,
-        totalOtrosPagos: 0,
-        neto,
-      });
+      await createBorrador(
+        buildNominaBorradorFromSueldo({
+          employee: emp,
+          fiscalConfig,
+          sueldo: sueldoN,
+          fechaPago,
+          fechaInicialPago: fechaIni,
+          fechaFinalPago: fechaFin,
+          numDiasPagados: parseInt(dias, 10) || 15,
+        })
+      );
       addToast({ type: 'success', message: 'Recibo creado (borrador). Timbre para validez SAT.' });
       setReciboOpen(false);
     } catch (e) {

@@ -172,9 +172,33 @@ export async function facturamaGetCfdiDetail(
   return data;
 }
 
-/** Ping de cuenta: GET account / fiscal information. */
+/** Envía XML y PDF oficiales al correo del receptor (API Web). */
+export async function facturamaSendCfdiEmail(
+  cfg: FacturamaClientConfig,
+  opts: {
+    id: string;
+    type: FacturamaCancelType;
+    email: string;
+    subject?: string;
+    comments?: string;
+    issuerEmail?: string;
+  }
+): Promise<unknown> {
+  const q = new URLSearchParams({
+    cfdiType: opts.type,
+    cfdiId: opts.id,
+    email: opts.email.trim(),
+  });
+  if (opts.subject?.trim()) q.set('subject', opts.subject.trim());
+  if (opts.comments?.trim()) q.set('comments', opts.comments.trim());
+  if (opts.issuerEmail?.trim()) q.set('issuerEmail', opts.issuerEmail.trim());
+  const { data } = await facturamaRequest(cfg, 'POST', `/cfdi?${q.toString()}`);
+  return data;
+}
+
+/** Ping de cuenta: perfil de usuario + datos fiscales (API Web). */
 export async function facturamaAccountStatus(cfg: FacturamaClientConfig): Promise<unknown> {
-  const { data } = await facturamaRequest(cfg, 'GET', '/account');
+  const { data } = await facturamaRequest(cfg, 'GET', '/account/UserInfo');
   return data;
 }
 

@@ -154,7 +154,7 @@ export function useInvoices() {
       if (effectiveSucursalId) {
         const inv = invoices.find((x) => x.id === id);
         if (!inv) return;
-        if (inv.estado === 'timbrada') {
+        if (inv.estado === 'timbrada' || inv.estado === 'cancelacion_pendiente') {
           throw new Error('No se puede eliminar una factura ya timbrada ante el SAT.');
         }
         await deleteInvoiceFirestore(effectiveSucursalId, id);
@@ -175,13 +175,13 @@ export function useInvoices() {
       if (sid) {
         const inv = await getInvoiceFirestore(sid, id);
         if (!inv) return;
-        if (inv.estado === 'timbrada' || inv.estado === 'cancelada' || inv.estado === 'error') return;
+        if (inv.estado === 'timbrada' || inv.estado === 'cancelada' || inv.estado === 'cancelacion_pendiente' || inv.estado === 'error') return;
         if (inv.estado === 'enviada') return;
         await updateInvoiceFirestore(sid, id, { estado: 'enviada' });
       } else {
         const inv = await getInvoiceById(id);
         if (!inv) return;
-        if (inv.estado === 'timbrada' || inv.estado === 'cancelada' || inv.estado === 'error') return;
+        if (inv.estado === 'timbrada' || inv.estado === 'cancelada' || inv.estado === 'cancelacion_pendiente' || inv.estado === 'error') return;
         if (inv.estado === 'enviada') return;
         await db.invoices.update(id, {
           estado: 'enviada',

@@ -16,8 +16,8 @@ import {
   Stamp,
   FileMinus2,
   Banknote,
+  RefreshCw,
 } from 'lucide-react';
-import { resolveClaveProdServ, normalizeClaveUnidadSat } from '@/lib/satCatalog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -75,7 +75,10 @@ import {
   downloadInvoicePdfBase64FromFacturama,
   stampCreditNoteWithFacturama,
   stampPaymentComplementWithFacturama,
+  sendInvoiceEmailWithFacturama,
+  refreshInvoiceSatStatusWithFacturama,
 } from '@/hooks/useFacturama';
+import { buildInvoiceFromSale } from '@/lib/facturama/buildInvoiceFromSale';
 import { saldoInsolutoFacturaPpd, siguienteParcialidad } from '@/lib/facturama/ppdSaldo';
 import {
   Select,
@@ -89,6 +92,7 @@ const statusColors: Record<string, string> = {
   pendiente: 'bg-amber-500/10 text-black border-amber-500/30 dark:text-amber-100',
   enviada: 'bg-brand/10 text-brand-to border-brand/30 dark:text-brand',
   timbrada: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+  cancelacion_pendiente: 'bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-200',
   cancelada: 'bg-red-500/10 text-red-400 border-red-500/30',
   error: 'bg-red-500/10 text-red-400 border-red-500/30',
 };
@@ -97,6 +101,7 @@ const statusLabels: Record<string, string> = {
   pendiente: 'Pendiente',
   enviada: 'Enviada',
   timbrada: 'Timbrada',
+  cancelacion_pendiente: 'Cancelación SAT pendiente',
   cancelada: 'Cancelada',
   error: 'Error',
 };
@@ -157,7 +162,7 @@ export function Facturas() {
   const [generatedXML, setGeneratedXML] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [emailOpen, setEmailOpen] = useState(false);
-  const [emailTargetInvoiceId, setEmailTargetInvoiceId] = useState<string | null>(null);
+  const [emailTargetInvoice, setEmailTargetInvoice] = useState<Invoice | null>(null);
   const [emailSubject, setEmailSubject] = useState('');
   const [emailBody, setEmailBody] = useState('');
   const [deleteInvoiceTarget, setDeleteInvoiceTarget] = useState<Invoice | null>(null);
@@ -206,7 +211,8 @@ export function Facturas() {
     setStampingId(invoice.id);
     try {
       const stamped = await stampInvoiceWithFacturama(invoice);
-      setSelectedInvoice(stamped);
+      const fresh = await reloadInvoice(invoice.id);
+      setSelectedInvoice(fresh ?? stamped);
       addToast({
         type: 'success',
         message: `Factura timbrada. UUID: ${stamped.uuid}`,
@@ -233,7 +239,10 @@ export function Facturas() {
         });
         addToast({
           type: 'success',
-          message: 'Solicitud de cancelación enviada al SAT vía Facturama',
+          message:
+            (await reloadInvoice(cancelSatTarget.id))?.estado === 'cancelacion_pendiente'
+              ? 'Cancelación enviada: el SAT aún no confirma (estado pendiente de aceptación).'
+              : 'Solicitud de cancelación enviada al SAT vía Facturama',
         });
       } else {
         await cancelInvoice(cancelSatTarget.id, `Local: motivo ${cancelMotive}`);
@@ -346,48 +355,17 @@ export function Facturas() {
       const client = clientBase
         ? { ...clientBase, usoCfdi: formData.usoCfdi || clientBase.usoCfdi }
         : null;
-      
-      const invoiceData = {
-        clienteId: client?.id || 'mostrador',
-        cliente: client,
-        emisor: fiscalConfig,
-        ventaId: selectedSale.id,
-        productos: (selectedSale.productos ?? []).map((item) => {
-          return {
-          id: crypto.randomUUID(),
-          productId: item.productId,
-          claveProdServ: resolveClaveProdServ(item.producto?.claveProdServ),
-          claveUnidad: normalizeClaveUnidadSat(item.producto?.unidadMedida),
-          cantidad: item.cantidad,
-          descripcion: item.producto?.nombre?.trim() || item.productoNombre?.trim() || '',
-          precioUnitario: item.precioUnitario,
-          descuento: item.descuento,
-          impuestosTrasladados: [{
-            tipo: 'Traslado' as const,
-            impuesto: '002' as const,
-            tipoFactor: 'Tasa' as const,
-            tasaOCuota: 0.16,
-            base: item.subtotal - item.descuento,
-            importe: (item.subtotal - item.descuento) * 0.16,
-          }],
-          impuestosRetenidos: [],
-          subtotal: item.subtotal,
-          total: item.total,
-        };
-        }),
-        subtotal: selectedSale.subtotal,
-        descuento: selectedSale.descuento,
-        impuestosTrasladados: selectedSale.impuestos,
-        impuestosRetenidos: 0,
-        total: selectedSale.total,
-        formaPago: formData.formaPago as any,
-        metodoPago: formData.metodoPago as any,
-        lugarExpedicion: fiscalConfig.lugarExpedicion,
-        fechaEmision: new Date(),
-        estado: 'pendiente' as const,
-      };
 
-      const newId = await addInvoice(invoiceData as any);
+      const invoiceData = buildInvoiceFromSale({
+        sale: selectedSale,
+        client,
+        fiscalConfig,
+        formaPago: formData.formaPago as Invoice['formaPago'],
+        metodoPago: formData.metodoPago as Invoice['metodoPago'],
+        usoCfdi: formData.usoCfdi,
+      });
+
+      const newId = await addInvoice(invoiceData);
 
       setShowAddDialog(false);
       resetForm();
@@ -431,18 +409,17 @@ export function Facturas() {
     try {
       let xml = invoice.xml;
       if (invoice.facturamaId) {
-        try {
-          xml = await downloadInvoiceXmlFromFacturama(invoice);
-        } catch {
-          /* fallback local */
-        }
+        xml = await downloadInvoiceXmlFromFacturama(invoice);
       }
       if (!xml) xml = await generateXML(invoice);
       setGeneratedXML(xml);
       setSelectedInvoice(invoice);
       setShowXMLDialog(true);
-    } catch (error: any) {
-      addToast({ type: 'error', message: error.message });
+    } catch (error: unknown) {
+      addToast({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'No se pudo obtener el XML',
+      });
     }
   };
 
@@ -517,10 +494,31 @@ export function Facturas() {
   }
 
   const openEmailForInvoice = (inv: Invoice) => {
-    setEmailTargetInvoiceId(inv.id);
+    setEmailTargetInvoice(inv);
     setEmailSubject(`Factura ${inv.serie}-${inv.folio} — SERVIPARTZ POS`);
     setEmailBody(buildInvoiceEmailBody(inv));
     setEmailOpen(true);
+  };
+
+  const handleRefreshSatStatus = async (invoice: Invoice) => {
+    try {
+      const updated = await refreshInvoiceSatStatusWithFacturama(invoice);
+      setSelectedInvoice(updated);
+      addToast({
+        type: 'success',
+        message:
+          updated.estado === 'cancelada'
+            ? 'El SAT confirmó la cancelación'
+            : updated.estado === 'cancelacion_pendiente'
+              ? 'El SAT aún no acepta la cancelación'
+              : 'Estado SAT actualizado',
+      });
+    } catch (e) {
+      addToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'No se pudo consultar el estado SAT',
+      });
+    }
   };
 
   const handlePrintRepresentacion = (inv: Invoice) => {
@@ -692,9 +690,9 @@ export function Facturas() {
                     variant="ghost"
                     size="icon"
                     className="h-9 w-9 shrink-0 self-start text-slate-600 dark:text-slate-500 hover:text-red-400 disabled:opacity-30"
-                    disabled={invoice.estado === 'timbrada'}
+                    disabled={invoice.estado === 'timbrada' || invoice.estado === 'cancelacion_pendiente'}
                     title={
-                      invoice.estado === 'timbrada'
+                      invoice.estado === 'timbrada' || invoice.estado === 'cancelacion_pendiente'
                         ? 'No se puede eliminar una factura timbrada'
                         : 'Eliminar del historial'
                     }
@@ -810,6 +808,7 @@ export function Facturas() {
                             {canTimbrar &&
                               !invoice.esPrueba &&
                               invoice.estado !== 'timbrada' &&
+                              invoice.estado !== 'cancelacion_pendiente' &&
                               invoice.estado !== 'cancelada' && (
                                 <DropdownMenuItem
                                   disabled={stampingId === invoice.id}
@@ -832,6 +831,15 @@ export function Facturas() {
                                   Nota de crédito
                                 </DropdownMenuItem>
                               )}
+                            {invoice.estado === 'cancelacion_pendiente' && invoice.facturamaId ? (
+                              <DropdownMenuItem
+                                onClick={() => void handleRefreshSatStatus(invoice)}
+                                className="text-amber-800 dark:text-amber-200 hover:bg-amber-500/10"
+                              >
+                                <RefreshCw className="mr-2 h-4 w-4" />
+                                Consultar cancelación SAT
+                              </DropdownMenuItem>
+                            ) : null}
                             {canTimbrar &&
                               invoice.estado === 'timbrada' &&
                               invoice.metodoPago === 'PPD' &&
@@ -879,7 +887,7 @@ export function Facturas() {
                               </DropdownMenuItem>
                             )}
                             <DropdownMenuItem
-                              disabled={invoice.estado === 'timbrada'}
+                              disabled={invoice.estado === 'timbrada' || invoice.estado === 'cancelacion_pendiente'}
                               onClick={() => void handleDeleteInvoice(invoice)}
                               className="text-red-400 hover:bg-red-500/10 hover:text-red-300 data-[disabled]:opacity-40"
                             >
@@ -1250,6 +1258,7 @@ export function Facturas() {
                 {canTimbrar &&
                   !selectedInvoice.esPrueba &&
                   selectedInvoice.estado !== 'timbrada' &&
+                  selectedInvoice.estado !== 'cancelacion_pendiente' &&
                   selectedInvoice.estado !== 'cancelada' && (
                     <Button
                       type="button"
@@ -1279,6 +1288,17 @@ export function Facturas() {
                   <Send className="mr-2 h-4 w-4" />
                   Enviar por email
                 </Button>
+                {selectedInvoice.estado === 'cancelacion_pendiente' && selectedInvoice.facturamaId ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-amber-400 text-amber-800 dark:text-amber-200"
+                    onClick={() => void handleRefreshSatStatus(selectedInvoice)}
+                  >
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Consultar cancelación SAT
+                  </Button>
+                ) : null}
               </div>
             </div>
           )}
@@ -1435,17 +1455,31 @@ export function Facturas() {
         open={emailOpen}
         onOpenChange={(open) => {
           setEmailOpen(open);
-          if (!open) setEmailTargetInvoiceId(null);
+          if (!open) setEmailTargetInvoice(null);
         }}
         subject={emailSubject}
         body={emailBody}
         title="Enviar factura por correo"
+        defaultTo={emailTargetInvoice?.cliente?.email ?? ''}
+        onSendOfficial={
+          emailTargetInvoice?.facturamaId
+            ? async (email) => {
+                const inv = emailTargetInvoice;
+                await sendInvoiceEmailWithFacturama({
+                  invoice: inv,
+                  email,
+                  subject: emailSubject,
+                  comments: emailBody,
+                });
+              }
+            : undefined
+        }
         onAfterSend={() => {
-          const id = emailTargetInvoiceId;
+          const id = emailTargetInvoice?.id;
           if (!id) return;
           void markInvoiceEnviada(id).then(() => {
             setSelectedInvoice((prev) =>
-              prev?.id === id ? { ...prev, estado: 'enviada' } : prev
+              prev?.id === id && prev.estado === 'pendiente' ? { ...prev, estado: 'enviada' } : prev
             );
           });
         }}
