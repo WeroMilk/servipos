@@ -338,7 +338,7 @@ export async function buildInvoiceCfdiPrintDocumentHtml(inv: Invoice): Promise<s
           ${cadenaMostrar ? `<div class="lbl">Cadena original (SAT)</div><div class="mono">${escHtml(cadenaMostrar)}</div>` : ''}
         </div>`
       : `<div class="sellos">
-          <div class="lbl">Sello digital del emisor <span class="muestra-tag">(PAC de prueba - no valido SAT)</span></div>
+          <div class="lbl">Sello digital del emisor</div>
           <div class="mono">${escHtml('||D3M0P4CPRU3B4S3LL0D1G1T4LD3L3M1S0RXXXXXXXXXXXXXXXXXXXXXXXXXXXX||')}</div>
           <div class="lbl">Sello digital del SAT <span class="muestra-tag">(muestra)</span></div>
           <div class="mono">${escHtml('||S4T0000000000000000000000000000000000000000000000000000000000000000||')}</div>
