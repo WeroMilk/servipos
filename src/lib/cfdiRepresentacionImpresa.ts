@@ -199,7 +199,6 @@ table.clasica tbody tr.filler td { height: 1.1em; padding-top: 4px; padding-bott
 .tot-wrap { border: 1px solid #000; padding: 8px 10px; font-size: 8.5pt; height: 100%; }
 .tot-line { display: flex; justify-content: space-between; gap: 10px; margin: 5px 0; padding: 2px 0; font-size: 8pt; line-height: 1.35; }
 .tot-line.gran { border-top: 3px double #000; margin-top: 10px; padding-top: 8px; font-weight: 800; font-size: 10.5pt; }
-.vigencia { font-size: 6pt; margin: 10px 0 6px; line-height: 1.42; text-align: justify; }
 .cfdi-nota { font-size: 6pt; color: #333; margin: 0; line-height: 1.4; }
 .sellos { margin-top: 8px; font-size: 5.15pt; word-break: break-all; color: #111; border-top: 1px solid #888; padding-top: 8px; line-height: 1.38; }
 .sellos .lbl { font-weight: 700; font-size: 5.75pt; margin-top: 8px; }
@@ -413,7 +412,6 @@ ${aviso}
   </div>
 </div>
 
-<p class="vigencia">Este comprobante tendrá una vigencia de dos años contando a partir de la fecha de aprobación de la asignación de folios, la cual es: __/__/____</p>
 <div class="sellos">
   <div class="lbl">Folio fiscal (UUID)</div>
   <div class="mono">${uuidLinea}</div>
