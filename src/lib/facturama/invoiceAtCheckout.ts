@@ -5,6 +5,11 @@ import { buildInvoiceFromSale } from '@/lib/facturama/buildInvoiceFromSale';
 import { stampInvoiceWithFacturama, sendInvoiceEmailWithFacturama } from '@/hooks/useFacturama';
 import { mergeClienteDatosFiscales, resolveLiveClient } from '@/lib/facturama/hydrateInvoiceCliente';
 
+export function isCfdiEmailAddress(raw: string | undefined | null): boolean {
+  const email = String(raw ?? '').trim();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 export async function invoiceAndStampCompletedSale(opts: {
   sale: Sale;
   client: Client;
@@ -13,6 +18,8 @@ export async function invoiceAndStampCompletedSale(opts: {
   formaPago: FormaPago;
   metodoPago: MetodoPago;
   sucursalId: string | null | undefined;
+  /** Correo de este cobro (puede diferir del catálogo). */
+  email?: string;
   addInvoice: (
     invoice: Omit<Invoice, 'id' | 'folio' | 'serie' | 'createdAt' | 'updatedAt' | 'syncStatus' | 'esPrueba'>
   ) => Promise<string>;
@@ -23,6 +30,9 @@ export async function invoiceAndStampCompletedSale(opts: {
   uuid?: string;
   folio?: string;
   serie?: string;
+  emailSent?: boolean;
+  emailError?: string;
+  emailSkipped?: boolean;
 }> {
   const live = await resolveLiveClient(opts.client.id || opts.sale.clienteId);
   const client = mergeClienteDatosFiscales(opts.client, live) ?? opts.client;
@@ -36,7 +46,7 @@ export async function invoiceAndStampCompletedSale(opts: {
   });
   const invoiceId = await opts.addInvoice(draft);
   if (opts.fiscalConfig.modoPruebaFiscal) {
-    return { invoiceId, stamped: false, esPrueba: true };
+    return { invoiceId, stamped: false, esPrueba: true, emailSkipped: true };
   }
 
   const sid = opts.sucursalId?.trim();
@@ -48,24 +58,53 @@ export async function invoiceAndStampCompletedSale(opts: {
   }
 
   const stamped = await stampInvoiceWithFacturama(created);
-  const email = String(client.email ?? opts.client.email ?? '').trim();
-  if (email.includes('@') && stamped.facturamaId) {
-    try {
-      await sendInvoiceEmailWithFacturama({
-        invoice: stamped,
-        email,
-        subject: `Factura ${stamped.serie}-${stamped.folio}`,
-      });
-    } catch {
-      /* el CFDI ya está timbrado; el correo se puede reenviar en Facturación */
-    }
+  const email = String(opts.email ?? client.email ?? '').trim();
+  if (!isCfdiEmailAddress(email)) {
+    return {
+      invoiceId,
+      stamped: true,
+      esPrueba: false,
+      uuid: stamped.uuid,
+      folio: stamped.folio,
+      serie: stamped.serie,
+      emailSkipped: true,
+    };
   }
-  return {
-    invoiceId,
-    stamped: true,
-    esPrueba: false,
-    uuid: stamped.uuid,
-    folio: stamped.folio,
-    serie: stamped.serie,
-  };
+  if (!stamped.facturamaId) {
+    return {
+      invoiceId,
+      stamped: true,
+      esPrueba: false,
+      uuid: stamped.uuid,
+      folio: stamped.folio,
+      serie: stamped.serie,
+      emailError: 'Sin Id Facturama; el correo se puede reenviar en Facturación',
+    };
+  }
+  try {
+    await sendInvoiceEmailWithFacturama({
+      invoice: stamped,
+      email,
+      subject: `Factura ${stamped.serie}-${stamped.folio}`,
+    });
+    return {
+      invoiceId,
+      stamped: true,
+      esPrueba: false,
+      uuid: stamped.uuid,
+      folio: stamped.folio,
+      serie: stamped.serie,
+      emailSent: true,
+    };
+  } catch (e) {
+    return {
+      invoiceId,
+      stamped: true,
+      esPrueba: false,
+      uuid: stamped.uuid,
+      folio: stamped.folio,
+      serie: stamped.serie,
+      emailError: e instanceof Error ? e.message : 'No se pudo enviar el correo',
+    };
+  }
 }

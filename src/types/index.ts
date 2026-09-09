@@ -1051,6 +1051,7 @@ export const FORMAS_PAGO_UI: CatalogoSAT[] = [
   { clave: '04', descripcion: 'Tarjeta de crédito' },
   { clave: '08', descripcion: 'Vales de despensa' },
   { clave: '28', descripcion: 'Tarjeta de débito' },
+  { clave: '99', descripcion: 'Otros' },
 ];
 
 export const CLAVES_UNIDAD: CatalogoSAT[] = [

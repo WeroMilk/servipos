@@ -7,9 +7,19 @@ export function checkoutFormaPagoPermiteCfdi(formaPago: string): boolean {
   return !['TTS', 'DEV', 'COT', 'STC'].includes(formaPago);
 }
 
+/** PPC o SAT 99: no entra dinero a caja; saldo en cuentas por cobrar. */
+export function esFormaPagoACuenta(formaPago: string): boolean {
+  return formaPago === 'PPC' || formaPago === '99';
+}
+
 export function satFormaPagoParaCfdi(formaPago: string, metodoPago: string): FormaPago {
-  if (metodoPago === 'PPD' || formaPago === 'PPC') return '99';
+  if (metodoPago === 'PPD' || esFormaPagoACuenta(formaPago)) return '99';
   return formaPago as FormaPago;
+}
+
+export function metodoPagoParaCfdi(formaPago: string, metodoPago: MetodoPago): MetodoPago {
+  if (esFormaPagoACuenta(formaPago) || formaPago === '99') return 'PPD';
+  return metodoPago;
 }
 
 export function clientListoParaCfdi(client: Client | null | undefined): { ok: true } | { ok: false; reason: string } {
@@ -102,8 +112,8 @@ export function buildInvoiceFromSale(opts: {
     impuestosTrasladados,
     impuestosRetenidos: 0,
     total,
-    formaPago: opts.formaPago,
-    metodoPago: opts.metodoPago,
+    formaPago: satFormaPagoParaCfdi(opts.formaPago, opts.metodoPago),
+    metodoPago: metodoPagoParaCfdi(opts.formaPago, opts.metodoPago),
     lugarExpedicion: fiscalConfig.lugarExpedicion,
     fechaEmision: new Date(),
     estado: 'pendiente',

@@ -2,6 +2,8 @@ import { describe, expect, test } from 'vitest';
 import {
   checkoutFormaPagoPermiteCfdi,
   clientListoParaCfdi,
+  esFormaPagoACuenta,
+  metodoPagoParaCfdi,
   satFormaPagoParaCfdi,
 } from '@/lib/facturama/buildInvoiceFromSale';
 import type { Client } from '@/types';
@@ -31,18 +33,35 @@ describe('clientListoParaCfdi', () => {
 });
 
 describe('satFormaPagoParaCfdi', () => {
-  test('PPD y PPC usan 99', () => {
+  test('PPD, PPC y Otros (99) usan 99', () => {
     expect(satFormaPagoParaCfdi('01', 'PPD')).toBe('99');
     expect(satFormaPagoParaCfdi('PPC', 'PPD')).toBe('99');
+    expect(satFormaPagoParaCfdi('99', 'PUE')).toBe('99');
   });
   test('PUE conserva efectivo', () => {
     expect(satFormaPagoParaCfdi('01', 'PUE')).toBe('01');
   });
 });
 
+describe('esFormaPagoACuenta', () => {
+  test('PPC y 99', () => {
+    expect(esFormaPagoACuenta('PPC')).toBe(true);
+    expect(esFormaPagoACuenta('99')).toBe(true);
+    expect(esFormaPagoACuenta('01')).toBe(false);
+  });
+});
+
+describe('metodoPagoParaCfdi', () => {
+  test('Otros fuerza PPD', () => {
+    expect(metodoPagoParaCfdi('99', 'PUE')).toBe('PPD');
+    expect(metodoPagoParaCfdi('01', 'PUE')).toBe('PUE');
+  });
+});
+
 describe('checkoutFormaPagoPermiteCfdi', () => {
-  test('bloquea internos', () => {
+  test('bloquea internos y permite Otros', () => {
     expect(checkoutFormaPagoPermiteCfdi('TTS')).toBe(false);
     expect(checkoutFormaPagoPermiteCfdi('01')).toBe(true);
+    expect(checkoutFormaPagoPermiteCfdi('99')).toBe(true);
   });
 });

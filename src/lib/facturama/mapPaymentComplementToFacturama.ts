@@ -22,8 +22,8 @@ export function mapPaymentComplementToFacturama(opts: {
   if (!invoice.uuid?.trim()) {
     throw new Error('La factura debe estar timbrada (UUID) para emitir complemento de pago');
   }
-  if (invoice.metodoPago !== 'PPD') {
-    throw new Error('El complemento de pago solo aplica a facturas con método PPD');
+  if (invoice.metodoPago !== 'PPD' && invoice.formaPago !== '99') {
+    throw new Error('El complemento de pago solo aplica a facturas PPD u Otros (forma 99)');
   }
 
   const cliente = invoice.cliente;

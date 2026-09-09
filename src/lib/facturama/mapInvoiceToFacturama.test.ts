@@ -159,6 +159,23 @@ describe('mapPaymentComplementToFacturama', () => {
     const pay = (payload.Complemento as { Payments: Array<{ Amount: string }> }).Payments[0];
     expect(pay?.Amount).toBe('50.00');
   });
+
+  test('acepta factura Otros 99 aunque el método snapshot sea PUE', () => {
+    const payload = mapPaymentComplementToFacturama({
+      invoice: invoice({
+        uuid: '11111111-1111-1111-1111-111111111111',
+        metodoPago: 'PUE',
+        formaPago: '99',
+        estado: 'timbrada',
+      }),
+      paymentDate: new Date('2026-09-07T15:00:00Z'),
+      paymentForm: '03',
+      amountPaid: 50,
+      previousBalance: 220.4,
+      partialityNumber: 1,
+    });
+    expect(payload.CfdiType).toBe('P');
+  });
 });
 
 describe('pickFacturamaStampMeta', () => {

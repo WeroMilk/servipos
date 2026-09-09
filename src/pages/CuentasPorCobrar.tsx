@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Wallet, Printer, History, Trash2 } from 'lucide-react';
 import { PageShell } from '@/components/ui-custom/PageShell';
 import { Button } from '@/components/ui/button';
@@ -47,7 +47,7 @@ import {
 } from '@/db/database';
 import { listaAbonosCxCMostrable } from '@/lib/clientAbonoHistorialUi';
 import { stampPaymentComplementWithFacturama } from '@/hooks/useFacturama';
-import { saldoInsolutoFacturaPpd, siguienteParcialidad } from '@/lib/facturama/ppdSaldo';
+import { saldoInsolutoFacturaPpd, siguienteParcialidad, invoiceAceptaComplementoPago } from '@/lib/facturama/ppdSaldo';
 import type { ClientAbonoHistorialEntry, Invoice } from '@/types';
 import {
   Select,
@@ -131,15 +131,19 @@ export function CuentasPorCobrar() {
   const ppdFacturasCliente = useMemo((): Invoice[] => {
     if (!abonoCliente) return [];
     return invoices.filter(
-      (inv) =>
-        inv.clienteId === abonoCliente.id &&
-        inv.estado === 'timbrada' &&
-        inv.metodoPago === 'PPD' &&
-        inv.uuid &&
-        !inv.esPrueba &&
-        saldoInsolutoFacturaPpd(inv) > 0.005
+      (inv) => inv.clienteId === abonoCliente.id && invoiceAceptaComplementoPago(inv)
     );
   }, [abonoCliente, invoices]);
+
+  useEffect(() => {
+    if (!abonoCliente) return;
+    const list = invoices.filter(
+      (inv) => inv.clienteId === abonoCliente.id && invoiceAceptaComplementoPago(inv)
+    );
+    setEmitirComplemento(list.length > 0);
+    setAbonoFacturaId(list[0]?.id ?? '');
+    setAbonoFormaPagoCfdi('03');
+  }, [abonoCliente?.id]);
 
   const cerrarAbono = () => {
     setAbonoCliente(null);
@@ -505,7 +509,7 @@ export function CuentasPorCobrar() {
                   <SelectValue placeholder="Seleccione medio de pago" />
                 </SelectTrigger>
                 <SelectContent>
-                  {FORMAS_PAGO_UI.map((f) => (
+                  {FORMAS_PAGO_UI.filter((f) => f.clave !== '99').map((f) => (
                     <SelectItem key={f.clave} value={f.clave}>
                       {f.clave} — {f.descripcion}
                     </SelectItem>
@@ -555,7 +559,9 @@ export function CuentasPorCobrar() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {FORMAS_PAGO.map((f) => (
+                          {FORMAS_PAGO.filter((f) =>
+                            ['01', '02', '03', '04', '08', '28'].includes(f.clave)
+                          ).map((f) => (
                             <SelectItem key={f.clave} value={f.clave}>
                               {f.clave} — {f.descripcion}
                             </SelectItem>

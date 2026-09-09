@@ -156,9 +156,11 @@ import { printInvoiceCfdiRepresentacion } from '@/lib/cfdiRepresentacionImpresa'
 import {
   checkoutFormaPagoPermiteCfdi,
   clientListoParaCfdi,
+  esFormaPagoACuenta,
   satFormaPagoParaCfdi,
+  metodoPagoParaCfdi,
 } from '@/lib/facturama/buildInvoiceFromSale';
-import { invoiceAndStampCompletedSale } from '@/lib/facturama/invoiceAtCheckout';
+import { invoiceAndStampCompletedSale, isCfdiEmailAddress } from '@/lib/facturama/invoiceAtCheckout';
 import { mergeClienteDatosFiscales, resolveLiveClient } from '@/lib/facturama/hydrateInvoiceCliente';
 import {
   cartQtyForProduct,
@@ -446,6 +448,9 @@ type PosTicketSnapshot = {
   cfdiPrueba?: boolean;
   cfdiFolio?: string;
   cfdiSerie?: string;
+  cfdiEmailSent?: boolean;
+  cfdiEmailError?: string;
+  cfdiEmailSkipped?: boolean;
 };
 
 /** Imprime el ticket térmico con el snapshot ya construido (evita estado React desactualizado). */
@@ -812,18 +817,18 @@ export function POS() {
 
   const esFormaDevolucion = formaPago === 'DEV';
   const esFormaCotizacion = formaPago === 'COT';
-  const esFormaPendientePago = formaPago === 'PPC';
+  const esFormaPendientePago = esFormaPagoACuenta(formaPago);
 
-  /** Valor anterior de forma de pago: al salir de PPC se restablece PUE para no dejar PPD heredado (saldo en CxC sin querer). */
+  /** Valor anterior de forma de pago: al salir de PPC/Otros se restablece PUE para no dejar PPD heredado. */
   const formaPagoPrevRef = useRef(formaPago);
   useEffect(() => {
     const prev = formaPagoPrevRef.current;
     formaPagoPrevRef.current = formaPago;
 
-    if (formaPago === 'PPC') {
+    if (esFormaPagoACuenta(formaPago)) {
       setMetodoPago('PPD');
       useCartStore.setState({ pagos: [] });
-    } else if (prev === 'PPC') {
+    } else if (esFormaPagoACuenta(prev)) {
       setMetodoPago('PUE');
     }
   }, [formaPago, setMetodoPago]);
@@ -963,6 +968,8 @@ export function POS() {
   const [checkoutClienteNombre, setCheckoutClienteNombre] = useState('');
   const [checkoutFacturarCfdi, setCheckoutFacturarCfdi] = useState(false);
   const [checkoutUsoCfdi, setCheckoutUsoCfdi] = useState('G03');
+  const [checkoutCfdiEmail, setCheckoutCfdiEmail] = useState('');
+  const [checkoutGuardarEmailCliente, setCheckoutGuardarEmailCliente] = useState(false);
   const [stockPrompt, setStockPrompt] = useState<null | {
     product: Product;
     desiredCartQty: number;
@@ -1030,7 +1037,7 @@ export function POS() {
     search: searchProducts,
     searchByBarcode,
   } = useProductSearch({ maxResults: 80 });
-  const { clients, refresh: refreshClients, emitirCreditoTienda } = useClients();
+  const { clients, refresh: refreshClients, emitirCreditoTienda, editClient } = useClients();
   const { config: fiscalConfig } = useFiscalConfig();
   const { addInvoice } = useInvoices();
   const cfdiClienteListo = useMemo(() => clientListoParaCfdi(client), [client]);
@@ -1157,6 +1164,8 @@ export function POS() {
       setCheckoutClienteNombre('');
       setCheckoutFacturarCfdi(false);
       setCheckoutUsoCfdi('G03');
+      setCheckoutCfdiEmail('');
+      setCheckoutGuardarEmailCliente(false);
       setMobileTab('cart');
     }
   }, [finalizePosCartAfterSale]);
@@ -1488,6 +1497,8 @@ export function POS() {
     setCheckoutClienteNombre(nombreInicial);
     setCheckoutFacturarCfdi(clientListoParaCfdi(client).ok);
     setCheckoutUsoCfdi(client?.usoCfdi?.trim() || 'G03');
+    setCheckoutCfdiEmail(String(client?.email ?? '').trim());
+    setCheckoutGuardarEmailCliente(false);
     setCheckoutPhase('payment');
     setCheckoutOpen(true);
     setCheckoutPaymentKey((k) => k + 1);
@@ -1502,6 +1513,7 @@ export function POS() {
   useEffect(() => {
     if (!checkoutOpen || checkoutPhase !== 'payment') return;
     setCheckoutFacturarCfdi(clientListoParaCfdi(client).ok);
+    setCheckoutCfdiEmail(String(client?.email ?? '').trim());
   }, [checkoutOpen, checkoutPhase, client?.id]);
 
   const formaPagoRef = useRef(formaPago);
@@ -1520,7 +1532,7 @@ export function POS() {
    */
   useEffect(() => {
     if (!checkoutOpen || checkoutPhase !== 'payment') return;
-    if (formaPago === 'PPC' || esTraspasoTienda || esFormaDevolucion || esFormaCotizacion) return;
+    if (esFormaPendientePago || esTraspasoTienda || esFormaDevolucion || esFormaCotizacion) return;
     if (metodoPago !== 'PUE') return;
     if (pagos.length === 0) return;
     if (totalPagadoVenta + 0.004 >= cobroReferencia) return;
@@ -1540,7 +1552,7 @@ export function POS() {
   ]);
 
   const ppdAbonoFormasEffective = useMemo(() => {
-    const base = [...FORMAS_PAGO_UI];
+    const base = [...FORMAS_PAGO_UI].filter((fp) => fp.clave !== '99');
     const creditoDisp =
       client && !client.isMostrador && client.id !== 'mostrador' ?
         saldoCreditoCliente(client)
@@ -1602,7 +1614,7 @@ export function POS() {
    * igual que `handleProcessSale`), para habilitar el botón sin usar «Agregar».
    */
   const totalPagadoIncluyeCampoMonto = useMemo(() => {
-    if (formaPago === 'PPC' || esTraspasoTienda) return totalPagadoVenta;
+    if (esFormaPendientePago || esTraspasoTienda) return totalPagadoVenta;
     if (cobroTarjetaPue) return totalPagadoVenta;
 
     const norm = montoRecibidoInput.replace(',', '.').trim();
@@ -2833,7 +2845,7 @@ export function POS() {
     /** Pago mixto (varios medios en un solo ticket): true si en esta invocación se añadió un abono desde el campo. */
     let pagoAgregadoEnEstaInvocacion = false;
 
-    if (formaPago !== 'PPC' && !esTraspasoTienda && !cobroTarjetaPueLocal) {
+    if (!esFormaPendientePago && !esTraspasoTienda && !cobroTarjetaPueLocal) {
       if (metodoPago === 'PPD') {
         const fpLinea = ppdAbonoFormaPago;
         const norm = montoRecibidoInput.replace(',', '.').trim();
@@ -2883,11 +2895,14 @@ export function POS() {
       }
     }
 
-    if (formaPago === 'PPC') {
+    if (esFormaPendientePago) {
       if (!client?.id || client.id === 'mostrador' || client.isMostrador) {
         addToast({
           type: 'error',
-          message: 'Seleccione un cliente registrado para vender con pendiente de pago.',
+          message:
+            formaPago === '99'
+              ? 'Seleccione un cliente registrado para facturar con Otros (pago por definir).'
+              : 'Seleccione un cliente registrado para vender con pendiente de pago.',
         });
         return;
       }
@@ -2895,12 +2910,12 @@ export function POS() {
 
     /** Tras `addPago` en este mismo handler, el `pagos` del render sigue desactualizado; el store ya tiene el abono. */
     let pagosParaVenta =
-      formaPago === 'PPC' ? [] : [...useCartStore.getState().pagos];
+      esFormaPendientePago ? [] : [...useCartStore.getState().pagos];
 
     if (cobroTarjetaPueLocal) {
       pagosParaVenta = [{ formaPago, monto: cobroReferencia }];
     } else if (!esTraspasoTienda) {
-      const permiteDeuda = puedeVentaConSaldoPendiente || formaPago === 'PPC';
+      const permiteDeuda = puedeVentaConSaldoPendiente || esFormaPendientePago;
       const totalPagadoTrasAbono = useCartStore.getState().getTotalPagado();
       const incompleto = totalPagadoTrasAbono + 0.004 < cobroReferencia;
       /**
@@ -2938,7 +2953,7 @@ export function POS() {
       : Math.max(0, Math.round(rawAdeudoCobro * 100) / 100);
 
     const metodoPagoVenta: 'PUE' | 'PPD' =
-      formaPago === 'PPC' ? 'PPD'
+      esFormaPendientePago ? 'PPD'
       : adeudoTicket <= 0 ? 'PUE'
       : (metodoPago as 'PUE' | 'PPD');
 
@@ -3009,6 +3024,21 @@ export function POS() {
         addToast({ type: 'error', message: listo.reason });
         return;
       }
+      const emailTrim = checkoutCfdiEmail.trim();
+      if (emailTrim && !isCfdiEmailAddress(emailTrim)) {
+        addToast({ type: 'error', message: 'El correo de la factura no es válido.' });
+        return;
+      }
+      if (checkoutGuardarEmailCliente && emailTrim && clienteCfdi?.id) {
+        try {
+          await editClient(clienteCfdi.id, { email: emailTrim });
+        } catch (e) {
+          addToast({
+            type: 'warning',
+            message: e instanceof Error ? e.message : 'No se pudo guardar el correo en el cliente',
+          });
+        }
+      }
     }
 
     const runCfdiAlCobrar = async (sale: Sale) => {
@@ -3022,8 +3052,9 @@ export function POS() {
           fiscalConfig,
           usoCfdi: checkoutUsoCfdi,
           formaPago: satFormaPagoParaCfdi(String(sale.formaPago), sale.metodoPago),
-          metodoPago: sale.metodoPago as MetodoPago,
+          metodoPago: metodoPagoParaCfdi(String(sale.formaPago), sale.metodoPago as MetodoPago),
           sucursalId: effectiveSucursalId,
+          email: checkoutCfdiEmail.trim(),
           addInvoice,
         });
         if (r.stamped && r.uuid && effectiveSucursalId) {
@@ -3034,7 +3065,15 @@ export function POS() {
             /* el ticket térmico ya se imprime */
           }
         }
-        return { cfdiUuid: r.uuid, cfdiPrueba: r.esPrueba, cfdiFolio: r.folio, cfdiSerie: r.serie };
+        return {
+          cfdiUuid: r.uuid,
+          cfdiPrueba: r.esPrueba,
+          cfdiFolio: r.folio,
+          cfdiSerie: r.serie,
+          cfdiEmailSent: r.emailSent,
+          cfdiEmailError: r.emailError,
+          cfdiEmailSkipped: r.emailSkipped,
+        };
       } catch (e) {
         return {
           cfdiError: e instanceof Error ? e.message : 'No se pudo timbrar el CFDI',
@@ -3211,8 +3250,8 @@ export function POS() {
           };
         });
         const resumenPagosAbierta =
-          formaPago === 'PPC' ?
-            [{ label: 'Pendiente de pago', monto: totalCobro }]
+          esFormaPendientePago ?
+            [{ label: formaPago === '99' ? 'Otros (por definir)' : 'Pendiente de pago', monto: totalCobro }]
           : pagosParaVenta.map((p) => ({
               label: labelFormaPago(p.formaPago),
               monto: p.monto,
@@ -3330,8 +3369,8 @@ export function POS() {
         };
       });
       const resumenPagos =
-        formaPago === 'PPC' ?
-          [{ label: 'Pendiente de pago', monto: totalCobro }]
+        esFormaPendientePago ?
+          [{ label: formaPago === '99' ? 'Otros (por definir)' : 'Pendiente de pago', monto: totalCobro }]
         : !esTraspasoTienda && pagosParaVenta.length > 0
           ? pagosParaVenta.map((p) => ({
               label: labelFormaPago(p.formaPago),
@@ -3480,7 +3519,7 @@ export function POS() {
   /** Cobro con lista de abonos: el número grande es lo que falta, no el total del ticket. */
   const cobroDialogoMuestraFalta =
     !checkoutDevolucionListo &&
-    formaPago !== 'PPC' &&
+    !esFormaPendientePago &&
     !esTraspasoTienda &&
     !cobroTarjetaPue;
 
@@ -3503,7 +3542,7 @@ export function POS() {
 
   /** Campo «Monto recibido» listo para registrar un abono (pago mixto sin dejar saldo en CxC). */
   const hayCampoMontoParaAbonoValido = useMemo(() => {
-    if (formaPago === 'PPC' || esTraspasoTienda || esFormaDevolucion || esFormaCotizacion) return false;
+    if (esFormaPendientePago || esTraspasoTienda || esFormaDevolucion || esFormaCotizacion) return false;
     if (cobroTarjetaPue) return false;
     const norm = montoRecibidoInput.replace(',', '.').trim();
     if (!norm) return false;
@@ -3526,7 +3565,7 @@ export function POS() {
     () =>
       !puedeVentaConSaldoPendiente &&
       !esTraspasoTienda &&
-      formaPago !== 'PPC' &&
+      !esFormaPendientePago &&
       !checkoutDevolucionListo &&
       (metodoPago === 'PPD' || metodoPago === 'PUE') &&
       hayCampoMontoParaAbonoValido &&
@@ -4230,7 +4269,7 @@ export function POS() {
                       if (v === 'TTS' && isAdmin) {
                         useCartStore.setState({ pagos: [] });
                       }
-                      if (v === 'DEV' || v === 'COT' || v === 'PPC') {
+                      if (v === 'DEV' || v === 'COT' || v === 'PPC' || v === '99') {
                         useCartStore.setState({ pagos: [] });
                       }
                       if (v !== 'TTS') setTransferenciaDestinoSucursalId('');
@@ -4517,9 +4556,19 @@ export function POS() {
 
                 {esFormaPendientePago ? (
                   <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-[10px] leading-snug text-black dark:border-amber-500/25 dark:bg-amber-950/30 dark:text-amber-100 sm:text-xs">
-                    <span className="font-semibold">Pendiente de pago:</span> se registrará el total como saldo del
-                    cliente (aparece en Cuentas por cobrar con el folio del ticket). Elija un cliente registrado, no{' '}
-                    {POS_GENERIC_CLIENT_LABEL}.
+                    {formaPago === '99' ? (
+                      <>
+                        <span className="font-semibold">Otros:</span> no entra dinero a caja. El CFDI (si factura)
+                        sale PPD / por definir. El cobro real (transferencia, etc.) se registra después en Cuentas por
+                        cobrar o Facturación con complemento de pago.
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-semibold">Pendiente de pago:</span> se registrará el total como saldo del
+                        cliente (aparece en Cuentas por cobrar con el folio del ticket). Elija un cliente registrado, no{' '}
+                        {POS_GENERIC_CLIENT_LABEL}.
+                      </>
+                    )}
                   </p>
                 ) : (
                   <div className="space-y-1 lg:space-y-0.5">
@@ -4636,7 +4685,7 @@ export function POS() {
                 : esFormaCotizacion
                   ? true
                   : (formaPago === 'TTS' && isAdmin && !transferenciaDestinoSucursalId?.trim()) ||
-                    (formaPago === 'PPC' &&
+                    (esFormaPendientePago &&
                       (!client || client.id === 'mostrador' || client.isMostrador))
               }
               className="h-11 w-full min-w-0 rounded-xl bg-brand-gradient text-base font-bold text-white shadow-lg shadow-brand/25 sm:h-12 md:h-14 md:text-lg"
@@ -4849,7 +4898,7 @@ export function POS() {
               cobroTarjetaPue ||
               esTraspasoTienda ||
               checkoutDevolucionListo ||
-              formaPago === 'PPC'
+              esFormaPendientePago
             ) {
               return;
             }
@@ -4883,7 +4932,13 @@ export function POS() {
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
                   <Receipt className="h-5 w-5 text-brand sm:h-6 sm:w-6" />
-                  {checkoutDevolucionListo ? 'Confirmar devolución' : formaPago === 'PPC' ? 'Pendiente de pago' : 'Procesar pago'}
+                  {checkoutDevolucionListo
+                    ? 'Confirmar devolución'
+                    : formaPago === '99'
+                      ? 'Registrar a cuenta'
+                      : esFormaPendientePago
+                        ? 'Pendiente de pago'
+                        : 'Procesar pago'}
                 </DialogTitle>
               </DialogHeader>
 
@@ -4903,7 +4958,7 @@ export function POS() {
                 </div>
 
                 {!checkoutDevolucionListo &&
-                formaPago !== 'PPC' &&
+                !esFormaPendientePago &&
                 puedeVentaConSaldoPendiente &&
                 montoDialogoPrincipal > 0 &&
                 totalPagadoVenta + 0.004 < montoDialogoPrincipal ? (
@@ -4913,10 +4968,20 @@ export function POS() {
                   </p>
                 ) : null}
 
-                {formaPago === 'PPC' && !checkoutDevolucionListo ? (
+                {esFormaPendientePago && !checkoutDevolucionListo ? (
                   <p className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-center text-xs leading-relaxed text-black dark:border-amber-500/30 dark:bg-amber-950/35 dark:text-amber-100 sm:text-sm">
-                    No se registrará cobro en caja. El importe total quedará como saldo del cliente y el ticket se
-                    listará en <span className="font-semibold">Cuentas por cobrar</span>.
+                    {formaPago === '99' ? (
+                      <>
+                        No se registra cobro en caja. El total queda a cuenta. Si factura, el CFDI usa método{' '}
+                        <span className="font-semibold">PPD</span> y forma <span className="font-semibold">Otros (99)</span>.
+                        Cuando paguen (regularmente transferencia), emita el complemento de pago.
+                      </>
+                    ) : (
+                      <>
+                        No se registrará cobro en caja. El importe total quedará como saldo del cliente y el ticket se
+                        listará en <span className="font-semibold">Cuentas por cobrar</span>.
+                      </>
+                    )}
                   </p>
                 ) : null}
 
@@ -4991,6 +5056,33 @@ export function POS() {
                             </SelectContent>
                           </Select>
                         </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs" htmlFor="checkout-cfdi-email">
+                            Correo para enviar factura (XML y PDF)
+                          </Label>
+                          <Input
+                            id="checkout-cfdi-email"
+                            type="email"
+                            inputMode="email"
+                            autoComplete="email"
+                            placeholder="cliente@correo.com"
+                            value={checkoutCfdiEmail}
+                            onChange={(e) => setCheckoutCfdiEmail(e.target.value)}
+                            className="h-10 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                          />
+                          <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-500">
+                            Si lo deja vacío se timbra igual y puede reenviar desde Facturación.
+                          </p>
+                          <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
+                            <input
+                              type="checkbox"
+                              checked={checkoutGuardarEmailCliente}
+                              onChange={(e) => setCheckoutGuardarEmailCliente(e.target.checked)}
+                              className="h-4 w-4 accent-brand"
+                            />
+                            Guardar este correo en el cliente
+                          </label>
+                        </div>
                       </div>
                     ) : null}
                   </div>
@@ -5052,7 +5144,7 @@ export function POS() {
                   </p>
                 ) : null}
 
-                {!cobroTarjetaPue && !esTraspasoTienda && !checkoutDevolucionListo && formaPago !== 'PPC' ? (
+                {!cobroTarjetaPue && !esTraspasoTienda && !checkoutDevolucionListo && !esFormaPendientePago ? (
                   <div className="space-y-2">
                     {metodoPago === 'PPD' ? (
                       <div className="space-y-1.5">
@@ -5147,7 +5239,7 @@ export function POS() {
                 {esFormaEfectivo(formaPagoAbono) &&
                 !esTraspasoTienda &&
                 !checkoutDevolucionListo &&
-                formaPago !== 'PPC' ? (
+                !esFormaPendientePago ? (
                   <div className="flex flex-wrap gap-2">
                     {[50, 100, 200, 500, 1000].map((amount) => (
                       <button
@@ -5165,7 +5257,7 @@ export function POS() {
                 {pagos.length > 0 &&
                 !cobroTarjetaPue &&
                 !checkoutDevolucionListo &&
-                formaPago !== 'PPC' && (
+                !esFormaPendientePago && (
                   <div className="space-y-2">
                     <Label>Pagos recibidos</Label>
                     <div className="space-y-2">
@@ -5196,7 +5288,7 @@ export function POS() {
 
                 {!esTraspasoTienda &&
                 !checkoutDevolucionListo &&
-                formaPago !== 'PPC' &&
+                !esFormaPendientePago &&
                 cambioVenta > 0 && (
                   <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 sm:p-4">
                     <p className="text-center text-emerald-400">
@@ -5302,6 +5394,21 @@ export function POS() {
                       : ''}
                     {' '}
                     · UUID {ticketSnapshot.cfdiUuid}
+                  </p>
+                ) : null}
+                {ticketSnapshot?.cfdiEmailSent ? (
+                  <p className="mt-2 text-xs font-medium text-emerald-800 dark:text-emerald-300 sm:text-sm">
+                    Factura enviada por correo (XML y PDF).
+                  </p>
+                ) : null}
+                {ticketSnapshot?.cfdiEmailError ? (
+                  <p className="mt-2 text-xs font-medium text-amber-800 dark:text-amber-300 sm:text-sm">
+                    Timbrada; el correo falló: {ticketSnapshot.cfdiEmailError}
+                  </p>
+                ) : null}
+                {ticketSnapshot?.cfdiUuid && ticketSnapshot.cfdiEmailSkipped ? (
+                  <p className="mt-2 text-xs text-slate-600 dark:text-slate-400 sm:text-sm">
+                    CFDI timbrado sin envío de correo. Puede reenviarlo en Facturación.
                   </p>
                 ) : null}
                 {ticketSnapshot?.cfdiError ? (

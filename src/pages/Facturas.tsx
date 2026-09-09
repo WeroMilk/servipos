@@ -81,7 +81,7 @@ import {
 import { buildInvoiceFromSale, clientListoParaCfdi } from '@/lib/facturama/buildInvoiceFromSale';
 import { invoiceAndStampCompletedSale } from '@/lib/facturama/invoiceAtCheckout';
 import { mergeClienteDatosFiscales, resolveLiveClient } from '@/lib/facturama/hydrateInvoiceCliente';
-import { saldoInsolutoFacturaPpd, siguienteParcialidad } from '@/lib/facturama/ppdSaldo';
+import { saldoInsolutoFacturaPpd, siguienteParcialidad, invoiceAceptaComplementoPago } from '@/lib/facturama/ppdSaldo';
 import {
   Select,
   SelectContent,
@@ -889,10 +889,7 @@ export function Facturas() {
                                 Consultar cancelación SAT
                               </DropdownMenuItem>
                             ) : null}
-                            {canTimbrar &&
-                              invoice.estado === 'timbrada' &&
-                              invoice.metodoPago === 'PPD' &&
-                              saldoInsolutoFacturaPpd(invoice) > 0.005 && (
+                            {canTimbrar && invoiceAceptaComplementoPago(invoice) && (
                                 <DropdownMenuItem
                                   onClick={() => openPagoComplement(invoice)}
                                   className="text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:bg-slate-800"
@@ -1078,7 +1075,14 @@ export function Facturas() {
                         <Label>Forma de Pago</Label>
                         <select
                           value={formData.formaPago}
-                          onChange={(e) => setFormData({ ...formData, formaPago: e.target.value })}
+                          onChange={(e) => {
+                            const formaPago = e.target.value;
+                            setFormData((prev) => ({
+                              ...prev,
+                              formaPago,
+                              metodoPago: formaPago === '99' ? 'PPD' : prev.metodoPago,
+                            }));
+                          }}
                           className="w-full h-10 px-3 rounded-md bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
                         >
                           {FORMAS_PAGO_UI.map(fp => (
@@ -1090,9 +1094,10 @@ export function Facturas() {
                       <div className="space-y-2">
                         <Label>Método de Pago</Label>
                         <select
-                          value={formData.metodoPago}
+                          value={formData.formaPago === '99' ? 'PPD' : formData.metodoPago}
                           onChange={(e) => setFormData({ ...formData, metodoPago: e.target.value })}
-                          className="w-full h-10 px-3 rounded-md bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                          disabled={formData.formaPago === '99'}
+                          className="w-full h-10 px-3 rounded-md bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 disabled:opacity-70"
                         >
                           <option value="PUE">Pago en una sola exhibición</option>
                           <option value="PPD">Pago en parcialidades</option>
@@ -1335,6 +1340,17 @@ export function Facturas() {
                       {stampingId === selectedInvoice.id ? 'Timbrando…' : 'Timbrar (Facturama)'}
                     </Button>
                   )}
+                {canTimbrar && invoiceAceptaComplementoPago(selectedInvoice) ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300"
+                    onClick={() => openPagoComplement(selectedInvoice)}
+                  >
+                    <Banknote className="mr-2 h-4 w-4" />
+                    Complemento de pago
+                  </Button>
+                ) : null}
                 <Button
                   type="button"
                   variant="outline"
@@ -1491,7 +1507,7 @@ export function Facturas() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {FORMAS_PAGO_UI.map((f) => (
+                    {FORMAS_PAGO_UI.filter((f) => f.clave !== '99').map((f) => (
                       <SelectItem key={f.clave} value={f.clave}>
                         {f.clave} — {f.descripcion}
                       </SelectItem>
