@@ -20,6 +20,8 @@ export async function invoiceAndStampCompletedSale(opts: {
   sucursalId: string | null | undefined;
   /** Correo de este cobro (puede diferir del catálogo). */
   email?: string;
+  /** Comentario opcional en el PDF oficial (Observations). */
+  observaciones?: string;
   addInvoice: (
     invoice: Omit<Invoice, 'id' | 'folio' | 'serie' | 'createdAt' | 'updatedAt' | 'syncStatus' | 'esPrueba'>
   ) => Promise<string>;
@@ -43,6 +45,7 @@ export async function invoiceAndStampCompletedSale(opts: {
     formaPago: opts.formaPago,
     metodoPago: opts.metodoPago,
     usoCfdi: opts.usoCfdi,
+    observaciones: opts.observaciones,
   });
   const invoiceId = await opts.addInvoice(draft);
   if (opts.fiscalConfig.modoPruebaFiscal) {

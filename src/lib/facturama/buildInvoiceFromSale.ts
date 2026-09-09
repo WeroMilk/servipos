@@ -51,6 +51,7 @@ export function buildInvoiceFromSale(opts: {
   formaPago: FormaPago;
   metodoPago: MetodoPago;
   usoCfdi?: string;
+  observaciones?: string;
 }): Omit<Invoice, 'id' | 'folio' | 'serie' | 'createdAt' | 'updatedAt' | 'syncStatus' | 'esPrueba'> {
   const { sale, fiscalConfig } = opts;
   const client = opts.client
@@ -117,5 +118,8 @@ export function buildInvoiceFromSale(opts: {
     lugarExpedicion: fiscalConfig.lugarExpedicion,
     fechaEmision: new Date(),
     estado: 'pendiente',
+    ...(String(opts.observaciones ?? '').trim()
+      ? { observaciones: String(opts.observaciones).trim().slice(0, 1000) }
+      : {}),
   };
 }

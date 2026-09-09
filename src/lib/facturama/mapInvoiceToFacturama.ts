@@ -99,6 +99,10 @@ export function mapInvoiceToFacturama(invoice: Invoice): Record<string, unknown>
     },
     Items: items,
   };
+  const observaciones = String(invoice.observaciones ?? '')
+    .trim()
+    .slice(0, 1000);
+  if (observaciones) payload.Observations = observaciones;
   /** Folio/serie los asigna Facturama (sucursal del CP). Enviar los locales suele impedir el timbre. */
   return payload;
 }

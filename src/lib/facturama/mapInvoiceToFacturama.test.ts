@@ -130,6 +130,12 @@ describe('mapInvoiceToFacturama', () => {
     expect(items[0]?.Subtotal).toBe('200.00');
     expect(items[0]?.Discount).toBe('10.00');
     expect(items[0]?.Total).toBe('220.40');
+    expect(payload.Observations).toBeUndefined();
+  });
+
+  test('envía Observations si hay comentario', () => {
+    const payload = mapInvoiceToFacturama(invoice({ observaciones: '  OC-889  ' }));
+    expect(payload.Observations).toBe('OC-889');
   });
 
   test('rechaza PUE con forma 99', () => {

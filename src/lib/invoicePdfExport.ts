@@ -2,15 +2,9 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import type { Invoice } from '@/types';
 import { buildInvoiceCfdiPrintDocumentHtml } from '@/lib/cfdiRepresentacionImpresa';
+import { uint8ArrayToPdfBlob } from '@/lib/pdfBase64';
 
-/**
- * Genera un PDF con el mismo diseño que la representación impresa (plantilla clásica),
- * capturando el HTML con html2canvas para que coincida con «Imprimir (carta)».
- */
-export async function exportInvoiceCfdiToPdf(
-  invoice: Invoice,
-  fileBaseName = `Factura_${invoice.serie}_${invoice.folio}`
-): Promise<void> {
+async function renderInvoiceClassicPdfArrayBuffer(invoice: Invoice): Promise<ArrayBuffer> {
   const html = await buildInvoiceCfdiPrintDocumentHtml(invoice);
   const iframe = document.createElement('iframe');
   iframe.setAttribute('aria-hidden', 'true');
@@ -76,7 +70,27 @@ export async function exportInvoiceCfdiToPdf(
   const y = margin;
 
   pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+  return pdf.output('arraybuffer');
+}
 
+/** PDF clásico (solo facturas sin Facturama / modo prueba). */
+export async function exportInvoiceCfdiToPdfBytes(invoice: Invoice): Promise<Uint8Array> {
+  return new Uint8Array(await renderInvoiceClassicPdfArrayBuffer(invoice));
+}
+
+export async function exportInvoiceCfdiToPdf(
+  invoice: Invoice,
+  fileBaseName = `Factura_${invoice.serie}_${invoice.folio}`
+): Promise<void> {
+  const bytes = await exportInvoiceCfdiToPdfBytes(invoice);
+  const blob = uint8ArrayToPdfBlob(bytes);
   const name = fileBaseName.endsWith('.pdf') ? fileBaseName : `${fileBaseName}.pdf`;
-  pdf.save(name);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }

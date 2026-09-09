@@ -63,8 +63,13 @@ import { PageShell } from '@/components/ui-custom/PageShell';
 import { ClientProfileLink } from '@/components/ui-custom/ClientProfileLink';
 import { SendEmailDialog } from '@/components/ui-custom/SendEmailDialog';
 import { AVISO_DOC_FISCAL_PRUEBA } from '@/lib/printTicket';
-import { printInvoiceCfdiRepresentacion } from '@/lib/cfdiRepresentacionImpresa';
-import { exportInvoiceCfdiToPdf } from '@/lib/invoicePdfExport';
+import { exportInvoiceCfdiToPdfBytes } from '@/lib/invoicePdfExport';
+import {
+  isInvoiceFolderSaveAbort,
+  saveInvoicePdfAndXmlToServipartzFolder,
+} from '@/lib/invoiceLocalFolderSave';
+import { printInvoiceOfficialPdf } from '@/lib/printOfficialInvoicePdf';
+import { pdfBase64ToUint8Array } from '@/lib/pdfBase64';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { getInvoiceById } from '@/db/database';
 import { getInvoiceFirestore } from '@/lib/firestore/invoicesFirestore';
@@ -336,6 +341,7 @@ export function Facturas() {
     formaPago: '01',
     metodoPago: 'PUE',
     usoCfdi: 'G03',
+    observaciones: '',
   });
   const [salePickerQuery, setSalePickerQuery] = useState('');
   /** Tras crear la factura, abre el diálogo de impresión (representación impresa CFDI). */
@@ -348,7 +354,14 @@ export function Facturas() {
       ? await getInvoiceFirestore(effectiveSucursalId, newId)
       : await getInvoiceById(newId);
     if (created?.emisor?.rfc) {
-      printInvoiceCfdiRepresentacion(created);
+      try {
+        await printInvoiceOfficialPdf(created);
+      } catch (e) {
+        addToast({
+          type: 'error',
+          message: e instanceof Error ? e.message : 'No se pudo imprimir el PDF oficial',
+        });
+      }
       void markInvoiceEnviada(newId).then(() => {
         setSelectedInvoice((prev) =>
           prev?.id === newId ? { ...prev, estado: 'enviada' } : prev
@@ -409,6 +422,7 @@ export function Facturas() {
           formaPago: formData.formaPago as Invoice['formaPago'],
           metodoPago: formData.metodoPago as Invoice['metodoPago'],
           usoCfdi: formData.usoCfdi,
+          observaciones: formData.observaciones,
         });
         const newId = await addInvoice(invoiceData);
         setShowAddDialog(false);
@@ -429,6 +443,7 @@ export function Facturas() {
         formaPago: formData.formaPago as Invoice['formaPago'],
         metodoPago: formData.metodoPago as Invoice['metodoPago'],
         sucursalId: effectiveSucursalId,
+        observaciones: formData.observaciones,
         addInvoice,
       });
       setShowAddDialog(false);
@@ -472,48 +487,49 @@ export function Facturas() {
     }
   };
 
-  const handleDownloadXML = () => {
-    const blob = new Blob([generatedXML], { type: 'application/xml' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `CFDI_${selectedInvoice?.serie}_${selectedInvoice?.folio}.xml`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  const collectInvoicePdfAndXml = async (
+    invoice: Invoice,
+    xmlHint?: string
+  ): Promise<{ pdfBytes: Uint8Array; xmlText: string }> => {
+    let xmlText = String(xmlHint || invoice.xml || '');
+    if (invoice.facturamaId) {
+      xmlText = await downloadInvoiceXmlFromFacturama(invoice);
+      const b64 = await downloadInvoicePdfBase64FromFacturama(invoice);
+      return { pdfBytes: pdfBase64ToUint8Array(b64), xmlText };
+    }
+    if (!xmlText) xmlText = await generateXML(invoice);
+    const pdfBytes = await exportInvoiceCfdiToPdfBytes(invoice);
+    return { pdfBytes, xmlText };
   };
 
-  const handleGeneratePDF = async (invoice: Invoice) => {
+  const handleSavePdfAndXml = async (invoice: Invoice, xmlHint?: string) => {
     if (!invoice.emisor?.rfc) {
       addToast({ type: 'error', message: 'La factura no tiene datos del emisor' });
       return;
     }
     try {
-      if (invoice.facturamaId) {
-        const b64 = await downloadInvoicePdfBase64FromFacturama(invoice);
-        const bin = atob(b64);
-        const bytes = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-        const blob = new Blob([bytes], { type: 'application/pdf' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `CFDI_${invoice.serie}_${invoice.folio}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        addToast({ type: 'success', message: 'PDF oficial Facturama descargado'});
-        return;
-      }
-      await exportInvoiceCfdiToPdf(invoice, `Factura_${invoice.serie}_${invoice.folio}`);
-      addToast({ type: 'success', message: 'PDF descargado (formato factura clásica)'});
+      const { pdfBytes, xmlText } = await collectInvoicePdfAndXml(invoice, xmlHint);
+      const r = await saveInvoicePdfAndXmlToServipartzFolder({ invoice, pdfBytes, xmlText });
+      addToast({
+        type: 'success',
+        message:
+          r.method === 'directory'
+            ? `PDF y XML guardados en ${r.pathHint}`
+            : `ZIP descargado: ${r.pathHint}. Use Chrome o Edge para guardar en carpetas.`,
+      });
     } catch (e) {
+      if (isInvoiceFolderSaveAbort(e)) return;
       addToast({
         type: 'error',
-        message: e instanceof Error ? e.message : 'No se pudo generar el PDF',
+        message: e instanceof Error ? e.message : 'No se pudo guardar PDF y XML',
       });
+    }
+  };
+
+  const handleDownloadXML = () => {
+    if (selectedInvoice) {
+      void handleSavePdfAndXml(selectedInvoice, generatedXML);
+      return;
     }
   };
 
@@ -525,6 +541,7 @@ export function Facturas() {
       formaPago: '01',
       metodoPago: 'PUE',
       usoCfdi: 'G03',
+      observaciones: '',
     });
   };
 
@@ -571,12 +588,20 @@ export function Facturas() {
   };
 
   const handlePrintRepresentacion = (inv: Invoice) => {
-    printInvoiceCfdiRepresentacion(inv);
-    void markInvoiceEnviada(inv.id).then(() => {
-      setSelectedInvoice((prev) =>
-        prev?.id === inv.id ? { ...prev, estado: 'enviada' } : prev
-      );
-    });
+    void (async () => {
+      try {
+        await printInvoiceOfficialPdf(inv);
+        await markInvoiceEnviada(inv.id);
+        setSelectedInvoice((prev) =>
+          prev?.id === inv.id ? { ...prev, estado: 'enviada' } : prev
+        );
+      } catch (e) {
+        addToast({
+          type: 'error',
+          message: e instanceof Error ? e.message : 'No se pudo imprimir el PDF oficial',
+        });
+      }
+    })();
   };
 
   const searchLc = searchQuery.toLowerCase();
@@ -899,18 +924,18 @@ export function Facturas() {
                                 </DropdownMenuItem>
                               )}
                             <DropdownMenuItem
-                              onClick={() => void handleGeneratePDF(invoice)}
+                              onClick={() => void handleSavePdfAndXml(invoice)}
                               className="text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:bg-slate-800 hover:text-slate-900 dark:text-slate-100"
                             >
                               <Download className="mr-2 h-4 w-4" />
-                              Descargar PDF
+                              Descargar PDF y XML
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() => handlePrintRepresentacion(invoice)}
                               className="text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:bg-slate-800 hover:text-slate-900 dark:text-slate-100"
                             >
                               <Printer className="mr-2 h-4 w-4" />
-                              Imprimir (carta)
+                              Imprimir PDF
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() => openEmailForInvoice(invoice)}
@@ -1118,6 +1143,19 @@ export function Facturas() {
                       </select>
                     </div>
 
+                    <div className="space-y-2">
+                      <Label htmlFor="factura-observaciones">Comentario en la factura (opcional)</Label>
+                      <textarea
+                        id="factura-observaciones"
+                        value={formData.observaciones}
+                        maxLength={1000}
+                        rows={3}
+                        placeholder="Texto que aparece en el PDF (orden de compra, notas del cliente, etc.)"
+                        onChange={(e) => setFormData({ ...formData, observaciones: e.target.value })}
+                        className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100"
+                      />
+                    </div>
+
                     <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-300/80 bg-slate-200/40 p-3 dark:border-slate-700 dark:bg-slate-800/40">
                       <input
                         type="checkbox"
@@ -1127,11 +1165,10 @@ export function Facturas() {
                       />
                       <span className="text-sm text-slate-700 dark:text-slate-300">
                         <span className="font-medium text-slate-900 dark:text-slate-100">
-                          Imprimir representación al crear
+                          Imprimir PDF al crear
                         </span>
                         <span className="mt-0.5 block text-xs text-slate-600 dark:text-slate-500">
-                          Abre la ventana de impresión al terminar de timbrar (mismo formato que «Imprimir
-                          representación» en la lista).
+                          Abre el mismo PDF oficial que se envía por correo (plantilla Facturama).
                         </span>
                       </span>
                     </label>
@@ -1210,7 +1247,7 @@ export function Facturas() {
               className="bg-brand-gradient text-white"
             >
               <Download className="w-4 h-4 mr-2" />
-              Descargar XML
+              Descargar PDF y XML
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1355,10 +1392,19 @@ export function Facturas() {
                   type="button"
                   variant="outline"
                   className="border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300"
+                  onClick={() => void handleSavePdfAndXml(selectedInvoice)}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Descargar PDF y XML
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300"
                   onClick={() => handlePrintRepresentacion(selectedInvoice)}
                 >
                   <Printer className="mr-2 h-4 w-4" />
-                  Imprimir (carta)
+                  Imprimir PDF
                 </Button>
                 <Button
                   type="button"

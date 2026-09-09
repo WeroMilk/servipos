@@ -755,6 +755,8 @@ export interface Invoice {
   certificado?: string;
   estado: InvoiceStatus;
   xml?: string;
+  /** Comentario no fiscal (PDF Facturama `Observations`). No va en el XML SAT. */
+  observaciones?: string;
   pdfUrl?: string;
   motivoCancelacion?: string;
   fechaCancelacion?: Date;

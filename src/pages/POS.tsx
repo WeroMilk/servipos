@@ -152,7 +152,7 @@ import {
   type DevolucionLineInput,
 } from '@/lib/salePartialReturnCompute';
 import { computeSaleClienteAdeudo } from '@/lib/saleClienteAdeudo';
-import { printInvoiceCfdiRepresentacion } from '@/lib/cfdiRepresentacionImpresa';
+import { printInvoiceOfficialPdf } from '@/lib/printOfficialInvoicePdf';
 import {
   checkoutFormaPagoPermiteCfdi,
   clientListoParaCfdi,
@@ -969,6 +969,7 @@ export function POS() {
   const [checkoutFacturarCfdi, setCheckoutFacturarCfdi] = useState(false);
   const [checkoutUsoCfdi, setCheckoutUsoCfdi] = useState('G03');
   const [checkoutCfdiEmail, setCheckoutCfdiEmail] = useState('');
+  const [checkoutCfdiObservaciones, setCheckoutCfdiObservaciones] = useState('');
   const [checkoutGuardarEmailCliente, setCheckoutGuardarEmailCliente] = useState(false);
   const [stockPrompt, setStockPrompt] = useState<null | {
     product: Product;
@@ -1165,6 +1166,7 @@ export function POS() {
       setCheckoutFacturarCfdi(false);
       setCheckoutUsoCfdi('G03');
       setCheckoutCfdiEmail('');
+      setCheckoutCfdiObservaciones('');
       setCheckoutGuardarEmailCliente(false);
       setMobileTab('cart');
     }
@@ -1498,6 +1500,7 @@ export function POS() {
     setCheckoutFacturarCfdi(clientListoParaCfdi(client).ok);
     setCheckoutUsoCfdi(client?.usoCfdi?.trim() || 'G03');
     setCheckoutCfdiEmail(String(client?.email ?? '').trim());
+    setCheckoutCfdiObservaciones('');
     setCheckoutGuardarEmailCliente(false);
     setCheckoutPhase('payment');
     setCheckoutOpen(true);
@@ -3055,12 +3058,13 @@ export function POS() {
           metodoPago: metodoPagoParaCfdi(String(sale.formaPago), sale.metodoPago as MetodoPago),
           sucursalId: effectiveSucursalId,
           email: checkoutCfdiEmail.trim(),
+          observaciones: checkoutCfdiObservaciones,
           addInvoice,
         });
         if (r.stamped && r.uuid && effectiveSucursalId) {
           try {
             const inv = await getInvoiceFirestore(effectiveSucursalId, r.invoiceId);
-            if (inv) printInvoiceCfdiRepresentacion(inv);
+            if (inv) await printInvoiceOfficialPdf(inv);
           } catch {
             /* el ticket térmico ya se imprime */
           }
@@ -5082,6 +5086,20 @@ export function POS() {
                             />
                             Guardar este correo en el cliente
                           </label>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs" htmlFor="checkout-cfdi-observaciones">
+                            Comentario en la factura (opcional)
+                          </Label>
+                          <textarea
+                            id="checkout-cfdi-observaciones"
+                            maxLength={1000}
+                            rows={2}
+                            placeholder="Orden de compra u otras notas en el PDF"
+                            value={checkoutCfdiObservaciones}
+                            onChange={(e) => setCheckoutCfdiObservaciones(e.target.value)}
+                            className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-slate-100"
+                          />
                         </div>
                       </div>
                     ) : null}

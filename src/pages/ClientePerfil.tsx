@@ -66,7 +66,7 @@ import {
   printThermalTicketFromSale,
 } from '@/lib/printTicket';
 import { buildQuotationLetterInnerHtml } from '@/lib/quotationPdfExport';
-import { printInvoiceCfdiRepresentacion } from '@/lib/cfdiRepresentacionImpresa';
+import { printInvoiceOfficialPdf } from '@/lib/printOfficialInvoicePdf';
 import { listaAbonosCxCMostrable } from '@/lib/clientAbonoHistorialUi';
 import { listaCreditoTiendaMostrable } from '@/lib/clientCreditoHistorialUi';
 import {
@@ -760,8 +760,18 @@ export function ClientePerfil() {
                                 variant="outline"
                                 disabled={inv.estado === 'cancelada' || inv.estado === 'error'}
                                 onClick={() => {
-                                  printInvoiceCfdiRepresentacion(inv);
-                                  addToast({ type: 'success', message: 'Factura enviada a imprimir' });
+                                  void (async () => {
+                                    try {
+                                      await printInvoiceOfficialPdf(inv);
+                                      addToast({ type: 'success', message: 'Factura enviada a imprimir' });
+                                    } catch (e) {
+                                      addToast({
+                                        type: 'error',
+                                        message:
+                                          e instanceof Error ? e.message : 'No se pudo imprimir el PDF oficial',
+                                      });
+                                    }
+                                  })();
                                 }}
                               >
                                 <Printer className="mr-1.5 h-3.5 w-3.5" />

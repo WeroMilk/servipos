@@ -51,6 +51,7 @@ function mapInvoice(sucursalId: string, id: string, doc: Record<string, unknown>
     certificado: typeof doc.certificado === 'string' ? doc.certificado : undefined,
     estado: parseInvoiceStatus(doc.estado),
     xml: typeof doc.xml === 'string' ? doc.xml : undefined,
+    observaciones: typeof doc.observaciones === 'string' ? doc.observaciones : undefined,
     pdfUrl: typeof doc.pdfUrl === 'string' ? doc.pdfUrl : undefined,
     motivoCancelacion: typeof doc.motivoCancelacion === 'string' ? doc.motivoCancelacion : undefined,
     fechaCancelacion: doc.fechaCancelacion ? tsToDate(doc.fechaCancelacion) : undefined,
