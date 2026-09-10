@@ -129,10 +129,55 @@ export async function facturamaDownload(
 
   const contentType = res.headers.get('content-type') ?? 'application/octet-stream';
   const buf = new Uint8Array(await res.arrayBuffer());
+  const unwrapped = unwrapFacturamaDownloadBody(buf, contentType, format);
   if (format === 'xml' || format === 'html') {
-    return { contentType, body: buf, text: new TextDecoder('utf-8').decode(buf) };
+    return {
+      contentType: unwrapped.contentType,
+      body: unwrapped.body,
+      text: new TextDecoder('utf-8').decode(unwrapped.body),
+    };
   }
-  return { contentType, body: buf };
+  return { contentType: unwrapped.contentType, body: unwrapped.body };
+}
+
+function base64ToBytes(b64: string): Uint8Array {
+  const clean = b64.replace(/\s/g, '');
+  const bin = atob(clean);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+/** GET /cfdi/{format}/... a menudo responde FileViewModel JSON (`Content` en base64), no el binario. */
+function unwrapFacturamaDownloadBody(
+  buf: Uint8Array,
+  contentType: string,
+  format: FacturamaDownloadFormat
+): { contentType: string; body: Uint8Array } {
+  const looksPdf = buf.length >= 4 && buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46;
+  const looksXml = buf.length >= 1 && buf[0] === 0x3c;
+  if (format === 'pdf' && looksPdf) return { contentType: 'application/pdf', body: buf };
+  if ((format === 'xml' || format === 'html') && looksXml) return { contentType, body: buf };
+
+  const asText = new TextDecoder('utf-8').decode(buf).trim();
+  if (!asText.startsWith('{')) return { contentType, body: buf };
+
+  let parsed: { Content?: unknown; content?: unknown; ContentType?: unknown };
+  try {
+    parsed = JSON.parse(asText) as { Content?: unknown; content?: unknown; ContentType?: unknown };
+  } catch {
+    return { contentType, body: buf };
+  }
+  const inner = parsed.Content ?? parsed.content;
+  if (typeof inner !== 'string' || !inner.trim()) return { contentType, body: buf };
+  const body = base64ToBytes(inner.trim());
+  const ct =
+    format === 'pdf'
+      ? 'application/pdf'
+      : typeof parsed.ContentType === 'string'
+        ? parsed.ContentType
+        : contentType;
+  return { contentType: ct, body };
 }
 
 export async function facturamaCreateCfdi(

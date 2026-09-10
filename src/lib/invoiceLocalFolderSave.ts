@@ -16,11 +16,12 @@ const IDB_KEY = 'parent';
 
 type FsWritable = {
   write: (data: BufferSource | Blob) => Promise<void>;
+  truncate?: (size: number) => Promise<void>;
   close: () => Promise<void>;
 };
 
 type FsFileHandle = {
-  createWritable: () => Promise<FsWritable>;
+  createWritable: (opts?: { keepExistingData?: boolean }) => Promise<FsWritable>;
 };
 
 type FsDirHandle = {
@@ -117,8 +118,9 @@ function toArrayBuffer(data: Uint8Array): ArrayBuffer {
 
 async function writeFile(dir: FsDirHandle, name: string, data: Uint8Array): Promise<void> {
   const file = await dir.getFileHandle(name, { create: true });
-  const w = await file.createWritable();
-  await w.write(toArrayBuffer(data));
+  const w = await file.createWritable({ keepExistingData: false });
+  if (w.truncate) await w.truncate(0);
+  await w.write(new Blob([toArrayBuffer(data)]));
   await w.close();
 }
 
