@@ -107,6 +107,7 @@ import { tipoMovimientoLabel } from '@/lib/inventoryMovementLabels';
 import { formatInAppTimezone } from '@/lib/appTimezone';
 import { isMovimientoLlegadaMercancia } from '@/lib/inventoryAbasto';
 import { downloadInventarioCompleto, downloadInventarioStockBajo } from '@/lib/inventoryExport';
+import { downloadProductCatalogWord } from '@/lib/productCatalogWordExport';
 import { getUbicacionesProducto, MUEBLE_SLOTS, resolveUbicacionesProducto } from '@/data/ubicacionesMuebleA';
 import { UbicacionFisicaNombre } from '@/components/products/UbicacionFisicaNombre';
 import { buildProductSearchIndex, searchProductIndex } from '@/lib/productSearchIndex';
@@ -1673,6 +1674,28 @@ export function Inventario() {
     addToast,
   ]);
 
+  const handleDescargarCatalogoWord = useCallback(async () => {
+    if (exportingInventario) return;
+    setExportingInventario(true);
+    try {
+      const n = await downloadProductCatalogWord({
+        products,
+        sucursalNombre: effectiveSucursalId ? nombreSucursal(effectiveSucursalId) : undefined,
+      });
+      addToast({
+        type: 'success',
+        message: `Word descargado (${n} artículos activos). Puede pegar fotos en la última columna.`,
+      });
+    } catch (e) {
+      addToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'No se pudo generar el Word.',
+      });
+    } finally {
+      setExportingInventario(false);
+    }
+  }, [exportingInventario, products, effectiveSucursalId, nombreSucursal, addToast]);
+
   const handleTicketStockBajo = useCallback(() => {
     const items = products.filter(isStockBajo).map((p) => ({
       nombre: p.nombre,
@@ -1709,12 +1732,13 @@ export function Inventario() {
       onHistorial: () => setMovementsHistoryOpen(true),
       onTicketStockBajo: handleTicketStockBajo,
       onDescargar: () => void handleDescargarInventario(),
+      onDescargarWord: () => void handleDescargarCatalogoWord(),
       onNuevo: () => openNuevoRef.current(),
       descargarDisabled: loading || exportingInventario,
       exportingInventario,
     });
     return () => clearInventarioHeaderBridge();
-  }, [loading, exportingInventario, handleTicketStockBajo, handleDescargarInventario]);
+  }, [loading, exportingInventario, handleTicketStockBajo, handleDescargarInventario, handleDescargarCatalogoWord]);
 
   return (
     <>
@@ -1999,7 +2023,19 @@ export function Inventario() {
                 <Download className="mr-2 h-4 w-4" />
                 {exportingInventario ? 'Generando…' : 'Descargar Excel'}
               </Button>
-            ) : null}
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                disabled={loading || exportingInventario}
+                onClick={() => void handleDescargarCatalogoWord()}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                {exportingInventario ? 'Generando…' : 'Catálogo Word (precios + foto)'}
+              </Button>
+            )}
           </div>
           <div className="mt-2 flex items-center gap-2 md:hidden">
             <Select

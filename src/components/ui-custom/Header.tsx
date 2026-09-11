@@ -15,6 +15,7 @@ import {
   Clock,
   Printer,
   Download,
+  FileText,
   Plus,
   X,
 } from 'lucide-react';
@@ -196,6 +197,18 @@ export function Header() {
         className="h-9 w-9 shrink-0 rounded-xl border-slate-300 dark:border-slate-600 sm:h-9 sm:w-9"
       >
         <Download className="h-4 w-4" />
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        title={invHeader.exportingInventario ? 'Generando archivo…' : 'Catálogo Word (precios + foto)'}
+        aria-label="Descargar catálogo Word"
+        disabled={invHeader.descargarDisabled}
+        onClick={() => void invHeader.onDescargarWord()}
+        className="h-9 w-9 shrink-0 rounded-xl border-slate-300 dark:border-slate-600 sm:h-9 sm:w-9"
+      >
+        <FileText className="h-4 w-4" />
       </Button>
       <Button
         type="button"

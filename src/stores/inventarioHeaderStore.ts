@@ -4,6 +4,7 @@ export type InventarioHeaderBridge = {
   onHistorial: () => void;
   onTicketStockBajo: () => void;
   onDescargar: () => void;
+  onDescargarWord: () => void;
   onNuevo: () => void;
   descargarDisabled: boolean;
   exportingInventario: boolean;
@@ -18,6 +19,7 @@ const initial: InventarioHeaderState = {
   onHistorial: noop,
   onTicketStockBajo: noop,
   onDescargar: noop,
+  onDescargarWord: noop,
   onNuevo: noop,
   descargarDisabled: true,
   exportingInventario: false,
