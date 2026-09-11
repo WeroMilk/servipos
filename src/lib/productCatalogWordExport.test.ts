@@ -4,6 +4,7 @@ import type { Product } from '@/types';
 import {
   buildProductCatalogDocument,
   catalogProductsForWord,
+  CATALOG_WORD_LAYOUT,
 } from '@/lib/productCatalogWordExport';
 
 function product(partial: Partial<Product> = {}): Product {
@@ -42,6 +43,16 @@ describe('catalogProductsForWord', () => {
       product({ id: 's', sku: 'SRV', nombre: 'Instalación', esServicio: true }),
     ]);
     expect(rows.map((p) => p.sku)).toEqual(['A-1', 'B-2']);
+  });
+});
+
+describe('CATALOG_WORD_LAYOUT', () => {
+  test('A4 horizontal y 9 columnas que cubren el ancho útil', () => {
+    expect(CATALOG_WORD_LAYOUT.pageW).toBeGreaterThan(CATALOG_WORD_LAYOUT.pageH);
+    expect(CATALOG_WORD_LAYOUT.colWidths).toHaveLength(9);
+    const sum = CATALOG_WORD_LAYOUT.colWidths.reduce((a, b) => a + b, 0);
+    expect(sum).toBe(CATALOG_WORD_LAYOUT.usable);
+    expect(CATALOG_WORD_LAYOUT.colWidths[8]).toBeGreaterThan(1500);
   });
 });
 

@@ -7,10 +7,10 @@ import {
   HeightRule,
   Packer,
   PageNumber,
-  PageOrientation,
   Paragraph,
   Table,
   TableCell,
+  TableLayoutType,
   TableRow,
   TextRun,
   VerticalAlign,
@@ -30,16 +30,36 @@ import { formatInAppTimezone } from '@/lib/appTimezone';
 const THIN = { style: BorderStyle.SINGLE, size: 4, color: '999999' };
 const BORDERS = { top: THIN, bottom: THIN, left: THIN, right: THIN };
 
-/** Carta horizontal (twips). */
-const PAGE_W = 15840;
-const PAGE_H = 12240;
-const MARGIN = 720;
+/** A4 apaisado (297 × 210 mm) en twips: más ancho que alto, Word no depende de PageOrientation. */
+const MM = 56.6929133858;
+const PAGE_W = Math.round(297 * MM);
+const PAGE_H = Math.round(210 * MM);
+const MARGIN = Math.round(10 * MM);
 const USABLE = PAGE_W - 2 * MARGIN;
 
-const COL_SKU = 1400;
-const COL_NOMBRE = 3200;
-const COL_MONEY = 1280;
+const COL_SKU = 1800;
+const COL_NOMBRE = 3400;
+const COL_MONEY = 1380;
 const COL_FOTO = USABLE - COL_SKU - COL_NOMBRE - COL_MONEY * 6;
+const COL_WIDTHS = [
+  COL_SKU,
+  COL_NOMBRE,
+  COL_MONEY,
+  COL_MONEY,
+  COL_MONEY,
+  COL_MONEY,
+  COL_MONEY,
+  COL_MONEY,
+  COL_FOTO,
+];
+
+/** Para tests: hoja más ancha que alta y 9 columnas que suman el ancho útil. */
+export const CATALOG_WORD_LAYOUT = {
+  pageW: PAGE_W,
+  pageH: PAGE_H,
+  usable: USABLE,
+  colWidths: COL_WIDTHS,
+};
 
 function moneyCell(text: string, opts?: { header?: boolean; fill?: string }): TableCell {
   return new TableCell({
@@ -55,7 +75,7 @@ function moneyCell(text: string, opts?: { header?: boolean; fill?: string }): Ta
           new TextRun({
             text,
             bold: opts?.header,
-            size: opts?.header ? 16 : 15,
+            size: opts?.header ? 15 : 14,
             font: 'Calibri',
             color: opts?.header ? 'FFFFFF' : '111111',
           }),
@@ -84,7 +104,7 @@ function textCell(
             text,
             bold: opts?.header,
             italics: opts?.gray,
-            size: opts?.header ? 16 : 16,
+            size: opts?.header ? 16 : 15,
             font: 'Calibri',
             color: opts?.header ? 'FFFFFF' : opts?.gray ? 'AAAAAA' : '111111',
           }),
@@ -158,7 +178,6 @@ export function buildProductCatalogDocument(opts: {
         properties: {
           page: {
             size: {
-              orientation: PageOrientation.LANDSCAPE,
               width: PAGE_W,
               height: PAGE_H,
             },
@@ -207,6 +226,8 @@ export function buildProductCatalogDocument(opts: {
           }),
           new Table({
             width: { size: USABLE, type: WidthType.DXA },
+            columnWidths: COL_WIDTHS,
+            layout: TableLayoutType.FIXED,
             rows: [headerRow, ...bodyRows],
           }),
           new Paragraph({
