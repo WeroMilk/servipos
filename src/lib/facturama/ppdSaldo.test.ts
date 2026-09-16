@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import type { Invoice } from '@/types';
-import { invoiceAceptaComplementoPago, saldoInsolutoFacturaPpd } from '@/lib/facturama/ppdSaldo';
+import { invoiceAceptaComplementoPago, saldoInsolutoFacturaPpd, siguienteParcialidad } from '@/lib/facturama/ppdSaldo';
 
 function invoice(partial: Partial<Invoice> = {}): Invoice {
   return {
@@ -85,5 +85,14 @@ describe('saldoInsolutoFacturaPpd', () => {
         })
       )
     ).toBe(66);
+  });
+  test('resta pagos previos de un CFDI importado', () => {
+    expect(saldoInsolutoFacturaPpd(invoice({ montoPagadoPrevio: 16 }))).toBe(100);
+  });
+});
+
+describe('siguienteParcialidad', () => {
+  test('usa parcialidadSiguienteBase al importar', () => {
+    expect(siguienteParcialidad(invoice({ parcialidadSiguienteBase: 3 }))).toBe(3);
   });
 });

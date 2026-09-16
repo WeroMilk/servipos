@@ -17,6 +17,7 @@ import {
   FileMinus2,
   Banknote,
   RefreshCw,
+  FileUp,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -86,6 +87,7 @@ import {
 import { buildInvoiceFromSale, clientListoParaCfdi } from '@/lib/facturama/buildInvoiceFromSale';
 import { invoiceAndStampCompletedSale } from '@/lib/facturama/invoiceAtCheckout';
 import { mergeClienteDatosFiscales, resolveLiveClient } from '@/lib/facturama/hydrateInvoiceCliente';
+import { parseCfdiIngresoXml, normalizeRfcKey, buildExternalPpdInvoiceDraft, type ParsedCfdiIngreso } from '@/lib/facturama/parseCfdiIngresoXml';
 import { saldoInsolutoFacturaPpd, siguienteParcialidad, invoiceAceptaComplementoPago } from '@/lib/facturama/ppdSaldo';
 import {
   Select,
@@ -150,7 +152,7 @@ function saleMatchesInvoicePickerQuery(sale: Sale, raw: string): boolean {
 }
 
 export function Facturas() {
-  const { invoices, loading, addInvoice, cancelInvoice, removeInvoice, markInvoiceEnviada } =
+  const { invoices, loading, addInvoice, importExternalStampedInvoice, cancelInvoice, removeInvoice, markInvoiceEnviada } =
     useInvoices();
   const { sales } = useSales(5000);
   const { clients } = useClients();
@@ -183,6 +185,105 @@ export function Facturas() {
   const [pagoMonto, setPagoMonto] = useState('');
   const [pagoForma, setPagoForma] = useState('03');
   const [pagoBusy, setPagoBusy] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [importXml, setImportXml] = useState('');
+  const [importParsed, setImportParsed] = useState<ParsedCfdiIngreso | null>(null);
+  const [importParseError, setImportParseError] = useState('');
+  const [importClientId, setImportClientId] = useState('');
+  const [importSaldo, setImportSaldo] = useState('');
+  const [importParcialidad, setImportParcialidad] = useState('1');
+  const [importBusy, setImportBusy] = useState(false);
+
+  const applyImportXml = (raw: string) => {
+    setImportXml(raw);
+    setImportParseError('');
+    if (!raw.trim()) {
+      setImportParsed(null);
+      return;
+    }
+    try {
+      const parsed = parseCfdiIngresoXml(raw);
+      setImportParsed(parsed);
+      setImportSaldo(String(parsed.total));
+      setImportParcialidad('1');
+      const match = clients.find(
+        (c) => normalizeRfcKey(c.rfc ?? '') === normalizeRfcKey(parsed.receptorRfc)
+      );
+      setImportClientId(match?.id ?? '');
+    } catch (e) {
+      setImportParsed(null);
+      setImportParseError(e instanceof Error ? e.message : 'XML inválido');
+    }
+  };
+
+  const resetImportDialog = () => {
+    setImportXml('');
+    setImportParsed(null);
+    setImportParseError('');
+    setImportClientId('');
+    setImportSaldo('');
+    setImportParcialidad('1');
+  };
+
+  const handleConfirmImportExterno = async () => {
+    if (!importParsed || !fiscalConfig) return;
+    const client = clients.find((c) => c.id === importClientId);
+    if (!client) {
+      addToast({
+        type: 'error',
+        message: 'Seleccione el cliente del catálogo (mismo RFC). Si no existe, créelo en Clientes.',
+      });
+      return;
+    }
+    const listo = clientListoParaCfdi(client);
+    if (!listo.ok) {
+      addToast({ type: 'error', message: listo.reason });
+      return;
+    }
+    const saldo = parseFloat(String(importSaldo).replace(',', '.'));
+    if (!Number.isFinite(saldo) || saldo <= 0) {
+      addToast({ type: 'error', message: 'Indique el saldo insoluto (lo que falta por pagar).' });
+      return;
+    }
+    if (saldo > importParsed.total + 0.001) {
+      addToast({ type: 'error', message: 'El saldo no puede ser mayor al total del CFDI.' });
+      return;
+    }
+    const parcialidad = Math.max(1, Math.floor(Number(importParcialidad) || 1));
+    const pagadoPrevio = Math.round((importParsed.total - saldo) * 100) / 100;
+    setImportBusy(true);
+    try {
+      const draft = buildExternalPpdInvoiceDraft({
+        parsed: importParsed,
+        xml: importXml,
+        client,
+        fiscalConfig,
+        montoPagadoPrevio: pagadoPrevio,
+        parcialidadSiguienteBase: parcialidad,
+      });
+      const id = await importExternalStampedInvoice(draft);
+      addToast({
+        type: 'success',
+        message: `CFDI ${importParsed.serie}-${importParsed.folio} registrado. Ya puede emitir el complemento de pago.`,
+      });
+      setShowImportDialog(false);
+      resetImportDialog();
+      const fresh = effectiveSucursalId
+        ? await getInvoiceFirestore(effectiveSucursalId, id)
+        : null;
+      if (fresh) {
+        setSelectedInvoice(fresh);
+        setShowDetailDialog(true);
+      }
+    } catch (e) {
+      addToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'No se pudo registrar el CFDI',
+      });
+    } finally {
+      setImportBusy(false);
+    }
+  };
 
   const handleDeleteInvoice = (inv: Invoice) => {
     setDeleteInvoiceTarget(inv);
@@ -609,8 +710,12 @@ export function Facturas() {
     const folio = String(i.folio ?? '').toLowerCase();
     const serie = String(i.serie ?? '').toLowerCase();
     const nombreCliente = String(i.cliente?.nombre ?? '').toLowerCase();
+    const uuid = String(i.uuid ?? '').toLowerCase();
     return (
-      folio.includes(searchLc) || serie.includes(searchLc) || nombreCliente.includes(searchLc)
+      folio.includes(searchLc) ||
+      serie.includes(searchLc) ||
+      nombreCliente.includes(searchLc) ||
+      uuid.includes(searchLc)
     );
   });
 
@@ -641,6 +746,20 @@ export function Facturas() {
       className="min-w-0 max-w-none"
       actionsClassName="md:mt-2"
       actions={
+        <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="lg"
+          className="h-11 px-4 text-base sm:h-12"
+          onClick={() => {
+            resetImportDialog();
+            setShowImportDialog(true);
+          }}
+        >
+          <FileUp className="mr-2 h-5 w-5 shrink-0" />
+          CFDI externo PPD
+        </Button>
         <Button
           onClick={() => setShowAddDialog(true)}
           size="lg"
@@ -649,6 +768,7 @@ export function Facturas() {
           <Plus className="mr-2 h-5 w-5 shrink-0 sm:h-6 sm:w-6" />
           Nueva
         </Button>
+        </div>
       }
     >
       <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden max-md:overflow-visible sm:gap-3">
@@ -733,6 +853,11 @@ export function Facturas() {
                       {invoice.esPrueba ? (
                         <Badge className="border border-amber-500/40 bg-amber-500/15 text-[10px] text-black dark:text-amber-100">
                           Prueba
+                        </Badge>
+                      ) : null}
+                      {invoice.cfdiExterno ? (
+                        <Badge className="border border-slate-400/50 bg-slate-200/60 text-[10px] text-slate-800 dark:text-slate-200">
+                          Externa
                         </Badge>
                       ) : null}
                       <span className="shrink-0 text-brand">{formatMoney(invoice.total)}</span>
@@ -823,6 +948,11 @@ export function Facturas() {
                                 Prueba
                               </Badge>
                             ) : null}
+                            {invoice.cfdiExterno ? (
+                              <Badge className="border border-slate-400/50 bg-slate-200/60 text-[10px] text-slate-800 dark:text-slate-200">
+                                Externa
+                              </Badge>
+                            ) : null}
                           </div>
                           {invoice.uuid ? (
                             <p className="truncate text-xs text-slate-600 dark:text-slate-500">
@@ -895,7 +1025,8 @@ export function Facturas() {
                               )}
                             {canTimbrar &&
                               invoice.estado === 'timbrada' &&
-                              invoice.uuid && (
+                              invoice.uuid &&
+                              !invoice.cfdiExterno && (
                                 <DropdownMenuItem
                                   disabled={stampingId === invoice.id}
                                   onClick={() => void handleNotaCredito(invoice)}
@@ -979,6 +1110,127 @@ export function Facturas() {
       </Card>
       </div>
     </PageShell>
+
+      <Dialog
+        open={showImportDialog}
+        onOpenChange={(open) => {
+          setShowImportDialog(open);
+          if (!open) resetImportDialog();
+        }}
+      >
+        <DialogContent className="bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-h-[92dvh] overflow-y-auto md:max-w-[min(92vw,40rem)]">
+          <DialogHeader>
+            <DialogTitle>Registrar CFDI PPD externo</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-sm">
+            <p className="text-slate-600 dark:text-slate-400">
+              Suba o pegue el XML de la factura del sistema anterior (ingreso PPD u Otros). No se vuelve a timbrar el
+              ingreso: solo queda listo para el complemento de pago con folios Facturama.
+            </p>
+            <div className="space-y-1">
+              <Label htmlFor="import-xml-file">Archivo XML</Label>
+              <Input
+                id="import-xml-file"
+                type="file"
+                accept=".xml,text/xml,application/xml"
+                className="cursor-pointer"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  void file.text().then((t) => applyImportXml(t));
+                }}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="import-xml-text">O pegue el XML</Label>
+              <textarea
+                id="import-xml-text"
+                value={importXml}
+                onChange={(e) => applyImportXml(e.target.value)}
+                rows={6}
+                className="w-full rounded-md border border-slate-300 bg-slate-200 px-3 py-2 font-mono text-xs dark:border-slate-700 dark:bg-slate-800"
+                placeholder="<?xml version=..."
+              />
+            </div>
+            {importParseError ? (
+              <p className="text-sm text-red-600 dark:text-red-400">{importParseError}</p>
+            ) : null}
+            {importParsed ? (
+              <div className="space-y-2 rounded-lg border border-slate-300/80 bg-slate-200/40 p-3 dark:border-slate-700 dark:bg-slate-800/40">
+                <p>
+                  <span className="font-medium">{importParsed.serie}-{importParsed.folio}</span>
+                  {' · '}
+                  {formatMoney(importParsed.total)}
+                  {' · '}
+                  {importParsed.metodoPago}/{importParsed.formaPago}
+                </p>
+                <p className="break-all text-xs text-slate-600 dark:text-slate-400">UUID {importParsed.uuid}</p>
+                <p className="text-xs">
+                  Receptor: {importParsed.receptorRfc} · {importParsed.receptorNombre}
+                </p>
+                <div className="space-y-1">
+                  <Label>Cliente en catálogo</Label>
+                  <select
+                    value={importClientId}
+                    onChange={(e) => setImportClientId(e.target.value)}
+                    className="w-full h-10 px-3 rounded-md bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700"
+                  >
+                    <option value="">Seleccione cliente</option>
+                    {clients
+                      .filter((c) => !c.isMostrador)
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.nombre}
+                          {c.rfc ? ` (${c.rfc})` : ''}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label htmlFor="import-saldo">Saldo insoluto</Label>
+                    <Input
+                      id="import-saldo"
+                      value={importSaldo}
+                      onChange={(e) => setImportSaldo(e.target.value)}
+                    />
+                    <p className="text-[11px] text-slate-500">Lo que falta por pagar. Si no se ha cobrado nada, deje el total.</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="import-par">Siguiente parcialidad</Label>
+                    <Input
+                      id="import-par"
+                      value={importParcialidad}
+                      onChange={(e) => setImportParcialidad(e.target.value)}
+                    />
+                    <p className="text-[11px] text-slate-500">1 si es el primer complemento; 2 si ya hubo uno, etc.</p>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setShowImportDialog(false);
+                resetImportDialog();
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              disabled={!importParsed || importBusy || !canTimbrar}
+              className="bg-brand-gradient text-white"
+              onClick={() => void handleConfirmImportExterno()}
+            >
+              {importBusy ? 'Guardando…' : 'Registrar y complementar después'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add Invoice Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
@@ -1260,6 +1512,11 @@ export function Facturas() {
             <DialogTitle>Factura {selectedInvoice?.serie}-{selectedInvoice?.folio}</DialogTitle>
             {selectedInvoice?.esPrueba ? (
               <p className="text-xs font-normal text-amber-600 dark:text-amber-400">{AVISO_DOC_FISCAL_PRUEBA}</p>
+            ) : null}
+            {selectedInvoice?.cfdiExterno ? (
+              <p className="text-xs font-normal text-slate-600 dark:text-slate-400">
+                CFDI timbrado fuera de SERVIpos. El complemento de pago usará folios de Facturama y este UUID.
+              </p>
             ) : null}
           </DialogHeader>
           

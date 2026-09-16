@@ -122,6 +122,33 @@ export function useInvoices() {
     }
   };
 
+  const importExternalStampedInvoice = async (
+    invoice: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt' | 'syncStatus'>
+  ) => {
+    try {
+      const uuid = String(invoice.uuid ?? '')
+        .trim()
+        .toUpperCase();
+      if (!uuid) throw new Error('Falta UUID del CFDI');
+      const dup = invoices.some((i) => String(i.uuid ?? '').toUpperCase() === uuid);
+      if (dup) throw new Error('Ese UUID ya está registrado en Facturación.');
+      const sucursalId = getEffectiveSucursalId();
+      if (!sucursalId) throw new Error('Se requiere sucursal para guardar el CFDI externo');
+      const id = await createInvoiceFirestore(sucursalId, {
+        ...invoice,
+        uuid,
+        esPrueba: false,
+        cfdiExterno: true,
+        estado: 'timbrada',
+      });
+      await loadInvoices();
+      return id;
+    } catch (err) {
+      setError('Error al importar CFDI externo');
+      throw err;
+    }
+  };
+
   const cancel = async (id: string, motivo: string) => {
     try {
       const sucursalId = getEffectiveSucursalId();
@@ -201,6 +228,7 @@ export function useInvoices() {
     error,
     refresh: loadInvoices,
     addInvoice,
+    importExternalStampedInvoice,
     cancelInvoice: cancel,
     removeInvoice,
     markInvoiceEnviada,

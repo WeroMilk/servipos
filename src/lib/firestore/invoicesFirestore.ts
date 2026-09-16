@@ -64,6 +64,15 @@ function mapInvoice(sucursalId: string, id: string, doc: Record<string, unknown>
       ? (doc.cfdisRelacionados as Invoice['cfdisRelacionados'])
       : undefined,
     esPrueba: doc.esPrueba === true,
+    cfdiExterno: doc.cfdiExterno === true,
+    montoPagadoPrevio:
+      doc.montoPagadoPrevio != null && Number.isFinite(Number(doc.montoPagadoPrevio))
+        ? Number(doc.montoPagadoPrevio)
+        : undefined,
+    parcialidadSiguienteBase:
+      doc.parcialidadSiguienteBase != null && Number.isFinite(Number(doc.parcialidadSiguienteBase))
+        ? Number(doc.parcialidadSiguienteBase)
+        : undefined,
     sucursalId,
     createdAt: tsToDate(doc.createdAt),
     updatedAt: tsToDate(doc.updatedAt),

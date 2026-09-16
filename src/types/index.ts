@@ -768,6 +768,12 @@ export interface Invoice {
   cfdisRelacionados?: InvoiceRelatedCfdi[];
   /** Generada en modo prueba: sin validez fiscal; no consume folio SAT configurado. */
   esPrueba?: boolean;
+  /** CFDI de ingreso timbrado fuera de SERVIpos (PAC anterior); sirve para complemento de pago. */
+  cfdiExterno?: boolean;
+  /** Pagos ya aplicados fuera de SERVIpos (resta del saldo insoluto). */
+  montoPagadoPrevio?: number;
+  /** Siguiente número de parcialidad SAT si ya hubo complementos en el sistema viejo (por defecto 1). */
+  parcialidadSiguienteBase?: number;
   /** Aislamiento por tienda en datos locales (Dexie). */
   sucursalId?: string;
   createdAt: Date;
