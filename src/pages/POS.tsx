@@ -114,6 +114,7 @@ import {
 import { clientFromQuotationForPos } from '@/lib/posQuotationCart';
 import {
   type ClientPriceListId,
+  BUILTIN_CLIENT_PRICE_LIST_ORDER,
   POS_EDIT_UNIT_PRICE_PIN,
 } from '@/lib/clientPriceLists';
 import {
@@ -508,6 +509,7 @@ export function POS() {
   const location = useLocation();
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'admin';
+  const isCashier = user?.role === 'cashier';
   const priceListCatalog = useClientPriceListCatalog();
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const { addToast } = useAppStore();
@@ -1237,7 +1239,7 @@ export function POS() {
     const it = items.find((i) => i.product.id === productId);
     if (!it) return;
     setUnitPriceEditProductId(productId);
-    setUnitPriceEditStep(isAdmin ? 'price' : 'pin');
+    setUnitPriceEditStep(isAdmin || isCashier ? 'price' : 'pin');
     setUnitPricePinInput('');
     const baseSinIva = getProductUnitSinIvaForClienteList(it.product, 'regular');
     const conIva = unitBaseSinIvaToPrecioConIva(baseSinIva, it.product.impuesto);
@@ -1462,6 +1464,7 @@ export function POS() {
   }, [unitPriceEditProductId, precioClienteListaId]);
 
   const saveUnitPriceFromDialog = () => {
+    if (isCashier) return;
     if (!unitPriceEditProductId) return;
     const it = items.find((i) => i.product.id === unitPriceEditProductId);
     if (!it) return;
@@ -1486,6 +1489,11 @@ export function POS() {
   const unitPriceLineListaActiva: ClientPriceListId | null = unitPriceLineIsManual
     ? null
     : (unitPriceDialogLine?.precioListaId ?? precioClienteListaId);
+  const unitPriceListEntries = isCashier
+    ? priceListCatalog.entries.filter((e) =>
+        (BUILTIN_CLIENT_PRICE_LIST_ORDER as readonly string[]).includes(e.id)
+      )
+    : priceListCatalog.entries;
 
   const openCheckoutDialog = () => {
     reapplyPromotions();
@@ -5713,6 +5721,7 @@ export function POS() {
           className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:max-w-lg"
           onOpenAutoFocus={(e) => e.preventDefault()}
           onKeyDown={(e) => {
+            if (isCashier) return;
             if (e.key !== 'Enter' || unitPriceEditStep !== 'price' || e.defaultPrevented) return;
             const t = e.target as HTMLElement;
             if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'BUTTON') return;
@@ -5762,12 +5771,12 @@ export function POS() {
           ) : (
             <div className="space-y-4 py-2">
               <p className="text-xs text-slate-600 dark:text-slate-400">
-                Toque una lista para aplicar el precio del catálogo solo a esta línea (sin cambiar la lista global del
-                ticket). Use el importe de abajo para un precio manual; el IVA del artículo se usa para el cálculo
-                interno.
+                {isCashier
+                  ? 'Toque una lista para aplicar el precio del catálogo solo a esta línea (sin cambiar la lista global del ticket).'
+                  : 'Toque una lista para aplicar el precio del catálogo solo a esta línea (sin cambiar la lista global del ticket). Use el importe de abajo para un precio manual; el IVA del artículo se usa para el cálculo interno.'}
               </p>
 
-              {canEditCatalogListasDesdePos ? (
+              {canEditCatalogListasDesdePos && !isCashier ? (
                 <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-200/40 p-3 dark:border-slate-700 dark:bg-slate-800/50">
                   <Button
                     type="button"
@@ -5788,7 +5797,7 @@ export function POS() {
               <div className="space-y-2">
                 <Label className="text-slate-700 dark:text-slate-300">Lista para esta línea</Label>
                 <div className="flex flex-wrap gap-2">
-                  {priceListCatalog.entries.map(({ id: lid, label }) => (
+                  {unitPriceListEntries.map(({ id: lid, label }) => (
                     <Button
                       key={lid}
                       type="button"
@@ -5841,6 +5850,7 @@ export function POS() {
                 ) : null}
               </div>
 
+              {isCashier ? null : (
               <div className="space-y-2 border-t border-slate-200 pt-3 dark:border-slate-800">
                 <Label>Precio manual (con IVA incluido)</Label>
                 <Input
@@ -5862,6 +5872,7 @@ export function POS() {
                   «Guardar manual» fija el importe tecleado y quita la lista propia de la línea.
                 </p>
               </div>
+              )}
 
               <div className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 bg-slate-200/40 p-3 dark:border-slate-700 dark:bg-slate-800/50">
                 <div className="min-w-0 space-y-1">
@@ -5885,9 +5896,11 @@ export function POS() {
                 <Button type="button" variant="outline" onClick={closeUnitPriceDialog}>
                   Cerrar
                 </Button>
+                {isCashier ? null : (
                 <Button type="button" onClick={saveUnitPriceFromDialog}>
                   Guardar manual
                 </Button>
+                )}
               </DialogFooter>
             </div>
           )}

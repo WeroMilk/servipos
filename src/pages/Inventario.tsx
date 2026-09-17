@@ -705,6 +705,7 @@ export function Inventario() {
   const [inventoryBootstrapping, setInventoryBootstrapping] = useState(true);
 
   const isAdmin = user?.role === 'admin';
+  const isCashier = user?.role === 'cashier';
   const canBypassInventoryEditPin = userIsGerenteOrAdmin(user);
   const [managerAuthOpen, setManagerAuthOpen] = useState(false);
   const [managerAuthPin, setManagerAuthPin] = useState('');
@@ -963,6 +964,12 @@ export function Inventario() {
       setInventoryMode('stock');
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (isCashier && inventoryMode === 'valor') {
+      setInventoryMode('productos');
+    }
+  }, [isCashier, inventoryMode]);
 
   useEffect(() => {
     if (showAddDialog) {
@@ -1774,7 +1781,12 @@ export function Inventario() {
         </div>
       }
     >
-      <div className="grid w-full min-w-0 shrink-0 grid-cols-1 gap-2 min-[420px]:grid-cols-2 lg:grid-cols-4 lg:gap-3">
+      <div
+        className={cn(
+          'grid w-full min-w-0 shrink-0 grid-cols-1 gap-2 min-[420px]:grid-cols-2 lg:gap-3',
+          isCashier ? 'lg:grid-cols-3' : 'lg:grid-cols-4'
+        )}
+      >
         <button
           type="button"
           onClick={() => setInventoryModeWithDefaultSort('productos')}
@@ -1827,6 +1839,7 @@ export function Inventario() {
             </div>
           </CardContent>
         </button>
+        {isCashier ? null : (
         <button
           type="button"
           onClick={() => setInventoryModeWithDefaultSort('valor')}
@@ -1856,6 +1869,7 @@ export function Inventario() {
             </div>
           </CardContent>
         </button>
+        )}
         <button
           type="button"
           onClick={() => setInventoryModeWithDefaultSort('codigos')}
