@@ -68,6 +68,7 @@ import { SendEmailDialog } from '@/components/ui-custom/SendEmailDialog';
 import { printLetterDocument, printThermalQuotation } from '@/lib/printTicket';
 import { buildQuotationLetterInnerHtml, exportQuotationLetterToPdf } from '@/lib/quotationPdfExport';
 import { formatInAppTimezone } from '@/lib/appTimezone';
+import { userIsRestrictedCashier } from '@/lib/userPermissions';
 
 const statusColors: Record<string, string> = {
   pendiente: 'bg-amber-500/10 text-black border-amber-500/30 dark:text-amber-100',
@@ -337,6 +338,7 @@ export function Cotizaciones() {
   const { clients } = useClients();
   const { effectiveSucursalId } = useEffectiveSucursalId();
   const { user } = useAuthStore();
+  const isRestrictedCashier = userIsRestrictedCashier(user);
   const { addToast } = useAppStore();
 
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -384,10 +386,15 @@ export function Cotizaciones() {
   }, [products, productSearchQuery]);
 
   const handleDeleteQuotation = (q: Quotation) => {
+    if (isRestrictedCashier) {
+      addToast({ type: 'warning', message: 'Los cajeros no pueden eliminar cotizaciones.' });
+      return;
+    }
     setDeleteQuotationTarget(q);
   };
 
   const confirmDeleteQuotation = async () => {
+    if (isRestrictedCashier) return;
     if (!deleteQuotationTarget) return;
     setDeletingQuotation(true);
     try {
@@ -859,6 +866,7 @@ export function Cotizaciones() {
                             <RotateCcw className="h-4 w-4" />
                           </Button>
                         ) : null}
+                        {isRestrictedCashier ? null : (
                         <Button
                           type="button"
                           variant="ghost"
@@ -872,6 +880,7 @@ export function Cotizaciones() {
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
+                        )}
                       </div>
                     </div>
                   ))
@@ -1028,6 +1037,7 @@ export function Cotizaciones() {
                                   <Send className="mr-2 h-4 w-4" />
                                   Enviar por Email
                                 </DropdownMenuItem>
+                                {isRestrictedCashier ? null : (
                                 <DropdownMenuItem
                                   onClick={() => void handleDeleteQuotation(quotation)}
                                   className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
@@ -1035,6 +1045,7 @@ export function Cotizaciones() {
                                   <Trash2 className="mr-2 h-4 w-4" />
                                   Eliminar
                                 </DropdownMenuItem>
+                                )}
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </TableCell>

@@ -72,6 +72,7 @@ import {
 import { printInvoiceOfficialPdf } from '@/lib/printOfficialInvoicePdf';
 import { pdfBase64ToUint8Array } from '@/lib/pdfBase64';
 import { formatInAppTimezone } from '@/lib/appTimezone';
+import { userIsRestrictedCashier } from '@/lib/userPermissions';
 import { getInvoiceById } from '@/db/database';
 import { getInvoiceFirestore } from '@/lib/firestore/invoicesFirestore';
 import {
@@ -161,6 +162,8 @@ export function Facturas() {
   const { addToast } = useAppStore();
   const { effectiveSucursalId } = useEffectiveSucursalId();
   const hasPermission = useAuthStore((s) => s.hasPermission);
+  const user = useAuthStore((s) => s.user);
+  const isRestrictedCashier = userIsRestrictedCashier(user);
   const canTimbrar = hasPermission('facturas:timbrar') || hasPermission('facturas:crear');
   const canCancelarSat = hasPermission('facturas:cancelar') || hasPermission('facturas:crear');
 
@@ -286,10 +289,15 @@ export function Facturas() {
   };
 
   const handleDeleteInvoice = (inv: Invoice) => {
+    if (isRestrictedCashier) {
+      addToast({ type: 'warning', message: 'Los cajeros no pueden eliminar facturas.' });
+      return;
+    }
     setDeleteInvoiceTarget(inv);
   };
 
   const confirmDeleteInvoice = async () => {
+    if (isRestrictedCashier) return;
     if (!deleteInvoiceTarget) return;
     setDeletingInvoice(true);
     try {
@@ -884,6 +892,7 @@ export function Facturas() {
                     </div>
                     <p className="mt-2 text-center text-xs text-brand/80">Ver detalle…</p>
                   </button>
+                  {isRestrictedCashier ? null : (
                   <Button
                     type="button"
                     variant="ghost"
@@ -903,6 +912,7 @@ export function Facturas() {
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
+                  )}
                 </div>
               ))
             )}
@@ -1088,6 +1098,7 @@ export function Facturas() {
                                 Cancelar
                               </DropdownMenuItem>
                             )}
+                            {isRestrictedCashier ? null : (
                             <DropdownMenuItem
                               disabled={invoice.estado === 'timbrada' || invoice.estado === 'cancelacion_pendiente'}
                               onClick={() => void handleDeleteInvoice(invoice)}
@@ -1096,6 +1107,7 @@ export function Facturas() {
                               <Trash2 className="mr-2 h-4 w-4" />
                               Eliminar del historial
                             </DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
