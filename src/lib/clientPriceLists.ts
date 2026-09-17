@@ -24,6 +24,20 @@ export function normalizeClientPriceListId(raw: unknown): ClientPriceListId {
   return 'regular';
 }
 
+export const CASHIER_CLIENT_PRICE_LIST_IDS = [
+  'regular',
+  'tecnico',
+  'mayoreo_menos',
+] as const;
+
+export function isCashierAllowedPriceListId(id: string): boolean {
+  return (CASHIER_CLIENT_PRICE_LIST_IDS as readonly string[]).includes(id);
+}
+
+export function filterPriceListEntriesForCashier<T extends { id: string }>(entries: T[]): T[] {
+  return entries.filter((e) => isCashierAllowedPriceListId(e.id));
+}
+
 export const CLIENT_PRICE_LABELS: Record<BuiltinClientPriceListId, string> = {
   regular: 'Regular',
   tecnico: 'Tecnico',
@@ -40,5 +54,5 @@ export const DEFAULT_CLIENT_PRICE_DISCOUNTS: Record<BuiltinClientPriceListId, nu
   cananea: 15,
 };
 
-/** PIN compartido: cajeros autorizan edición de precio en POS e inventario (admin/gerente no lo usan). */
+/** PIN de cambio de precios (distinto del PIN de ingreso al POS). */
 export const POS_EDIT_UNIT_PRICE_PIN = '1234';

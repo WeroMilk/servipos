@@ -114,7 +114,8 @@ import {
 import { clientFromQuotationForPos } from '@/lib/posQuotationCart';
 import {
   type ClientPriceListId,
-  BUILTIN_CLIENT_PRICE_LIST_ORDER,
+  filterPriceListEntriesForCashier,
+  isCashierAllowedPriceListId,
   POS_EDIT_UNIT_PRICE_PIN,
 } from '@/lib/clientPriceLists';
 import {
@@ -125,6 +126,7 @@ import { useClientPriceListCatalog } from '@/hooks/useClientPriceListCatalog';
 import { subscribeSucursales } from '@/lib/firestore/sucursalesMetaFirestore';
 import { cn, formatMoney } from '@/lib/utils';
 import { formatInAppTimezone } from '@/lib/appTimezone';
+import { userCanEditSalePricesWithPin, userIsRestrictedCashier } from '@/lib/userPermissions';
 import { printThermalTicket, printThermalClientCreditoReceipt } from '@/lib/printTicket';
 import { labelCreditoTiendaMotivo } from '@/lib/clientCreditoTienda';
 import {
@@ -509,7 +511,8 @@ export function POS() {
   const location = useLocation();
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'admin';
-  const isCashier = user?.role === 'cashier';
+  const isCashier = userIsRestrictedCashier(user);
+  const canEditPricesWithPin = userCanEditSalePricesWithPin(user);
   const priceListCatalog = useClientPriceListCatalog();
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const { addToast } = useAppStore();
@@ -801,9 +804,17 @@ export function POS() {
   const metodoPagoSelectValue: 'PUE' | 'PPD' = metodoPago === 'PPD' ? 'PPD' : 'PUE';
 
   const precioClienteListaSelectValue = useMemo((): ClientPriceListId => {
+    if (isCashier && !isCashierAllowedPriceListId(precioClienteListaId)) return 'regular';
     if (priceListCatalog.ids.includes(precioClienteListaId)) return precioClienteListaId;
     return 'regular';
-  }, [precioClienteListaId, priceListCatalog.ids]);
+  }, [precioClienteListaId, priceListCatalog.ids, isCashier]);
+
+  useEffect(() => {
+    if (!isCashier) return;
+    if (!isCashierAllowedPriceListId(precioClienteListaId)) {
+      setPrecioClienteLista('regular');
+    }
+  }, [isCashier, precioClienteListaId, setPrecioClienteLista]);
 
   const [devolucionFolioInput, setDevolucionFolioInput] = useState('');
   const [devolucionSaleResuelta, setDevolucionSaleResuelta] = useState<Sale | null>(null);
@@ -1239,7 +1250,7 @@ export function POS() {
     const it = items.find((i) => i.product.id === productId);
     if (!it) return;
     setUnitPriceEditProductId(productId);
-    setUnitPriceEditStep(isAdmin || isCashier ? 'price' : 'pin');
+    setUnitPriceEditStep(isCashier ? 'price' : 'pin');
     setUnitPricePinInput('');
     const baseSinIva = getProductUnitSinIvaForClienteList(it.product, 'regular');
     const conIva = unitBaseSinIvaToPrecioConIva(baseSinIva, it.product.impuesto);
@@ -1270,7 +1281,8 @@ export function POS() {
     return () => clearTimeout(t);
   }, [unitPriceDialogOpen, unitPriceEditStep]);
 
-  const canEditCatalogListasDesdePos = hasPermission('inventario:editar');
+  const canEditCatalogListasDesdePos =
+    hasPermission('inventario:editar') || canEditPricesWithPin;
 
   const openListasPrecioCatalogDialog = () => {
     const pid = unitPriceEditProductId;
@@ -1490,10 +1502,9 @@ export function POS() {
     ? null
     : (unitPriceDialogLine?.precioListaId ?? precioClienteListaId);
   const unitPriceListEntries = isCashier
-    ? priceListCatalog.entries.filter((e) =>
-        (BUILTIN_CLIENT_PRICE_LIST_ORDER as readonly string[]).includes(e.id)
-      )
+    ? filterPriceListEntriesForCashier(priceListCatalog.entries)
     : priceListCatalog.entries;
+  const ticketPriceListEntries = unitPriceListEntries;
 
   const openCheckoutDialog = () => {
     reapplyPromotions();
@@ -4668,7 +4679,7 @@ export function POS() {
                           hideScrollButtons
                           className="z-[300] max-h-[min(50dvh,18rem)] border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
                         >
-                          {priceListCatalog.entries.map(({ id, label }) => (
+                          {ticketPriceListEntries.map(({ id, label }) => (
                             <SelectItem key={id} value={id} className="text-slate-900 dark:text-slate-100">
                               {label}
                             </SelectItem>
@@ -5741,7 +5752,7 @@ export function POS() {
           {unitPriceEditStep === 'pin' ? (
             <div className="space-y-3 py-2">
               <p className="text-sm text-slate-600 dark:text-slate-400">
-                Ingrese la contraseña de administrador para modificar el precio.
+                Ingrese la contraseña de cambio de precios (no es el PIN de ingreso).
               </p>
               <Input
                 ref={unitPricePinInputRef}

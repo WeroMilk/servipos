@@ -1,4 +1,5 @@
 import type { Permission, User, UserRole } from '@/types';
+import { isGabrielUser, isZavalaUser } from '@/lib/gabrielEasterEgg';
 
 /** No ver la entrada Misiones (p. ej. quien usa inventario completo). */
 const INVENTORY_MISSIONS_EXCLUDED_USERNAMES = new Set<string>([]);
@@ -158,12 +159,33 @@ export function userCanAccessPanel(user: User | null | undefined): boolean {
   return userIsGerenteOrAdmin(user);
 }
 
-/** Admin/gerente: editan inventario (y precio en POS) sin PIN de autorización. */
+/** Admin/gerente: editan inventario (salvo precios) sin PIN de autorización. */
 export function userIsGerenteOrAdmin(
   user: Pick<User, 'role' | 'isActive'> | null | undefined
 ): boolean {
   if (!user?.isActive) return false;
   return user.role === 'admin' || user.role === 'gerente';
+}
+
+/**
+ * Puede modificar precios (manual / catálogo) usando el PIN de precios,
+ * no el PIN de ingreso. Incluye admin, gerente y cuentas Gabriel/Zavala.
+ */
+export function userCanEditSalePricesWithPin(
+  user: Pick<User, 'role' | 'isActive' | 'username' | 'name' | 'email'> | null | undefined
+): boolean {
+  if (!user?.isActive) return false;
+  if (user.role === 'admin' || user.role === 'gerente') return true;
+  return isGabrielUser(user) || isZavalaUser(user);
+}
+
+/** Cajero de piso: sin Mayoreo + / Cananea, sin precio manual ni valor de inventario. */
+export function userIsRestrictedCashier(
+  user: Pick<User, 'role' | 'isActive' | 'username' | 'name' | 'email'> | null | undefined
+): boolean {
+  if (!user?.isActive) return false;
+  if (userCanEditSalePricesWithPin(user)) return false;
+  return user.role === 'cashier';
 }
 
 /** Ruta de inicio tras login o al pulsar el logo. */

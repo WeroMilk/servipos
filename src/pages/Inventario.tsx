@@ -86,7 +86,7 @@ import { subscribeSucursales } from '@/lib/firestore/sucursalesMetaFirestore';
 import { getSucursalStateDocOnce } from '@/lib/firestore/stateDocsFirestore';
 import { confirmIncomingStoreTransfer } from '@/lib/firestore/storeTransfersFirestore';
 import { cn, formatMoney } from '@/lib/utils';
-import { userIsGerenteOrAdmin } from '@/lib/userPermissions';
+import { userIsGerenteOrAdmin, userIsRestrictedCashier } from '@/lib/userPermissions';
 import { getProductPrecioPublicoRegular, deriveListaPrecioStorageStringsFromPrecioVenta } from '@/lib/productListPricing';
 import { getClientPriceListCatalogFromStore } from '@/lib/clientPriceListCatalog';
 import { parsePrecioNumberFromFirestore } from '@/lib/precioListaNorm';
@@ -705,7 +705,7 @@ export function Inventario() {
   const [inventoryBootstrapping, setInventoryBootstrapping] = useState(true);
 
   const isAdmin = user?.role === 'admin';
-  const isCashier = user?.role === 'cashier';
+  const isCashier = userIsRestrictedCashier(user);
   const canBypassInventoryEditPin = userIsGerenteOrAdmin(user);
   const [managerAuthOpen, setManagerAuthOpen] = useState(false);
   const [managerAuthPin, setManagerAuthPin] = useState('');
@@ -723,8 +723,8 @@ export function Inventario() {
   }, []);
 
   const requestManagerAuth = useCallback(
-    (action: () => void, onCancel?: () => void) => {
-      if (canBypassInventoryEditPin) {
+    (action: () => void, onCancel?: () => void, opts?: { requirePricePin?: boolean }) => {
+      if (canBypassInventoryEditPin && !opts?.requirePricePin) {
         action();
         return;
       }
@@ -1363,7 +1363,7 @@ export function Inventario() {
         setPreciosDialogProduct(p);
         setPreciosDialogListaIvaMode('sin');
         setPreciosDialogOpen(true);
-      });
+      }, undefined, { requirePricePin: true });
     },
     [productById, priceListCatalog.ids, requestManagerAuth]
   );
@@ -4574,7 +4574,7 @@ export function Inventario() {
           </DialogHeader>
           <div className="space-y-3 py-2">
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              Ingrese la contraseña de administrador o gerente para modificar el inventario.
+              Ingrese la contraseña de autorización (no es el PIN de ingreso).
             </p>
             <Input
               ref={managerAuthPinRef}

@@ -6,6 +6,8 @@ import {
   userCanSeeInventoryMissions,
   userHasPermission,
   userIsGerenteOrAdmin,
+  userCanEditSalePricesWithPin,
+  userIsRestrictedCashier,
 } from '@/lib/userPermissions';
 import type { User } from '@/types';
 
@@ -54,5 +56,9 @@ describe('userPermissions', () => {
     expect(homePathForUser(makeUser({ role: 'admin' }))).toBe('/');
     expect(userIsGerenteOrAdmin(makeUser({ role: 'gerente' }))).toBe(true);
     expect(userIsGerenteOrAdmin(makeUser({ role: 'cashier' }))).toBe(false);
+    expect(userCanEditSalePricesWithPin(makeUser({ role: 'gerente', username: 'zavala' }))).toBe(true);
+    expect(userCanEditSalePricesWithPin(makeUser({ role: 'cashier', username: 'gabriel' }))).toBe(true);
+    expect(userIsRestrictedCashier(makeUser({ role: 'cashier', username: 'caja01' }))).toBe(true);
+    expect(userIsRestrictedCashier(makeUser({ role: 'cashier', username: 'zavala' }))).toBe(false);
   });
 });
