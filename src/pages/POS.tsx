@@ -1014,7 +1014,7 @@ export function POS() {
   const [ventaResetBusy, setVentaResetBusy] = useState(false);
   const [unitPriceDialogOpen, setUnitPriceDialogOpen] = useState(false);
   const [unitPriceEditProductId, setUnitPriceEditProductId] = useState<string | null>(null);
-  const [unitPriceEditStep, setUnitPriceEditStep] = useState<'pin' | 'price'>('pin');
+  const [unitPriceEditStep, setUnitPriceEditStep] = useState<'lists' | 'pin' | 'manual'>('lists');
   const [unitPricePinInput, setUnitPricePinInput] = useState('');
   const [unitPriceInput, setUnitPriceInput] = useState('');
   const [listasPrecioCatalogDialogOpen, setListasPrecioCatalogDialogOpen] = useState(false);
@@ -1250,7 +1250,7 @@ export function POS() {
     const it = items.find((i) => i.product.id === productId);
     if (!it) return;
     setUnitPriceEditProductId(productId);
-    setUnitPriceEditStep(isCashier ? 'price' : 'pin');
+    setUnitPriceEditStep('lists');
     setUnitPricePinInput('');
     const baseSinIva = getProductUnitSinIvaForClienteList(it.product, 'regular');
     const conIva = unitBaseSinIvaToPrecioConIva(baseSinIva, it.product.impuesto);
@@ -1262,7 +1262,7 @@ export function POS() {
     setListasPrecioCatalogDialogOpen(false);
     setUnitPriceDialogOpen(false);
     setUnitPriceEditProductId(null);
-    setUnitPriceEditStep('pin');
+    setUnitPriceEditStep('lists');
     setUnitPricePinInput('');
     setUnitPriceInput('');
   }, []);
@@ -1272,7 +1272,7 @@ export function POS() {
     const t = window.setTimeout(() => {
       if (unitPriceEditStep === 'pin') {
         unitPricePinInputRef.current?.focus();
-      } else {
+      } else if (unitPriceEditStep === 'manual') {
         const el = unitPriceManualInputRef.current;
         el?.focus();
         el?.select();
@@ -1458,8 +1458,9 @@ export function POS() {
 
   const confirmUnitPricePin = () => {
     if (unitPricePinInput.trim() === POS_EDIT_UNIT_PRICE_PIN) {
-      setUnitPriceEditStep('price');
+      setUnitPriceEditStep('manual');
       setUnitPricePinInput('');
+      syncUnitPriceInputFromCartLine();
       return;
     }
     addToast({ type: 'error', message: 'Contraseña incorrecta' });
@@ -1476,7 +1477,7 @@ export function POS() {
   }, [unitPriceEditProductId, precioClienteListaId]);
 
   const saveUnitPriceFromDialog = () => {
-    if (isCashier) return;
+    if (unitPriceEditStep !== 'manual') return;
     if (!unitPriceEditProductId) return;
     const it = items.find((i) => i.product.id === unitPriceEditProductId);
     if (!it) return;
@@ -1505,6 +1506,18 @@ export function POS() {
     ? filterPriceListEntriesForCashier(priceListCatalog.entries)
     : priceListCatalog.entries;
   const ticketPriceListEntries = unitPriceListEntries;
+  const unitPriceDialogDisplayConIva =
+    unitPriceDialogLine != null
+      ? unitBaseSinIvaToPrecioConIva(
+          getCartLineUnitSinIvaBase(unitPriceDialogLine, precioClienteListaId),
+          unitPriceDialogLine.product.impuesto
+        )
+      : null;
+  const unitPriceDialogListaLabel = unitPriceLineIsManual
+    ? 'Precio manual'
+    : (priceListCatalog.labels[unitPriceLineListaActiva ?? precioClienteListaId] ??
+      unitPriceLineListaActiva ??
+      precioClienteListaId);
 
   const openCheckoutDialog = () => {
     reapplyPromotions();
@@ -5732,8 +5745,7 @@ export function POS() {
           className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:max-w-lg"
           onOpenAutoFocus={(e) => e.preventDefault()}
           onKeyDown={(e) => {
-            if (isCashier) return;
-            if (e.key !== 'Enter' || unitPriceEditStep !== 'price' || e.defaultPrevented) return;
+            if (e.key !== 'Enter' || unitPriceEditStep !== 'manual' || e.defaultPrevented) return;
             const t = e.target as HTMLElement;
             if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'BUTTON') return;
             if (t.closest('[data-slot="select-content"]')) return;
@@ -5752,7 +5764,7 @@ export function POS() {
           {unitPriceEditStep === 'pin' ? (
             <div className="space-y-3 py-2">
               <p className="text-sm text-slate-600 dark:text-slate-400">
-                Ingrese la contraseña de cambio de precios (no es el PIN de ingreso).
+                Ingrese la contraseña de cambio de precios (no es el PIN de ingreso) para un precio manual.
               </p>
               <Input
                 ref={unitPricePinInputRef}
@@ -5771,7 +5783,14 @@ export function POS() {
                 className="border-slate-300 dark:border-slate-700 dark:bg-slate-800"
               />
               <DialogFooter className="gap-2 sm:gap-0">
-                <Button type="button" variant="outline" onClick={closeUnitPriceDialog}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setUnitPricePinInput('');
+                    setUnitPriceEditStep('lists');
+                  }}
+                >
                   Cancelar
                 </Button>
                 <Button type="button" onClick={confirmUnitPricePin}>
@@ -5781,10 +5800,21 @@ export function POS() {
             </div>
           ) : (
             <div className="space-y-4 py-2">
+              <div className="rounded-lg border border-brand/30 bg-brand/10 px-3 py-3 dark:border-brand/40 dark:bg-brand/10">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-slate-600 dark:text-slate-400">
+                  Precio de esta línea (con IVA)
+                </p>
+                <p className="mt-0.5 truncate text-xs text-slate-600 dark:text-slate-400">
+                  {unitPriceDialogListaLabel}
+                </p>
+                <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-100">
+                  {unitPriceDialogDisplayConIva != null ? formatMoney(unitPriceDialogDisplayConIva) : '—'}
+                </p>
+              </div>
+
               <p className="text-xs text-slate-600 dark:text-slate-400">
-                {isCashier
-                  ? 'Toque una lista para aplicar el precio del catálogo solo a esta línea (sin cambiar la lista global del ticket).'
-                  : 'Toque una lista para aplicar el precio del catálogo solo a esta línea (sin cambiar la lista global del ticket). Use el importe de abajo para un precio manual; el IVA del artículo se usa para el cálculo interno.'}
+                Toque una lista para aplicar el precio del catálogo solo a esta línea (sin cambiar la lista global del
+                ticket). El importe de arriba se actualiza al cambiar de lista.
               </p>
 
               {canEditCatalogListasDesdePos && !isCashier ? (
@@ -5808,14 +5838,18 @@ export function POS() {
               <div className="space-y-2">
                 <Label className="text-slate-700 dark:text-slate-300">Lista para esta línea</Label>
                 <div className="flex flex-wrap gap-2">
-                  {unitPriceListEntries.map(({ id: lid, label }) => (
+                  {unitPriceListEntries.map(({ id: lid, label }) => {
+                    const listaConIva = unitPriceDialogLine
+                      ? getProductUnitConIvaForClienteList(unitPriceDialogLine.product, lid)
+                      : 0;
+                    return (
                     <Button
                       key={lid}
                       type="button"
                       size="sm"
                       variant={unitPriceLineListaActiva === lid ? 'default' : 'outline'}
                       className={cn(
-                        'h-9 shrink-0 text-xs sm:text-sm',
+                        'h-auto min-h-9 shrink-0 flex-col items-start gap-0 px-3 py-1.5 text-left text-xs sm:text-sm',
                         unitPriceLineListaActiva === lid &&
                           'bg-brand-from text-white hover:bg-brand-to dark:bg-brand-from dark:hover:bg-brand-to'
                       )}
@@ -5830,9 +5864,13 @@ export function POS() {
                         });
                       }}
                     >
-                      {label}
+                      <span>{label}</span>
+                      <span className="text-[11px] font-semibold tabular-nums opacity-90">
+                        {formatMoney(listaConIva)}
+                      </span>
                     </Button>
-                  ))}
+                    );
+                  })}
                 </div>
                 {unitPriceDialogLine?.precioListaId ? (
                   <Button
@@ -5861,7 +5899,7 @@ export function POS() {
                 ) : null}
               </div>
 
-              {isCashier ? null : (
+              {unitPriceEditStep === 'manual' ? (
               <div className="space-y-2 border-t border-slate-200 pt-3 dark:border-slate-800">
                 <Label>Precio manual (con IVA incluido)</Label>
                 <Input
@@ -5883,6 +5921,19 @@ export function POS() {
                   «Guardar manual» fija el importe tecleado y quita la lista propia de la línea.
                 </p>
               </div>
+              ) : (
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full border-slate-300 bg-white text-slate-900 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+                disabled={!unitPriceEditProductId}
+                onClick={() => {
+                  setUnitPricePinInput('');
+                  setUnitPriceEditStep('pin');
+                }}
+              >
+                Cambiar precio manual
+              </Button>
               )}
 
               <div className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 bg-slate-200/40 p-3 dark:border-slate-700 dark:bg-slate-800/50">
@@ -5907,11 +5958,11 @@ export function POS() {
                 <Button type="button" variant="outline" onClick={closeUnitPriceDialog}>
                   Cerrar
                 </Button>
-                {isCashier ? null : (
+                {unitPriceEditStep === 'manual' ? (
                 <Button type="button" onClick={saveUnitPriceFromDialog}>
                   Guardar manual
                 </Button>
-                )}
+                ) : null}
               </DialogFooter>
             </div>
           )}
