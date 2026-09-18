@@ -28,6 +28,7 @@ export const CASHIER_CLIENT_PRICE_LIST_IDS = [
   'regular',
   'tecnico',
   'mayoreo_menos',
+  'mayoreo_mas',
 ] as const;
 
 export function isCashierAllowedPriceListId(id: string): boolean {

@@ -49,7 +49,6 @@ export function ClientAddressSonoraFields<T extends AddressFormSlice>({
     [formData.codigoPostal, isSonora]
   );
 
-  const colonias = cpInfo?.colonias ?? [];
   const calles = cpInfo?.calles ?? [];
 
   const applyCpLookup = () => {
@@ -65,7 +64,7 @@ export function ClientAddressSonoraFields<T extends AddressFormSlice>({
       ...f,
       estado: ESTADO_SONORA,
       ciudad: info.ciudad,
-      colonia: info.colonias[0] ?? f.colonia,
+      colonia: f.colonia.trim() ? f.colonia : (info.colonias[0] ?? f.colonia),
     }));
   };
 
@@ -186,32 +185,16 @@ export function ClientAddressSonoraFields<T extends AddressFormSlice>({
           />
         </div>
 
-        {colonias.length > 0 ? (
-          <div className={cn(fieldGap, 'sm:col-span-2', dense ? 'lg:col-span-4' : 'lg:col-span-3')}>
-            <Label className={dense ? 'text-sm lg:text-xs' : undefined}>Colonia</Label>
-            <select
-              value={formData.colonia}
-              onChange={(e) => setFormData((f) => ({ ...f, colonia: e.target.value }))}
-              className={controlClass}
-            >
-              <option value="">Seleccione…</option>
-              {colonias.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : (
-          <div className={cn(fieldGap, 'sm:col-span-2', dense ? 'lg:col-span-4' : 'lg:col-span-3')}>
-            <Label className={dense ? 'text-sm lg:text-xs' : undefined}>Colonia</Label>
-            <Input
-              value={formData.colonia}
-              onChange={(e) => setFormData((f) => ({ ...f, colonia: e.target.value }))}
-              className={cn('h-10', inputClass)}
-            />
-          </div>
-        )}
+        <div className={cn(fieldGap, 'sm:col-span-2', dense ? 'lg:col-span-4' : 'lg:col-span-3')}>
+          <Label className={dense ? 'text-sm lg:text-xs' : undefined}>Colonia</Label>
+          <Input
+            value={formData.colonia}
+            onChange={(e) => setFormData((f) => ({ ...f, colonia: e.target.value }))}
+            placeholder="Escriba la colonia"
+            className={cn('h-10', inputClass)}
+            autoComplete="address-level3"
+          />
+        </div>
 
         {calles.length > 0 ? (
           <div className={cn(fieldGap, 'sm:col-span-2', dense ? 'lg:col-span-4' : 'lg:col-span-3')}>
