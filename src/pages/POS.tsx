@@ -126,7 +126,11 @@ import { useClientPriceListCatalog } from '@/hooks/useClientPriceListCatalog';
 import { subscribeSucursales } from '@/lib/firestore/sucursalesMetaFirestore';
 import { cn, formatMoney } from '@/lib/utils';
 import { formatInAppTimezone } from '@/lib/appTimezone';
-import { userCanEditSalePricesWithPin, userIsRestrictedCashier } from '@/lib/userPermissions';
+import {
+  userCanBypassPriceChangePin,
+  userCanEditSalePricesWithPin,
+  userIsRestrictedCashier,
+} from '@/lib/userPermissions';
 import { printThermalTicket, printThermalClientCreditoReceipt } from '@/lib/printTicket';
 import { labelCreditoTiendaMotivo } from '@/lib/clientCreditoTienda';
 import {
@@ -513,6 +517,7 @@ export function POS() {
   const isAdmin = user?.role === 'admin';
   const isCashier = userIsRestrictedCashier(user);
   const canEditPricesWithPin = userCanEditSalePricesWithPin(user);
+  const canBypassPriceChangePin = userCanBypassPriceChangePin(user);
   const priceListCatalog = useClientPriceListCatalog();
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const { addToast } = useAppStore();
@@ -5928,6 +5933,11 @@ export function POS() {
                 className="w-full border-slate-300 bg-white text-slate-900 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
                 disabled={!unitPriceEditProductId}
                 onClick={() => {
+                  if (canBypassPriceChangePin) {
+                    syncUnitPriceInputFromCartLine();
+                    setUnitPriceEditStep('manual');
+                    return;
+                  }
                   setUnitPricePinInput('');
                   setUnitPriceEditStep('pin');
                 }}

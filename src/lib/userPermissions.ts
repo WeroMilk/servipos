@@ -179,6 +179,14 @@ export function userCanEditSalePricesWithPin(
   return isGabrielUser(user) || isZavalaUser(user);
 }
 
+/** Gabriel y Zavala: cambian precios sin PIN de autorización. */
+export function userCanBypassPriceChangePin(
+  user: Pick<User, 'role' | 'isActive' | 'username' | 'name' | 'email'> | null | undefined
+): boolean {
+  if (!user?.isActive) return false;
+  return isGabrielUser(user) || isZavalaUser(user);
+}
+
 /** Cajero de piso: sin Mayoreo + / Cananea, sin precio manual ni valor de inventario. */
 export function userIsRestrictedCashier(
   user: Pick<User, 'role' | 'isActive' | 'username' | 'name' | 'email'> | null | undefined

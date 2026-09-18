@@ -7,6 +7,7 @@ import {
   userHasPermission,
   userIsGerenteOrAdmin,
   userCanEditSalePricesWithPin,
+  userCanBypassPriceChangePin,
   userIsRestrictedCashier,
 } from '@/lib/userPermissions';
 import type { User } from '@/types';
@@ -60,5 +61,8 @@ describe('userPermissions', () => {
     expect(userCanEditSalePricesWithPin(makeUser({ role: 'cashier', username: 'gabriel' }))).toBe(true);
     expect(userIsRestrictedCashier(makeUser({ role: 'cashier', username: 'caja01' }))).toBe(true);
     expect(userIsRestrictedCashier(makeUser({ role: 'cashier', username: 'zavala' }))).toBe(false);
+    expect(userCanBypassPriceChangePin(makeUser({ role: 'gerente', username: 'zavala' }))).toBe(true);
+    expect(userCanBypassPriceChangePin(makeUser({ role: 'admin', username: 'gabriel' }))).toBe(true);
+    expect(userCanBypassPriceChangePin(makeUser({ role: 'cashier', username: 'caja01' }))).toBe(false);
   });
 });

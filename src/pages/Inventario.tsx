@@ -86,7 +86,11 @@ import { subscribeSucursales } from '@/lib/firestore/sucursalesMetaFirestore';
 import { getSucursalStateDocOnce } from '@/lib/firestore/stateDocsFirestore';
 import { confirmIncomingStoreTransfer } from '@/lib/firestore/storeTransfersFirestore';
 import { cn, formatMoney } from '@/lib/utils';
-import { userIsGerenteOrAdmin, userIsRestrictedCashier } from '@/lib/userPermissions';
+import {
+  userCanBypassPriceChangePin,
+  userIsGerenteOrAdmin,
+  userIsRestrictedCashier,
+} from '@/lib/userPermissions';
 import { getProductPrecioPublicoRegular, deriveListaPrecioStorageStringsFromPrecioVenta } from '@/lib/productListPricing';
 import { getClientPriceListCatalogFromStore } from '@/lib/clientPriceListCatalog';
 import { parsePrecioNumberFromFirestore } from '@/lib/precioListaNorm';
@@ -707,6 +711,7 @@ export function Inventario() {
   const isAdmin = user?.role === 'admin';
   const isCashier = userIsRestrictedCashier(user);
   const canBypassInventoryEditPin = userIsGerenteOrAdmin(user);
+  const canBypassPriceChangePin = userCanBypassPriceChangePin(user);
   const [managerAuthOpen, setManagerAuthOpen] = useState(false);
   const [managerAuthPin, setManagerAuthPin] = useState('');
   const managerAuthPinRef = useRef<HTMLInputElement>(null);
@@ -724,7 +729,10 @@ export function Inventario() {
 
   const requestManagerAuth = useCallback(
     (action: () => void, onCancel?: () => void, opts?: { requirePricePin?: boolean }) => {
-      if (canBypassInventoryEditPin && !opts?.requirePricePin) {
+      const skipPin =
+        (canBypassInventoryEditPin && !opts?.requirePricePin) ||
+        (opts?.requirePricePin === true && canBypassPriceChangePin);
+      if (skipPin) {
         action();
         return;
       }
@@ -733,7 +741,7 @@ export function Inventario() {
       setManagerAuthPin('');
       setManagerAuthOpen(true);
     },
-    [canBypassInventoryEditPin]
+    [canBypassInventoryEditPin, canBypassPriceChangePin]
   );
 
   const confirmManagerAuthPin = useCallback(() => {
