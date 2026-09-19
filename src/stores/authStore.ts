@@ -2,9 +2,10 @@ import { create } from 'zustand';
 import type { AuthState, Permission, User } from '@/types';
 import { mapProfileRowToUser, userFromAuthOnly } from '@/lib/mapFirestoreUser';
 import { useSucursalContextStore } from '@/stores/sucursalContextStore';
-import { userHasPermission } from '@/lib/userPermissions';
+import { userHasPermission, userIsRestrictedCashier } from '@/lib/userPermissions';
 import type { Session } from '@supabase/supabase-js';
 import { getSupabase } from '@/lib/supabaseClient';
+import { isMobileViewport } from '@/hooks/use-mobile';
 
 async function loadUserProfile(userId: string, email: string | null): Promise<User> {
   const supabase = getSupabase();
@@ -211,6 +212,11 @@ async function applyAuthSession(session: Session | null, event?: string): Promis
     return;
   }
   const current = useAuthStore.getState();
+  if (isMobileViewport() && userIsRestrictedCashier(current.user)) {
+    useAuthStore.setState({ user: null, isAuthenticated: false, authReady: true });
+    void getSupabase().auth.signOut();
+    return;
+  }
   if (
     current.isAuthenticated &&
     current.user?.id === session.user.id &&
@@ -222,10 +228,20 @@ async function applyAuthSession(session: Session | null, event?: string): Promis
   }
   try {
     const user = await loadUserProfile(session.user.id, session.user.email ?? null);
+    if (isMobileViewport() && userIsRestrictedCashier(user)) {
+      useAuthStore.setState({ user: null, isAuthenticated: false, authReady: true });
+      void getSupabase().auth.signOut();
+      return;
+    }
     useAuthStore.setState({ user, isAuthenticated: true, authReady: true });
   } catch (e) {
     console.error('Error cargando perfil:', e);
     const user = userFromAuthOnly(session.user.id, session.user.email ?? null);
+    if (isMobileViewport() && userIsRestrictedCashier(user)) {
+      useAuthStore.setState({ user: null, isAuthenticated: false, authReady: true });
+      void getSupabase().auth.signOut();
+      return;
+    }
     useAuthStore.setState({
       user,
       isAuthenticated: true,

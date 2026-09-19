@@ -9,8 +9,7 @@ import {
   userCanEditSalePricesWithPin,
   userCanBypassPriceChangePin,
   userIsRestrictedCashier,
-  userCanUsePosOnMobile,
-  posMobileBlockedFallbackPath,
+  userCanSignInOnMobile,
 } from '@/lib/userPermissions';
 import type { User } from '@/types';
 
@@ -66,9 +65,8 @@ describe('userPermissions', () => {
     expect(userCanBypassPriceChangePin(makeUser({ role: 'gerente', username: 'zavala' }))).toBe(true);
     expect(userCanBypassPriceChangePin(makeUser({ role: 'admin', username: 'gabriel' }))).toBe(true);
     expect(userCanBypassPriceChangePin(makeUser({ role: 'cashier', username: 'caja01' }))).toBe(false);
-    expect(userCanUsePosOnMobile(makeUser({ role: 'cashier', username: 'caja01' }))).toBe(false);
-    expect(userCanUsePosOnMobile(makeUser({ role: 'gerente', username: 'zavala' }))).toBe(true);
-    expect(userCanUsePosOnMobile(makeUser({ role: 'admin', username: 'gabriel' }))).toBe(true);
-    expect(posMobileBlockedFallbackPath(makeUser({ role: 'cashier' }))).toBe('/inventario');
+    expect(userCanSignInOnMobile(makeUser({ role: 'cashier', username: 'caja01' }))).toBe(false);
+    expect(userCanSignInOnMobile(makeUser({ role: 'gerente', username: 'zavala' }))).toBe(true);
+    expect(userCanSignInOnMobile(makeUser({ role: 'admin', username: 'gabriel' }))).toBe(true);
   });
 });

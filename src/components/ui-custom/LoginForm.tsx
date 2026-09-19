@@ -16,7 +16,8 @@ import { cn } from '@/lib/utils';
 import { BRAND_LOGO_SRCSET, BRAND_LOGO_URL } from '@/lib/branding';
 import { normalizeServipartzEmail, SERVIPARTZ_LOGIN_USERNAMES } from '@/lib/servipartzAuth';
 import { fetchLoginDirectoryUsers, type LoginDirectoryUser } from '@/lib/firestore/usersDirectoryFirestore';
-import { homePathForUser } from '@/lib/userPermissions';
+import { homePathForUser, userCanSignInOnMobile } from '@/lib/userPermissions';
+import { isMobileViewport } from '@/hooks/use-mobile';
 import { AccentColorPicker } from './AccentColorPicker';
 import { LoadingIndicator } from './LoadingIndicator';
 
@@ -92,7 +93,7 @@ function PinKeypadGrid({
 
 export function LoginForm() {
   const navigate = useNavigate();
-  const { login } = useAuthStore();
+  const { login, logout } = useAuthStore();
   const { addToast } = useAppStore();
   const toggleTheme = useAppStore((s) => s.toggleTheme);
   const resolvedDark = useAppStore((s) => getResolvedIsDark(s));
@@ -163,6 +164,24 @@ export function LoginForm() {
       const result = await login(selectedEmail.trim(), pin, { pinSyncExactEmailOnly: true });
 
       if (result.success) {
+        let signedInUser = useAuthStore.getState().user;
+        for (let i = 0; i < 80 && !signedInUser; i += 1) {
+          await new Promise((r) => window.setTimeout(r, 50));
+          signedInUser = useAuthStore.getState().user;
+          if (useAuthStore.getState().authReady && !useAuthStore.getState().isAuthenticated) {
+            break;
+          }
+        }
+        if (isMobileViewport() && (!signedInUser || !userCanSignInOnMobile(signedInUser))) {
+          if (useAuthStore.getState().isAuthenticated) {
+            await logout();
+          }
+          addToast({
+            type: 'error',
+            message: 'Los cajeros solo pueden iniciar sesión en la computadora de la tienda.',
+          });
+          return;
+        }
         addToast({
           type: 'success',
           message: 'Bienvenido al sistema',

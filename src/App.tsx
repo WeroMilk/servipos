@@ -4,8 +4,7 @@ import { Layout, LoginForm, LoadingIndicator, RouteErrorBoundary } from '@/compo
 import { useAuthStore, useSyncStore, subscribeSupabaseAuth } from '@/stores';
 import { initializeDemoData, syncServipartzSeedUsers } from '@/db/database';
 import { lazyWithRetry } from '@/lib/lazyWithRetry';
-import { homePathForUser, posMobileBlockedFallbackPath, userCanAccessPanel, userCanUsePosOnMobile } from '@/lib/userPermissions';
-import { useMobileBreakpoint } from '@/hooks/use-mobile';
+import { homePathForUser, userCanAccessPanel } from '@/lib/userPermissions';
 
 const Dashboard = lazyWithRetry(() =>
   import('@/pages/Dashboard').then((m) => ({ default: m.Dashboard }))
@@ -92,20 +91,6 @@ function HomeRoute() {
   return (
     <Suspense fallback={<PageFallback message="Cargando panel" />}>
       <Dashboard />
-    </Suspense>
-  );
-}
-
-function PosRoute() {
-  const user = useAuthStore((s) => s.user);
-  const { isMobile, ready } = useMobileBreakpoint();
-  if (!ready) return <PageFallback message="Cargando punto de venta" />;
-  if (isMobile && !userCanUsePosOnMobile(user)) {
-    return <Navigate to={posMobileBlockedFallbackPath(user)} replace />;
-  }
-  return (
-    <Suspense fallback={<PageFallback message="Cargando punto de venta" />}>
-      <POS />
     </Suspense>
   );
 }
@@ -214,7 +199,11 @@ function AppRoutes() {
                 <Route index element={<HomeRoute />} />
                 <Route
                   path="pos"
-                  element={<PosRoute />}
+                  element={
+                    <Suspense fallback={<PageFallback message="Cargando punto de venta" />}>
+                      <POS />
+                    </Suspense>
+                  }
                 />
                 <Route
                   path="inventario"

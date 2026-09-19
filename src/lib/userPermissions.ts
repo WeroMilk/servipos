@@ -196,19 +196,17 @@ export function userIsRestrictedCashier(
   return user.role === 'cashier';
 }
 
-/** POS en teléfono/tablet: solo Gabriel y Zavala. El resto usa la PC de tienda. */
-export function userCanUsePosOnMobile(
+/** Cajero de piso no puede iniciar sesión en el celular; Gabriel y Zavala sí. */
+export function userCanSignInOnMobile(
   user: Pick<User, 'role' | 'isActive' | 'username' | 'name' | 'email'> | null | undefined
 ): boolean {
   if (!user?.isActive) return false;
-  return isGabrielUser(user) || isZavalaUser(user);
+  return !userIsRestrictedCashier(user);
 }
 
-/** Si el POS móvil no aplica, ir a inventario (cajeros) o al inicio del rol. */
-export function posMobileBlockedFallbackPath(user: User | null | undefined): string {
-  if (userHasPermission(user, 'inventario:ver')) return '/inventario';
-  if (userCanSeeInventoryMissions(user)) return '/mision-inventario';
-  return userCanAccessPanel(user) ? '/' : '/inventario';
+/** Ruta de inicio tras login o al pulsar el logo. */
+export function homePathForUser(user: User | null | undefined): string {
+  return userCanAccessPanel(user) ? '/' : '/pos';
 }
 
 export function permissionsFromRoleTemplate(role: UserRole): Permission[] {
