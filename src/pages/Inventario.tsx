@@ -16,6 +16,7 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowLeft,
+  ChevronDown,
   Download,
   MapPin,
   History,
@@ -51,6 +52,7 @@ import {
 } from '@/components/ui/table';
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
@@ -127,6 +129,78 @@ import {
 type InventoryMode = 'productos' | 'stock' | 'valor' | 'codigos';
 
 type InventorySortKey = 'nombre' | 'sku' | 'categoria' | 'precio' | 'existencia';
+
+const INVENTARIO_SIN_CATEGORIA = 'Sin categoría';
+
+function productCategoriaLabel(product: { categoria?: string }): string {
+  const t = (product.categoria ?? '').trim();
+  return t || INVENTARIO_SIN_CATEGORIA;
+}
+
+function InventoryCategoriaFilter({
+  categories,
+  selected,
+  onToggle,
+  onShowAll,
+}: {
+  categories: string[];
+  selected: string[];
+  onToggle: (categoria: string) => void;
+  onShowAll: () => void;
+}) {
+  const filtering = selected.length > 0;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            'inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-slate-500 hover:bg-slate-200 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200',
+            filtering && 'text-brand dark:text-brand'
+          )}
+          aria-label="Filtrar por categoría"
+          title="Filtrar categorías"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <ChevronDown className="h-3.5 w-3.5" aria-hidden />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        className="max-h-72 w-56 border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <DropdownMenuItem
+          className="text-xs text-slate-700 dark:text-slate-300"
+          onSelect={(e) => {
+            e.preventDefault();
+            onShowAll();
+          }}
+        >
+          Mostrar todas
+        </DropdownMenuItem>
+        {categories.length === 0 ? (
+          <p className="px-2 py-1.5 text-xs text-slate-500">Sin categorías</p>
+        ) : (
+          categories.map((cat) => {
+            const checked = !filtering || selected.includes(cat);
+            return (
+              <DropdownMenuCheckboxItem
+                key={cat}
+                checked={checked}
+                onSelect={(e) => e.preventDefault()}
+                onCheckedChange={() => onToggle(cat)}
+                className="text-xs text-slate-800 dark:text-slate-200"
+              >
+                {cat}
+              </DropdownMenuCheckboxItem>
+            );
+          })
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 /** Evita renderizar miles de filas DOM a la vez (principal coste de la pantalla). */
 const INVENTORY_PAGE_SIZE = 150;
@@ -642,6 +716,7 @@ export function Inventario() {
     key: 'nombre',
     dir: 'asc',
   });
+  const [categoriaFilter, setCategoriaFilter] = useState<string[]>([]);
   const [inventoryListPage, setInventoryListPage] = useState(1);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -1522,18 +1597,46 @@ export function Inventario() {
     );
   }, []);
 
+  const categoriasFiltroOpciones = useMemo(() => {
+    const s = new Set<string>();
+    for (const c of categoriasLista) {
+      const t = String(c ?? '').trim();
+      if (t) s.add(t);
+    }
+    for (const p of products) s.add(productCategoriaLabel(p));
+    return [...s].sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+  }, [categoriasLista, products]);
+
+  const toggleCategoriaFilter = useCallback(
+    (cat: string) => {
+      setCategoriaFilter((prev) => {
+        const all = categoriasFiltroOpciones;
+        const current = prev.length === 0 ? new Set(all) : new Set(prev);
+        if (current.has(cat)) current.delete(cat);
+        else current.add(cat);
+        if (current.size === 0 || current.size === all.length) return [];
+        return [...current];
+      });
+    },
+    [categoriasFiltroOpciones]
+  );
+
   const displayProducts = useMemo(() => {
     let list = [...pool];
     if (inventoryMode === 'stock') {
       list = list.filter(isStockBajo);
     }
+    if (categoriaFilter.length > 0) {
+      const allow = new Set(categoriaFilter);
+      list = list.filter((p) => allow.has(productCategoriaLabel(p)));
+    }
     list.sort((a, b) => compareInventoryProducts(a, b, inventorySort.key, inventorySort.dir));
     return list;
-  }, [pool, inventoryMode, inventorySort]);
+  }, [pool, inventoryMode, inventorySort, categoriaFilter]);
 
   useEffect(() => {
     setInventoryListPage(1);
-  }, [debouncedInventorySearch, inventoryMode, inventorySort.key, inventorySort.dir, pool.length]);
+  }, [debouncedInventorySearch, inventoryMode, inventorySort.key, inventorySort.dir, pool.length, categoriaFilter]);
 
   const inventoryTotalPages = Math.max(1, Math.ceil(displayProducts.length / INVENTORY_PAGE_SIZE));
 
@@ -1754,6 +1857,15 @@ export function Inventario() {
     });
     return () => clearInventarioHeaderBridge();
   }, [loading, exportingInventario, handleTicketStockBajo, handleDescargarInventario, handleDescargarCatalogoWord]);
+
+  const categoriaFilterControl = (
+    <InventoryCategoriaFilter
+      categories={categoriasFiltroOpciones}
+      selected={categoriaFilter}
+      onToggle={toggleCategoriaFilter}
+      onShowAll={() => setCategoriaFilter([])}
+    />
+  );
 
   return (
     <>
@@ -2150,12 +2262,15 @@ export function Inventario() {
                       />
                     </div>
                     <div className="mt-2 space-y-1">
+                      <div className="flex items-center gap-0.5">
                       <InventorySortLabelButton
                         sortKey="categoria"
                         label="Categoría"
                         inventorySort={inventorySort}
                         onSort={handleInventorySortClick}
                       />
+                      {categoriaFilterControl}
+                      </div>
                       <Badge
                         variant="secondary"
                         className="max-w-full whitespace-normal break-words bg-slate-200 dark:bg-slate-800 text-left text-xs text-slate-700 dark:text-slate-300"
@@ -2239,12 +2354,15 @@ export function Inventario() {
                         </div>
                       </div>
                       <div className="col-span-2 min-w-0 sm:col-span-1">
+                        <div className="flex items-center gap-0.5">
                         <InventorySortLabelButton
                           sortKey="categoria"
                           label="Categoría"
                           inventorySort={inventorySort}
                           onSort={handleInventorySortClick}
                         />
+                        {categoriaFilterControl}
+                        </div>
                         <Badge
                           variant="secondary"
                           className="mt-0.5 max-w-full whitespace-normal break-words bg-slate-200 dark:bg-slate-800 text-left text-xs text-slate-700 dark:text-slate-300"
@@ -2327,6 +2445,7 @@ export function Inventario() {
                           </button>
                         </TableHead>
                         <TableHead className="sticky top-0 z-10 min-w-0 bg-white/95 dark:bg-slate-950/95 text-slate-600 dark:text-slate-400 backdrop-blur-sm whitespace-normal">
+                          <div className="inline-flex max-w-full items-center gap-0.5">
                           <button
                             type="button"
                             onClick={() => handleInventorySortClick('categoria')}
@@ -2346,6 +2465,8 @@ export function Inventario() {
                               : <ArrowDown className="h-3.5 w-3.5 shrink-0 opacity-90" aria-hidden />
                             : null}
                           </button>
+                          {categoriaFilterControl}
+                          </div>
                         </TableHead>
                         <TableHead className="sticky right-0 top-0 z-20 w-24 bg-white/95 dark:bg-slate-950/95 text-right text-slate-600 dark:text-slate-400 backdrop-blur-sm">
                           Acciones
@@ -2438,6 +2559,7 @@ export function Inventario() {
                           </button>
                         </TableHead>
                         <TableHead className="sticky top-0 z-10 min-w-0 bg-white/95 dark:bg-slate-950/95 text-slate-600 dark:text-slate-400 backdrop-blur-sm whitespace-normal">
+                          <div className="inline-flex max-w-full items-center gap-0.5">
                           <button
                             type="button"
                             onClick={() => handleInventorySortClick('categoria')}
@@ -2457,6 +2579,8 @@ export function Inventario() {
                               : <ArrowDown className="h-3.5 w-3.5 shrink-0 opacity-90" aria-hidden />
                             : null}
                           </button>
+                          {categoriaFilterControl}
+                          </div>
                         </TableHead>
                         <TableHead className="sticky right-0 top-0 z-20 w-14 min-w-[3.5rem] bg-white/95 dark:bg-slate-950/95 text-right text-slate-600 dark:text-slate-400 backdrop-blur-sm">
                           Acciones

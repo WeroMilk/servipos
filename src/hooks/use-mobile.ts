@@ -3,6 +3,12 @@ import * as React from "react"
 const MOBILE_BREAKPOINT = 768
 
 export function useIsMobile() {
+  const { isMobile } = useMobileBreakpoint()
+  return isMobile
+}
+
+/** Distingue el primer render (aún no se midió el viewport) de escritorio vs móvil. */
+export function useMobileBreakpoint() {
   const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined)
 
   React.useEffect(() => {
@@ -15,5 +21,5 @@ export function useIsMobile() {
     return () => mql.removeEventListener("change", onChange)
   }, [])
 
-  return !!isMobile
+  return { isMobile: !!isMobile, ready: isMobile !== undefined }
 }

@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores';
-import { userCanAccessPanel, userCanSeeInventoryMissions, userCanSeeMissionProgressOnly } from '@/lib/userPermissions';
+import { userCanAccessPanel, userCanSeeInventoryMissions, userCanSeeMissionProgressOnly, userCanUsePosOnMobile } from '@/lib/userPermissions';
 import { MAIN_NAV_ITEMS } from '@/lib/mainNavItems';
 import { SHOW_CHECADOR_NAV } from '@/lib/featureFlags';
 import { cn } from '@/lib/utils';
@@ -27,6 +27,7 @@ export function MobileBottomNav() {
       <div className="flex h-[3.5rem] w-full min-w-0 items-stretch justify-between gap-px overflow-x-hidden pt-0.5 pl-[max(0.125rem,env(safe-area-inset-left,0px))] pr-[max(0.125rem,env(safe-area-inset-right,0px))]">
         {MAIN_NAV_ITEMS.map((item) => {
           if (item.desktopOnly) return null;
+          if (item.to === '/pos' && !userCanUsePosOnMobile(user)) return null;
           if (item.to === '/checador' && !SHOW_CHECADOR_NAV) return null;
           if (item.to === '/') {
             if (!userCanAccessPanel(user)) return null;
