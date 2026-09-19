@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { AuthState, Permission, User } from '@/types';
 import { mapProfileRowToUser, userFromAuthOnly } from '@/lib/mapFirestoreUser';
 import { useSucursalContextStore } from '@/stores/sucursalContextStore';
-import { userHasPermission, userIsRestrictedCashier } from '@/lib/userPermissions';
+import { userCanSignInOnMobile, userHasPermission } from '@/lib/userPermissions';
 import type { Session } from '@supabase/supabase-js';
 import { getSupabase } from '@/lib/supabaseClient';
 import { isMobileViewport } from '@/hooks/use-mobile';
@@ -212,7 +212,7 @@ async function applyAuthSession(session: Session | null, event?: string): Promis
     return;
   }
   const current = useAuthStore.getState();
-  if (isMobileViewport() && userIsRestrictedCashier(current.user)) {
+  if (isMobileViewport() && current.user && !userCanSignInOnMobile(current.user)) {
     useAuthStore.setState({ user: null, isAuthenticated: false, authReady: true });
     void getSupabase().auth.signOut();
     return;
@@ -228,7 +228,7 @@ async function applyAuthSession(session: Session | null, event?: string): Promis
   }
   try {
     const user = await loadUserProfile(session.user.id, session.user.email ?? null);
-    if (isMobileViewport() && userIsRestrictedCashier(user)) {
+    if (isMobileViewport() && !userCanSignInOnMobile(user)) {
       useAuthStore.setState({ user: null, isAuthenticated: false, authReady: true });
       void getSupabase().auth.signOut();
       return;
@@ -237,7 +237,7 @@ async function applyAuthSession(session: Session | null, event?: string): Promis
   } catch (e) {
     console.error('Error cargando perfil:', e);
     const user = userFromAuthOnly(session.user.id, session.user.email ?? null);
-    if (isMobileViewport() && userIsRestrictedCashier(user)) {
+    if (isMobileViewport() && !userCanSignInOnMobile(user)) {
       useAuthStore.setState({ user: null, isAuthenticated: false, authReady: true });
       void getSupabase().auth.signOut();
       return;

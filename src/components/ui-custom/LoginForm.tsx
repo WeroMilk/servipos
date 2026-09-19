@@ -178,7 +178,7 @@ export function LoginForm() {
           }
           addToast({
             type: 'error',
-            message: 'Los cajeros solo pueden iniciar sesión en la computadora de la tienda.',
+            message: 'Esta cuenta solo puede iniciar sesión en la computadora de la tienda.',
           });
           return;
         }

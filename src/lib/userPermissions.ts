@@ -196,11 +196,12 @@ export function userIsRestrictedCashier(
   return user.role === 'cashier';
 }
 
-/** Cajero de piso no puede iniciar sesión en el celular; Gabriel y Zavala sí. */
+/** En el celular solo Zavala (y admin/gerente que no sea Gabriel). Cajeros y Gabriel, solo PC. */
 export function userCanSignInOnMobile(
   user: Pick<User, 'role' | 'isActive' | 'username' | 'name' | 'email'> | null | undefined
 ): boolean {
   if (!user?.isActive) return false;
+  if (isGabrielUser(user)) return false;
   return !userIsRestrictedCashier(user);
 }
 

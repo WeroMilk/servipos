@@ -67,6 +67,7 @@ describe('userPermissions', () => {
     expect(userCanBypassPriceChangePin(makeUser({ role: 'cashier', username: 'caja01' }))).toBe(false);
     expect(userCanSignInOnMobile(makeUser({ role: 'cashier', username: 'caja01' }))).toBe(false);
     expect(userCanSignInOnMobile(makeUser({ role: 'gerente', username: 'zavala' }))).toBe(true);
-    expect(userCanSignInOnMobile(makeUser({ role: 'admin', username: 'gabriel' }))).toBe(true);
+    expect(userCanSignInOnMobile(makeUser({ role: 'admin', username: 'gabriel' }))).toBe(false);
+    expect(userCanSignInOnMobile(makeUser({ role: 'cashier', username: 'gabriel' }))).toBe(false);
   });
 });
