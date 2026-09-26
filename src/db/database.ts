@@ -530,10 +530,12 @@ export async function searchProducts(query: string): Promise<Product[]> {
     .filter((p): boolean => {
       if (p.activo !== true) return false;
       const nombre = String(p.nombre ?? '').toLowerCase();
+      const descripcion = String(p.descripcion ?? '').toLowerCase();
       const sku = String(p.sku ?? '').toLowerCase();
       const barN = normSkuBarcode(String(p.codigoBarras ?? ''));
       return (
         nombre.includes(lowerQuery) ||
+        descripcion.includes(lowerQuery) ||
         sku.includes(lowerQuery) ||
         (normQ.length > 0 && barN.includes(normQ))
       );

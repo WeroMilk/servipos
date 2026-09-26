@@ -2127,7 +2127,7 @@ export function Inventario() {
         <Input
           value={searchQuery}
           onChange={(e) => handleSearch(e.target.value)}
-          placeholder="Buscar nombre, SKU, código..."
+          placeholder="Buscar nombre, SKU, código o descripción..."
           className="h-9 w-full border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900/50 pl-9 text-sm text-slate-900 dark:text-slate-100 sm:h-10 sm:pl-10"
         />
       </div>

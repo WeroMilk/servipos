@@ -2,9 +2,10 @@ import type { Product } from '@/types';
 import { normSkuBarcode } from '@/lib/productCatalogUniqueness';
 import { buildProductSearchIndex, searchProductIndex } from '@/lib/productSearchIndex';
 
-/** Misma heurística que el buscador del POS: nombre, SKU y código de barras. */
+/** Nombre, descripción, SKU y código de barras. */
 function posSearchRank(p: Product, needleLower: string, needleNorm: string): number {
   const nameL = (p.nombre ?? '').toLowerCase();
+  const descL = (p.descripcion ?? '').toLowerCase();
   const skuN = normSkuBarcode(String(p.sku ?? ''));
   const barN = normSkuBarcode(String(p.codigoBarras ?? ''));
   const exactOk = needleNorm.length >= 2;
@@ -18,7 +19,8 @@ function posSearchRank(p: Product, needleLower: string, needleNorm: string): num
   if (needleNorm && skuN.includes(needleNorm)) return 5;
   if (needleNorm && barN.includes(needleNorm)) return 6;
   if (nameL.includes(needleLower)) return 7;
-  return 8;
+  if (descL.includes(needleLower)) return 8;
+  return 9;
 }
 
 export function sortPosSearchList(list: Product[], q: string): Product[] {
