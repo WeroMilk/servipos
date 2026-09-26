@@ -101,7 +101,7 @@ export function ProductDetailsDialog({
   };
 
   const saveImage = async (imagen: string | null) => {
-    if (!canEdit || !current) return;
+    if (!current) return;
     setSavingImage(true);
     try {
       await persist({ imagen });
@@ -146,15 +146,15 @@ export function ProductDetailsDialog({
         if (!open && !busy) onOpenChange(false);
       }}
     >
-      <DialogContent className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:max-w-md">
+      <DialogContent className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:max-w-xl">
         <DialogHeader>
           <DialogTitle className="pr-6 text-left text-base font-semibold leading-snug text-slate-900 dark:text-slate-100">
             {current?.nombre ?? 'Producto'}
           </DialogTitle>
           <DialogDescription className="text-left text-xs text-slate-600 dark:text-slate-400">
             {canEdit
-              ? 'Edite la descripción o la foto del artículo. Los cambios se guardan en el catálogo de esta sucursal.'
-              : 'Solo lectura. Se requiere permiso de edición de inventario para guardar cambios en el catálogo.'}
+              ? 'La foto se guarda al elegirla o quitarla. La descripción se guarda con el botón Guardar.'
+              : 'Puede agregar, cambiar o quitar la foto. La descripción requiere permiso de edición de inventario.'}
           </DialogDescription>
         </DialogHeader>
         {current ? (
@@ -162,27 +162,27 @@ export function ProductDetailsDialog({
             <UbicacionFisicaContent product={current} />
           </div>
         ) : null}
-        <div className="space-y-2">
-          <Label className="text-slate-700 dark:text-slate-300">Foto</Label>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              e.target.value = '';
-              void onPickFile(file);
-            }}
-          />
-          {imagen ? (
-            <div className="space-y-2">
-              <img
-                src={imagen}
-                alt={current?.nombre ?? 'Foto del artículo'}
-                className="mx-auto max-h-40 w-full rounded-md border border-slate-200 bg-white object-contain dark:border-slate-700 dark:bg-slate-950"
-              />
-              {canEdit ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:items-stretch">
+          <div className="flex min-h-0 flex-col gap-2">
+            <Label className="text-slate-700 dark:text-slate-300">Foto</Label>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = '';
+                void onPickFile(file);
+              }}
+            />
+            {imagen ? (
+              <div className="flex min-h-[9.5rem] flex-1 flex-col gap-2">
+                <img
+                  src={imagen}
+                  alt={current?.nombre ?? 'Foto del artículo'}
+                  className="max-h-40 min-h-[7rem] w-full flex-1 rounded-md border border-slate-200 bg-white object-contain dark:border-slate-700 dark:bg-slate-950"
+                />
                 <div className="flex gap-2">
                   <Button
                     type="button"
@@ -207,44 +207,43 @@ export function ProductDetailsDialog({
                     Quitar
                   </Button>
                 </div>
-              ) : null}
-            </div>
-          ) : (
-            <button
-              type="button"
-              disabled={!canEdit || busy}
-              onClick={() => fileRef.current?.click()}
-              className={cn(
-                'flex h-24 w-full flex-col items-center justify-center gap-1 rounded-md border border-dashed text-sm',
-                'border-slate-300 bg-white/80 text-slate-600 dark:border-slate-600 dark:bg-slate-950/40 dark:text-slate-400',
-                canEdit && 'hover:border-brand hover:text-brand',
-                (!canEdit || busy) && 'cursor-not-allowed opacity-70'
-              )}
-            >
-              <ImagePlus className="h-5 w-5" />
-              {canEdit ? (savingImage ? 'Guardando…' : 'Agregar foto') : 'Sin foto'}
-            </button>
-          )}
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="product-detalle-descripcion" className="text-slate-700 dark:text-slate-300">
-            Descripción
-          </Label>
-          <textarea
-            id="product-detalle-descripcion"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            readOnly={!canEdit}
-            rows={3}
-            placeholder="Sin descripción. Escriba detalles del artículo para el equipo y el ticket."
-            className={cn(
-              'w-full resize-y rounded-md border px-3 py-2 text-sm leading-relaxed outline-none',
-              'border-slate-200/80 bg-white/90 text-slate-800 dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-200',
-              'min-h-[4.5rem] max-h-32',
-              'focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/25',
-              !canEdit && 'cursor-not-allowed opacity-80'
+              </div>
+            ) : (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => fileRef.current?.click()}
+                className={cn(
+                  'flex min-h-[9.5rem] w-full flex-1 flex-col items-center justify-center gap-1 rounded-md border border-dashed text-sm',
+                  'border-slate-300 bg-white/80 text-slate-600 dark:border-slate-600 dark:bg-slate-950/40 dark:text-slate-400',
+                  'hover:border-brand hover:text-brand',
+                  busy && 'cursor-not-allowed opacity-70'
+                )}
+              >
+                <ImagePlus className="h-5 w-5" />
+                {savingImage ? 'Guardando…' : 'Agregar foto'}
+              </button>
             )}
-          />
+          </div>
+          <div className="flex min-h-0 flex-col gap-2">
+            <Label htmlFor="product-detalle-descripcion" className="text-slate-700 dark:text-slate-300">
+              Descripción
+            </Label>
+            <textarea
+              id="product-detalle-descripcion"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              readOnly={!canEdit}
+              rows={3}
+              placeholder="Sin descripción. Escriba detalles del artículo para el equipo y el ticket."
+              className={cn(
+                'min-h-[9.5rem] w-full flex-1 resize-y rounded-md border px-3 py-2 text-sm leading-relaxed outline-none',
+                'border-slate-200/80 bg-white/90 text-slate-800 dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-200',
+                'focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/25',
+                !canEdit && 'cursor-not-allowed opacity-80'
+              )}
+            />
+          </div>
         </div>
         <DialogFooter className="gap-2 sm:justify-end">
           <Button type="button" variant="secondary" disabled={busy} onClick={() => onOpenChange(false)}>
