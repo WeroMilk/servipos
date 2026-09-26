@@ -18,9 +18,11 @@ function product(partial: Partial<Product>): Product {
     existenciaMinima: 0,
     unidadMedida: 'H87',
     activo: true,
-    createdAt: new Date(0),
     preciosListaIncluyenIva: true,
     ...partial,
+    createdAt: partial.createdAt ?? new Date(0),
+    updatedAt: partial.updatedAt ?? new Date(0),
+    syncStatus: partial.syncStatus ?? 'synced',
   };
 }
 
