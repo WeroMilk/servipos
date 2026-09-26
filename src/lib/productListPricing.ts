@@ -158,18 +158,7 @@ export function getProductUnitSinIvaForClienteList(
 
   const explicit = normalizeListaPrecioValue(product.preciosPorListaCliente?.[listaId]);
   if (explicit !== undefined && explicit > 0) {
-    const unitSin = explicitListaToSinIva(product, explicit);
-    /**
-     * Si el catálogo trae el mismo importe en Técnico (u otra lista) que en Regular — p. ej. merge RTF
-     * con precios duplicados — el usuario espera el **% de lista** (Configuración) sobre Regular,
-     * no un segundo precio idéntico.
-     */
-    const regRef = getRegularUnitSinIva(product);
-    if (regRef > 0 && Math.abs(unitSin - regRef) < 0.02) {
-      const pct = getListaPrecioClientePct(listaId);
-      return regRef * (1 - pct / 100);
-    }
-    return unitSin;
+    return explicitListaToSinIva(product, explicit);
   }
   const base = Number(product.precioVenta) || 0;
   const pct = getListaPrecioClientePct(listaId);
