@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ImagePlus, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -55,10 +56,12 @@ export function ProductDetailsDialog({
   const [description, setDescription] = useState('');
   const [savingText, setSavingText] = useState(false);
   const [savingImage, setSavingImage] = useState(false);
+  const [imageZoom, setImageZoom] = useState(false);
 
   useEffect(() => {
     setCurrent(product);
     setDescription(typeof product?.descripcion === 'string' ? product.descripcion : '');
+    setImageZoom(false);
   }, [product]);
 
   const persist = async (patch: { descripcion?: string | null; imagen?: string | null }) => {
@@ -146,7 +149,15 @@ export function ProductDetailsDialog({
         if (!open && !busy) onOpenChange(false);
       }}
     >
-      <DialogContent className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:max-w-xl">
+      <DialogContent
+        className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:max-w-xl"
+        onPointerDownOutside={(e) => {
+          if (imageZoom) e.preventDefault();
+        }}
+        onInteractOutside={(e) => {
+          if (imageZoom) e.preventDefault();
+        }}
+      >
         <DialogHeader>
           <DialogTitle className="pr-6 text-left text-base font-semibold leading-snug text-slate-900 dark:text-slate-100">
             {current?.nombre ?? 'Producto'}
@@ -176,11 +187,19 @@ export function ProductDetailsDialog({
             />
             {imagen ? (
               <div className="flex min-h-[9.5rem] flex-1 flex-col gap-2">
-                <img
-                  src={imagen}
-                  alt={current?.nombre ?? 'Foto del artículo'}
-                  className="max-h-40 min-h-[7rem] w-full flex-1 rounded-md border border-slate-200 bg-white object-contain dark:border-slate-700 dark:bg-slate-950"
-                />
+                <button
+                  type="button"
+                  onClick={() => setImageZoom(true)}
+                  className="min-h-[7rem] w-full flex-1 rounded-md border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-950"
+                  title="Ver foto completa"
+                  aria-label="Ver foto completa"
+                >
+                  <img
+                    src={imagen}
+                    alt={current?.nombre ?? 'Foto del artículo'}
+                    className="mx-auto max-h-40 w-full object-contain"
+                  />
+                </button>
                 <div className="flex gap-2">
                   <Button
                     type="button"
@@ -254,6 +273,24 @@ export function ProductDetailsDialog({
           ) : null}
         </DialogFooter>
       </DialogContent>
+      {imageZoom && imagen
+        ? createPortal(
+            <button
+              type="button"
+              className="fixed inset-0 z-[280] flex items-center justify-center bg-black/75 p-6"
+              aria-label="Cerrar foto ampliada"
+              onClick={() => setImageZoom(false)}
+            >
+              <img
+                src={imagen}
+                alt={current?.nombre ?? 'Foto del artículo'}
+                className="max-h-[min(90dvh,52rem)] max-w-[min(92vw,64rem)] object-contain"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </button>,
+            document.body
+          )
+        : null}
     </Dialog>
   );
 }
