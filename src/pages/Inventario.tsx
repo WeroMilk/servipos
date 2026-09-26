@@ -19,6 +19,7 @@ import {
   ChevronDown,
   Download,
   MapPin,
+  Eye,
   History,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -116,6 +117,7 @@ import { downloadInventarioCompleto, downloadInventarioStockBajo } from '@/lib/i
 import { downloadProductCatalogWord } from '@/lib/productCatalogWordExport';
 import { getUbicacionesProducto, MUEBLE_SLOTS, resolveUbicacionesProducto } from '@/data/ubicacionesMuebleA';
 import { UbicacionFisicaNombre } from '@/components/products/UbicacionFisicaNombre';
+import { ProductDetailsDialog } from '@/components/products/ProductDetailsDialog';
 import { buildProductSearchIndex, searchProductIndex } from '@/lib/productSearchIndex';
 import { effectiveListaPreciosIncluyenIva, defaultListaPreciosIncluyenIva } from '@/lib/catalogPricingFlags';
 import {
@@ -721,6 +723,7 @@ export function Inventario() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [ubicacionDialogProduct, setUbicacionDialogProduct] = useState<Product | null>(null);
+  const [productDetailsDialog, setProductDetailsDialog] = useState<Product | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   /** Confirmación al cambiar estante: eliminar ubicaciones anteriores (mapa + form). */
   const [ubicacionReplaceConfirm, setUbicacionReplaceConfirm] = useState<{
@@ -2239,6 +2242,15 @@ export function Inventario() {
                         nameClassName="text-sm font-semibold leading-snug text-slate-900 underline-offset-2 hover:underline dark:text-slate-100"
                         pinClassName="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand dark:text-brand"
                       />
+                      <button
+                        type="button"
+                        onClick={() => setProductDetailsDialog(product)}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-brand-to transition-colors hover:bg-brand-to/15 dark:text-brand dark:hover:bg-brand-to/15"
+                        aria-label="Ver detalles del producto"
+                        title="Detalles"
+                      >
+                        <Eye className="h-4 w-4" strokeWidth={2.25} />
+                      </button>
                       <InventoryProductActions
                         editLabel="Editar producto"
                         onEdit={() => openEditDialog(product)}
@@ -2288,15 +2300,26 @@ export function Inventario() {
                   >
                     <div className="flex gap-2">
                       <div className="min-w-0 flex-1">
+                        <div className="flex items-start gap-1">
                         <UbicacionFisicaNombre
                           product={product}
                           variant="dialog"
                           onOpenDialog={setUbicacionDialogProduct}
-                          className="w-full -mx-0.5 rounded-md px-0.5 py-0.5 text-left transition-colors hover:bg-slate-200/70 dark:hover:bg-slate-800/60"
+                          className="min-w-0 flex-1 -mx-0.5 rounded-md px-0.5 py-0.5 text-left transition-colors hover:bg-slate-200/70 dark:hover:bg-slate-800/60"
                           nameClassName="text-sm font-semibold leading-snug text-slate-900 underline-offset-2 hover:underline dark:text-slate-100"
                           pinClassName="h-3.5 w-3.5 shrink-0 text-brand dark:text-brand"
                           layout="center"
                         />
+                        <button
+                          type="button"
+                          onClick={() => setProductDetailsDialog(product)}
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-brand-to transition-colors hover:bg-brand-to/15 dark:text-brand dark:hover:bg-brand-to/15"
+                          aria-label="Ver detalles del producto"
+                          title="Detalles"
+                        >
+                          <Eye className="h-4 w-4" strokeWidth={2.25} />
+                        </button>
+                        </div>
                         {hasInventoryDescripcionVisible(product.descripcion) ? (
                           <p className="mt-1 line-clamp-2 text-xs text-slate-600 dark:text-slate-500">
                             {product.descripcion}
@@ -2619,13 +2642,24 @@ export function Inventario() {
                     visibleInventoryProducts.map((product) => (
                       <TableRow key={product.id} className="border-slate-200/80 dark:border-slate-800/50">
                         <TableCell className="min-w-0 font-medium whitespace-normal break-words text-slate-800 dark:text-slate-200">
+                          <div className="flex items-start gap-1">
                           <UbicacionFisicaNombre
                             product={product}
                             variant="popover"
-                            className="inline-flex max-w-full items-start gap-1.5 text-left font-medium text-slate-800 underline-offset-2 hover:underline dark:text-slate-200"
+                            className="inline-flex min-w-0 max-w-full flex-1 items-start gap-1.5 text-left font-medium text-slate-800 underline-offset-2 hover:underline dark:text-slate-200"
                             nameClassName="min-w-0 break-words"
                             pinClassName="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand dark:text-brand"
                           />
+                          <button
+                            type="button"
+                            onClick={() => setProductDetailsDialog(product)}
+                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-brand-to transition-colors hover:bg-brand-to/15 dark:text-brand dark:hover:bg-brand-to/15"
+                            aria-label="Ver detalles del producto"
+                            title="Detalles"
+                          >
+                            <Eye className="h-4 w-4" strokeWidth={2.25} />
+                          </button>
+                          </div>
                         </TableCell>
                         <TableCell className="align-top">
                           <Input
@@ -2659,13 +2693,24 @@ export function Inventario() {
                       <TableRow key={product.id} className="border-slate-200/80 dark:border-slate-800/50">
                         <TableCell className="min-w-0 align-top whitespace-normal">
                           <div className="min-w-0 break-words">
+                            <div className="flex items-start gap-1">
                             <UbicacionFisicaNombre
                               product={product}
                               variant="popover"
-                              className="inline-flex max-w-full items-start gap-1.5 text-left font-medium text-slate-800 underline-offset-2 hover:underline dark:text-slate-200"
+                              className="inline-flex min-w-0 max-w-full flex-1 items-start gap-1.5 text-left font-medium text-slate-800 underline-offset-2 hover:underline dark:text-slate-200"
                               nameClassName="min-w-0 break-words"
                               pinClassName="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand dark:text-brand"
                             />
+                            <button
+                              type="button"
+                              onClick={() => setProductDetailsDialog(product)}
+                              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-brand-to transition-colors hover:bg-brand-to/15 dark:text-brand dark:hover:bg-brand-to/15"
+                              aria-label="Ver detalles del producto"
+                              title="Detalles"
+                            >
+                              <Eye className="h-4 w-4" strokeWidth={2.25} />
+                            </button>
+                            </div>
                             {hasInventoryDescripcionVisible(product.descripcion) ? (
                               <p className="text-xs text-slate-600 dark:text-slate-500">{product.descripcion}</p>
                             ) : null}
@@ -3414,6 +3459,16 @@ export function Inventario() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ProductDetailsDialog
+        product={productDetailsDialog}
+        onOpenChange={(open) => {
+          if (!open) setProductDetailsDialog(null);
+        }}
+        canEdit
+        sucursalId={effectiveSucursalId}
+        onProductUpdated={setProductDetailsDialog}
+      />
 
       {/* Edit Dialog - Similar al Add */}
       <Dialog

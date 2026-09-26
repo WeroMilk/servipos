@@ -72,6 +72,7 @@ import {
   UbicacionFisicaContent,
   UbicacionFisicaNombre,
 } from '@/components/products/UbicacionFisicaNombre';
+import { ProductDetailsDialog } from '@/components/products/ProductDetailsDialog';
 import { resolveUbicacionesProducto } from '@/data/ubicacionesMuebleA';
 import type {
   Client,
@@ -1013,8 +1014,6 @@ export function POS() {
   /** Producto cuyo popup de descripción está abierto (carrito). */
   const [productDescriptionDialog, setProductDescriptionDialog] = useState<Product | null>(null);
   const [ubicacionDialogProduct, setUbicacionDialogProduct] = useState<Product | null>(null);
-  const [productDescriptionEditText, setProductDescriptionEditText] = useState('');
-  const [productDescriptionSaving, setProductDescriptionSaving] = useState(false);
   const [ventaResetConfirmOpen, setVentaResetConfirmOpen] = useState(false);
   const [ventaResetBusy, setVentaResetBusy] = useState(false);
   const [unitPriceDialogOpen, setUnitPriceDialogOpen] = useState(false);
@@ -1405,59 +1404,6 @@ export function POS() {
       });
     } finally {
       setListasPrecioCatalogSaving(false);
-    }
-  };
-
-  useEffect(() => {
-    if (productDescriptionDialog) {
-      setProductDescriptionEditText(
-        typeof productDescriptionDialog.descripcion === 'string' ? productDescriptionDialog.descripcion : ''
-      );
-    } else {
-      setProductDescriptionEditText('');
-    }
-  }, [productDescriptionDialog]);
-
-  const saveProductDescriptionFromPos = async () => {
-    if (!canEditCatalogListasDesdePos) {
-      addToast({
-        type: 'warning',
-        message: 'No tiene permiso para guardar en el catálogo. Se requiere el permiso inventario:editar.',
-      });
-      return;
-    }
-    const p = productDescriptionDialog;
-    if (!p) return;
-    setProductDescriptionSaving(true);
-    try {
-      const trimmed = productDescriptionEditText.trim();
-      const docValue = trimmed.length > 0 ? trimmed : null;
-      const sid = effectiveSucursalId?.trim();
-      if (sid) {
-        await updateProductFirestore(sid, p.id, { descripcion: docValue } as Partial<Product>);
-      } else {
-        await updateProduct(p.id, {
-          descripcion: docValue ?? undefined,
-        });
-      }
-      const nextProduct: Product = {
-        ...p,
-        descripcion: docValue ?? undefined,
-        updatedAt: new Date(),
-      };
-      useCartStore.getState().reconcileCartProductsFromCatalog([nextProduct]);
-      addToast({
-        type: 'success',
-        message: 'Descripción guardada en el catálogo.',
-      });
-      setProductDescriptionDialog(null);
-    } catch (e: unknown) {
-      addToast({
-        type: 'error',
-        message: e instanceof Error ? e.message : 'No se pudo guardar la descripción.',
-      });
-    } finally {
-      setProductDescriptionSaving(false);
     }
   };
 
@@ -6125,67 +6071,18 @@ export function POS() {
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={productDescriptionDialog != null}
+      <ProductDetailsDialog
+        product={productDescriptionDialog}
         onOpenChange={(open) => {
-          if (!open) {
-            setProductDescriptionDialog(null);
-            setProductDescriptionSaving(false);
-          }
+          if (!open) setProductDescriptionDialog(null);
         }}
-      >
-        <DialogContent className="border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="pr-6 text-left text-base font-semibold leading-snug text-slate-900 dark:text-slate-100">
-              {productDescriptionDialog?.nombre ?? 'Producto'}
-            </DialogTitle>
-            <DialogDescription className="text-left text-xs text-slate-600 dark:text-slate-400">
-              {canEditCatalogListasDesdePos
-                ? 'Edite la descripción del artículo y guarde; se actualiza el catálogo de esta sucursal.'
-                : 'Solo lectura. Se requiere permiso de edición de inventario para guardar cambios en el catálogo.'}
-            </DialogDescription>
-          </DialogHeader>
-          {productDescriptionDialog ? (
-            <div className="rounded-lg border border-slate-200/80 bg-white/80 p-3 dark:border-slate-700 dark:bg-slate-950/50">
-              <UbicacionFisicaContent product={productDescriptionDialog} />
-            </div>
-          ) : null}
-          <div className="space-y-2">
-            <Label htmlFor="pos-product-descripcion" className="text-slate-700 dark:text-slate-300">
-              Descripción
-            </Label>
-            <textarea
-              id="pos-product-descripcion"
-              value={productDescriptionEditText}
-              onChange={(e) => setProductDescriptionEditText(e.target.value)}
-              readOnly={!canEditCatalogListasDesdePos}
-              rows={8}
-              placeholder="Sin descripción. Escriba detalles del artículo para el equipo y el ticket."
-              className={cn(
-                'w-full resize-y rounded-md border px-3 py-2 text-sm leading-relaxed outline-none',
-                'border-slate-200/80 bg-white/90 text-slate-800 dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-200',
-                'min-h-[10rem] max-h-[min(50vh,22rem)]',
-                'focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/25',
-                !canEditCatalogListasDesdePos && 'cursor-not-allowed opacity-80'
-              )}
-            />
-          </div>
-          <DialogFooter className="gap-2 sm:justify-end">
-            <Button type="button" variant="secondary" onClick={() => setProductDescriptionDialog(null)}>
-              Cerrar
-            </Button>
-            {canEditCatalogListasDesdePos ? (
-              <Button
-                type="button"
-                disabled={productDescriptionSaving}
-                onClick={() => void saveProductDescriptionFromPos()}
-              >
-                {productDescriptionSaving ? 'Guardando…' : 'Guardar'}
-              </Button>
-            ) : null}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        canEdit={canEditCatalogListasDesdePos}
+        sucursalId={effectiveSucursalId}
+        onProductUpdated={(next) => {
+          setProductDescriptionDialog(next);
+          useCartStore.getState().reconcileCartProductsFromCatalog([next]);
+        }}
+      />
     </div>
   );
 }
