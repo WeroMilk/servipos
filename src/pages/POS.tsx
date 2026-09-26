@@ -3832,14 +3832,15 @@ export function POS() {
                         className="grid gap-2 p-2 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-3 sm:p-3"
                       >
                         <div className="min-w-0">
-                          <div className="flex items-start gap-1">
+                          <div className="flex items-center gap-1">
                             <UbicacionFisicaNombre
                               product={item.product}
                               variant={isMobile ? 'dialog' : 'popover'}
+                              layout="center"
                               onOpenDialog={setUbicacionDialogProduct}
                               className="min-w-0 max-w-full flex-1 rounded-md px-0.5 py-0.5 text-left transition-colors hover:bg-slate-200/70 dark:hover:bg-slate-800/60"
                               nameClassName="truncate font-medium text-slate-800 underline underline-offset-2 dark:text-slate-200"
-                              pinClassName="mt-0.5 h-3.5 w-3.5 text-brand dark:text-brand"
+                              pinClassName="h-4 w-4 text-brand dark:text-brand"
                             />
                             {item.promoLabel ? (
                               <span
