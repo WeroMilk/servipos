@@ -152,9 +152,7 @@ export function ProductDetailsDialog({
             {current?.nombre ?? 'Producto'}
           </DialogTitle>
           <DialogDescription className="text-left text-xs text-slate-600 dark:text-slate-400">
-            {canEdit
-              ? 'La foto se guarda al elegirla o quitarla. La descripción se guarda con el botón Guardar.'
-              : 'Puede agregar, cambiar o quitar la foto. La descripción requiere permiso de edición de inventario.'}
+            La foto se guarda al elegirla o quitarla. La descripción se guarda con el botón Guardar.
           </DialogDescription>
         </DialogHeader>
         {current ? (

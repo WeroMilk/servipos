@@ -6077,7 +6077,7 @@ export function POS() {
         onOpenChange={(open) => {
           if (!open) setProductDescriptionDialog(null);
         }}
-        canEdit={canEditCatalogListasDesdePos}
+        canEdit
         sucursalId={effectiveSucursalId}
         onProductUpdated={(next) => {
           setProductDescriptionDialog(next);
