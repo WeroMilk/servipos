@@ -2233,14 +2233,15 @@ export function Inventario() {
                     key={product.id}
                     className="rounded-xl border border-slate-200/90 bg-slate-50/95 p-3 shadow-sm dark:border-slate-800/80 dark:bg-slate-900/60"
                   >
-                    <div className="flex gap-2">
+                    <div className="flex items-center gap-2">
                       <UbicacionFisicaNombre
                         product={product}
                         variant="dialog"
+                        layout="center"
                         onOpenDialog={setUbicacionDialogProduct}
                         className="min-w-0 flex-1 rounded-md px-0.5 py-0.5 text-left transition-colors hover:bg-slate-200/70 dark:hover:bg-slate-800/60"
                         nameClassName="text-sm font-semibold leading-snug text-slate-900 underline-offset-2 hover:underline dark:text-slate-100"
-                        pinClassName="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand dark:text-brand"
+                        pinClassName="h-4 w-4 shrink-0 text-brand dark:text-brand"
                       />
                       <button
                         type="button"
@@ -2300,7 +2301,7 @@ export function Inventario() {
                   >
                     <div className="flex gap-2">
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-start gap-1">
+                        <div className="flex items-center gap-1">
                         <UbicacionFisicaNombre
                           product={product}
                           variant="dialog"
@@ -2642,13 +2643,14 @@ export function Inventario() {
                     visibleInventoryProducts.map((product) => (
                       <TableRow key={product.id} className="border-slate-200/80 dark:border-slate-800/50">
                         <TableCell className="min-w-0 font-medium whitespace-normal break-words text-slate-800 dark:text-slate-200">
-                          <div className="flex items-start gap-1">
+                          <div className="flex items-center gap-1">
                           <UbicacionFisicaNombre
                             product={product}
                             variant="popover"
-                            className="inline-flex min-w-0 max-w-full flex-1 items-start gap-1.5 text-left font-medium text-slate-800 underline-offset-2 hover:underline dark:text-slate-200"
+                            layout="center"
+                            className="inline-flex min-w-0 max-w-full flex-1 items-center gap-1.5 text-left font-medium text-slate-800 underline-offset-2 hover:underline dark:text-slate-200"
                             nameClassName="min-w-0 break-words"
-                            pinClassName="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand dark:text-brand"
+                            pinClassName="h-4 w-4 shrink-0 text-brand dark:text-brand"
                           />
                           <button
                             type="button"
@@ -2693,13 +2695,14 @@ export function Inventario() {
                       <TableRow key={product.id} className="border-slate-200/80 dark:border-slate-800/50">
                         <TableCell className="min-w-0 align-top whitespace-normal">
                           <div className="min-w-0 break-words">
-                            <div className="flex items-start gap-1">
+                            <div className="flex items-center gap-1">
                             <UbicacionFisicaNombre
                               product={product}
                               variant="popover"
-                              className="inline-flex min-w-0 max-w-full flex-1 items-start gap-1.5 text-left font-medium text-slate-800 underline-offset-2 hover:underline dark:text-slate-200"
+                              layout="center"
+                              className="inline-flex min-w-0 max-w-full flex-1 items-center gap-1.5 text-left font-medium text-slate-800 underline-offset-2 hover:underline dark:text-slate-200"
                               nameClassName="min-w-0 break-words"
-                              pinClassName="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand dark:text-brand"
+                              pinClassName="h-4 w-4 shrink-0 text-brand dark:text-brand"
                             />
                             <button
                               type="button"
