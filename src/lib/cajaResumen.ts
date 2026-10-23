@@ -264,6 +264,17 @@ export function cobradoEnVenta(sale: Sale, sesionId?: string): number {
   return Math.round(t * 100) / 100;
 }
 
+/**
+ * Cobrado que cuenta como venta: resta el vuelto.
+ * El pago en efectivo guarda lo que el cliente entregó (p. ej. 200 de una venta de 150).
+ */
+export function cobradoNetoEnVenta(sale: Sale, sesionId?: string): number {
+  const bruto = cobradoEnVenta(sale, sesionId);
+  if (bruto <= 0.005) return 0;
+  const cambio = Math.max(0, Number(sale.cambio) || 0);
+  return Math.max(0, Math.round((bruto - cambio) * 100) / 100);
+}
+
 export function totalAbonosCobros(
   abonos: { monto: number }[] | undefined | null
 ): number {
@@ -424,7 +435,7 @@ export function buildHistorialCobrosMovimientos(
     const monto =
       sale.estado === 'pendiente' || sale.estado === 'cancelada'
         ? 0
-        : cobradoEnVenta(sale);
+        : cobradoNetoEnVenta(sale);
     rows.push({
       kind: 'venta',
       id: `venta:${sale.id}`,

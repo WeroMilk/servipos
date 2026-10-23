@@ -48,6 +48,7 @@ import type { CajaAbonoCobro } from '@/types';
 import { anularAbonoCxC, cancelSale, getSales, getSalesByDateRange } from '@/db/database';
 import {
   buildHistorialCobrosMovimientos,
+  cobradoNetoEnVenta,
   computeCobradoPeriodo,
   labelFormaPagoCaja,
   type HistorialCobroMovimiento,
@@ -586,10 +587,12 @@ export function Dashboard() {
 
   const totals = useMemo(() => {
     const cobrado = computeCobradoPeriodo(kpiVentasParaTotales, kpiAbonos);
+    const ventasNetas = kpiVentasParaTotales.reduce((sum, sale) => sum + cobradoNetoEnVenta(sale), 0);
+    const total = Math.round((ventasNetas + cobrado.cobradoAbonos) * 100) / 100;
     return {
-      total: cobrado.cobradoTotal,
+      total,
       count: cobrado.movimientos,
-      cobradoVentas: cobrado.cobradoVentas,
+      cobradoVentas: Math.round(ventasNetas * 100) / 100,
       cobradoAbonos: cobrado.cobradoAbonos,
     };
   }, [kpiVentasParaTotales, kpiAbonos]);
@@ -826,8 +829,9 @@ export function Dashboard() {
         return Number.isFinite(t) && t >= day0.getTime() && t < next.getTime();
       });
       const cobrado = computeCobradoPeriodo(ventasDelDia, abonosDelDia);
+      const ventasNetas = ventasDelDia.reduce((sum, sale) => sum + cobradoNetoEnVenta(sale), 0);
       return {
-        ventas: cobrado.cobradoTotal,
+        ventas: Math.round((ventasNetas + cobrado.cobradoAbonos) * 100) / 100,
         transacciones: cobrado.movimientos,
       };
     };
@@ -1091,7 +1095,7 @@ export function Dashboard() {
           }
           icon={DollarSign}
           trend="up"
-          trendValue="Criterio de caja (día del cobro)"
+          trendValue="Ventas del día, sin el vuelto"
           iconGradient="bg-gradient-to-br from-emerald-500 to-emerald-600"
           accent="emerald"
           drillChip={kpiDrillHint}
